@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlpacaOptionsTrade } from '../types';
-import { TrendingUp, TrendingDown, Search, Filter } from 'lucide-react';
+import { TrendingUp, TrendingDown, Search } from 'lucide-react';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface WhaleWatchFeedProps {
   trades: AlpacaOptionsTrade[];

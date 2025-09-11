@@ -98,6 +98,7 @@ export class AlpacaService {
           break;
       }
 
+      // Use delayed data endpoint for free tier compatibility
       const dataUrl = process.env.ALPACA_DATA_URL || 'https://data.alpaca.markets';
       const response = await axios.get(`${dataUrl}/v2/stocks/${symbol}/bars`, {
         headers: this.headers,
@@ -106,6 +107,7 @@ export class AlpacaService {
           end: endTime.toISOString(),
           timeframe: this.mapTimeframe(timeframe),
           limit: limit,
+          feed: 'iex', // Use IEX feed for delayed data (free tier)
         },
       });
 
@@ -121,8 +123,25 @@ export class AlpacaService {
           vw: bar.vw,
         })) || []
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching bars:', error);
+      
+      // Handle specific Alpaca API errors
+      if (error.response?.status === 403) {
+        if (error.response.data?.message?.includes('subscription does not permit')) {
+          throw new Error('API subscription does not support real-time data. Please upgrade your Alpaca account or use delayed data.');
+        }
+        throw new Error('Access denied. Please check your API credentials.');
+      }
+      
+      if (error.response?.status === 401) {
+        throw new Error('Invalid API credentials. Please check your Alpaca API key and secret.');
+      }
+      
+      if (error.response?.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+      
       throw new Error('Failed to fetch chart data');
     }
   }

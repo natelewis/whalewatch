@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlpacaAccount } from '../types';
-import { DollarSign, TrendingUp, CreditCard, Activity } from 'lucide-react';
+import { DollarSign, CreditCard, Activity } from 'lucide-react';
 
 interface AccountSummaryProps {
   account: AlpacaAccount;
@@ -14,9 +14,6 @@ export const AccountSummary: React.FC<AccountSummaryProps> = ({ account }) => {
     }).format(parseFloat(value));
   };
 
-  const formatPercentage = (value: string): string => {
-    return `${(parseFloat(value) * 100).toFixed(2)}%`;
-  };
 
   const cards = [
     {

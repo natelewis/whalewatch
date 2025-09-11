@@ -19,7 +19,7 @@ interface StockChartProps {
   onSymbolChange: (symbol: string) => void;
 }
 
-export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
+export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);

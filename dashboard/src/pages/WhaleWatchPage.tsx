@@ -4,7 +4,6 @@ import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { StockChart } from '../components/StockChart';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export const WhaleWatchPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');

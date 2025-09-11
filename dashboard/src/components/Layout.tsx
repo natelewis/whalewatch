@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { 
   BarChart3, 
-  Activity, 
   Eye, 
   LogOut, 
   Moon, 
