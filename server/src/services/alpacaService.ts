@@ -152,14 +152,89 @@ export class AlpacaService {
       const startTime = new Date();
       startTime.setHours(endTime.getHours() - hours);
 
-      // Note: This is a simplified implementation
-      // In practice, you'd need to use Alpaca's options data API
-      // For now, we'll return mock data structure
-      return [];
+      // Note: Alpaca's paper trading API doesn't provide options trades data
+      // This is a mock implementation for demonstration purposes
+      // In production, you would integrate with a real options data provider
+      // such as Polygon, IEX Cloud, or other financial data APIs
+      
+      return this.generateMockOptionsTrades(symbol, hours);
     } catch (error) {
       console.error('Error fetching options trades:', error);
       throw new Error('Failed to fetch options trades');
     }
+  }
+
+  private generateMockOptionsTrades(symbol: string, hours: number): AlpacaOptionsTrade[] {
+    const trades: AlpacaOptionsTrade[] = [];
+    const now = new Date();
+    const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
+    
+    // Generate 5-15 mock trades over the specified time period
+    const numTrades = Math.floor(Math.random() * 11) + 5;
+    
+    for (let i = 0; i < numTrades; i++) {
+      const tradeTime = new Date(startTime.getTime() + Math.random() * (now.getTime() - startTime.getTime()));
+      const isCall = Math.random() > 0.5;
+      const side = Math.random() > 0.5 ? 'buy' : 'sell';
+      
+      // Generate realistic strike prices around current stock price
+      const basePrice = this.getBasePriceForSymbol(symbol);
+      const strikePrice = Math.round((basePrice * (0.8 + Math.random() * 0.4)) * 100) / 100;
+      
+      // Generate expiration dates (1-30 days from now)
+      const expirationDate = new Date(now.getTime() + (Math.random() * 30 + 1) * 24 * 60 * 60 * 1000);
+      
+      // Generate realistic option prices
+      const intrinsicValue = Math.max(0, basePrice - strikePrice);
+      const timeValue = Math.random() * 5 + 0.5;
+      const price = Math.max(0.01, intrinsicValue + timeValue + (Math.random() - 0.5) * 2);
+      
+      // Generate realistic trade sizes (whale trades are typically large)
+      const size = Math.floor(Math.random() * 1000) + 100; // 100-1100 contracts
+      
+      trades.push({
+        id: `mock_${symbol}_${i}_${Date.now()}`,
+        symbol: `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${isCall ? 'C' : 'P'}${strikePrice.toString().replace('.', '')}`,
+        timestamp: tradeTime.toISOString(),
+        price: Math.round(price * 100) / 100,
+        size,
+        side,
+        conditions: ['regular'],
+        exchange: 'OPRA',
+        tape: 'C',
+        contract: {
+          symbol: `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${isCall ? 'C' : 'P'}${strikePrice.toString().replace('.', '')}`,
+          underlying_symbol: symbol,
+          exercise_style: 'american',
+          expiration_date: expirationDate.toISOString().split('T')[0],
+          strike_price: strikePrice,
+          option_type: isCall ? 'call' : 'put'
+        }
+      });
+    }
+    
+    // Sort by timestamp (most recent first)
+    return trades.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+
+  private getBasePriceForSymbol(symbol: string): number {
+    // Mock current stock prices for common symbols
+    const prices: Record<string, number> = {
+      'TSLA': 250.00,
+      'AAPL': 180.00,
+      'MSFT': 350.00,
+      'GOOGL': 140.00,
+      'AMZN': 150.00,
+      'NVDA': 800.00,
+      'META': 300.00,
+      'NFLX': 400.00,
+      'AMD': 120.00,
+      'SPY': 450.00,
+      'QQQ': 380.00,
+      'IWM': 200.00
+    };
+    
+    return prices[symbol] || 100.00; // Default price if symbol not found
   }
 
   async createOrder(orderData: CreateOrderRequest): Promise<CreateOrderResponse> {

@@ -211,7 +211,15 @@ export interface OptionsTradesResponse {
 
 // WebSocket Message Types
 export interface WebSocketMessage {
-  type: 'options_whale' | 'account_quote' | 'chart_quote' | 'error';
+  type:
+    | 'options_whale'
+    | 'account_quote'
+    | 'chart_quote'
+    | 'error'
+    | 'connection'
+    | 'subscription_confirmed'
+    | 'unsubscription_confirmed'
+    | 'pong';
   data: any;
   timestamp: string;
 }
