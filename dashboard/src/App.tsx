@@ -3,7 +3,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/Layout';
 import { AccountPage } from './pages/AccountPage';
-import { WhaleWatchPage } from './pages/WhaleWatchPage';
+import { AnalysisPage } from './pages/AnalysisPage';
+import { WhaleFinderPage } from './pages/WhaleFinderPage';
 import { LoginPage } from './pages/LoginPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -28,11 +29,21 @@ function App() {
                 }
               />
               <Route
-                path="/whale-watch"
+                path="/analysis"
                 element={
                   <ProtectedRoute>
                     <Layout>
-                      <WhaleWatchPage />
+                      <AnalysisPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/whale-finder"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <WhaleFinderPage />
                     </Layout>
                   </ProtectedRoute>
                 }
