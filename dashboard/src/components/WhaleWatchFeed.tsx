@@ -94,7 +94,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
           {[
             { value: 'all', label: 'All' },
             { value: 'calls', label: 'Calls' },
-            { value: 'puts', label: 'Puts' }
+            { value: 'puts', label: 'Puts' },
           ].map((option) => (
             <button
               key={option.value}
@@ -126,64 +126,98 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
             <p className="text-muted-foreground">No whale trades found</p>
           </div>
         ) : (
-          <div className="space-y-2 p-4">
-            {filteredTrades.map((trade) => (
-              <div
-                key={trade.id}
-                className="p-4 bg-muted/30 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    {getTradeIcon(trade.side)}
-                    <span className="font-semibold text-foreground">
-                      {trade.symbol}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {trade.contract.option_type.toUpperCase()}
-                    </span>
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {formatTime(trade.timestamp)}
-                  </span>
-                </div>
+          <div className="p-4">
+            {/* Table Header */}
+            <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+              <div>Symbol</div>
+              <div>Type</div>
+              <div>Time</div>
+              <div>Exp</div>
+              <div>Strike</div>
+              <div>Alert</div>
+              <div>High</div>
+              <div>%Gain</div>
+            </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Strike</p>
-                    <p className="font-medium text-foreground">
+            {/* Table Rows */}
+            <div className="space-y-1">
+              {filteredTrades.map((trade) => {
+                const totalPremium = getTotalPremium(trade);
+                const isLargeTrade = totalPremium >= 100000; // $100k+ is considered a whale trade
+                const isVeryLargeTrade = totalPremium >= 1000000; // $1M+ is very large
+
+                return (
+                  <div
+                    key={trade.id}
+                    className={`grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors ${
+                      isVeryLargeTrade
+                        ? 'bg-red-50 dark:bg-red-950/20 border-l-2 border-red-500'
+                        : isLargeTrade
+                        ? 'bg-yellow-50 dark:bg-yellow-950/20 border-l-2 border-yellow-500'
+                        : ''
+                    }`}
+                  >
+                    {/* Symbol */}
+                    <div className="flex items-center space-x-1">
+                      {getTradeIcon(trade.side)}
+                      <span className="font-medium text-foreground truncate">{trade.symbol}</span>
+                    </div>
+
+                    {/* Call/Put */}
+                    <div className="flex items-center">
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${
+                          trade.contract.option_type === 'call'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                        }`}
+                      >
+                        {trade.contract.option_type.toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Time */}
+                    <div className="text-muted-foreground">{formatTime(trade.timestamp)}</div>
+
+                    {/* Expiry */}
+                    <div className="text-muted-foreground">
+                      {new Date(trade.contract.expiration_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </div>
+
+                    {/* Strike */}
+                    <div className="font-medium text-foreground">
                       ${trade.contract.strike_price}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Expiry</p>
-                    <p className="font-medium text-foreground">
-                      {new Date(trade.contract.expiration_date).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Price</p>
-                    <p className="font-medium text-foreground">
-                      {formatCurrency(trade.price)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Size</p>
-                    <p className="font-medium text-foreground">
-                      {trade.size.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+                    </div>
 
-                <div className="mt-3 pt-3 border-t border-border">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Total Premium</span>
-                    <span className={`font-bold text-lg ${getTradeColor(trade.side)}`}>
-                      {formatCurrency(getTotalPremium(trade))}
-                    </span>
+                    {/* Alert (Total Premium) */}
+                    <div
+                      className={`font-bold ${
+                        isVeryLargeTrade
+                          ? 'text-red-600 dark:text-red-400'
+                          : isLargeTrade
+                          ? 'text-yellow-600 dark:text-yellow-400'
+                          : 'text-foreground'
+                      }`}
+                    >
+                      {totalPremium >= 1000000
+                        ? `${(totalPremium / 1000000).toFixed(1)}M`
+                        : totalPremium >= 1000
+                        ? `${(totalPremium / 1000).toFixed(0)}K`
+                        : totalPremium.toFixed(0)}
+                    </div>
+
+                    {/* High (Price) */}
+                    <div className="font-medium text-foreground">${trade.price.toFixed(2)}</div>
+
+                    {/* %Gain (Size) */}
+                    <div className="text-muted-foreground">{trade.size.toLocaleString()}</div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
