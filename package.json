@@ -1,0 +1,22 @@
+{
+  "name": "whalewatch",
+  "version": "1.0.0",
+  "description": "Options and portfolio analysis application",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run dashboard:dev\"",
+    "server:dev": "cd server && npm run dev",
+    "dashboard:dev": "cd dashboard && npm run dev",
+    "build": "npm run server:build && npm run dashboard:build",
+    "server:build": "cd server && npm run build",
+    "dashboard:build": "cd dashboard && npm run build",
+    "install:all": "npm install && cd server && npm install && cd ../dashboard && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "workspaces": [
+    "server",
+    "dashboard"
+  ]
+}
