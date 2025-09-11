@@ -1,4 +1,4 @@
-import Alpaca from '@alpacahq/alpaca-trade-api';
+import axios from 'axios';
 import {
   AlpacaAccount,
   AlpacaPosition,
@@ -7,26 +7,28 @@ import {
   AlpacaOptionsTrade,
   CreateOrderRequest,
   CreateOrderResponse,
-  ChartTimeframe
+  ChartTimeframe,
 } from '../types';
 
 export class AlpacaService {
-  private alpaca: Alpaca;
+  private baseUrl: string;
+  private headers: Record<string, string>;
 
   constructor() {
-    this.alpaca = new Alpaca({
-      key: process.env.ALPACA_API_KEY || '',
-      secret: process.env.ALPACA_SECRET_KEY || '',
-      paper: process.env.ALPACA_BASE_URL?.includes('paper') || true,
-      baseUrl: process.env.ALPACA_BASE_URL || 'https://paper-api.alpaca.markets',
-      dataBaseUrl: process.env.ALPACA_DATA_URL || 'https://data.alpaca.markets'
-    });
+    this.baseUrl = 'https://paper-api.alpaca.markets/v2';
+    this.headers = {
+      'APCA-API-KEY-ID': process.env.ALPACA_API_KEY || '',
+      'APCA-API-SECRET-KEY': process.env.ALPACA_SECRET_KEY || '',
+      'Content-Type': 'application/json',
+    };
   }
 
   async getAccount(): Promise<AlpacaAccount> {
     try {
-      const account = await this.alpaca.getAccount();
-      return account as AlpacaAccount;
+      const response = await axios.get(`${this.baseUrl}/account`, {
+        headers: this.headers,
+      });
+      return response.data as AlpacaAccount;
     } catch (error) {
       console.error('Error fetching account:', error);
       throw new Error('Failed to fetch account information');
@@ -35,8 +37,10 @@ export class AlpacaService {
 
   async getPositions(): Promise<AlpacaPosition[]> {
     try {
-      const positions = await this.alpaca.getPositions();
-      return positions as AlpacaPosition[];
+      const response = await axios.get(`${this.baseUrl}/positions`, {
+        headers: this.headers,
+      });
+      return response.data as AlpacaPosition[];
     } catch (error) {
       console.error('Error fetching positions:', error);
       throw new Error('Failed to fetch positions');
@@ -49,61 +53,74 @@ export class AlpacaService {
       if (startDate) params.start = startDate;
       if (endDate) params.end = endDate;
 
-      const activities = await this.alpaca.getActivities(params);
-      return activities as AlpacaActivity[];
+      const response = await axios.get(`${this.baseUrl}/account/activities`, {
+        headers: this.headers,
+        params,
+      });
+      return response.data as AlpacaActivity[];
     } catch (error) {
       console.error('Error fetching activities:', error);
       throw new Error('Failed to fetch activities');
     }
   }
 
-  async getBars(symbol: string, timeframe: ChartTimeframe, limit: number = 1000): Promise<AlpacaBar[]> {
+  async getBars(
+    symbol: string,
+    timeframe: ChartTimeframe,
+    limit: number = 1000
+  ): Promise<AlpacaBar[]> {
     try {
       const endTime = new Date();
       const startTime = new Date();
-      
+
       // Calculate start time based on timeframe
       switch (timeframe) {
         case '1m':
           startTime.setMinutes(endTime.getMinutes() - limit);
           break;
         case '5m':
-          startTime.setMinutes(endTime.getMinutes() - (limit * 5));
+          startTime.setMinutes(endTime.getMinutes() - limit * 5);
           break;
         case '15m':
-          startTime.setMinutes(endTime.getMinutes() - (limit * 15));
+          startTime.setMinutes(endTime.getMinutes() - limit * 15);
           break;
         case '1H':
           startTime.setHours(endTime.getHours() - limit);
           break;
         case '4H':
-          startTime.setHours(endTime.getHours() - (limit * 4));
+          startTime.setHours(endTime.getHours() - limit * 4);
           break;
         case '1D':
           startTime.setDate(endTime.getDate() - limit);
           break;
         case '1W':
-          startTime.setDate(endTime.getDate() - (limit * 7));
+          startTime.setDate(endTime.getDate() - limit * 7);
           break;
       }
 
-      const bars = await this.alpaca.getBarsV2(symbol, {
-        start: startTime.toISOString(),
-        end: endTime.toISOString(),
-        timeframe: this.mapTimeframe(timeframe),
-        limit: limit
+      const dataUrl = process.env.ALPACA_DATA_URL || 'https://data.alpaca.markets';
+      const response = await axios.get(`${dataUrl}/v2/stocks/${symbol}/bars`, {
+        headers: this.headers,
+        params: {
+          start: startTime.toISOString(),
+          end: endTime.toISOString(),
+          timeframe: this.mapTimeframe(timeframe),
+          limit: limit,
+        },
       });
 
-      return bars[symbol]?.map(bar => ({
-        t: bar.Timestamp,
-        o: bar.OpenPrice,
-        h: bar.HighPrice,
-        l: bar.LowPrice,
-        c: bar.ClosePrice,
-        v: bar.Volume,
-        n: bar.TradeCount,
-        vw: bar.VWAP
-      })) || [];
+      return (
+        response.data.bars?.map((bar: any) => ({
+          t: bar.t,
+          o: bar.o,
+          h: bar.h,
+          l: bar.l,
+          c: bar.c,
+          v: bar.v,
+          n: bar.n,
+          vw: bar.vw,
+        })) || []
+      );
     } catch (error) {
       console.error('Error fetching bars:', error);
       throw new Error('Failed to fetch chart data');
@@ -128,17 +145,23 @@ export class AlpacaService {
 
   async createOrder(orderData: CreateOrderRequest): Promise<CreateOrderResponse> {
     try {
-      const order = await this.alpaca.createOrder({
-        symbol: orderData.symbol,
-        qty: orderData.qty,
-        side: orderData.side,
-        type: orderData.type,
-        time_in_force: orderData.time_in_force,
-        limit_price: orderData.limit_price,
-        stop_price: orderData.stop_price
-      });
+      const response = await axios.post(
+        `${this.baseUrl}/orders`,
+        {
+          symbol: orderData.symbol,
+          qty: orderData.qty,
+          side: orderData.side,
+          type: orderData.type,
+          time_in_force: orderData.time_in_force,
+          limit_price: orderData.limit_price,
+          stop_price: orderData.stop_price,
+        },
+        {
+          headers: this.headers,
+        }
+      );
 
-      return order as CreateOrderResponse;
+      return response.data as CreateOrderResponse;
     } catch (error) {
       console.error('Error creating order:', error);
       throw new Error('Failed to create order');
@@ -153,7 +176,7 @@ export class AlpacaService {
       '1H': '1Hour',
       '4H': '4Hour',
       '1D': '1Day',
-      '1W': '1Week'
+      '1W': '1Week',
     };
     return mapping[timeframe];
   }

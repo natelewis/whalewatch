@@ -10,6 +10,15 @@ const api = axios.create({
   }
 });
 
+// Add token to requests for the default api instance
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Create a function that can be called with a token getter
 export const createApiService = (getToken: () => Promise<string | null>) => {
   // Add token to requests
