@@ -9,6 +9,7 @@ interface WhaleWatchFeedProps {
   onSymbolChange: (symbol: string) => void;
   isLoading: boolean;
   error: string | null;
+  hours: number;
 }
 
 export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
@@ -16,10 +17,11 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   selectedSymbol,
   onSymbolChange,
   isLoading,
-  error
+  error,
+  hours,
 }) => {
   const [searchSymbol, setSearchSymbol] = useState(selectedSymbol);
-  const [filter, setFilter] = useState<'all' | 'calls' | 'puts'>('all');
+  const [filter, setFilter] = useState<'all' | 'calls' | 'puts' | 'whales'>('whales');
 
   const handleSymbolSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +33,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
     }).format(value);
   };
 
@@ -39,7 +41,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
     return new Date(timestamp).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit'
+      second: '2-digit',
     });
   };
 
@@ -59,10 +61,14 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
     return side === 'buy' ? 'text-green-500' : 'text-red-500';
   };
 
-  const filteredTrades = trades.filter(trade => {
+  const filteredTrades = trades.filter((trade) => {
+    const totalPremium = getTotalPremium(trade);
+    const isWhaleTrade = totalPremium >= 100000; // $100k+ is considered a whale trade
+
     if (filter === 'all') return true;
     if (filter === 'calls') return trade.contract.option_type === 'call';
     if (filter === 'puts') return trade.contract.option_type === 'put';
+    if (filter === 'whales') return isWhaleTrade;
     return true;
   });
 
@@ -92,6 +98,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
         {/* Filters */}
         <div className="flex space-x-2">
           {[
+            { value: 'whales', label: 'Whales Only' },
             { value: 'all', label: 'All' },
             { value: 'calls', label: 'Calls' },
             { value: 'puts', label: 'Puts' },
@@ -127,6 +134,33 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
           </div>
         ) : (
           <div className="p-4">
+            {/* Summary */}
+            <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+              <div className="flex items-center justify-between text-sm">
+                <div>
+                  <span className="font-medium text-foreground">
+                    {filteredTrades.length} {filter === 'whales' ? 'whale' : 'total'} trades
+                  </span>
+                  <span className="text-muted-foreground ml-2">
+                    in the last{' '}
+                    {hours === 1
+                      ? 'hour'
+                      : hours < 24
+                      ? `${hours} hours`
+                      : hours === 24
+                      ? 'day'
+                      : `${Math.floor(hours / 24)} days`}
+                  </span>
+                </div>
+                <div className="text-muted-foreground">
+                  {selectedSymbol} •{' '}
+                  {filter === 'whales'
+                    ? 'Whales Only'
+                    : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </div>
+              </div>
+            </div>
+
             {/* Table Header */}
             <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
               <div>Symbol</div>
@@ -136,7 +170,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
               <div>Strike</div>
               <div>Alert</div>
               <div>High</div>
-              <div>%Gain</div>
+              <div>Size</div>
             </div>
 
             {/* Table Rows */}
@@ -212,7 +246,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                     {/* High (Price) */}
                     <div className="font-medium text-foreground">${trade.price.toFixed(2)}</div>
 
-                    {/* %Gain (Size) */}
+                    {/* Size (Contracts) */}
                     <div className="text-muted-foreground">{trade.size.toLocaleString()}</div>
                   </div>
                 );

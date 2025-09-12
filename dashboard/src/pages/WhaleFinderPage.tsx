@@ -9,17 +9,18 @@ export const WhaleFinderPage: React.FC = () => {
   const [whaleTrades, setWhaleTrades] = useState<AlpacaOptionsTrade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hours, setHours] = useState<number>(24);
 
   // WebSocket for real-time whale trades
   const { lastMessage, sendMessage } = useWebSocket();
 
   useEffect(() => {
     loadWhaleTrades(selectedSymbol);
-  }, [selectedSymbol]);
+  }, [selectedSymbol, hours]);
 
   useEffect(() => {
     if (lastMessage?.type === 'options_whale') {
-      setWhaleTrades(prev => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 trades
+      setWhaleTrades((prev) => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 trades
     }
   }, [lastMessage]);
 
@@ -28,13 +29,13 @@ export const WhaleFinderPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      const response = await apiService.getOptionsTrades(symbol, 1);
+      const response = await apiService.getOptionsTrades(symbol, hours);
       setWhaleTrades(response.trades);
 
       // Subscribe to real-time whale trades for this symbol
       sendMessage({
         type: 'subscribe',
-        data: { channel: 'options_whale', symbol }
+        data: { channel: 'options_whale', symbol },
       });
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load whale trades');
@@ -57,6 +58,25 @@ export const WhaleFinderPage: React.FC = () => {
             Monitor large options trades and discover whale activity
           </p>
         </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <label htmlFor="time-period" className="text-sm font-medium text-foreground">
+              Time Period:
+            </label>
+            <select
+              id="time-period"
+              value={hours}
+              onChange={(e) => setHours(Number(e.target.value))}
+              className="px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value={1}>Last Hour</option>
+              <option value={6}>Last 6 Hours</option>
+              <option value={24}>Last 24 Hours</option>
+              <option value={72}>Last 3 Days</option>
+              <option value={168}>Last Week</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -69,6 +89,7 @@ export const WhaleFinderPage: React.FC = () => {
             onSymbolChange={handleSymbolChange}
             isLoading={isLoading}
             error={error}
+            hours={hours}
           />
         </div>
       </div>

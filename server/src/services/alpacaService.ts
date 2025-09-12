@@ -168,33 +168,51 @@ export class AlpacaService {
     const trades: AlpacaOptionsTrade[] = [];
     const now = new Date();
     const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
-    
-    // Generate 5-15 mock trades over the specified time period
-    const numTrades = Math.floor(Math.random() * 11) + 5;
-    
+
+    // Generate 50-200 mock trades over the specified time period (more realistic for 24h)
+    const numTrades = Math.floor(Math.random() * 151) + 50;
+
     for (let i = 0; i < numTrades; i++) {
-      const tradeTime = new Date(startTime.getTime() + Math.random() * (now.getTime() - startTime.getTime()));
+      const tradeTime = new Date(
+        startTime.getTime() + Math.random() * (now.getTime() - startTime.getTime())
+      );
       const isCall = Math.random() > 0.5;
       const side = Math.random() > 0.5 ? 'buy' : 'sell';
-      
+
       // Generate realistic strike prices around current stock price
       const basePrice = this.getBasePriceForSymbol(symbol);
-      const strikePrice = Math.round((basePrice * (0.8 + Math.random() * 0.4)) * 100) / 100;
-      
+      const strikePrice = Math.round(basePrice * (0.8 + Math.random() * 0.4) * 100) / 100;
+
       // Generate expiration dates (1-30 days from now)
-      const expirationDate = new Date(now.getTime() + (Math.random() * 30 + 1) * 24 * 60 * 60 * 1000);
-      
+      const expirationDate = new Date(
+        now.getTime() + (Math.random() * 30 + 1) * 24 * 60 * 60 * 1000
+      );
+
       // Generate realistic option prices
       const intrinsicValue = Math.max(0, basePrice - strikePrice);
       const timeValue = Math.random() * 5 + 0.5;
       const price = Math.max(0.01, intrinsicValue + timeValue + (Math.random() - 0.5) * 2);
-      
+
       // Generate realistic trade sizes (whale trades are typically large)
-      const size = Math.floor(Math.random() * 1000) + 100; // 100-1100 contracts
-      
+      // Create a distribution where 20% are whale trades (1000+ contracts), 30% are large (500-999), 50% are medium (100-499)
+      const rand = Math.random();
+      let size;
+      if (rand < 0.2) {
+        // Whale trades: 1000-5000 contracts
+        size = Math.floor(Math.random() * 4000) + 1000;
+      } else if (rand < 0.5) {
+        // Large trades: 500-999 contracts
+        size = Math.floor(Math.random() * 500) + 500;
+      } else {
+        // Medium trades: 100-499 contracts
+        size = Math.floor(Math.random() * 400) + 100;
+      }
+
       trades.push({
         id: `mock_${symbol}_${i}_${Date.now()}`,
-        symbol: `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${isCall ? 'C' : 'P'}${strikePrice.toString().replace('.', '')}`,
+        symbol: `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${
+          isCall ? 'C' : 'P'
+        }${strikePrice.toString().replace('.', '')}`,
         timestamp: tradeTime.toISOString(),
         price: Math.round(price * 100) / 100,
         size,
@@ -203,16 +221,18 @@ export class AlpacaService {
         exchange: 'OPRA',
         tape: 'C',
         contract: {
-          symbol: `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${isCall ? 'C' : 'P'}${strikePrice.toString().replace('.', '')}`,
+          symbol: `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${
+            isCall ? 'C' : 'P'
+          }${strikePrice.toString().replace('.', '')}`,
           underlying_symbol: symbol,
           exercise_style: 'american',
           expiration_date: expirationDate.toISOString().split('T')[0],
           strike_price: strikePrice,
-          option_type: isCall ? 'call' : 'put'
-        }
+          option_type: isCall ? 'call' : 'put',
+        },
       });
     }
-    
+
     // Sort by timestamp (most recent first)
     return trades.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
