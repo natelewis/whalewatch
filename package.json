@@ -4,6 +4,7 @@
   "description": "Options and portfolio analysis application",
   "main": "index.js",
   "scripts": {
+    "predev": "pkill -f 'tsx watch' || true; pkill -f 'vite' || true",
     "dev": "concurrently \"npm run server:dev\" \"npm run dashboard:dev\"",
     "server:dev": "cd server && npm run dev",
     "dashboard:dev": "cd dashboard && npm run dev",

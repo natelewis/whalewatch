@@ -172,10 +172,23 @@ export class AlpacaService {
     // Generate 50-200 mock trades over the specified time period (more realistic for 24h)
     const numTrades = Math.floor(Math.random() * 151) + 50;
 
+    // Track option prices by contract to calculate gains
+    const optionPrices: {
+      [key: string]: { openPrice: number; previousPrice: number; lastTradeTime: number };
+    } = {};
+
+    // Generate trades in chronological order for more realistic price movements
+    const tradeTimes: Date[] = [];
     for (let i = 0; i < numTrades; i++) {
       const tradeTime = new Date(
         startTime.getTime() + Math.random() * (now.getTime() - startTime.getTime())
       );
+      tradeTimes.push(tradeTime);
+    }
+    tradeTimes.sort((a, b) => a.getTime() - b.getTime());
+
+    for (let i = 0; i < numTrades; i++) {
+      const tradeTime = tradeTimes[i];
       const isCall = Math.random() > 0.5;
       const side = Math.random() > 0.5 ? 'buy' : 'sell';
 
@@ -188,10 +201,22 @@ export class AlpacaService {
         now.getTime() + (Math.random() * 30 + 1) * 24 * 60 * 60 * 1000
       );
 
-      // Generate realistic option prices
+      // Create unique contract identifier
+      const contractId = `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${
+        isCall ? 'C' : 'P'
+      }${strikePrice.toString().replace('.', '')}`;
+
+      // Generate realistic option prices with volatility
       const intrinsicValue = Math.max(0, basePrice - strikePrice);
       const timeValue = Math.random() * 5 + 0.5;
-      const price = Math.max(0.01, intrinsicValue + timeValue + (Math.random() - 0.5) * 2);
+      const basePriceValue = Math.max(0.01, intrinsicValue + timeValue);
+
+      // Add realistic price movement based on time and volatility
+      const timeElapsed =
+        (tradeTime.getTime() - startTime.getTime()) / (now.getTime() - startTime.getTime());
+      const volatility = 0.3 + Math.random() * 0.4; // 30-70% volatility
+      const priceMovement = (Math.random() - 0.5) * volatility * basePriceValue * timeElapsed;
+      const price = Math.max(0.01, basePriceValue + priceMovement);
 
       // Generate realistic trade sizes (whale trades are typically large)
       // Create a distribution where 20% are whale trades (1000+ contracts), 30% are large (500-999), 50% are medium (100-499)
@@ -208,13 +233,43 @@ export class AlpacaService {
         size = Math.floor(Math.random() * 400) + 100;
       }
 
+      // Calculate price history and gains
+      const roundedPrice = Math.round(price * 100) / 100;
+      let openPrice = roundedPrice;
+      let previousPrice = roundedPrice;
+      let gainPercentage = 0;
+
+      if (optionPrices[contractId]) {
+        // This contract has been traded before
+        openPrice = optionPrices[contractId].openPrice;
+        previousPrice = optionPrices[contractId].previousPrice;
+
+        // Calculate gain from previous trade price
+        gainPercentage = ((roundedPrice - previousPrice) / previousPrice) * 100;
+
+        // Update the previous price for next trade
+        optionPrices[contractId].previousPrice = roundedPrice;
+        optionPrices[contractId].lastTradeTime = tradeTime.getTime();
+      } else {
+        // First trade for this contract
+        optionPrices[contractId] = {
+          openPrice: roundedPrice,
+          previousPrice: roundedPrice,
+          lastTradeTime: tradeTime.getTime(),
+        };
+
+        // For first trade, generate a small random gain/loss to make it interesting
+        const randomGain = (Math.random() - 0.5) * 20; // ±10% random gain
+        gainPercentage = randomGain;
+      }
+
       trades.push({
         id: `mock_${symbol}_${i}_${Date.now()}`,
         symbol: `${symbol}${expirationDate.toISOString().slice(2, 10).replace(/-/g, '')}${
           isCall ? 'C' : 'P'
         }${strikePrice.toString().replace('.', '')}`,
         timestamp: tradeTime.toISOString(),
-        price: Math.round(price * 100) / 100,
+        price: roundedPrice,
         size,
         side,
         conditions: ['regular'],
@@ -230,10 +285,13 @@ export class AlpacaService {
           strike_price: strikePrice,
           option_type: isCall ? 'call' : 'put',
         },
+        open_price: openPrice,
+        previous_price: previousPrice,
+        gain_percentage: Math.round(gainPercentage * 100) / 100, // Round to 2 decimal places
       });
     }
 
-    // Sort by timestamp (most recent first)
+    // Sort by timestamp (most recent first) - reverse the chronological order
     return trades.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
 

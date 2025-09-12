@@ -138,6 +138,10 @@ export interface AlpacaOptionsTrade {
     strike_price: number;
     option_type: 'call' | 'put';
   };
+  // Price history for gain calculation
+  previous_price?: number;
+  open_price?: number;
+  gain_percentage?: number;
 }
 
 // API Request/Response Types

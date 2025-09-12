@@ -47,10 +47,17 @@ install:
 # Development commands
 dev:
 	@echo "🚀 Starting WhaleWatch in development mode..."
+	@echo "🛑 Stopping any existing processes..."
+	@pkill -f "tsx watch" || true
+	@pkill -f "vite" || true
+	@sleep 1
 	npm run dev
 
 server-dev:
 	@echo "🖥️  Starting server in development mode..."
+	@echo "🛑 Stopping any existing server processes..."
+	@pkill -f "tsx watch src/index.ts" || true
+	@sleep 1
 	cd server && npm run dev
 
 dashboard-dev:

@@ -162,7 +162,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
             </div>
 
             {/* Table Header */}
-            <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+            <div className="grid grid-cols-9 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
               <div>Symbol</div>
               <div>Type</div>
               <div>Time</div>
@@ -171,6 +171,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
               <div>Alert</div>
               <div>High</div>
               <div>Size</div>
+              <div>%Gain</div>
             </div>
 
             {/* Table Rows */}
@@ -183,7 +184,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                 return (
                   <div
                     key={trade.id}
-                    className={`grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors ${
+                    className={`grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors ${
                       isVeryLargeTrade
                         ? 'bg-red-50 dark:bg-red-950/20 border-l-2 border-red-500'
                         : isLargeTrade
@@ -248,6 +249,23 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
 
                     {/* Size (Contracts) */}
                     <div className="text-muted-foreground">{trade.size.toLocaleString()}</div>
+
+                    {/* %Gain */}
+                    <div
+                      className={`font-medium ${
+                        trade.gain_percentage && trade.gain_percentage > 0
+                          ? 'text-green-500'
+                          : trade.gain_percentage && trade.gain_percentage < 0
+                          ? 'text-red-500'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {trade.gain_percentage !== undefined
+                        ? `${trade.gain_percentage > 0 ? '+' : ''}${trade.gain_percentage.toFixed(
+                            2
+                          )}%`
+                        : 'N/A'}
+                    </div>
                   </div>
                 );
               })}
