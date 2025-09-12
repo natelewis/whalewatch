@@ -9,7 +9,12 @@ import {
   CreateOrderResponse,
   ChartTimeframe,
 } from '../types';
-import { polygonService, PolygonOptionsTrade, PolygonOptionsContract } from './polygonService';
+import {
+  polygonService,
+  PolygonOptionsTrade,
+  PolygonOptionsContract,
+  PolygonBar,
+} from './polygonService';
 
 export class AlpacaService {
   private baseUrl: string;
@@ -72,31 +77,33 @@ export class AlpacaService {
   ): Promise<AlpacaBar[]> {
     try {
       const endTime = new Date();
-      const startTime = new Date();
+      let startTime: Date;
 
-      // Calculate start time based on timeframe
+      // Calculate start time based on timeframe using milliseconds
       switch (timeframe) {
         case '1m':
-          startTime.setMinutes(endTime.getMinutes() - limit);
+          startTime = new Date(endTime.getTime() - limit * 60 * 1000);
           break;
         case '5m':
-          startTime.setMinutes(endTime.getMinutes() - limit * 5);
+          startTime = new Date(endTime.getTime() - limit * 5 * 60 * 1000);
           break;
         case '15m':
-          startTime.setMinutes(endTime.getMinutes() - limit * 15);
+          startTime = new Date(endTime.getTime() - limit * 15 * 60 * 1000);
           break;
         case '1H':
-          startTime.setHours(endTime.getHours() - limit);
+          startTime = new Date(endTime.getTime() - limit * 60 * 60 * 1000);
           break;
         case '4H':
-          startTime.setHours(endTime.getHours() - limit * 4);
+          startTime = new Date(endTime.getTime() - limit * 4 * 60 * 60 * 1000);
           break;
         case '1D':
-          startTime.setDate(endTime.getDate() - limit);
+          startTime = new Date(endTime.getTime() - limit * 24 * 60 * 60 * 1000);
           break;
         case '1W':
-          startTime.setDate(endTime.getDate() - limit * 7);
+          startTime = new Date(endTime.getTime() - limit * 7 * 24 * 60 * 60 * 1000);
           break;
+        default:
+          startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000); // Default to 1 day
       }
 
       // Use delayed data endpoint for free tier compatibility
@@ -160,7 +167,20 @@ export class AlpacaService {
     return this.convertPolygonTradesToAlpaca(polygonTrades, contracts);
   }
 
-  private convertPolygonTradesToAlpaca(
+  convertPolygonBarsToAlpaca(polygonBars: PolygonBar[]): AlpacaBar[] {
+    return polygonBars.map((bar) => ({
+      t: bar.t.toString(),
+      o: bar.o,
+      h: bar.h,
+      l: bar.l,
+      c: bar.c,
+      v: bar.v,
+      ...(bar.n !== undefined && { n: bar.n }),
+      ...(bar.vw !== undefined && { vw: bar.vw }),
+    }));
+  }
+
+  convertPolygonTradesToAlpaca(
     polygonTrades: PolygonOptionsTrade[],
     contracts: PolygonOptionsContract[]
   ): AlpacaOptionsTrade[] {
@@ -176,11 +196,19 @@ export class AlpacaService {
       .map((trade) => {
         // Convert timestamp from nanoseconds to ISO string
         const timestampValue = trade.sip_timestamp || trade.timestamp;
-        if (!timestampValue) {
-          console.warn('No timestamp found in trade:', trade);
+        if (!timestampValue || timestampValue <= 0) {
+          console.warn('Invalid timestamp found in trade:', trade);
           return null;
         }
-        const timestamp = new Date(timestampValue / 1000000).toISOString();
+
+        // Validate timestamp before conversion
+        const timestampMs = timestampValue / 1000000;
+        if (isNaN(timestampMs) || timestampMs <= 0) {
+          console.warn('Invalid timestamp conversion for trade:', trade);
+          return null;
+        }
+
+        const timestamp = new Date(timestampMs).toISOString();
 
         // Find matching contract data using the contract ticker
         const contractTicker = trade.contract_ticker;

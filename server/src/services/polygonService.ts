@@ -44,6 +44,24 @@ export interface PolygonOptionsContractsResponse {
   status: string;
 }
 
+export interface PolygonBar {
+  t: number; // timestamp
+  o: number; // open
+  h: number; // high
+  l: number; // low
+  c: number; // close
+  v: number; // volume
+  n?: number; // number of transactions
+  vw?: number; // volume weighted average price
+}
+
+export interface PolygonBarsResponse {
+  next_url?: string;
+  request_id: string;
+  results: PolygonBar[];
+  status: string;
+}
+
 export class PolygonService {
   private baseUrl: string;
   private apiKey: string;
@@ -87,8 +105,7 @@ export class PolygonService {
       const allTrades: PolygonOptionsTrade[] = [];
 
       const endTime = new Date();
-      const startTime = new Date();
-      startTime.setHours(endTime.getHours() - hours);
+      const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
       const dateStr = startTime.toISOString().split('T')[0]; // YYYY-MM-DD format
 
       for (const contract of recentContracts) {
@@ -126,10 +143,18 @@ export class PolygonService {
       if (sortedTrades.length > 0) {
         console.log('First 3 trades after sorting:');
         sortedTrades.slice(0, 3).forEach((trade, index) => {
-          const date = new Date(trade.timestamp / 1000000);
-          console.log(
-            `${index + 1}. Trade ${trade.id}: ${date.toISOString()} (timestamp: ${trade.timestamp})`
-          );
+          if (trade.timestamp && trade.timestamp > 0) {
+            const date = new Date(trade.timestamp / 1000000);
+            console.log(
+              `${index + 1}. Trade ${trade.id}: ${date.toISOString()} (timestamp: ${
+                trade.timestamp
+              })`
+            );
+          } else {
+            console.log(
+              `${index + 1}. Trade ${trade.id}: Invalid timestamp (timestamp: ${trade.timestamp})`
+            );
+          }
         });
       }
 
@@ -314,6 +339,90 @@ export class PolygonService {
       });
       return false;
     }
+  }
+
+  /**
+   * Get stock bars for a symbol
+   * @param symbol - The stock symbol (e.g., 'AAPL')
+   * @param timeframe - The timeframe (1m, 5m, 15m, 1h, 1d)
+   * @param limit - Maximum number of bars to return (default: 1000)
+   * @param from - Start date in YYYY-MM-DD format (default: 30 days ago)
+   * @param to - End date in YYYY-MM-DD format (default: today)
+   */
+  async getBars(
+    symbol: string,
+    timeframe: string = '1d',
+    limit: number = 1000,
+    from?: string,
+    to?: string
+  ): Promise<PolygonBar[]> {
+    // Map frontend timeframe values to Polygon API format
+    const polygonTimeframe = this.mapTimeframeToPolygon(timeframe);
+    try {
+      if (!this.apiKey) {
+        throw new Error('Polygon API key not configured');
+      }
+
+      const endDate = to || new Date().toISOString().split('T')[0];
+      const startDate =
+        from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const response: AxiosResponse<PolygonBarsResponse> = await axios.get(
+        `${
+          this.baseUrl
+        }/v2/aggs/ticker/${symbol.toUpperCase()}/range/1/${polygonTimeframe}/${startDate}/${endDate}`,
+        {
+          params: {
+            adjusted: true,
+            sort: 'asc',
+            limit: Math.min(limit, 50000),
+            apikey: this.apiKey,
+          },
+        }
+      );
+
+      if (response.data.status !== 'OK' && response.data.status !== 'DELAYED') {
+        throw new Error(`Polygon API error: ${response.data.status}`);
+      }
+
+      return response.data.results || [];
+    } catch (error: any) {
+      console.error('Error fetching bars from Polygon:', error);
+
+      if (error.response?.status === 401) {
+        throw new Error('Invalid Polygon API key');
+      }
+
+      if (error.response?.status === 429) {
+        throw new Error('Polygon API rate limit exceeded');
+      }
+
+      if (error.response?.status === 403) {
+        throw new Error('Polygon API access forbidden - check subscription level');
+      }
+
+      throw new Error('Failed to fetch bars from Polygon');
+    }
+  }
+
+  /**
+   * Map frontend timeframe values to Polygon API format
+   */
+  private mapTimeframeToPolygon(timeframe: string): string {
+    const timeframeMap: Record<string, string> = {
+      '1m': 'minute',
+      '5m': 'minute',
+      '15m': 'minute',
+      '1H': 'hour',
+      '4H': 'hour',
+      '1D': 'day',
+      '1W': 'week',
+      '1d': 'day',
+      '1w': 'week',
+      '1h': 'hour',
+    };
+
+    return timeframeMap[timeframe] || 'day';
   }
 
   /**

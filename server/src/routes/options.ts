@@ -27,7 +27,16 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Limit must be between 1 and 50000' });
     }
 
-    const trades = await alpacaService.getOptionsTrades(symbol.toUpperCase(), hoursNum);
+    // Get Polygon trades and contracts
+    const polygonTrades = await polygonService.getOptionsTrades(
+      symbol.toUpperCase(),
+      hoursNum,
+      1000
+    );
+    const contracts = await polygonService.getOptionsContracts(symbol.toUpperCase(), 1000);
+
+    // Convert Polygon trades to Alpaca format for frontend compatibility
+    const trades = alpacaService.convertPolygonTradesToAlpaca(polygonTrades, contracts);
 
     // Check if no trades were found
     if (!trades || trades.length === 0) {

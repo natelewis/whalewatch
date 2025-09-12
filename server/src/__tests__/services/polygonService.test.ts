@@ -174,6 +174,69 @@ describe('PolygonService', () => {
     });
   });
 
+  describe('getBars', () => {
+    it('should fetch stock bars successfully', async () => {
+      const mockResponse = {
+        data: {
+          status: 'OK',
+          results: [
+            {
+              t: 1640995200000, // timestamp in milliseconds
+              o: 100.0,
+              h: 105.0,
+              l: 95.0,
+              c: 102.0,
+              v: 1000000,
+              n: 5000,
+              vw: 101.0,
+            },
+          ],
+          request_id: 'test-request-id',
+        },
+      };
+
+      mockedAxios.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await polygonService.getBars('AAPL', '1d', 100);
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        'https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/1d/2023-12-02/2024-01-01',
+        {
+          params: {
+            adjusted: true,
+            sort: 'asc',
+            limit: 100,
+            apikey: 'test-api-key',
+          },
+        }
+      );
+
+      expect(result).toEqual(mockResponse.data.results);
+    });
+
+    it('should handle API errors for bars', async () => {
+      mockedAxios.get.mockRejectedValueOnce({
+        response: {
+          status: 401,
+          data: { message: 'Invalid API key' },
+        },
+      });
+
+      await expect(polygonService.getBars('AAPL', '1d', 100)).rejects.toThrow(
+        'Invalid Polygon API key'
+      );
+    });
+
+    it('should throw error when API key not configured', async () => {
+      delete process.env.POLYGON_API_KEY;
+      const serviceWithoutKey = new PolygonService();
+
+      await expect(serviceWithoutKey.getBars('AAPL', '1d', 100)).rejects.toThrow(
+        'Polygon API key not configured'
+      );
+    });
+  });
+
   describe('getContractTrades', () => {
     it('should fetch contract trades successfully', async () => {
       const mockResponse = {

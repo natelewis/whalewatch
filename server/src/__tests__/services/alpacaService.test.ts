@@ -106,6 +106,86 @@ describe('AlpacaService', () => {
     });
   });
 
+  describe('convertPolygonBarsToAlpaca', () => {
+    it('should convert Polygon bars to Alpaca format', () => {
+      const polygonBars = [
+        {
+          t: 1640995200000,
+          o: 100.0,
+          h: 105.0,
+          l: 95.0,
+          c: 102.0,
+          v: 1000000,
+          n: 5000,
+          vw: 101.0,
+        },
+        {
+          t: 1640995260000,
+          o: 102.0,
+          h: 108.0,
+          l: 98.0,
+          c: 106.0,
+          v: 1200000,
+          n: 6000,
+          vw: 103.0,
+        },
+      ];
+
+      const result = alpacaService.convertPolygonBarsToAlpaca(polygonBars);
+
+      expect(result).toEqual([
+        {
+          t: '1640995200000',
+          o: 100.0,
+          h: 105.0,
+          l: 95.0,
+          c: 102.0,
+          v: 1000000,
+          n: 5000,
+          vw: 101.0,
+        },
+        {
+          t: '1640995260000',
+          o: 102.0,
+          h: 108.0,
+          l: 98.0,
+          c: 106.0,
+          v: 1200000,
+          n: 6000,
+          vw: 103.0,
+        },
+      ]);
+    });
+
+    it('should handle optional properties correctly', () => {
+      const polygonBars = [
+        {
+          t: 1640995200000,
+          o: 100.0,
+          h: 105.0,
+          l: 95.0,
+          c: 102.0,
+          v: 1000000,
+          // n and vw are undefined
+        },
+      ];
+
+      const result = alpacaService.convertPolygonBarsToAlpaca(polygonBars);
+
+      expect(result).toEqual([
+        {
+          t: '1640995200000',
+          o: 100.0,
+          h: 105.0,
+          l: 95.0,
+          c: 102.0,
+          v: 1000000,
+          // n and vw should not be present
+        },
+      ]);
+    });
+  });
+
   describe('getBars', () => {
     it('should return bars for 1D timeframe', async () => {
       const mockBars = [

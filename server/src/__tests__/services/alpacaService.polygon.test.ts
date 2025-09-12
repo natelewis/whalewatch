@@ -1,26 +1,27 @@
 import { alpacaService } from '../../services/alpacaService';
-import { PolygonService } from '../../services/polygonService';
+import { polygonService } from '../../services/polygonService';
 import { PolygonOptionsTrade, PolygonOptionsContract } from '../../types';
 
 // Mock the polygon service
-jest.mock('../../services/polygonService');
+jest.mock('../../services/polygonService', () => ({
+  polygonService: {
+    getOptionsTrades: jest.fn(),
+    getOptionsContracts: jest.fn(),
+    getContractTrades: jest.fn(),
+    validateApiKey: jest.fn(),
+  },
+  PolygonService: jest.fn(),
+}));
+
+const mockPolygonService = polygonService as jest.Mocked<typeof polygonService>;
 
 describe('AlpacaService - Polygon Integration', () => {
-  let mockPolygonService: jest.Mocked<PolygonService>;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    // Create a mock instance
-    mockPolygonService = {
-      getOptionsTrades: jest.fn(),
-      getOptionsContracts: jest.fn(),
-      getContractTrades: jest.fn(),
-      validateApiKey: jest.fn(),
-    } as any;
 
-    // Mock the polygonService export
-    (PolygonService as any).mockImplementation(() => mockPolygonService);
+    // Set up default mock returns
+    mockPolygonService.getOptionsTrades.mockResolvedValue([]);
+    mockPolygonService.getOptionsContracts.mockResolvedValue([]);
   });
 
   describe('getOptionsTrades with Polygon', () => {
@@ -29,7 +30,7 @@ describe('AlpacaService - Polygon Integration', () => {
         id: 'polygon-trade-1',
         conditions: [1, 2],
         exchange: 1,
-        price: 2.50,
+        price: 2.5,
         size: 100,
         timestamp: 1640995200000000000, // 2022-01-01T00:00:00Z in nanoseconds
         participant_timestamp: 1640995200000000000,
@@ -86,7 +87,7 @@ describe('AlpacaService - Polygon Integration', () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({
         id: 'polygon-trade-1',
-        price: 2.50,
+        price: 2.5,
         size: 100,
         timestamp: '2022-01-01T00:00:00.000Z',
         exchange: 'CBOE',
@@ -99,9 +100,7 @@ describe('AlpacaService - Polygon Integration', () => {
     });
 
     it('should throw error when Polygon API fails', async () => {
-      mockPolygonService.getOptionsTrades.mockRejectedValueOnce(
-        new Error('Polygon API error')
-      );
+      mockPolygonService.getOptionsTrades.mockRejectedValueOnce(new Error('Polygon API error'));
 
       await expect(alpacaService.getOptionsTrades('AAPL', 1)).rejects.toThrow('Polygon API error');
       expect(mockPolygonService.getOptionsTrades).toHaveBeenCalledWith('AAPL', 1, 1000);
@@ -122,7 +121,9 @@ describe('AlpacaService - Polygon Integration', () => {
         new Error('Contracts API error')
       );
 
-      await expect(alpacaService.getOptionsTrades('AAPL', 1)).rejects.toThrow('Contracts API error');
+      await expect(alpacaService.getOptionsTrades('AAPL', 1)).rejects.toThrow(
+        'Contracts API error'
+      );
     });
 
     it('should convert timestamps correctly', async () => {
@@ -141,7 +142,7 @@ describe('AlpacaService - Polygon Integration', () => {
           id: 'trade-1',
           conditions: [1],
           exchange: 1, // CBOE
-          price: 2.50,
+          price: 2.5,
           size: 100,
           timestamp: 1640995200000000000,
           participant_timestamp: 1640995200000000000,
@@ -163,7 +164,7 @@ describe('AlpacaService - Polygon Integration', () => {
           id: 'trade-3',
           conditions: [1],
           exchange: 999, // Unknown
-          price: 3.00,
+          price: 3.0,
           size: 50,
           timestamp: 1640995320000000000,
           participant_timestamp: 1640995320000000000,
@@ -188,7 +189,7 @@ describe('AlpacaService - Polygon Integration', () => {
           id: 'trade-1',
           conditions: [1],
           exchange: 1,
-          price: 2.50,
+          price: 2.5,
           size: 100,
           timestamp: 1640995200000000000,
           participant_timestamp: 1640995200000000000,
@@ -210,7 +211,7 @@ describe('AlpacaService - Polygon Integration', () => {
           id: 'trade-3',
           conditions: [1],
           exchange: 1,
-          price: 3.00,
+          price: 3.0,
           size: 50,
           timestamp: 1640995320000000000,
           participant_timestamp: 1640995320000000000,
