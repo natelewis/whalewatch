@@ -165,13 +165,13 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
             <div className="grid grid-cols-9 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
               <div>Symbol</div>
               <div>Type</div>
-              <div>Time</div>
-              <div>Exp</div>
-              <div>Strike</div>
-              <div>Alert</div>
-              <div>High</div>
-              <div>Size</div>
-              <div>%Gain</div>
+              <div className="text-right">Time</div>
+              <div className="text-right">Exp</div>
+              <div className="text-right">Strike</div>
+              <div className="text-right">Value</div>
+              <div className="text-right">Price</div>
+              <div className="text-right">Size</div>
+              <div className="text-right">%Gain</div>
             </div>
 
             {/* Table Rows */}
@@ -212,47 +212,55 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                     </div>
 
                     {/* Time */}
-                    <div className="text-muted-foreground">{formatTime(trade.timestamp)}</div>
+                    <div className="text-muted-foreground text-right">
+                      {formatTime(trade.timestamp)}
+                    </div>
 
                     {/* Expiry */}
-                    <div className="text-muted-foreground">
+                    <div className="text-muted-foreground text-right">
                       {new Date(trade.contract.expiration_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        year: 'numeric',
                       })}
                     </div>
 
                     {/* Strike */}
-                    <div className="font-medium text-foreground">
-                      ${trade.contract.strike_price}
+                    <div className="font-medium text-foreground text-right">
+                      ${trade.contract.strike_price.toFixed(2)}
                     </div>
 
-                    {/* Alert (Total Premium) */}
+                    {/* Value (Total Premium) */}
                     <div
-                      className={`font-bold ${
+                      className={`font-bold text-right ${
                         isVeryLargeTrade
                           ? 'text-red-600 dark:text-red-400'
                           : isLargeTrade
                           ? 'text-yellow-600 dark:text-yellow-400'
                           : 'text-foreground'
                       }`}
+                      title={`$${totalPremium.toLocaleString()}`}
                     >
                       {totalPremium >= 1000000
-                        ? `${(totalPremium / 1000000).toFixed(1)}M`
+                        ? `$${(totalPremium / 1000000).toFixed(1)}M`
                         : totalPremium >= 1000
-                        ? `${(totalPremium / 1000).toFixed(0)}K`
-                        : totalPremium.toFixed(0)}
+                        ? `$${(totalPremium / 1000).toFixed(0)}K`
+                        : `$${totalPremium.toFixed(0)}`}
                     </div>
 
-                    {/* High (Price) */}
-                    <div className="font-medium text-foreground">${trade.price.toFixed(2)}</div>
+                    {/* Price (Per Contract) */}
+                    <div className="font-medium text-foreground text-right">
+                      ${trade.price.toFixed(2)}
+                    </div>
 
                     {/* Size (Contracts) */}
-                    <div className="text-muted-foreground">{trade.size.toLocaleString()}</div>
+                    <div className="text-muted-foreground text-right">
+                      {trade.size.toLocaleString()}
+                    </div>
 
                     {/* %Gain */}
                     <div
-                      className={`font-medium ${
+                      className={`font-medium text-right ${
                         trade.gain_percentage && trade.gain_percentage > 0
                           ? 'text-green-500'
                           : trade.gain_percentage && trade.gain_percentage < 0
