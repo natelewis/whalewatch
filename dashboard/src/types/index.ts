@@ -126,7 +126,7 @@ export interface AlpacaOptionsTrade {
   timestamp: string;
   price: number;
   size: number;
-  side: 'buy' | 'sell';
+  side: 'buy' | 'sell' | 'unknown';
   conditions: string[];
   exchange: string;
   tape: string;
@@ -138,7 +138,7 @@ export interface AlpacaOptionsTrade {
     strike_price: number;
     option_type: 'call' | 'put';
   };
-  // Price history for gain calculation
+  // Price history for gain calculation (only available if real data provides it)
   previous_price?: number;
   open_price?: number;
   gain_percentage?: number;

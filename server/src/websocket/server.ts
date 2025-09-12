@@ -3,6 +3,7 @@ import { Server } from 'http';
 import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
 import { JWTPayload, WebSocketMessage, OptionsWhaleMessage, AccountQuoteMessage, ChartQuoteMessage } from '../types';
+import { polygonWebSocketService } from '../services/polygonWebSocketService';
 
 interface AuthenticatedWebSocket extends WebSocket {
   user?: JWTPayload;
@@ -10,9 +11,9 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 export const setupWebSocketServer = (server: Server): void => {
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
     server,
-    path: '/ws'
+    path: '/ws',
   });
 
   wss.on('connection', (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
@@ -65,12 +66,12 @@ export const setupWebSocketServer = (server: Server): void => {
     sendMessage(ws, {
       type: 'connection',
       data: { message: 'Connected to WhaleWatch WebSocket' },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   });
 
-  // Start broadcasting mock data (in production, this would connect to real data feeds)
-  startDataBroadcasting(wss);
+  // Connect to Polygon WebSocket for real-time data
+  initializePolygonConnection(wss);
 };
 
 const handleClientMessage = (ws: AuthenticatedWebSocket, message: any): void => {
@@ -93,7 +94,7 @@ const handleClientMessage = (ws: AuthenticatedWebSocket, message: any): void => 
 
 const handleSubscription = (ws: AuthenticatedWebSocket, data: any): void => {
   const { channel, symbol } = data;
-  
+
   if (!channel) {
     sendError(ws, 'Channel is required for subscription');
     return;
@@ -101,19 +102,34 @@ const handleSubscription = (ws: AuthenticatedWebSocket, data: any): void => {
 
   const subscriptionKey = symbol ? `${channel}:${symbol}` : channel;
   ws.subscriptions.add(subscriptionKey);
-  
+
   console.log(`User subscribed to: ${subscriptionKey}`);
-  
+
+  // Subscribe to Polygon WebSocket for real-time data
+  if (symbol) {
+    switch (channel) {
+      case 'options_whale':
+        polygonWebSocketService.subscribeToOptionsTrades(symbol);
+        break;
+      case 'account_quote':
+        polygonWebSocketService.subscribeToQuotes(symbol);
+        break;
+      case 'chart_quote':
+        polygonWebSocketService.subscribeToTrades(symbol);
+        break;
+    }
+  }
+
   sendMessage(ws, {
     type: 'subscription_confirmed',
     data: { channel, symbol },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 };
 
 const handleUnsubscription = (ws: AuthenticatedWebSocket, data: any): void => {
   const { channel, symbol } = data;
-  
+
   if (!channel) {
     sendError(ws, 'Channel is required for unsubscription');
     return;
@@ -121,72 +137,77 @@ const handleUnsubscription = (ws: AuthenticatedWebSocket, data: any): void => {
 
   const subscriptionKey = symbol ? `${channel}:${symbol}` : channel;
   ws.subscriptions.delete(subscriptionKey);
-  
+
   console.log(`User unsubscribed from: ${subscriptionKey}`);
-  
+
+  // Unsubscribe from Polygon WebSocket
+  if (symbol) {
+    switch (channel) {
+      case 'options_whale':
+        polygonWebSocketService.unsubscribe(symbol, 'options');
+        break;
+      case 'account_quote':
+        polygonWebSocketService.unsubscribe(symbol, 'quotes');
+        break;
+      case 'chart_quote':
+        polygonWebSocketService.unsubscribe(symbol, 'trades');
+        break;
+    }
+  }
+
   sendMessage(ws, {
     type: 'unsubscription_confirmed',
     data: { channel, symbol },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 };
 
-const startDataBroadcasting = (wss: WebSocketServer): void => {
-  // Mock options whale data
-  setInterval(() => {
-    const mockWhaleTrade = {
-      id: `trade_${Date.now()}`,
-      symbol: 'TSLA',
-      timestamp: new Date().toISOString(),
-      price: Math.random() * 100 + 50,
-      size: Math.floor(Math.random() * 1000) + 100,
-      side: Math.random() > 0.5 ? 'buy' : 'sell',
-      conditions: ['regular'],
-      exchange: 'OPRA',
-      tape: 'C',
-      contract: {
-        symbol: 'TSLA240315C00150000',
-        underlying_symbol: 'TSLA',
-        exercise_style: 'american',
-        expiration_date: '2024-03-15',
-        strike_price: 150,
-        option_type: 'call'
-      }
-    };
+const initializePolygonConnection = (wss: WebSocketServer): void => {
+  // Connect to Polygon WebSocket
+  polygonWebSocketService.connect().catch((error) => {
+    console.error('Failed to connect to Polygon WebSocket:', error);
+  });
 
-    broadcastToSubscribers(wss, 'options_whale', mockWhaleTrade);
-  }, 5000); // Every 5 seconds
+  // Handle real-time options trades from Polygon
+  polygonWebSocketService.on('options_trade', (trade) => {
+    console.log('✅ Broadcasting valid options trade:', {
+      symbol: trade.symbol,
+      strike: trade.contract.strike_price,
+      type: trade.contract.option_type,
+      price: trade.price,
+      size: trade.size,
+    });
+    broadcastToSubscribers(wss, 'options_whale', trade);
+  });
 
-  // Mock account quote data
-  setInterval(() => {
-    const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'AMZN'];
-    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-    
-    const quote = {
-      symbol,
-      price: Math.random() * 200 + 50,
-      timestamp: new Date().toISOString()
-    };
+  // Handle errors from Polygon WebSocket
+  polygonWebSocketService.on('error', (error) => {
+    console.error('❌ Polygon WebSocket error:', error.message);
+    // Don't broadcast errors to clients, just log them
+  });
 
-    broadcastToSubscribers(wss, 'account_quote', quote, symbol);
-  }, 2000); // Every 2 seconds
+  // Handle real-time quotes from Polygon
+  polygonWebSocketService.on('quote', (quote) => {
+    broadcastToSubscribers(wss, 'account_quote', quote, quote.symbol);
+  });
 
-  // Mock chart quote data
-  setInterval(() => {
-    const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'AMZN'];
-    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-    
-    const bar = {
-      t: new Date().toISOString(),
-      o: Math.random() * 200 + 50,
-      h: Math.random() * 200 + 50,
-      l: Math.random() * 200 + 50,
-      c: Math.random() * 200 + 50,
-      v: Math.floor(Math.random() * 1000000) + 100000
-    };
+  // Handle real-time trades from Polygon
+  polygonWebSocketService.on('trade', (tradeData) => {
+    broadcastToSubscribers(wss, 'chart_quote', tradeData, tradeData.symbol);
+  });
 
-    broadcastToSubscribers(wss, 'chart_quote', { symbol, bar }, symbol);
-  }, 1000); // Every second
+  // Handle Polygon connection events
+  polygonWebSocketService.on('connected', () => {
+    console.log('✅ Polygon WebSocket connected - real-time data available');
+  });
+
+  polygonWebSocketService.on('disconnected', () => {
+    console.log('❌ Polygon WebSocket disconnected - attempting reconnection');
+  });
+
+  polygonWebSocketService.on('error', (error) => {
+    console.error('Polygon WebSocket error:', error);
+  });
 };
 
 const broadcastToSubscribers = (

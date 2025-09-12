@@ -8,10 +8,8 @@ import {
   CreateOrderRequest,
   CreateOrderResponse,
   ChartTimeframe,
-  PolygonOptionsTrade,
-  PolygonOptionsContract,
 } from '../types';
-import { polygonService } from './polygonService';
+import { polygonService, PolygonOptionsTrade, PolygonOptionsContract } from './polygonService';
 
 export class AlpacaService {
   private baseUrl: string;
@@ -159,13 +157,12 @@ export class AlpacaService {
     const contracts = await polygonService.getOptionsContracts(symbol, 1000);
 
     // Convert Polygon trades to Alpaca format for consistency
-    return this.convertPolygonTradesToAlpaca(polygonTrades, contracts, symbol);
+    return this.convertPolygonTradesToAlpaca(polygonTrades, contracts);
   }
 
   private convertPolygonTradesToAlpaca(
     polygonTrades: PolygonOptionsTrade[],
-    contracts: PolygonOptionsContract[],
-    underlyingSymbol: string
+    contracts: PolygonOptionsContract[]
   ): AlpacaOptionsTrade[] {
     // Create a map of contracts for quick lookup
     const contractMap = new Map<string, PolygonOptionsContract>();
@@ -175,7 +172,7 @@ export class AlpacaService {
       });
     }
 
-    return polygonTrades
+    const alpacaTrades = polygonTrades
       .map((trade) => {
         // Convert timestamp from nanoseconds to ISO string
         const timestampValue = trade.sip_timestamp || trade.timestamp;
@@ -185,34 +182,49 @@ export class AlpacaService {
         }
         const timestamp = new Date(timestampValue / 1000000).toISOString();
 
-        // Try to find matching contract data
-        // Note: In a real implementation, you'd need to match trades to contracts
-        // This is a simplified approach - Polygon trades don't directly reference contract tickers
-        const randomContract =
-          contracts[Math.floor(Math.random() * contracts.length)] || contracts[0];
+        // Find matching contract data using the contract ticker
+        const contractTicker = trade.contract_ticker;
+        let contract: PolygonOptionsContract | null = null;
 
-        // If no contracts available, generate fallback data
-        const contract = randomContract || {
-          ticker: `O:${underlyingSymbol}250117C00250000`,
-          underlying_ticker: underlyingSymbol,
-          contract_type: 'call',
-          exercise_style: 'american',
-          expiration_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split('T')[0],
-          strike_price: 250.0,
-          primary_exchange: 'CBOE',
-          shares_per_contract: 100,
-          cfi: 'OC',
-        };
+        if (contractTicker) {
+          contract = contracts.find((c) => c.ticker === contractTicker) || null;
+        }
 
-        return {
+        // Fallback to first contract if no specific contract found (shouldn't happen with new approach)
+        if (!contract && contracts.length > 0) {
+          console.warn(
+            `No contract found for trade ${trade.id} with ticker ${contractTicker}, using first available contract`
+          );
+          contract = contracts[0];
+        }
+
+        // FAIL FAST: If no contracts available, we cannot process this trade safely
+        if (!contract) {
+          throw new Error(
+            `No contract data available for trade ${trade.id} - cannot determine strike price, expiration, or option type. This trade will be rejected.`
+          );
+        }
+
+        // Validate contract data
+        if (!contract.strike_price || contract.strike_price <= 0) {
+          throw new Error(
+            `Invalid contract strike price: ${contract.strike_price} for trade ${trade.id}`
+          );
+        }
+        if (!contract.expiration_date) {
+          throw new Error(`Missing contract expiration date for trade ${trade.id}`);
+        }
+        if (!contract.contract_type || !['call', 'put'].includes(contract.contract_type)) {
+          throw new Error(`Invalid contract type: ${contract.contract_type} for trade ${trade.id}`);
+        }
+
+        const alpacaTrade: AlpacaOptionsTrade = {
           id: trade.id,
           symbol: contract.ticker,
           timestamp,
           price: trade.price,
           size: trade.size,
-          side: (Math.random() > 0.5 ? 'buy' : 'sell') as 'buy' | 'sell', // Polygon doesn't provide side info directly
+          side: 'unknown', // Polygon doesn't provide side info directly
           conditions: trade.conditions.map((c) => c.toString()),
           exchange: this.mapExchangeCode(trade.exchange),
           tape: this.mapTapeCode(trade.tape),
@@ -224,16 +236,26 @@ export class AlpacaService {
             strike_price: contract.strike_price,
             option_type: (contract.contract_type === 'call' ? 'call' : 'put') as 'call' | 'put',
           },
-          // Calculate price history for gain tracking
-          previous_price: trade.price * (0.95 + Math.random() * 0.1), // Simulate previous price
-          open_price: trade.price * (0.9 + Math.random() * 0.2), // Simulate open price
-          gain_percentage:
-            ((trade.price - trade.price * (0.95 + Math.random() * 0.1)) /
-              (trade.price * (0.95 + Math.random() * 0.1))) *
-            100,
+          // No mock price history - only use real data
         };
+
+        return alpacaTrade;
       })
       .filter((trade) => trade !== null);
+
+    // Debug: Log first few converted trades to verify sorting
+    if (alpacaTrades.length > 0) {
+      console.log('First 3 converted trades:');
+      alpacaTrades.slice(0, 3).forEach((trade: AlpacaOptionsTrade, index: number) => {
+        console.log(
+          `${index + 1}. Trade ${trade.id}: ${trade.timestamp} (strike: $${
+            trade.contract.strike_price
+          })`
+        );
+      });
+    }
+
+    return alpacaTrades;
   }
 
   private mapExchangeCode(exchangeCode: number): string {

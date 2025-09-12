@@ -10,9 +10,10 @@ export const WhaleFinderPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hours, setHours] = useState<number>(24);
+  const [hasRealTimeData, setHasRealTimeData] = useState<boolean>(false);
 
   // WebSocket for real-time whale trades
-  const { lastMessage, sendMessage } = useWebSocket();
+  const { lastMessage, sendMessage, isConnected } = useWebSocket();
 
   useEffect(() => {
     loadWhaleTrades(selectedSymbol);
@@ -21,6 +22,7 @@ export const WhaleFinderPage: React.FC = () => {
   useEffect(() => {
     if (lastMessage?.type === 'options_whale') {
       setWhaleTrades((prev) => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 trades
+      setHasRealTimeData(true);
     }
   }, [lastMessage]);
 
@@ -90,6 +92,8 @@ export const WhaleFinderPage: React.FC = () => {
             isLoading={isLoading}
             error={error}
             hours={hours}
+            isConnected={isConnected}
+            hasRealTimeData={hasRealTimeData}
           />
         </div>
       </div>

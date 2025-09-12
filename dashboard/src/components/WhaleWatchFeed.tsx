@@ -10,6 +10,8 @@ interface WhaleWatchFeedProps {
   isLoading: boolean;
   error: string | null;
   hours: number;
+  isConnected: boolean;
+  hasRealTimeData: boolean;
 }
 
 export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
@@ -19,6 +21,8 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   isLoading,
   error,
   hours,
+  isConnected,
+  hasRealTimeData,
 }) => {
   const [searchSymbol, setSearchSymbol] = useState(selectedSymbol);
   const [filter, setFilter] = useState<'all' | 'calls' | 'puts' | 'whales'>('whales');
@@ -50,27 +54,33 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   };
 
   const getTradeIcon = (side: string) => {
-    return side === 'buy' ? (
-      <TrendingUp className="h-4 w-4 text-green-500" />
-    ) : (
-      <TrendingDown className="h-4 w-4 text-red-500" />
-    );
+    if (side === 'buy') {
+      return <TrendingUp className="h-4 w-4 text-green-500" />;
+    } else if (side === 'sell') {
+      return <TrendingDown className="h-4 w-4 text-red-500" />;
+    } else {
+      return <div className="h-4 w-4 rounded-full bg-gray-400" />;
+    }
   };
 
   const getTradeColor = (side: string): string => {
-    return side === 'buy' ? 'text-green-500' : 'text-red-500';
+    if (side === 'buy') return 'text-green-500';
+    if (side === 'sell') return 'text-red-500';
+    return 'text-gray-500';
   };
 
-  const filteredTrades = trades.filter((trade) => {
-    const totalPremium = getTotalPremium(trade);
-    const isWhaleTrade = totalPremium >= 100000; // $100k+ is considered a whale trade
+  const filteredTrades = trades
+    .filter((trade) => {
+      const totalPremium = getTotalPremium(trade);
+      const isWhaleTrade = totalPremium >= 100000; // $100k+ is considered a whale trade
 
-    if (filter === 'all') return true;
-    if (filter === 'calls') return trade.contract.option_type === 'call';
-    if (filter === 'puts') return trade.contract.option_type === 'put';
-    if (filter === 'whales') return isWhaleTrade;
-    return true;
-  });
+      if (filter === 'all') return true;
+      if (filter === 'calls') return trade.contract.option_type === 'call';
+      if (filter === 'puts') return trade.contract.option_type === 'put';
+      if (filter === 'whales') return isWhaleTrade;
+      return true;
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); // Sort by timestamp, newest first
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -95,26 +105,45 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
           </button>
         </form>
 
-        {/* Filters */}
-        <div className="flex space-x-2">
-          {[
-            { value: 'whales', label: 'Whales Only' },
-            { value: 'all', label: 'All' },
-            { value: 'calls', label: 'Calls' },
-            { value: 'puts', label: 'Puts' },
-          ].map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setFilter(option.value as any)}
-              className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                filter === option.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+        {/* Status and Filters */}
+        <div className="flex items-center justify-between">
+          {/* Status Indicator */}
+          <div className="flex items-center space-x-2 text-xs">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isConnected ? (hasRealTimeData ? 'bg-green-500' : 'bg-yellow-500') : 'bg-red-500'
               }`}
-            >
-              {option.label}
-            </button>
-          ))}
+            />
+            <span className="text-muted-foreground">
+              {isConnected
+                ? hasRealTimeData
+                  ? 'Real-time data active'
+                  : 'Connected, waiting for data'
+                : 'Disconnected'}
+            </span>
+          </div>
+
+          {/* Filters */}
+          <div className="flex space-x-2">
+            {[
+              { value: 'whales', label: 'Whales Only' },
+              { value: 'all', label: 'All' },
+              { value: 'calls', label: 'Calls' },
+              { value: 'puts', label: 'Puts' },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setFilter(option.value as any)}
+                className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                  filter === option.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -130,7 +159,18 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
           </div>
         ) : filteredTrades.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="text-muted-foreground">No whale trades found</p>
+            <p className="text-muted-foreground">
+              {isConnected
+                ? hasRealTimeData
+                  ? 'No whale trades found in the selected time period'
+                  : 'Connected to real-time feed but no data received yet. This may indicate no recent options trading activity.'
+                : 'Not connected to real-time data feed. Please check your connection.'}
+            </p>
+            {!isConnected && (
+              <p className="text-sm text-destructive mt-2">
+                ⚠️ Real-time data connection required for accurate whale tracking
+              </p>
+            )}
           </div>
         ) : (
           <div className="p-4">

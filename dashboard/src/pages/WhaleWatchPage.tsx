@@ -10,9 +10,10 @@ export const WhaleWatchPage: React.FC = () => {
   const [whaleTrades, setWhaleTrades] = useState<AlpacaOptionsTrade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasRealTimeData, setHasRealTimeData] = useState<boolean>(false);
 
   // WebSocket for real-time whale trades
-  const { lastMessage, sendMessage } = useWebSocket();
+  const { lastMessage, sendMessage, isConnected } = useWebSocket();
 
   useEffect(() => {
     loadWhaleTrades(selectedSymbol);
@@ -20,7 +21,8 @@ export const WhaleWatchPage: React.FC = () => {
 
   useEffect(() => {
     if (lastMessage?.type === 'options_whale') {
-      setWhaleTrades(prev => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 trades
+      setWhaleTrades((prev) => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 trades
+      setHasRealTimeData(true);
     }
   }, [lastMessage]);
 
@@ -71,16 +73,16 @@ export const WhaleWatchPage: React.FC = () => {
             onSymbolChange={handleSymbolChange}
             isLoading={isLoading}
             error={error}
+            hours={1}
+            isConnected={isConnected}
+            hasRealTimeData={hasRealTimeData}
           />
         </div>
 
         {/* Stock Chart */}
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground">Chart Analysis</h2>
-          <StockChart
-            symbol={selectedSymbol}
-            onSymbolChange={handleSymbolChange}
-          />
+          <StockChart symbol={selectedSymbol} onSymbolChange={handleSymbolChange} />
         </div>
       </div>
     </div>
