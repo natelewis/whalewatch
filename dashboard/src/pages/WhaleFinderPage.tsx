@@ -3,6 +3,7 @@ import { AlpacaOptionsContract } from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
+import { PageHeader } from '../components/PageHeader';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
@@ -52,12 +53,12 @@ export const WhaleFinderPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Options Contracts</h1>
-          <p className="text-muted-foreground">Browse available options contracts for any symbol</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Options Contracts"
+        subtitle="Browse available options contracts for any symbol"
+        selectedSymbol={selectedSymbol}
+        onSymbolChange={handleSymbolChange}
+      />
 
       {/* Main Content */}
       <div className="h-[calc(100vh-200px)]">
@@ -71,6 +72,7 @@ export const WhaleFinderPage: React.FC = () => {
             error={error}
             isConnected={isConnected}
             hasRealTimeData={hasRealTimeData}
+            showTickerSelector={false}
           />
         </div>
       </div>

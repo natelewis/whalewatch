@@ -11,6 +11,7 @@ interface WhaleWatchFeedProps {
   error: string | null;
   isConnected: boolean;
   hasRealTimeData: boolean;
+  showTickerSelector?: boolean;
 }
 
 export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
@@ -21,6 +22,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   error,
   isConnected,
   hasRealTimeData,
+  showTickerSelector = true,
 }) => {
   const [searchSymbol, setSearchSymbol] = useState(selectedSymbol);
   const [filter, setFilter] = useState<'all' | 'calls' | 'puts' | 'near_money'>('near_money');
@@ -90,24 +92,26 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
       {/* Header with Search and Filters */}
       <div className="p-4 border-b border-border">
-        <form onSubmit={handleSymbolSubmit} className="flex space-x-2 mb-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchSymbol}
-              onChange={(e) => setSearchSymbol(e.target.value)}
-              placeholder="Enter symbol (e.g., TSLA, AAPL)"
-              className="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Watch
-          </button>
-        </form>
+        {showTickerSelector && (
+          <form onSubmit={handleSymbolSubmit} className="flex space-x-2 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchSymbol}
+                onChange={(e) => setSearchSymbol(e.target.value)}
+                placeholder="Enter symbol (e.g., TSLA, AAPL)"
+                className="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Watch
+            </button>
+          </form>
+        )}
 
         {/* Status and Filters */}
         <div className="flex items-center justify-between">

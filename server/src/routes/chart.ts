@@ -4,6 +4,30 @@ import { QuestDBQueryParams } from '../types/questdb';
 
 const router = Router();
 
+/**
+ * Convert timeframe string to hours for time range calculation
+ */
+function getTimeframeHours(timeframe: string): number {
+  switch (timeframe) {
+    case '1m':
+      return 1 / 60; // 1 minute = 1/60 hours
+    case '5m':
+      return 5 / 60; // 5 minutes = 5/60 hours
+    case '15m':
+      return 15 / 60; // 15 minutes = 15/60 hours
+    case '1H':
+      return 1; // 1 hour
+    case '4H':
+      return 4; // 4 hours
+    case '1D':
+      return 24; // 1 day = 24 hours
+    case '1W':
+      return 24 * 7; // 1 week = 168 hours
+    default:
+      return 24; // Default to 1 day
+  }
+}
+
 // Get chart data for a symbol from QuestDB
 router.get('/:symbol', async (req: Request, res: Response) => {
   try {
@@ -19,10 +43,23 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Limit must be between 1 and 10000' });
     }
 
+    // Calculate time range based on timeframe if not provided
+    let calculatedStartTime = start_time as string | undefined;
+    let calculatedEndTime = end_time as string | undefined;
+
+    if (!start_time && !end_time) {
+      const now = new Date();
+      const timeframeHours = getTimeframeHours(timeframe as string);
+      const startDate = new Date(now.getTime() - timeframeHours * 60 * 60 * 1000);
+
+      calculatedStartTime = startDate.toISOString();
+      calculatedEndTime = now.toISOString();
+    }
+
     // Get aggregates from QuestDB
     const params: QuestDBQueryParams = {
-      start_time: start_time as string | undefined,
-      end_time: end_time as string | undefined,
+      start_time: calculatedStartTime,
+      end_time: calculatedEndTime,
       limit: limitNum,
       order_by: 'timestamp',
       order_direction: 'ASC',
@@ -42,7 +79,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       vw: agg.vwap,
     }));
 
-    res.json({
+    return res.json({
       symbol: symbol.toUpperCase(),
       timeframe,
       bars,
@@ -51,7 +88,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching chart data from QuestDB:', error);
-    res.status(500).json({
+    return res.status(500).json({
       error: `Failed to fetch chart data: ${error.message}`,
       data_source: 'questdb',
       success: false,

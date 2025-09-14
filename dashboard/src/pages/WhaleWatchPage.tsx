@@ -4,6 +4,7 @@ import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { StockChart } from '../components/StockChart';
+import { PageHeader } from '../components/PageHeader';
 
 export const WhaleWatchPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('LLY');
@@ -53,14 +54,12 @@ export const WhaleWatchPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Options Contracts</h1>
-          <p className="text-muted-foreground">
-            Browse options contracts and analyze market movements
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Options Contracts"
+        subtitle="Browse options contracts and analyze market movements"
+        selectedSymbol={selectedSymbol}
+        onSymbolChange={handleSymbolChange}
+      />
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
