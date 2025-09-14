@@ -67,7 +67,12 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       symbol: string,
       timeframe: string = '1D',
       limit: number = 1000
-    ): Promise<{ symbol: string; timeframe: string; bars: AlpacaBar[] }> {
+    ): Promise<{
+      symbol: string;
+      timeframe: string;
+      bars: AlpacaBar[];
+      data_range?: { earliest: string; latest: string };
+    }> {
       const response = await api.get(`/api/chart/${symbol}`, {
         params: { timeframe, limit },
       });
@@ -138,7 +143,12 @@ export const apiService = {
     symbol: string,
     timeframe: string = '1D',
     limit: number = 1000
-  ): Promise<{ symbol: string; timeframe: string; bars: AlpacaBar[] }> {
+  ): Promise<{
+    symbol: string;
+    timeframe: string;
+    bars: AlpacaBar[];
+    data_range?: { earliest: string; latest: string };
+  }> {
     const response = await api.get(`/api/chart/${symbol}`, {
       params: { timeframe, limit },
     });

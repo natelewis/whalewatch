@@ -65,10 +65,48 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       order_direction: 'ASC',
     };
 
-    const aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
+    let aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
+
+    // If no data found in the requested time range, try to get the most recent available data
+    if (aggregates.length === 0 && !start_time && !end_time) {
+      console.log(
+        `No data found for ${symbol} in current time range, fetching most recent available data`
+      );
+
+      // Query for the most recent data without time constraints
+      const fallbackParams: QuestDBQueryParams = {
+        limit: limitNum,
+        order_by: 'timestamp',
+        order_direction: 'DESC',
+      };
+
+      aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), fallbackParams);
+
+      // If we found data, get the time range of available data
+      if (aggregates.length > 0) {
+        const latestTimestamp = aggregates[0].timestamp;
+        const earliestTimestamp = aggregates[aggregates.length - 1].timestamp;
+
+        console.log(
+          `Found ${aggregates.length} records for ${symbol} from ${earliestTimestamp} to ${latestTimestamp}`
+        );
+
+        // Reverse the order to maintain ASC order for the frontend
+        aggregates.reverse();
+      }
+    }
 
     // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
-    const bars = aggregates.map((agg) => ({
+    // Remove duplicates by timestamp to avoid chart rendering issues
+    const uniqueAggregates = aggregates.reduce((acc, agg) => {
+      const timestamp = agg.timestamp;
+      if (!acc.find((a) => a.timestamp === timestamp)) {
+        acc.push(agg);
+      }
+      return acc;
+    }, [] as typeof aggregates);
+
+    const bars = uniqueAggregates.map((agg) => ({
       t: agg.timestamp,
       o: agg.open,
       h: agg.high,
@@ -85,6 +123,13 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       bars,
       data_source: 'questdb',
       success: true,
+      data_range:
+        uniqueAggregates.length > 0
+          ? {
+              earliest: uniqueAggregates[0]?.timestamp,
+              latest: uniqueAggregates[uniqueAggregates.length - 1]?.timestamp,
+            }
+          : null,
     });
   } catch (error: any) {
     console.error('Error fetching chart data from QuestDB:', error);

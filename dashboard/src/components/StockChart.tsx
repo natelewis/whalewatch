@@ -3,15 +3,16 @@ import { createChart, IChartApi, ISeriesApi, CandlestickData, Time } from 'light
 import { AlpacaBar, ChartTimeframe, ChartType } from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { 
-  BarChart3, 
-  LineChart, 
-  Activity, 
-  Square, 
+import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
+import {
+  BarChart3,
+  LineChart,
+  Activity,
+  Square,
   Settings,
   Play,
   Pause,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react';
 
 interface StockChartProps {
@@ -24,11 +25,31 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
-  const [timeframe, setTimeframe] = useState<ChartTimeframe>('1D');
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>('1W');
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLoading, setIsLoading] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dataRange, setDataRange] = useState<{ earliest: string; latest: string } | null>(null);
+
+  // Load saved timeframe from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedTimeframe = getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1W');
+      setTimeframe(savedTimeframe);
+    } catch (error) {
+      console.warn('Failed to load chart timeframe from localStorage:', error);
+    }
+  }, []);
+
+  // Save timeframe to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      setLocalStorageItem('chartTimeframe', timeframe);
+    } catch (error) {
+      console.warn('Failed to save chart timeframe to localStorage:', error);
+    }
+  }, [timeframe]);
 
   // WebSocket for real-time chart data
   const { lastMessage, sendMessage } = useWebSocket();
@@ -113,7 +134,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       const response = await apiService.getChartData(symbol, timeframe, 1000);
       const bars = response.bars;
 
-      const formattedData: CandlestickData[] = bars.map((bar) => ({
+      // Remove duplicate entries by timestamp and sort by time
+      const uniqueBars = bars
+        .reduce((acc, bar) => {
+          const timestamp = bar.t;
+          if (!acc.find((b) => b.t === timestamp)) {
+            acc.push(bar);
+          }
+          return acc;
+        }, [] as typeof bars)
+        .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime());
+
+      const formattedData: CandlestickData[] = uniqueBars.map((bar) => ({
         time: (new Date(bar.t).getTime() / 1000) as Time,
         open: bar.o,
         high: bar.h,
@@ -122,6 +154,19 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       }));
 
       setChartData(formattedData);
+
+      // Set data range if available
+      if (response.data_range) {
+        setDataRange(response.data_range);
+      } else if (uniqueBars.length > 0) {
+        // Calculate data range from the actual data
+        setDataRange({
+          earliest: uniqueBars[0].t,
+          latest: uniqueBars[uniqueBars.length - 1].t,
+        });
+      } else {
+        setDataRange(null);
+      }
 
       if (seriesRef.current) {
         seriesRef.current.setData(formattedData);
@@ -287,12 +332,26 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           <div className="flex items-center space-x-4">
             <span>Data points: {chartData.length}</span>
             <span>Timeframe: {timeframe}</span>
+            {dataRange && (
+              <div className="text-amber-500 text-xs">
+                <div className="font-medium">Historical Data Available:</div>
+                <div>
+                  UTC: {new Date(dataRange.earliest).toLocaleString('en-US', { timeZone: 'UTC' })}{' '}
+                  to {new Date(dataRange.latest).toLocaleString('en-US', { timeZone: 'UTC' })}
+                </div>
+                <div>
+                  Local: {new Date(dataRange.earliest).toLocaleString()} to{' '}
+                  {new Date(dataRange.latest).toLocaleString()}
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center space-x-2">
             <div
               className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500' : 'bg-gray-500'}`}
             ></div>
             <span>{isLive ? 'Live data' : 'Historical data'}</span>
+            <span className="text-xs text-muted-foreground">(Chart shows local time)</span>
           </div>
         </div>
       </div>
