@@ -30,7 +30,7 @@ export class QuestDBService {
       database: process.env.QUESTDB_DATABASE || 'qdb',
       ssl: process.env.QUESTDB_SSL === 'true',
       timeout: parseInt(process.env.QUESTDB_TIMEOUT || '30000'),
-      max_connections: parseInt(process.env.QUESTDB_MAX_CONNECTIONS || '10')
+      max_connections: parseInt(process.env.QUESTDB_MAX_CONNECTIONS || '10'),
     };
 
     const protocol = this.config.ssl ? 'https' : 'http';
@@ -46,19 +46,18 @@ export class QuestDBService {
    */
   private async executeQuery<T>(query: string): Promise<QuestDBResponse<T>> {
     try {
-      const response: AxiosResponse<QuestDBResponse<T>> = await axios.get(
-        `${this.baseUrl}/exec`,
-        {
-          params: { query },
-          timeout: this.config.timeout || 30000,
-          ...(this.config.username && this.config.password ? {
-            auth: {
-              username: this.config.username,
-              password: this.config.password
+      const response: AxiosResponse<QuestDBResponse<T>> = await axios.get(`${this.baseUrl}/exec`, {
+        params: { query },
+        timeout: this.config.timeout || 30000,
+        ...(this.config.username && this.config.password
+          ? {
+              auth: {
+                username: this.config.username,
+                password: this.config.password,
+              },
             }
-          } : {})
-        }
-      );
+          : {}),
+      });
 
       if (response.data.query !== query) {
         throw new Error('Query execution failed - response query does not match request');
@@ -70,12 +69,14 @@ export class QuestDBService {
         query,
         error: error.message,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
       });
 
       if (error.response?.data?.error) {
         const questdbError: QuestDBError = error.response.data;
-        throw new Error(`QuestDB error: ${questdbError.error} at position ${questdbError.position}`);
+        throw new Error(
+          `QuestDB error: ${questdbError.error} at position ${questdbError.position}`
+        );
       }
 
       if (error.code === 'ECONNREFUSED') {
@@ -91,28 +92,50 @@ export class QuestDBService {
   }
 
   /**
+   * Convert QuestDB array data to object format
+   */
+  private convertArrayToObject<T>(
+    data: any[],
+    columns: Array<{ name: string; type: string }>
+  ): T[] {
+    return data.map((row: any[]) => {
+      const obj: any = {};
+      columns.forEach((column, index) => {
+        obj[column.name] = row[index];
+      });
+      return obj as T;
+    });
+  }
+
+  /**
    * Get stock trades for a symbol within a time range
    */
   async getStockTrades(
     symbol: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBStockTrade[]> {
-    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
-    
+    const {
+      start_time,
+      end_time,
+      limit = 1000,
+      order_by = 'timestamp',
+      order_direction = 'DESC',
+    } = params;
+
     let query = `SELECT * FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
-    
+
     if (start_time) {
       query += ` AND timestamp >= '${start_time}'`;
     }
-    
+
     if (end_time) {
       query += ` AND timestamp <= '${end_time}'`;
     }
-    
+
     query += ` ORDER BY ${order_by} ${order_direction} LIMIT ${limit}`;
 
     const response = await this.executeQuery<QuestDBStockTrade>(query);
-    return response.dataset;
+    return this.convertArrayToObject<QuestDBStockTrade>(response.dataset, response.columns);
   }
 
   /**
@@ -122,22 +145,28 @@ export class QuestDBService {
     symbol: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBStockAggregate[]> {
-    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'ASC' } = params;
-    
+    const {
+      start_time,
+      end_time,
+      limit = 1000,
+      order_by = 'timestamp',
+      order_direction = 'ASC',
+    } = params;
+
     let query = `SELECT * FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
-    
+
     if (start_time) {
       query += ` AND timestamp >= '${start_time}'`;
     }
-    
+
     if (end_time) {
       query += ` AND timestamp <= '${end_time}'`;
     }
-    
+
     query += ` ORDER BY ${order_by} ${order_direction} LIMIT ${limit}`;
 
     const response = await this.executeQuery<QuestDBStockAggregate>(query);
-    return response.dataset;
+    return this.convertArrayToObject<QuestDBStockAggregate>(response.dataset, response.columns);
   }
 
   /**
@@ -148,14 +177,14 @@ export class QuestDBService {
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionContract[]> {
     const { limit = 1000, order_by = 'created_at', order_direction = 'DESC' } = params;
-    
+
     const query = `SELECT * FROM option_contracts 
                    WHERE underlying_ticker = '${underlying_ticker.toUpperCase()}' 
                    ORDER BY ${order_by} ${order_direction} 
                    LIMIT ${limit}`;
 
     const response = await this.executeQuery<QuestDBOptionContract>(query);
-    return response.dataset;
+    return this.convertArrayToObject<QuestDBOptionContract>(response.dataset, response.columns);
   }
 
   /**
@@ -166,30 +195,36 @@ export class QuestDBService {
     underlying_ticker?: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionTrade[]> {
-    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
-    
+    const {
+      start_time,
+      end_time,
+      limit = 1000,
+      order_by = 'timestamp',
+      order_direction = 'DESC',
+    } = params;
+
     let query = 'SELECT * FROM option_trades WHERE 1=1';
-    
+
     if (ticker) {
       query += ` AND ticker = '${ticker.toUpperCase()}'`;
     }
-    
+
     if (underlying_ticker) {
       query += ` AND underlying_ticker = '${underlying_ticker.toUpperCase()}'`;
     }
-    
+
     if (start_time) {
       query += ` AND timestamp >= '${start_time}'`;
     }
-    
+
     if (end_time) {
       query += ` AND timestamp <= '${end_time}'`;
     }
-    
+
     query += ` ORDER BY ${order_by} ${order_direction} LIMIT ${limit}`;
 
     const response = await this.executeQuery<QuestDBOptionTrade>(query);
-    return response.dataset;
+    return this.convertArrayToObject<QuestDBOptionTrade>(response.dataset, response.columns);
   }
 
   /**
@@ -200,30 +235,36 @@ export class QuestDBService {
     underlying_ticker?: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionQuote[]> {
-    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
-    
+    const {
+      start_time,
+      end_time,
+      limit = 1000,
+      order_by = 'timestamp',
+      order_direction = 'DESC',
+    } = params;
+
     let query = 'SELECT * FROM option_quotes WHERE 1=1';
-    
+
     if (ticker) {
       query += ` AND ticker = '${ticker.toUpperCase()}'`;
     }
-    
+
     if (underlying_ticker) {
       query += ` AND underlying_ticker = '${underlying_ticker.toUpperCase()}'`;
     }
-    
+
     if (start_time) {
       query += ` AND timestamp >= '${start_time}'`;
     }
-    
+
     if (end_time) {
       query += ` AND timestamp <= '${end_time}'`;
     }
-    
+
     query += ` ORDER BY ${order_by} ${order_direction} LIMIT ${limit}`;
 
     const response = await this.executeQuery<QuestDBOptionQuote>(query);
-    return response.dataset;
+    return this.convertArrayToObject<QuestDBOptionQuote>(response.dataset, response.columns);
   }
 
   /**
@@ -231,9 +272,13 @@ export class QuestDBService {
    */
   async getSyncState(ticker: string): Promise<QuestDBSyncState | null> {
     const query = `SELECT * FROM sync_state WHERE ticker = '${ticker.toUpperCase()}' LIMIT 1`;
-    
+
     const response = await this.executeQuery<QuestDBSyncState>(query);
-    return response.dataset.length > 0 ? response.dataset[0] : null;
+    const converted = this.convertArrayToObject<QuestDBSyncState>(
+      response.dataset,
+      response.columns
+    );
+    return converted.length > 0 ? converted[0] : null;
   }
 
   /**
@@ -257,7 +302,7 @@ export class QuestDBService {
       .join(', ');
 
     const query = `UPDATE sync_state SET ${setClause} WHERE ticker = '${ticker.toUpperCase()}'`;
-    
+
     await this.executeQuery(query);
   }
 
@@ -266,9 +311,13 @@ export class QuestDBService {
    */
   async getLatestTradeTimestamp(symbol: string): Promise<string | null> {
     const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
-    
+
     const response = await this.executeQuery<{ latest_timestamp: string }>(query);
-    return response.dataset.length > 0 ? response.dataset[0].latest_timestamp : null;
+    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(
+      response.dataset,
+      response.columns
+    );
+    return converted.length > 0 ? converted[0].latest_timestamp : null;
   }
 
   /**
@@ -276,9 +325,13 @@ export class QuestDBService {
    */
   async getLatestAggregateTimestamp(symbol: string): Promise<string | null> {
     const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
-    
+
     const response = await this.executeQuery<{ latest_timestamp: string }>(query);
-    return response.dataset.length > 0 ? response.dataset[0].latest_timestamp : null;
+    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(
+      response.dataset,
+      response.columns
+    );
+    return converted.length > 0 ? converted[0].latest_timestamp : null;
   }
 
   /**
@@ -312,7 +365,7 @@ export class QuestDBService {
         this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM stock_aggregates'),
         this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM option_contracts'),
         this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM option_trades'),
-        this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM option_quotes')
+        this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM option_quotes'),
       ]);
 
       return {
@@ -320,7 +373,7 @@ export class QuestDBService {
         stock_aggregates_count: aggregates.dataset[0]?.count || 0,
         option_contracts_count: contracts.dataset[0]?.count || 0,
         option_trades_count: optionTrades.dataset[0]?.count || 0,
-        option_quotes_count: optionQuotes.dataset[0]?.count || 0
+        option_quotes_count: optionQuotes.dataset[0]?.count || 0,
       };
     } catch (error: any) {
       console.error('Failed to get database stats:', error.message);
