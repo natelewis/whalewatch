@@ -171,7 +171,7 @@ describe('StockChart', () => {
       />
     );
 
-    const expectedTimeframes = ['1H', '4H', '1D', '1W', '3M', '6M', '1Y', 'ALL'];
+    const expectedTimeframes = ['1H', '4H', '1D', '1W', '1M', '6M', '1Y', '3Y', '5Y', 'ALL'];
     
     expectedTimeframes.forEach(timeframe => {
       expect(screen.getByText(timeframe)).toBeInTheDocument();

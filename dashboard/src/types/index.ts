@@ -194,7 +194,7 @@ export interface ChartQuoteMessage extends WebSocketMessage {
 }
 
 // Chart Types
-export type ChartTimeframe = '1H' | '4H' | '1D' | '1W' | '3M' | '6M' | '1Y' | 'ALL';
+export type ChartTimeframe = '1H' | '4H' | '1D' | '1W' | '1M' | '6M' | '1Y' | '3Y' | '5Y' | 'ALL';
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 
 // Technical Indicators

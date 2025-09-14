@@ -1,33 +1,151 @@
 import { Router, Request, Response } from 'express';
 import { questdbService } from '../services/questdbService';
-import { QuestDBQueryParams } from '../types/questdb';
+import { QuestDBQueryParams, QuestDBStockAggregate } from '../types/questdb';
 
 const router = Router();
 
 /**
- * Convert timeframe string to hours for time range calculation
+ * Timeframe configuration with proper time ranges and aggregation intervals
  */
-function getTimeframeHours(timeframe: string): number {
+interface TimeframeConfig {
+  timeRangeHours: number;
+  aggregationIntervalMinutes: number;
+  maxDataPoints: number;
+}
+
+function getTimeframeConfig(timeframe: string): TimeframeConfig {
   switch (timeframe) {
     case '1H':
-      return 1; // 1 hour
+      return { timeRangeHours: 1, aggregationIntervalMinutes: 1, maxDataPoints: 60 };
     case '4H':
-      return 4; // 4 hours
+      return { timeRangeHours: 4, aggregationIntervalMinutes: 1, maxDataPoints: 240 };
     case '1D':
-      return 24; // 1 day = 24 hours
+      return { timeRangeHours: 24, aggregationIntervalMinutes: 1, maxDataPoints: 1440 };
     case '1W':
-      return 24 * 7; // 1 week = 168 hours
-    case '3M':
-      return 24 * 30 * 3; // 3 months = ~2160 hours
+      return { timeRangeHours: 24 * 7, aggregationIntervalMinutes: 60, maxDataPoints: 168 };
+    case '1M':
+      return { timeRangeHours: 24 * 30, aggregationIntervalMinutes: 60, maxDataPoints: 720 };
     case '6M':
-      return 24 * 30 * 6; // 6 months = ~4320 hours
+      return {
+        timeRangeHours: 24 * 30 * 6,
+        aggregationIntervalMinutes: 24 * 60,
+        maxDataPoints: 180,
+      };
     case '1Y':
-      return 24 * 365; // 1 year = 8760 hours
+      return {
+        timeRangeHours: 24 * 365,
+        aggregationIntervalMinutes: 24 * 60 * 7,
+        maxDataPoints: 52,
+      };
+    case '3Y':
+      return {
+        timeRangeHours: 24 * 365 * 3,
+        aggregationIntervalMinutes: 24 * 60 * 30,
+        maxDataPoints: 36,
+      };
+    case '5Y':
+      return {
+        timeRangeHours: 24 * 365 * 5,
+        aggregationIntervalMinutes: 24 * 60 * 30,
+        maxDataPoints: 60,
+      };
     case 'ALL':
-      return 24 * 365 * 10; // 10 years for "ALL" - effectively no limit
+      return {
+        timeRangeHours: 24 * 365 * 20,
+        aggregationIntervalMinutes: 24 * 60 * 30,
+        maxDataPoints: 240,
+      };
     default:
-      return 24; // Default to 1 day
+      return { timeRangeHours: 24, aggregationIntervalMinutes: 1, maxDataPoints: 1440 };
   }
+}
+
+/**
+ * Aggregate stock data based on timeframe configuration
+ */
+function aggregateDataByTimeframe(
+  data: QuestDBStockAggregate[],
+  timeframe: string
+): QuestDBStockAggregate[] {
+  if (data.length === 0) return data;
+
+  const config = getTimeframeConfig(timeframe);
+
+  // For timeframes that don't need aggregation, return as-is
+  if (timeframe === 'ALL') {
+    return data.slice(0, config.maxDataPoints);
+  }
+
+  // Sort data by timestamp to ensure proper aggregation
+  const sortedData = [...data].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  // Group data by aggregation interval
+  const aggregatedData: QuestDBStockAggregate[] = [];
+  const intervalMs = config.aggregationIntervalMinutes * 60 * 1000; // Convert minutes to milliseconds
+
+  let currentGroup: QuestDBStockAggregate[] = [];
+  let groupStartTime: number | null = null;
+
+  for (const item of sortedData) {
+    const itemTime = new Date(item.timestamp).getTime();
+
+    if (groupStartTime === null) {
+      groupStartTime = itemTime;
+      currentGroup = [item];
+    } else if (itemTime - groupStartTime < intervalMs) {
+      currentGroup.push(item);
+    } else {
+      // Time to create a new group, first aggregate the current group
+      if (currentGroup.length > 0) {
+        aggregatedData.push(aggregateGroup(currentGroup));
+      }
+
+      // Start new group
+      groupStartTime = itemTime;
+      currentGroup = [item];
+    }
+  }
+
+  // Don't forget the last group
+  if (currentGroup.length > 0) {
+    aggregatedData.push(aggregateGroup(currentGroup));
+  }
+
+  // Limit to max data points for performance
+  return aggregatedData.slice(0, config.maxDataPoints);
+}
+
+/**
+ * Aggregate a group of stock data into a single bar
+ */
+function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
+  if (group.length === 1) {
+    return group[0];
+  }
+
+  // Sort by timestamp to ensure proper order
+  const sortedGroup = group.sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  const first = sortedGroup[0];
+  const last = sortedGroup[sortedGroup.length - 1];
+
+  return {
+    symbol: first.symbol,
+    timestamp: first.timestamp, // Use the first timestamp as the bar timestamp
+    open: first.open,
+    high: Math.max(...sortedGroup.map((item) => item.high)),
+    low: Math.min(...sortedGroup.map((item) => item.low)),
+    close: last.close,
+    volume: sortedGroup.reduce((sum, item) => sum + item.volume, 0),
+    vwap:
+      sortedGroup.reduce((sum, item) => sum + item.vwap * item.volume, 0) /
+      sortedGroup.reduce((sum, item) => sum + item.volume, 0),
+    transaction_count: sortedGroup.reduce((sum, item) => sum + item.transaction_count, 0),
+  };
 }
 
 // Get chart data for a symbol from QuestDB
@@ -51,18 +169,19 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     if (!start_time && !end_time) {
       const now = new Date();
-      const timeframeHours = getTimeframeHours(timeframe as string);
-      const startDate = new Date(now.getTime() - timeframeHours * 60 * 60 * 1000);
+      const config = getTimeframeConfig(timeframe as string);
+      const startDate = new Date(now.getTime() - config.timeRangeHours * 60 * 60 * 1000);
 
       calculatedStartTime = startDate.toISOString();
       calculatedEndTime = now.toISOString();
     }
 
     // Get aggregates from QuestDB
+    const config = getTimeframeConfig(timeframe as string);
     const params: QuestDBQueryParams = {
       start_time: calculatedStartTime,
       end_time: calculatedEndTime,
-      limit: limitNum,
+      limit: Math.min(limitNum, config.maxDataPoints * 10), // Allow more data for aggregation
       order_by: 'timestamp',
       order_direction: 'ASC',
     };
@@ -98,7 +217,6 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       }
     }
 
-    // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
     // Remove duplicates by timestamp to avoid chart rendering issues
     const uniqueAggregates = aggregates.reduce((acc, agg) => {
       const timestamp = agg.timestamp;
@@ -108,7 +226,11 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return acc;
     }, [] as typeof aggregates);
 
-    const bars = uniqueAggregates.map((agg) => ({
+    // Aggregate data based on the requested timeframe
+    const aggregatedData = aggregateDataByTimeframe(uniqueAggregates, timeframe as string);
+
+    // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
+    const bars = aggregatedData.map((agg) => ({
       t: agg.timestamp,
       o: agg.open,
       h: agg.high,
@@ -126,10 +248,10 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       data_source: 'questdb',
       success: true,
       data_range:
-        uniqueAggregates.length > 0
+        aggregatedData.length > 0
           ? {
-              earliest: uniqueAggregates[0]?.timestamp,
-              latest: uniqueAggregates[uniqueAggregates.length - 1]?.timestamp,
+              earliest: aggregatedData[0]?.timestamp,
+              latest: aggregatedData[aggregatedData.length - 1]?.timestamp,
             }
           : null,
     });
