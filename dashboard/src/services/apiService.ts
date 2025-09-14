@@ -1,5 +1,13 @@
 import axios from 'axios';
-import { AlpacaAccount, AlpacaPosition, AlpacaActivity, AlpacaBar, AlpacaOptionsTrade, CreateOrderRequest } from '../types';
+import {
+  AlpacaAccount,
+  AlpacaPosition,
+  AlpacaActivity,
+  AlpacaBar,
+  AlpacaOptionsTrade,
+  AlpacaOptionsContract,
+  CreateOrderRequest,
+} from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -42,27 +50,47 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       return response.data;
     },
 
-    async getActivities(startDate?: string, endDate?: string): Promise<{ activities: AlpacaActivity[] }> {
+    async getActivities(
+      startDate?: string,
+      endDate?: string
+    ): Promise<{ activities: AlpacaActivity[] }> {
       const params = new URLSearchParams();
       if (startDate) params.append('start_date', startDate);
       if (endDate) params.append('end_date', endDate);
-      
+
       const response = await api.get(`/api/account/activity?${params.toString()}`);
       return response.data;
     },
 
     // Chart endpoints
-    async getChartData(symbol: string, timeframe: string = '1D', limit: number = 1000): Promise<{ symbol: string; timeframe: string; bars: AlpacaBar[] }> {
+    async getChartData(
+      symbol: string,
+      timeframe: string = '1D',
+      limit: number = 1000
+    ): Promise<{ symbol: string; timeframe: string; bars: AlpacaBar[] }> {
       const response = await api.get(`/api/chart/${symbol}`, {
-        params: { timeframe, limit }
+        params: { timeframe, limit },
       });
       return response.data;
     },
 
     // Options endpoints
-    async getOptionsTrades(symbol: string, hours: number = 1): Promise<{ symbol: string; trades: AlpacaOptionsTrade[]; hours: number }> {
+    async getOptionsTrades(
+      symbol: string,
+      hours: number = 1
+    ): Promise<{ symbol: string; trades: AlpacaOptionsTrade[]; hours: number }> {
       const response = await api.get(`/api/options/${symbol}/recent`, {
-        params: { hours }
+        params: { hours },
+      });
+      return response.data;
+    },
+
+    async getOptionsContracts(
+      symbol: string,
+      limit: number = 1000
+    ): Promise<{ symbol: string; contracts: AlpacaOptionsContract[]; total_contracts: number }> {
+      const response = await api.get(`/api/options/${symbol}/recent`, {
+        params: { limit },
       });
       return response.data;
     },
@@ -76,7 +104,7 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     async createBuyOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: any }> {
       const response = await api.post('/api/orders/buy', orderData);
       return response.data;
-    }
+    },
   };
 };
 
@@ -93,27 +121,47 @@ export const apiService = {
     return response.data;
   },
 
-  async getActivities(startDate?: string, endDate?: string): Promise<{ activities: AlpacaActivity[] }> {
+  async getActivities(
+    startDate?: string,
+    endDate?: string
+  ): Promise<{ activities: AlpacaActivity[] }> {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
-    
+
     const response = await api.get(`/api/account/activity?${params.toString()}`);
     return response.data;
   },
 
   // Chart endpoints
-  async getChartData(symbol: string, timeframe: string = '1D', limit: number = 1000): Promise<{ symbol: string; timeframe: string; bars: AlpacaBar[] }> {
+  async getChartData(
+    symbol: string,
+    timeframe: string = '1D',
+    limit: number = 1000
+  ): Promise<{ symbol: string; timeframe: string; bars: AlpacaBar[] }> {
     const response = await api.get(`/api/chart/${symbol}`, {
-      params: { timeframe, limit }
+      params: { timeframe, limit },
     });
     return response.data;
   },
 
   // Options endpoints
-  async getOptionsTrades(symbol: string, hours: number = 1): Promise<{ symbol: string; trades: AlpacaOptionsTrade[]; hours: number }> {
+  async getOptionsTrades(
+    symbol: string,
+    hours: number = 1
+  ): Promise<{ symbol: string; trades: AlpacaOptionsTrade[]; hours: number }> {
     const response = await api.get(`/api/options/${symbol}/recent`, {
-      params: { hours }
+      params: { hours },
+    });
+    return response.data;
+  },
+
+  async getOptionsContracts(
+    symbol: string,
+    limit: number = 1000
+  ): Promise<{ symbol: string; contracts: AlpacaOptionsContract[]; total_contracts: number }> {
+    const response = await api.get(`/api/options/${symbol}/recent`, {
+      params: { limit },
     });
     return response.data;
   },
@@ -127,5 +175,5 @@ export const apiService = {
   async createBuyOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: any }> {
     const response = await api.post('/api/orders/buy', orderData);
     return response.data;
-  }
+  },
 };

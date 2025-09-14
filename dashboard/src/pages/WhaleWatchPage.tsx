@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlpacaOptionsTrade } from '../types';
+import { AlpacaOptionsContract } from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
@@ -7,40 +7,40 @@ import { StockChart } from '../components/StockChart';
 
 export const WhaleWatchPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
-  const [whaleTrades, setWhaleTrades] = useState<AlpacaOptionsTrade[]>([]);
+  const [optionsContracts, setOptionsContracts] = useState<AlpacaOptionsContract[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasRealTimeData, setHasRealTimeData] = useState<boolean>(false);
 
-  // WebSocket for real-time whale trades
+  // WebSocket for real-time options contracts
   const { lastMessage, sendMessage, isConnected } = useWebSocket();
 
   useEffect(() => {
-    loadWhaleTrades(selectedSymbol);
+    loadOptionsContracts(selectedSymbol);
   }, [selectedSymbol]);
 
   useEffect(() => {
-    if (lastMessage?.type === 'options_whale') {
-      setWhaleTrades((prev) => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 trades
+    if (lastMessage?.type === 'options_contract') {
+      setOptionsContracts((prev) => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 contracts
       setHasRealTimeData(true);
     }
   }, [lastMessage]);
 
-  const loadWhaleTrades = async (symbol: string) => {
+  const loadOptionsContracts = async (symbol: string) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const response = await apiService.getOptionsTrades(symbol, 1);
-      setWhaleTrades(response.trades);
+      const response = await apiService.getOptionsContracts(symbol);
+      setOptionsContracts(response.contracts);
 
-      // Subscribe to real-time whale trades for this symbol
+      // Subscribe to real-time options contracts for this symbol
       sendMessage({
         type: 'subscribe',
-        data: { channel: 'options_whale', symbol }
+        data: { channel: 'options_contract', symbol },
       });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load whale trades');
+      setError(err.response?.data?.error || 'Failed to load options contracts');
     } finally {
       setIsLoading(false);
     }
@@ -55,25 +55,24 @@ export const WhaleWatchPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Whale Watch</h1>
+          <h1 className="text-3xl font-bold text-foreground">Options Contracts</h1>
           <p className="text-muted-foreground">
-            Monitor large options trades and analyze market movements
+            Browse options contracts and analyze market movements
           </p>
         </div>
       </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
-        {/* Whale Watch Feed */}
+        {/* Options Contracts Feed */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Options Whale Feed</h2>
+          <h2 className="text-xl font-semibold text-foreground">Options Contracts Feed</h2>
           <WhaleWatchFeed
-            trades={whaleTrades}
+            contracts={optionsContracts}
             selectedSymbol={selectedSymbol}
             onSymbolChange={handleSymbolChange}
             isLoading={isLoading}
             error={error}
-            hours={1}
             isConnected={isConnected}
             hasRealTimeData={hasRealTimeData}
           />

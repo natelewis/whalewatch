@@ -1,31 +1,29 @@
 import React, { useState } from 'react';
-import { AlpacaOptionsTrade } from '../types';
-import { TrendingUp, TrendingDown, Search } from 'lucide-react';
+import { AlpacaOptionsContract } from '../types';
+import { Search, Calendar, DollarSign, Target } from 'lucide-react';
 import { LoadingSpinner } from './LoadingSpinner';
 
 interface WhaleWatchFeedProps {
-  trades: AlpacaOptionsTrade[];
+  contracts: AlpacaOptionsContract[];
   selectedSymbol: string;
   onSymbolChange: (symbol: string) => void;
   isLoading: boolean;
   error: string | null;
-  hours: number;
   isConnected: boolean;
   hasRealTimeData: boolean;
 }
 
 export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
-  trades,
+  contracts,
   selectedSymbol,
   onSymbolChange,
   isLoading,
   error,
-  hours,
   isConnected,
   hasRealTimeData,
 }) => {
   const [searchSymbol, setSearchSymbol] = useState(selectedSymbol);
-  const [filter, setFilter] = useState<'all' | 'calls' | 'puts' | 'whales'>('whales');
+  const [filter, setFilter] = useState<'all' | 'calls' | 'puts' | 'near_money'>('near_money');
 
   const handleSymbolSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,46 +39,52 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
     }).format(value);
   };
 
-  const formatTime = (timestamp: string): string => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+  const formatDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
     });
   };
 
-  const getTotalPremium = (trade: AlpacaOptionsTrade): number => {
-    return trade.price * trade.size * 100; // Options are per 100 shares
-  };
-
-  const getTradeIcon = (side: string) => {
-    if (side === 'buy') {
-      return <TrendingUp className="h-4 w-4 text-green-500" />;
-    } else if (side === 'sell') {
-      return <TrendingDown className="h-4 w-4 text-red-500" />;
+  const getContractIcon = (contractType: string) => {
+    if (contractType === 'call') {
+      return <Target className="h-4 w-4 text-green-500" />;
+    } else if (contractType === 'put') {
+      return <Target className="h-4 w-4 text-red-500" />;
     } else {
       return <div className="h-4 w-4 rounded-full bg-gray-400" />;
     }
   };
 
-  const getTradeColor = (side: string): string => {
-    if (side === 'buy') return 'text-green-500';
-    if (side === 'sell') return 'text-red-500';
+  const getContractColor = (contractType: string): string => {
+    if (contractType === 'call') return 'text-green-500';
+    if (contractType === 'put') return 'text-red-500';
     return 'text-gray-500';
   };
 
-  const filteredTrades = trades
-    .filter((trade) => {
-      const totalPremium = getTotalPremium(trade);
-      const isWhaleTrade = totalPremium >= 100000; // $100k+ is considered a whale trade
+  const isNearMoney = (contract: AlpacaOptionsContract, currentPrice?: number): boolean => {
+    if (!currentPrice) return false;
+    const strike = contract.strike_price;
+    const diff = Math.abs(strike - currentPrice) / currentPrice;
+    return diff <= 0.05; // Within 5% of current price
+  };
 
+  const filteredContracts = contracts
+    .filter((contract) => {
       if (filter === 'all') return true;
-      if (filter === 'calls') return trade.contract.option_type === 'call';
-      if (filter === 'puts') return trade.contract.option_type === 'put';
-      if (filter === 'whales') return isWhaleTrade;
+      if (filter === 'calls') return contract.contract_type === 'call';
+      if (filter === 'puts') return contract.contract_type === 'put';
+      if (filter === 'near_money') return isNearMoney(contract);
       return true;
     })
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); // Sort by timestamp, newest first
+    .sort((a, b) => {
+      // Sort by expiration date, then by strike price
+      const dateA = new Date(a.expiration_date).getTime();
+      const dateB = new Date(b.expiration_date).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return a.strike_price - b.strike_price;
+    });
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -126,7 +130,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
           {/* Filters */}
           <div className="flex space-x-2">
             {[
-              { value: 'whales', label: 'Whales Only' },
+              { value: 'near_money', label: 'Near Money' },
               { value: 'all', label: 'All' },
               { value: 'calls', label: 'Calls' },
               { value: 'puts', label: 'Puts' },
@@ -147,7 +151,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
         </div>
       </div>
 
-      {/* Trades List */}
+      {/* Contracts List */}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
@@ -157,18 +161,18 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
           <div className="p-8 text-center">
             <p className="text-destructive">{error}</p>
           </div>
-        ) : filteredTrades.length === 0 ? (
+        ) : filteredContracts.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-muted-foreground">
               {isConnected
                 ? hasRealTimeData
-                  ? 'No whale trades found in the selected time period'
-                  : 'Connected to real-time feed but no data received yet. This may indicate no recent options trading activity.'
+                  ? 'No options contracts found for this symbol'
+                  : 'Connected to real-time feed but no data received yet. This may indicate no options contracts available.'
                 : 'Not connected to real-time data feed. Please check your connection.'}
             </p>
             {!isConnected && (
               <p className="text-sm text-destructive mt-2">
-                ⚠️ Real-time data connection required for accurate whale tracking
+                ⚠️ Real-time data connection required for accurate options data
               </p>
             )}
           </div>
@@ -179,140 +183,93 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
               <div className="flex items-center justify-between text-sm">
                 <div>
                   <span className="font-medium text-foreground">
-                    {filteredTrades.length} {filter === 'whales' ? 'whale' : 'total'} trades
+                    {filteredContracts.length} {filter === 'near_money' ? 'near money' : 'total'}{' '}
+                    contracts
                   </span>
-                  <span className="text-muted-foreground ml-2">
-                    in the last{' '}
-                    {hours === 1
-                      ? 'hour'
-                      : hours < 24
-                      ? `${hours} hours`
-                      : hours === 24
-                      ? 'day'
-                      : `${Math.floor(hours / 24)} days`}
-                  </span>
+                  <span className="text-muted-foreground ml-2">for {selectedSymbol}</span>
                 </div>
                 <div className="text-muted-foreground">
                   {selectedSymbol} •{' '}
-                  {filter === 'whales'
-                    ? 'Whales Only'
+                  {filter === 'near_money'
+                    ? 'Near Money'
                     : filter.charAt(0).toUpperCase() + filter.slice(1)}
                 </div>
               </div>
             </div>
 
             {/* Table Header */}
-            <div className="grid grid-cols-9 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
-              <div>Symbol</div>
+            <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+              <div>Contract</div>
               <div>Type</div>
-              <div className="text-right">Time</div>
-              <div className="text-right">Exp</div>
+              <div className="text-right">Expiration</div>
               <div className="text-right">Strike</div>
-              <div className="text-right">Value</div>
-              <div className="text-right">Price</div>
-              <div className="text-right">Size</div>
-              <div className="text-right">%Gain</div>
+              <div className="text-right">Exercise</div>
+              <div className="text-right">Exchange</div>
+              <div className="text-right">Shares</div>
             </div>
 
             {/* Table Rows */}
             <div className="space-y-1">
-              {filteredTrades.map((trade) => {
-                const totalPremium = getTotalPremium(trade);
-                const isLargeTrade = totalPremium >= 100000; // $100k+ is considered a whale trade
-                const isVeryLargeTrade = totalPremium >= 1000000; // $1M+ is very large
+              {filteredContracts.map((contract, index) => {
+                const isNearMoneyContract = isNearMoney(contract);
+                const isCall = contract.contract_type === 'call';
+                const isPut = contract.contract_type === 'put';
 
                 return (
                   <div
-                    key={trade.id}
-                    className={`grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors ${
-                      isVeryLargeTrade
-                        ? 'bg-red-50 dark:bg-red-950/20 border-l-2 border-red-500'
-                        : isLargeTrade
-                        ? 'bg-yellow-50 dark:bg-yellow-950/20 border-l-2 border-yellow-500'
+                    key={`${contract.ticker}-${contract.strike_price}-${contract.expiration_date}-${index}`}
+                    className={`grid grid-cols-7 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors ${
+                      isNearMoneyContract
+                        ? 'bg-blue-50 dark:bg-blue-950/20 border-l-2 border-blue-500'
                         : ''
                     }`}
                   >
-                    {/* Symbol */}
+                    {/* Contract Ticker */}
                     <div className="flex items-center space-x-1">
-                      {getTradeIcon(trade.side)}
-                      <span className="font-medium text-foreground truncate">{trade.symbol}</span>
+                      {getContractIcon(contract.contract_type)}
+                      <span className="font-medium text-foreground truncate text-xs">
+                        {contract.ticker}
+                      </span>
                     </div>
 
                     {/* Call/Put */}
                     <div className="flex items-center">
                       <span
                         className={`text-xs px-2 py-1 rounded-full ${
-                          trade.contract.option_type === 'call'
+                          isCall
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                            : isPut
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
                         }`}
                       >
-                        {trade.contract.option_type.toUpperCase()}
+                        {contract.contract_type.toUpperCase()}
                       </span>
                     </div>
 
-                    {/* Time */}
+                    {/* Expiration */}
                     <div className="text-muted-foreground text-right">
-                      {formatTime(trade.timestamp)}
-                    </div>
-
-                    {/* Expiry */}
-                    <div className="text-muted-foreground text-right">
-                      {new Date(trade.contract.expiration_date).toLocaleDateString('en-US', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        year: 'numeric',
-                      })}
+                      {formatDate(contract.expiration_date)}
                     </div>
 
                     {/* Strike */}
                     <div className="font-medium text-foreground text-right">
-                      ${trade.contract.strike_price.toFixed(2)}
+                      ${contract.strike_price.toFixed(2)}
                     </div>
 
-                    {/* Value (Total Premium) */}
-                    <div
-                      className={`font-bold text-right ${
-                        isVeryLargeTrade
-                          ? 'text-red-600 dark:text-red-400'
-                          : isLargeTrade
-                          ? 'text-yellow-600 dark:text-yellow-400'
-                          : 'text-foreground'
-                      }`}
-                      title={`$${totalPremium.toLocaleString()}`}
-                    >
-                      {totalPremium >= 1000000
-                        ? `$${(totalPremium / 1000000).toFixed(1)}M`
-                        : totalPremium >= 1000
-                        ? `$${(totalPremium / 1000).toFixed(0)}K`
-                        : `$${totalPremium.toFixed(0)}`}
+                    {/* Exercise Style */}
+                    <div className="text-muted-foreground text-right text-xs">
+                      {contract.exercise_style}
                     </div>
 
-                    {/* Price (Per Contract) */}
-                    <div className="font-medium text-foreground text-right">
-                      ${trade.price.toFixed(2)}
+                    {/* Exchange */}
+                    <div className="text-muted-foreground text-right text-xs">
+                      {contract.primary_exchange}
                     </div>
 
-                    {/* Size (Contracts) */}
+                    {/* Shares per Contract */}
                     <div className="text-muted-foreground text-right">
-                      {trade.size.toLocaleString()}
-                    </div>
-
-                    {/* %Gain */}
-                    <div
-                      className={`font-medium text-right ${
-                        trade.gain_percentage && trade.gain_percentage > 0
-                          ? 'text-green-500'
-                          : trade.gain_percentage && trade.gain_percentage < 0
-                          ? 'text-red-500'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {trade.gain_percentage !== undefined
-                        ? `${trade.gain_percentage > 0 ? '+' : ''}${trade.gain_percentage.toFixed(
-                            2
-                          )}%`
-                        : 'N/A'}
+                      {contract.shares_per_contract}
                     </div>
                   </div>
                 );

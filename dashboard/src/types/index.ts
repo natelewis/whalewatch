@@ -144,16 +144,36 @@ export interface AlpacaOptionsTrade {
   gain_percentage?: number;
 }
 
+export interface AlpacaOptionsContract {
+  cfi: string;
+  contract_type: string;
+  exercise_style: string;
+  expiration_date: string;
+  primary_exchange: string;
+  shares_per_contract: number;
+  strike_price: number;
+  ticker: string;
+  underlying_ticker: string;
+}
+
 // WebSocket Message Types
 export interface WebSocketMessage {
-  type: 'options_whale' | 'account_quote' | 'chart_quote' | 'error' | 'connection' | 'subscription_confirmed' | 'unsubscription_confirmed' | 'pong';
+  type:
+    | 'options_contract'
+    | 'account_quote'
+    | 'chart_quote'
+    | 'error'
+    | 'connection'
+    | 'subscription_confirmed'
+    | 'unsubscription_confirmed'
+    | 'pong';
   data: any;
   timestamp: string;
 }
 
-export interface OptionsWhaleMessage extends WebSocketMessage {
-  type: 'options_whale';
-  data: AlpacaOptionsTrade;
+export interface OptionsContractMessage extends WebSocketMessage {
+  type: 'options_contract';
+  data: AlpacaOptionsContract;
 }
 
 export interface AccountQuoteMessage extends WebSocketMessage {

@@ -1,24 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { alpacaService } from '../services/alpacaService';
 import { polygonService } from '../services/polygonService';
 
 const router = Router();
 
-// Get recent options trades for a symbol
+// Get options contracts for a symbol
 router.get('/:symbol/recent', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { hours = 1, limit = 1000 } = req.query;
+    const { limit = 1000 } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
-    }
-
-    // Validate hours parameter
-    const hoursNum = parseInt(hours as string);
-    if (isNaN(hoursNum) || hoursNum < 1 || hoursNum > 168) {
-      // Max 1 week
-      return res.status(400).json({ error: 'Hours must be between 1 and 168' });
     }
 
     // Validate limit parameter
@@ -27,38 +19,28 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Limit must be between 1 and 50000' });
     }
 
-    // Get Polygon trades and contracts
-    const polygonTrades = await polygonService.getOptionsTrades(
-      symbol.toUpperCase(),
-      hoursNum,
-      1000
-    );
-    const contracts = await polygonService.getOptionsContracts(symbol.toUpperCase(), 1000);
+    // Get Polygon options contracts
+    const contracts = await polygonService.getOptionsContracts(symbol.toUpperCase(), limitNum);
 
-    // Convert Polygon trades to Alpaca format for frontend compatibility
-    const trades = alpacaService.convertPolygonTradesToAlpaca(polygonTrades, contracts);
-
-    // Check if no trades were found
-    if (!trades || trades.length === 0) {
+    // Check if no contracts were found
+    if (!contracts || contracts.length === 0) {
       return res.status(404).json({
-        error: `No options trades found for ${symbol.toUpperCase()}. This could be due to insufficient API subscription level or no recent trading activity.`,
+        error: `No options contracts found for ${symbol.toUpperCase()}. This symbol may not have active options trading.`,
         data_source: 'none',
         success: false,
-        details:
-          'Check your Polygon API subscription level - options trades data requires a paid subscription.',
+        details: 'This symbol may not have active options trading or may not be supported.',
       });
     }
 
     return res.json({
       symbol: symbol.toUpperCase(),
-      trades: trades.slice(0, limitNum), // Apply limit on the client side
-      hours: hoursNum,
-      total_trades: trades.length,
+      contracts: contracts.slice(0, limitNum), // Apply limit on the client side
+      total_contracts: contracts.length,
       data_source: 'polygon',
       success: true,
     });
   } catch (error: any) {
-    console.error('Error fetching options trades:', error);
+    console.error('Error fetching options contracts:', error);
 
     // Provide more specific error messages
     if (
@@ -88,11 +70,11 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
     ) {
       return res.status(403).json({
         error:
-          'Insufficient Polygon API subscription level. Your current subscription does not include access to options trades data. Please upgrade to a higher tier subscription that includes options data access.',
+          'Insufficient Polygon API subscription level. Your current subscription does not include access to options contracts data. Please upgrade to a higher tier subscription that includes options data access.',
         data_source: 'none',
         success: false,
         details:
-          'Options trades data requires a paid Polygon subscription. Free tier does not include options data access.',
+          'Options contracts data requires a paid Polygon subscription. Free tier does not include options data access.',
       });
     }
 
@@ -113,19 +95,8 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if the error is due to no trades found (which could be due to 403 errors)
-    if (error.message.includes('No options trades found')) {
-      return res.status(404).json({
-        error: `No options trades found for ${req.params.symbol.toUpperCase()}. This could be due to insufficient API subscription level or no recent trading activity.`,
-        data_source: 'none',
-        success: false,
-        details:
-          'Check your Polygon API subscription level - options trades data requires a paid subscription.',
-      });
-    }
-
     return res.status(500).json({
-      error: `Failed to fetch real options data: ${error.message}`,
+      error: `Failed to fetch options contracts data: ${error.message}`,
       data_source: 'none',
       success: false,
     });

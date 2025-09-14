@@ -93,15 +93,15 @@ export class PolygonService {
       }
 
       // First, get available options contracts for the symbol
-      const contracts = await this.getOptionsContracts(underlyingSymbol, 50);
+      const contracts = await this.getOptionsContracts(underlyingSymbol, 200);
 
       if (!contracts || contracts.length === 0) {
         console.warn(`No options contracts found for ${underlyingSymbol}`);
         return [];
       }
 
-      // Get trades for the most recent contracts (limit to first 10 to avoid too many requests)
-      const recentContracts = contracts.slice(0, 10);
+      // Get trades for the most recent contracts (limit to first 50 to get more comprehensive data)
+      const recentContracts = contracts.slice(0, 50);
       const allTrades: PolygonOptionsTrade[] = [];
 
       const endTime = new Date();
@@ -113,7 +113,7 @@ export class PolygonService {
           const trades = await this.getContractTrades(
             contract.ticker,
             dateStr,
-            Math.min(100, limit)
+            Math.min(200, limit)
           );
           // Add contract ticker to each trade for proper association
           const tradesWithContract = trades.map((trade) => ({
@@ -224,8 +224,11 @@ export class PolygonService {
         {
           params: {
             underlying_ticker: underlyingSymbol.toUpperCase(),
-            limit: Math.min(limit, 1000), // Polygon's max limit for contracts
+            limit: 10, //Math.min(limit, 1), // Polygon's max limit for contracts
             apikey: this.apiKey,
+            expired: false,
+            // size: 100,
+            // shares_per_contract: 100,
           },
         }
       );
