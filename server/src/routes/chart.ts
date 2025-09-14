@@ -9,12 +9,6 @@ const router = Router();
  */
 function getTimeframeHours(timeframe: string): number {
   switch (timeframe) {
-    case '1m':
-      return 1 / 60; // 1 minute = 1/60 hours
-    case '5m':
-      return 5 / 60; // 5 minutes = 5/60 hours
-    case '15m':
-      return 15 / 60; // 15 minutes = 15/60 hours
     case '1H':
       return 1; // 1 hour
     case '4H':
@@ -23,6 +17,14 @@ function getTimeframeHours(timeframe: string): number {
       return 24; // 1 day = 24 hours
     case '1W':
       return 24 * 7; // 1 week = 168 hours
+    case '3M':
+      return 24 * 30 * 3; // 3 months = ~2160 hours
+    case '6M':
+      return 24 * 30 * 6; // 6 months = ~4320 hours
+    case '1Y':
+      return 24 * 365; // 1 year = 8760 hours
+    case 'ALL':
+      return 24 * 365 * 10; // 10 years for "ALL" - effectively no limit
     default:
       return 24; // Default to 1 day
   }

@@ -30,7 +30,7 @@ interface CandlestickData {
 
 export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
-  const [timeframe, setTimeframe] = useState<ChartTimeframe>('1W');
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>('1D');
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLoading, setIsLoading] = useState(false);
   const [isLive, setIsLive] = useState(false);
@@ -40,7 +40,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
     try {
-      const savedTimeframe = getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1W');
+      const savedTimeframe = getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1D');
       setTimeframe(savedTimeframe);
     } catch (error) {
       console.warn('Failed to load chart timeframe from localStorage:', error);
@@ -237,13 +237,14 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   }, [symbol, timeframe]);
 
   const timeframes: { value: ChartTimeframe; label: string }[] = [
-    { value: '1m', label: '1m' },
-    { value: '5m', label: '5m' },
-    { value: '15m', label: '15m' },
     { value: '1H', label: '1H' },
     { value: '4H', label: '4H' },
     { value: '1D', label: '1D' },
     { value: '1W', label: '1W' },
+    { value: '3M', label: '3M' },
+    { value: '6M', label: '6M' },
+    { value: '1Y', label: '1Y' },
+    { value: 'ALL', label: 'ALL' },
   ];
 
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [

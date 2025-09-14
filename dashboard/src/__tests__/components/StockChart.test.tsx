@@ -61,7 +61,7 @@ describe('StockChart', () => {
   });
 
   it('renders with default timeframe', () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
     
     render(
       <StockChart
@@ -71,7 +71,7 @@ describe('StockChart', () => {
     );
 
     expect(screen.getByText('AAPL')).toBeInTheDocument();
-    expect(screen.getByText('1W')).toBeInTheDocument();
+    expect(screen.getByText('1D')).toBeInTheDocument();
   });
 
   it('loads saved timeframe from localStorage on mount', () => {
@@ -84,12 +84,12 @@ describe('StockChart', () => {
       />
     );
 
-    expect(mockGetLocalStorageItem).toHaveBeenCalledWith('chartTimeframe', '1W');
+    expect(mockGetLocalStorageItem).toHaveBeenCalledWith('chartTimeframe', '1D');
     expect(screen.getByText('1D')).toBeInTheDocument();
   });
 
   it('saves timeframe to localStorage when it changes', async () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
     
     render(
       <StockChart
@@ -98,12 +98,12 @@ describe('StockChart', () => {
       />
     );
 
-    // Click on 1D timeframe button
-    const dayButton = screen.getByText('1D');
-    fireEvent.click(dayButton);
+    // Click on 1W timeframe button
+    const weekButton = screen.getByText('1W');
+    fireEvent.click(weekButton);
 
     await waitFor(() => {
-      expect(mockSetLocalStorageItem).toHaveBeenCalledWith('chartTimeframe', '1D');
+      expect(mockSetLocalStorageItem).toHaveBeenCalledWith('chartTimeframe', '1W');
     });
   });
 
@@ -127,13 +127,13 @@ describe('StockChart', () => {
     );
     
     // Should still render with default timeframe
-    expect(screen.getByText('1W')).toBeInTheDocument();
+    expect(screen.getByText('1D')).toBeInTheDocument();
     
     consoleSpy.mockRestore();
   });
 
   it('handles setLocalStorageItem errors gracefully', async () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
     mockSetLocalStorageItem.mockImplementation(() => {
       throw new Error('localStorage save error');
     });
@@ -147,9 +147,9 @@ describe('StockChart', () => {
       />
     );
 
-    // Click on 1D timeframe button
-    const dayButton = screen.getByText('1D');
-    fireEvent.click(dayButton);
+    // Click on 1W timeframe button
+    const weekButton = screen.getByText('1W');
+    fireEvent.click(weekButton);
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -162,7 +162,7 @@ describe('StockChart', () => {
   });
 
   it('displays all available timeframes', () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
     
     render(
       <StockChart
@@ -171,7 +171,7 @@ describe('StockChart', () => {
       />
     );
 
-    const expectedTimeframes = ['1m', '5m', '15m', '1H', '4H', '1D', '1W'];
+    const expectedTimeframes = ['1H', '4H', '1D', '1W', '3M', '6M', '1Y', 'ALL'];
     
     expectedTimeframes.forEach(timeframe => {
       expect(screen.getByText(timeframe)).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe('StockChart', () => {
   });
 
   it('updates timeframe display when timeframe changes', async () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
     
     render(
       <StockChart
@@ -188,22 +188,22 @@ describe('StockChart', () => {
       />
     );
 
-    // Initially shows 1W
-    expect(screen.getByText('1W')).toBeInTheDocument();
+    // Initially shows 1D
+    expect(screen.getByText('1D')).toBeInTheDocument();
     
-    // Click on 1D timeframe button
-    const dayButton = screen.getByText('1D');
-    fireEvent.click(dayButton);
+    // Click on 1W timeframe button
+    const weekButton = screen.getByText('1W');
+    fireEvent.click(weekButton);
 
     await waitFor(() => {
-      // Should show 1D as selected
-      const selectedButton = screen.getByText('1D');
+      // Should show 1W as selected
+      const selectedButton = screen.getByText('1W');
       expect(selectedButton).toHaveClass('bg-primary');
     });
   });
 
   it('displays all available chart types', () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
 
     render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
@@ -215,7 +215,7 @@ describe('StockChart', () => {
   });
 
   it('renders Plotly chart component', async () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
 
     render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
@@ -226,7 +226,7 @@ describe('StockChart', () => {
   });
 
   it('updates chart type when chart type button is clicked', async () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
 
     render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
@@ -250,7 +250,7 @@ describe('StockChart', () => {
   });
 
   it('shows live/paused status correctly', () => {
-    mockGetLocalStorageItem.mockReturnValue('1W');
+    mockGetLocalStorageItem.mockReturnValue('1D');
 
     render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
