@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { createChart, IChartApi, ISeriesApi, CandlestickData, Time } from 'lightweight-charts';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import Plot from 'react-plotly.js';
 import { AlpacaBar, ChartTimeframe, ChartType } from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -20,10 +20,15 @@ interface StockChartProps {
   onSymbolChange: (symbol: string) => void;
 }
 
+interface CandlestickData {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
 export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
   const [timeframe, setTimeframe] = useState<ChartTimeframe>('1W');
   const [chartType, setChartType] = useState<ChartType>('candlestick');
@@ -55,17 +60,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const { lastMessage, sendMessage } = useWebSocket();
 
   useEffect(() => {
-    initializeChart();
-    loadChartData(symbol, timeframe);
-
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.remove();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     loadChartData(symbol, timeframe);
   }, [symbol, timeframe]);
 
@@ -74,57 +68,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       updateChartWithLiveData(lastMessage.data.bar);
     }
   }, [lastMessage, symbol]);
-
-  const initializeChart = () => {
-    if (!chartContainerRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      layout: {
-        background: { color: 'transparent' },
-        textColor: '#d1d5db',
-      },
-      grid: {
-        vertLines: { color: '#374151' },
-        horzLines: { color: '#374151' },
-      },
-      crosshair: {
-        mode: 1,
-      },
-      rightPriceScale: {
-        borderColor: '#485c7b',
-      },
-      timeScale: {
-        borderColor: '#485c7b',
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    });
-
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = candlestickSeries;
-
-    // Handle resize
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  };
 
   const loadChartData = async (symbol: string, timeframe: ChartTimeframe) => {
     try {
@@ -146,7 +89,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime());
 
       const formattedData: CandlestickData[] = uniqueBars.map((bar) => ({
-        time: (new Date(bar.t).getTime() / 1000) as Time,
+        time: bar.t,
         open: bar.o,
         high: bar.h,
         low: bar.l,
@@ -168,10 +111,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         setDataRange(null);
       }
 
-      if (seriesRef.current) {
-        seriesRef.current.setData(formattedData);
-      }
-
       // Subscribe to real-time chart data
       sendMessage({
         type: 'subscribe',
@@ -185,10 +124,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   };
 
   const updateChartWithLiveData = (bar: AlpacaBar) => {
-    if (!seriesRef.current) return;
-
     const newCandle: CandlestickData = {
-      time: (new Date(bar.t).getTime() / 1000) as Time,
+      time: bar.t,
       open: bar.o,
       high: bar.h,
       low: bar.l,
@@ -208,9 +145,96 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         return [...prevData, newCandle];
       }
     });
-
-    seriesRef.current.update(newCandle);
   };
+
+  const getPlotlyData = useCallback(() => {
+    if (chartData.length === 0) return [];
+
+    const x = chartData.map((d) => d.time);
+
+    switch (chartType) {
+      case 'candlestick':
+        return [
+          {
+            type: 'candlestick' as const,
+            x: x,
+            open: chartData.map((d) => d.open),
+            high: chartData.map((d) => d.high),
+            low: chartData.map((d) => d.low),
+            close: chartData.map((d) => d.close),
+            increasing: { line: { color: '#26a69a' } },
+            decreasing: { line: { color: '#ef5350' } },
+            name: symbol,
+          },
+        ];
+
+      case 'line':
+        return [
+          {
+            type: 'scatter' as const,
+            mode: 'lines' as const,
+            x: x,
+            y: chartData.map((d) => d.close),
+            line: { color: '#26a69a', width: 2 },
+            name: symbol,
+          },
+        ];
+
+      case 'bar':
+        return [
+          {
+            type: 'bar' as const,
+            x: x,
+            y: chartData.map((d) => d.close),
+            marker: { color: '#26a69a' },
+            name: symbol,
+          },
+        ];
+
+      case 'area':
+        return [
+          {
+            type: 'scatter' as const,
+            mode: 'lines' as const,
+            x: x,
+            y: chartData.map((d) => d.close),
+            fill: 'tonexty' as const,
+            line: { color: '#26a69a', width: 2 },
+            fillcolor: 'rgba(38, 166, 154, 0.2)',
+            name: symbol,
+          },
+        ];
+
+      default:
+        return [];
+    }
+  }, [chartData, chartType, symbol]);
+
+  const getPlotlyLayout = useCallback(() => {
+    return {
+      title: {
+        text: `${symbol} - ${timeframe}`,
+        font: { color: '#d1d5db', size: 16 },
+      },
+      xaxis: {
+        type: 'date' as const,
+        gridcolor: '#374151',
+        color: '#d1d5db',
+        title: { text: 'Time', font: { color: '#d1d5db' } },
+      },
+      yaxis: {
+        gridcolor: '#374151',
+        color: '#d1d5db',
+        title: { text: 'Price', font: { color: '#d1d5db' } },
+      },
+      plot_bgcolor: 'transparent',
+      paper_bgcolor: 'transparent',
+      font: { color: '#d1d5db' },
+      margin: { l: 50, r: 50, t: 50, b: 50 },
+      showlegend: false,
+      hovermode: 'x unified' as const,
+    };
+  }, [symbol, timeframe]);
 
   const timeframes: { value: ChartTimeframe; label: string }[] = [
     { value: '1m', label: '1m' },
@@ -322,7 +346,20 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             </div>
           </div>
         ) : (
-          <div ref={chartContainerRef} className="w-full h-full" style={{ minHeight: '400px' }} />
+          <div className="w-full h-full" style={{ minHeight: '400px' }}>
+            <Plot
+              data={getPlotlyData()}
+              layout={getPlotlyLayout()}
+              config={{
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
+                responsive: true,
+              }}
+              style={{ width: '100%', height: '100%' }}
+              useResizeHandler={true}
+            />
+          </div>
         )}
       </div>
 

@@ -29,16 +29,13 @@ vi.mock('../../hooks/useWebSocket', () => ({
   }),
 }));
 
-// Mock lightweight-charts
-vi.mock('lightweight-charts', () => ({
-  createChart: vi.fn(() => ({
-    addCandlestickSeries: vi.fn(() => ({
-      setData: vi.fn(),
-      update: vi.fn(),
-    })),
-    applyOptions: vi.fn(),
-    remove: vi.fn(),
-  })),
+// Mock react-plotly.js
+vi.mock('react-plotly.js', () => ({
+  default: vi.fn(({ data, layout, config }) => (
+    <div data-testid="plotly-chart" data-chart-type={data?.[0]?.type}>
+      Mock Plotly Chart
+    </div>
+  )),
 }));
 
 // Mock localStorage utilities
@@ -203,5 +200,68 @@ describe('StockChart', () => {
       const selectedButton = screen.getByText('1D');
       expect(selectedButton).toHaveClass('bg-primary');
     });
+  });
+
+  it('displays all available chart types', () => {
+    mockGetLocalStorageItem.mockReturnValue('1W');
+
+    render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
+
+    const expectedChartTypes = ['Candlestick', 'Line', 'Bar', 'Area'];
+
+    expectedChartTypes.forEach((chartType) => {
+      expect(screen.getByText(chartType)).toBeInTheDocument();
+    });
+  });
+
+  it('renders Plotly chart component', async () => {
+    mockGetLocalStorageItem.mockReturnValue('1W');
+
+    render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
+
+    // Wait for the chart to load (after loading state)
+    await waitFor(() => {
+      expect(screen.getByTestId('plotly-chart')).toBeInTheDocument();
+    });
+  });
+
+  it('updates chart type when chart type button is clicked', async () => {
+    mockGetLocalStorageItem.mockReturnValue('1W');
+
+    render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
+
+    // Wait for chart to load first
+    await waitFor(() => {
+      expect(screen.getByTestId('plotly-chart')).toBeInTheDocument();
+    });
+
+    // Find all chart type buttons
+    const candlestickButton = screen.getByText('Candlestick');
+    const lineButton = screen.getByText('Line');
+
+    // Initially one should be selected
+    const selectedButtons = screen
+      .getAllByText(/Candlestick|Line|Bar|Area/)
+      .filter((button) => button.closest('button')?.classList.contains('bg-primary'));
+    expect(selectedButtons.length).toBe(1);
+
+    // Click on Line chart type button - this should not throw an error
+    expect(() => fireEvent.click(lineButton)).not.toThrow();
+  });
+
+  it('shows live/paused status correctly', () => {
+    mockGetLocalStorageItem.mockReturnValue('1W');
+
+    render(<StockChart symbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
+
+    // Initially shows Paused
+    expect(screen.getByText('Paused')).toBeInTheDocument();
+
+    // Click live button
+    const liveButton = screen.getByText('Paused');
+    fireEvent.click(liveButton);
+
+    // Should show Live
+    expect(screen.getByText('Live')).toBeInTheDocument();
   });
 });
