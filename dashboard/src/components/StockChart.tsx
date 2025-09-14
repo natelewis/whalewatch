@@ -19,7 +19,7 @@ interface StockChartProps {
   onSymbolChange: (symbol: string) => void;
 }
 
-export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
+export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -113,7 +113,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       const response = await apiService.getChartData(symbol, timeframe, 1000);
       const bars = response.bars;
 
-      const formattedData: CandlestickData[] = bars.map(bar => ({
+      const formattedData: CandlestickData[] = bars.map((bar) => ({
         time: (new Date(bar.t).getTime() / 1000) as Time,
         open: bar.o,
         high: bar.h,
@@ -122,7 +122,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       }));
 
       setChartData(formattedData);
-      
+
       if (seriesRef.current) {
         seriesRef.current.setData(formattedData);
       }
@@ -130,9 +130,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Subscribe to real-time chart data
       sendMessage({
         type: 'subscribe',
-        data: { channel: 'chart_quote', symbol }
+        data: { channel: 'chart_quote', symbol },
       });
-
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load chart data');
     } finally {
@@ -152,7 +151,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     };
 
     // Update the last candle or add a new one
-    setChartData(prevData => {
+    setChartData((prevData) => {
       const lastCandle = prevData[prevData.length - 1];
       if (lastCandle && lastCandle.time === newCandle.time) {
         // Update existing candle
@@ -278,11 +277,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             </div>
           </div>
         ) : (
-          <div
-            ref={chartContainerRef}
-            className="w-full h-full"
-            style={{ minHeight: '400px' }}
-          />
+          <div ref={chartContainerRef} className="w-full h-full" style={{ minHeight: '400px' }} />
         )}
       </div>
 
@@ -294,7 +289,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             <span>Timeframe: {timeframe}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+            <div
+              className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500' : 'bg-gray-500'}`}
+            ></div>
             <span>{isLive ? 'Live data' : 'Historical data'}</span>
           </div>
         </div>

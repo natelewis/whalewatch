@@ -6,7 +6,7 @@ import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { StockChart } from '../components/StockChart';
 
 export const WhaleWatchPage: React.FC = () => {
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('LLY');
   const [optionsContracts, setOptionsContracts] = useState<AlpacaOptionsContract[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

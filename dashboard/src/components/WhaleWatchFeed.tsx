@@ -64,7 +64,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   };
 
   const isNearMoney = (contract: AlpacaOptionsContract, currentPrice?: number): boolean => {
-    if (!currentPrice) return false;
+    if (!currentPrice || !contract.strike_price) return false;
     const strike = contract.strike_price;
     const diff = Math.abs(strike - currentPrice) / currentPrice;
     return diff <= 0.05; // Within 5% of current price
@@ -73,17 +73,17 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   const filteredContracts = contracts
     .filter((contract) => {
       if (filter === 'all') return true;
-      if (filter === 'calls') return contract.contract_type === 'call';
-      if (filter === 'puts') return contract.contract_type === 'put';
+      if (filter === 'calls') return (contract.contract_type || '') === 'call';
+      if (filter === 'puts') return (contract.contract_type || '') === 'put';
       if (filter === 'near_money') return isNearMoney(contract);
       return true;
     })
     .sort((a, b) => {
       // Sort by expiration date, then by strike price
-      const dateA = new Date(a.expiration_date).getTime();
-      const dateB = new Date(b.expiration_date).getTime();
+      const dateA = a.expiration_date ? new Date(a.expiration_date).getTime() : 0;
+      const dateB = b.expiration_date ? new Date(b.expiration_date).getTime() : 0;
       if (dateA !== dateB) return dateA - dateB;
-      return a.strike_price - b.strike_price;
+      return (a.strike_price || 0) - (b.strike_price || 0);
     });
 
   return (
@@ -226,9 +226,9 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                   >
                     {/* Contract Ticker */}
                     <div className="flex items-center space-x-1">
-                      {getContractIcon(contract.contract_type)}
+                      {getContractIcon(contract.contract_type || 'unknown')}
                       <span className="font-medium text-foreground truncate text-xs">
-                        {contract.ticker}
+                        {contract.ticker || 'N/A'}
                       </span>
                     </div>
 
@@ -243,33 +243,33 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                             : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
                         }`}
                       >
-                        {contract.contract_type.toUpperCase()}
+                        {(contract.contract_type || 'unknown').toUpperCase()}
                       </span>
                     </div>
 
                     {/* Expiration */}
                     <div className="text-muted-foreground text-right">
-                      {formatDate(contract.expiration_date)}
+                      {contract.expiration_date ? formatDate(contract.expiration_date) : 'N/A'}
                     </div>
 
                     {/* Strike */}
                     <div className="font-medium text-foreground text-right">
-                      ${contract.strike_price.toFixed(2)}
+                      ${(contract.strike_price || 0).toFixed(2)}
                     </div>
 
                     {/* Exercise Style */}
                     <div className="text-muted-foreground text-right text-xs">
-                      {contract.exercise_style}
+                      {contract.exercise_style || 'N/A'}
                     </div>
 
                     {/* Exchange */}
                     <div className="text-muted-foreground text-right text-xs">
-                      {contract.primary_exchange}
+                      {contract.primary_exchange || 'N/A'}
                     </div>
 
                     {/* Shares per Contract */}
                     <div className="text-muted-foreground text-right">
-                      {contract.shares_per_contract}
+                      {contract.shares_per_contract || 'N/A'}
                     </div>
                   </div>
                 );

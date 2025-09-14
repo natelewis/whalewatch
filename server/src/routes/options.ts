@@ -1,13 +1,14 @@
 import { Router, Request, Response } from 'express';
-import { polygonService } from '../services/polygonService';
+import { questdbService } from '../services/questdbService';
+import { QuestDBQueryParams } from '../types/questdb';
 
 const router = Router();
 
-// Get options contracts for a symbol
+// Get options contracts for a symbol from QuestDB
 router.get('/:symbol/recent', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { limit = 1000 } = req.query;
+    const { limit = '1000' } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
@@ -15,18 +16,37 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
 
     // Validate limit parameter
     const limitNum = parseInt(limit as string);
-    if (isNaN(limitNum) || limitNum < 1 || limitNum > 50000) {
-      return res.status(400).json({ error: 'Limit must be between 1 and 50000' });
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 10000) {
+      return res.status(400).json({ error: 'Limit must be between 1 and 10000' });
     }
 
-    // Get Polygon options contracts
-    const contracts = await polygonService.getOptionsContracts(symbol.toUpperCase(), limitNum);
+    const params: QuestDBQueryParams = {
+      limit: limitNum,
+      order_by: 'created_at',
+      order_direction: 'DESC',
+    };
+
+    // Get QuestDB options contracts
+    const contracts = await questdbService.getOptionContracts(symbol.toUpperCase(), params);
+
+    // Convert QuestDB contracts to Alpaca format for frontend compatibility
+    const alpacaContracts = contracts.map((contract) => ({
+      cfi: contract.contract_type || 'unknown',
+      contract_type: contract.contract_type || 'unknown',
+      exercise_style: contract.exercise_style || 'american',
+      expiration_date: contract.expiration_date || '',
+      primary_exchange: 'UNKNOWN', // QuestDB doesn't store this
+      shares_per_contract: contract.shares_per_contract || 100,
+      strike_price: contract.strike_price || 0,
+      ticker: contract.ticker || '',
+      underlying_ticker: contract.underlying_ticker || '',
+    }));
 
     // Check if no contracts were found
     if (!contracts || contracts.length === 0) {
       return res.status(404).json({
         error: `No options contracts found for ${symbol.toUpperCase()}. This symbol may not have active options trading.`,
-        data_source: 'none',
+        data_source: 'questdb',
         success: false,
         details: 'This symbol may not have active options trading or may not be supported.',
       });
@@ -34,55 +54,18 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
 
     return res.json({
       symbol: symbol.toUpperCase(),
-      contracts: contracts.slice(0, limitNum), // Apply limit on the client side
+      contracts: alpacaContracts.slice(0, limitNum), // Apply limit on the client side
       total_contracts: contracts.length,
-      data_source: 'polygon',
+      data_source: 'questdb',
       success: true,
     });
   } catch (error: any) {
-    console.error('Error fetching options contracts:', error);
+    console.error('Error fetching options contracts from QuestDB:', error);
 
-    // Provide more specific error messages
-    if (
-      error.message.includes('API key not configured') ||
-      error.message.includes('Invalid API key')
-    ) {
-      return res.status(401).json({
-        error:
-          'Polygon API key not configured. Please configure POLYGON_API_KEY environment variable to access real options data.',
-        data_source: 'none',
-        success: false,
-      });
-    }
-
-    if (error.message.includes('rate limit')) {
-      return res.status(429).json({
-        error: 'Polygon API rate limit exceeded. Please try again later.',
-        data_source: 'none',
-        success: false,
-      });
-    }
-
-    if (
-      error.message.includes('subscription') ||
-      error.message.includes('forbidden') ||
-      error.message.includes('403')
-    ) {
-      return res.status(403).json({
-        error:
-          'Insufficient Polygon API subscription level. Your current subscription does not include access to options contracts data. Please upgrade to a higher tier subscription that includes options data access.',
-        data_source: 'none',
-        success: false,
-        details:
-          'Options contracts data requires a paid Polygon subscription. Free tier does not include options data access.',
-      });
-    }
-
-    if (error.message.includes('connection failed') || error.message.includes('ENOTFOUND')) {
+    if (error.message.includes('connection refused') || error.message.includes('ENOTFOUND')) {
       return res.status(503).json({
-        error:
-          'Unable to connect to Polygon API. Please check your network connection and try again.',
-        data_source: 'none',
+        error: 'Unable to connect to QuestDB. Please check if QuestDB is running.',
+        data_source: 'questdb',
         success: false,
       });
     }
@@ -90,44 +73,114 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
     if (error.message.includes('No options contracts found')) {
       return res.status(404).json({
         error: `No options contracts found for ${req.params.symbol.toUpperCase()}. This symbol may not have active options trading.`,
-        data_source: 'none',
+        data_source: 'questdb',
         success: false,
       });
     }
 
     return res.status(500).json({
       error: `Failed to fetch options contracts data: ${error.message}`,
-      data_source: 'none',
+      data_source: 'questdb',
       success: false,
     });
   }
 });
 
-// Test Polygon API connection
+// Get options trades for a symbol
+router.get('/:symbol/trades', async (req: Request, res: Response) => {
+  try {
+    const { symbol } = req.params;
+    const {
+      start_time,
+      end_time,
+      limit = '1000',
+      order_by = 'timestamp',
+      order_direction = 'DESC',
+    } = req.query;
+
+    if (!symbol) {
+      return res.status(400).json({ error: 'Symbol is required' });
+    }
+
+    const limitNum = parseInt(limit as string);
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 10000) {
+      return res.status(400).json({ error: 'Limit must be between 1 and 10000' });
+    }
+
+    const params: QuestDBQueryParams = {
+      start_time: start_time as string | undefined,
+      end_time: end_time as string | undefined,
+      limit: limitNum,
+      order_by: order_by as string,
+      order_direction: order_direction as 'ASC' | 'DESC',
+    };
+
+    const trades = await questdbService.getOptionTrades(undefined, symbol.toUpperCase(), params);
+
+    // Convert QuestDB trades to Alpaca format for frontend compatibility
+    const alpacaTrades = trades.map((trade) => ({
+      id: trade.sequence_number.toString(),
+      symbol: trade.ticker,
+      timestamp: trade.timestamp,
+      price: trade.price,
+      size: trade.size,
+      side: 'unknown' as 'buy' | 'sell' | 'unknown', // QuestDB doesn't store trade side
+      conditions: [trade.conditions],
+      exchange: trade.exchange.toString(),
+      tape: trade.tape.toString(),
+      contract: {
+        symbol: trade.ticker,
+        underlying_symbol: trade.underlying_ticker,
+        exercise_style: 'american', // Default assumption
+        expiration_date: '', // Would need to join with contracts table
+        strike_price: 0, // Would need to join with contracts table
+        option_type: 'call' as 'call' | 'put', // Would need to join with contracts table
+      },
+    }));
+
+    return res.json({
+      symbol: symbol.toUpperCase(),
+      trades: alpacaTrades,
+      count: trades.length,
+      data_source: 'questdb',
+      success: true,
+    });
+  } catch (error: any) {
+    console.error('Error fetching options trades from QuestDB:', error);
+    return res.status(500).json({
+      error: `Failed to fetch options trades: ${error.message}`,
+      data_source: 'questdb',
+      success: false,
+    });
+  }
+});
+
+// Test QuestDB connection
 router.get('/test-connection', async (_req: Request, res: Response) => {
   try {
-    await polygonService.testConnection();
-    const isValid = await polygonService.validateApiKey();
+    const isConnected = await questdbService.testConnection();
+    const stats = await questdbService.getDatabaseStats();
 
-    if (isValid) {
+    if (isConnected) {
       return res.json({
         success: true,
-        message: 'Polygon API connection successful',
-        data_source: 'polygon',
+        message: 'QuestDB connection successful',
+        data_source: 'questdb',
+        stats,
       });
     } else {
-      return res.status(401).json({
+      return res.status(500).json({
         success: false,
-        message: 'Polygon API key is invalid or not configured',
-        data_source: 'none',
+        message: 'QuestDB connection failed',
+        data_source: 'questdb',
       });
     }
   } catch (error: any) {
-    console.error('Polygon API test failed:', error);
+    console.error('QuestDB connection test failed:', error);
     return res.status(500).json({
       success: false,
-      message: `Polygon API test failed: ${error.message}`,
-      data_source: 'none',
+      message: `QuestDB connection test failed: ${error.message}`,
+      data_source: 'questdb',
     });
   }
 });

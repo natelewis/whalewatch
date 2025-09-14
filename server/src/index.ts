@@ -25,6 +25,7 @@ import { accountRoutes } from './routes/account';
 import { chartRoutes } from './routes/chart';
 import { optionsRoutes } from './routes/options';
 import { orderRoutes } from './routes/orders';
+import { questdbRoutes } from './routes/questdb';
 import { setupWebSocketServer } from './websocket/server';
 import './config/passport';
 
@@ -83,6 +84,7 @@ app.use('/api/account', accountRoutes);
 app.use('/api/chart', chartRoutes);
 app.use('/api/options', optionsRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/questdb', questdbRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

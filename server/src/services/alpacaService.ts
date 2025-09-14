@@ -9,12 +9,7 @@ import {
   CreateOrderResponse,
   ChartTimeframe,
 } from '../types';
-import {
-  polygonService,
-  PolygonOptionsTrade,
-  PolygonOptionsContract,
-  PolygonBar,
-} from './polygonService';
+// Polygon service removed - now using QuestDB
 
 export class AlpacaService {
   private baseUrl: string;
@@ -157,163 +152,13 @@ export class AlpacaService {
   }
 
   async getOptionsTrades(symbol: string, hours: number = 1): Promise<AlpacaOptionsTrade[]> {
-    // Use Polygon API for real options trades data
-    const polygonTrades = await polygonService.getOptionsTrades(symbol, hours, 1000);
-
-    // Get contract information for accurate option details
-    const contracts = await polygonService.getOptionsContracts(symbol, 1000);
-
-    // Convert Polygon trades to Alpaca format for consistency
-    return this.convertPolygonTradesToAlpaca(polygonTrades, contracts);
+    // This method is now handled by QuestDB routes
+    // Keeping for backward compatibility but should not be used
+    console.warn('getOptionsTrades called on AlpacaService - use QuestDB routes instead');
+    return [];
   }
 
-  convertPolygonBarsToAlpaca(polygonBars: PolygonBar[]): AlpacaBar[] {
-    return polygonBars.map((bar) => ({
-      t: bar.t.toString(),
-      o: bar.o,
-      h: bar.h,
-      l: bar.l,
-      c: bar.c,
-      v: bar.v,
-      ...(bar.n !== undefined && { n: bar.n }),
-      ...(bar.vw !== undefined && { vw: bar.vw }),
-    }));
-  }
-
-  convertPolygonTradesToAlpaca(
-    polygonTrades: PolygonOptionsTrade[],
-    contracts: PolygonOptionsContract[]
-  ): AlpacaOptionsTrade[] {
-    // Create a map of contracts for quick lookup
-    const contractMap = new Map<string, PolygonOptionsContract>();
-    if (contracts && contracts.length > 0) {
-      contracts.forEach((contract) => {
-        contractMap.set(contract.ticker, contract);
-      });
-    }
-
-    const alpacaTrades = polygonTrades
-      .map((trade) => {
-        // Convert timestamp from nanoseconds to ISO string
-        const timestampValue = trade.sip_timestamp || trade.timestamp;
-        if (!timestampValue || timestampValue <= 0) {
-          console.warn('Invalid timestamp found in trade:', trade);
-          return null;
-        }
-
-        // Validate timestamp before conversion
-        const timestampMs = timestampValue / 1000000;
-        if (isNaN(timestampMs) || timestampMs <= 0) {
-          console.warn('Invalid timestamp conversion for trade:', trade);
-          return null;
-        }
-
-        const timestamp = new Date(timestampMs).toISOString();
-
-        // Find matching contract data using the contract ticker
-        const contractTicker = trade.contract_ticker;
-        let contract: PolygonOptionsContract | null = null;
-
-        if (contractTicker) {
-          contract = contracts.find((c) => c.ticker === contractTicker) || null;
-        }
-
-        // Fallback to first contract if no specific contract found (shouldn't happen with new approach)
-        if (!contract && contracts.length > 0) {
-          console.warn(
-            `No contract found for trade ${trade.id} with ticker ${contractTicker}, using first available contract`
-          );
-          contract = contracts[0];
-        }
-
-        // FAIL FAST: If no contracts available, we cannot process this trade safely
-        if (!contract) {
-          throw new Error(
-            `No contract data available for trade ${trade.id} - cannot determine strike price, expiration, or option type. This trade will be rejected.`
-          );
-        }
-
-        // Validate contract data
-        if (!contract.strike_price || contract.strike_price <= 0) {
-          throw new Error(
-            `Invalid contract strike price: ${contract.strike_price} for trade ${trade.id}`
-          );
-        }
-        if (!contract.expiration_date) {
-          throw new Error(`Missing contract expiration date for trade ${trade.id}`);
-        }
-        if (!contract.contract_type || !['call', 'put'].includes(contract.contract_type)) {
-          throw new Error(`Invalid contract type: ${contract.contract_type} for trade ${trade.id}`);
-        }
-
-        const alpacaTrade: AlpacaOptionsTrade = {
-          id: trade.id,
-          symbol: contract.ticker,
-          timestamp,
-          price: trade.price,
-          size: trade.size,
-          side: 'unknown', // Polygon doesn't provide side info directly
-          conditions: trade.conditions.map((c) => c.toString()),
-          exchange: this.mapExchangeCode(trade.exchange),
-          tape: this.mapTapeCode(trade.tape),
-          contract: {
-            symbol: contract.ticker,
-            underlying_symbol: contract.underlying_ticker,
-            exercise_style: contract.exercise_style,
-            expiration_date: contract.expiration_date,
-            strike_price: contract.strike_price,
-            option_type: (contract.contract_type === 'call' ? 'call' : 'put') as 'call' | 'put',
-          },
-          // No mock price history - only use real data
-        };
-
-        return alpacaTrade;
-      })
-      .filter((trade) => trade !== null);
-
-    // Debug: Log first few converted trades to verify sorting
-    if (alpacaTrades.length > 0) {
-      console.log('First 3 converted trades:');
-      alpacaTrades.slice(0, 3).forEach((trade: AlpacaOptionsTrade, index: number) => {
-        console.log(
-          `${index + 1}. Trade ${trade.id}: ${trade.timestamp} (strike: $${
-            trade.contract.strike_price
-          })`
-        );
-      });
-    }
-
-    return alpacaTrades;
-  }
-
-  private mapExchangeCode(exchangeCode: number): string {
-    // Map Polygon exchange codes to readable names
-    const exchangeMap: Record<number, string> = {
-      1: 'CBOE',
-      2: 'AMEX',
-      3: 'PHLX',
-      4: 'ISE',
-      5: 'BOX',
-      6: 'BATS',
-      7: 'C2',
-      8: 'EDGX',
-      9: 'EDGA',
-      10: 'ARCA',
-      11: 'NASDAQ',
-      12: 'NYSE',
-    };
-    return exchangeMap[exchangeCode] || 'UNKNOWN';
-  }
-
-  private mapTapeCode(tapeCode: number): string {
-    // Map Polygon tape codes to readable names
-    const tapeMap: Record<number, string> = {
-      1: 'A',
-      2: 'B',
-      3: 'C',
-    };
-    return tapeMap[tapeCode] || 'UNKNOWN';
-  }
+  // Polygon conversion methods removed - now using QuestDB
 
   async createOrder(orderData: CreateOrderRequest): Promise<CreateOrderResponse> {
     try {

@@ -2,8 +2,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
-import { JWTPayload, WebSocketMessage, OptionsWhaleMessage, AccountQuoteMessage, ChartQuoteMessage } from '../types';
-import { polygonWebSocketService } from '../services/polygonWebSocketService';
+import { JWTPayload, WebSocketMessage } from '../types';
+import { questdbWebSocketService } from '../services/questdbWebSocketService';
 
 interface AuthenticatedWebSocket extends WebSocket {
   user?: JWTPayload;
@@ -70,8 +70,8 @@ export const setupWebSocketServer = (server: Server): void => {
     });
   });
 
-  // Connect to Polygon WebSocket for real-time data
-  initializePolygonConnection(wss);
+  // Connect to QuestDB WebSocket for real-time data
+  initializeQuestDBConnection(wss);
 };
 
 const handleClientMessage = (ws: AuthenticatedWebSocket, message: any): void => {
@@ -105,17 +105,26 @@ const handleSubscription = (ws: AuthenticatedWebSocket, data: any): void => {
 
   console.log(`User subscribed to: ${subscriptionKey}`);
 
-  // Subscribe to Polygon WebSocket for real-time data
+  // Subscribe to QuestDB WebSocket for real-time data
   if (symbol) {
     switch (channel) {
       case 'options_whale':
-        polygonWebSocketService.subscribeToOptionsTrades(symbol);
+        questdbWebSocketService.subscribe({
+          type: 'option_trades',
+          underlying_ticker: symbol,
+        });
         break;
       case 'account_quote':
-        polygonWebSocketService.subscribeToQuotes(symbol);
+        questdbWebSocketService.subscribe({
+          type: 'stock_trades',
+          symbol: symbol,
+        });
         break;
       case 'chart_quote':
-        polygonWebSocketService.subscribeToTrades(symbol);
+        questdbWebSocketService.subscribe({
+          type: 'stock_aggregates',
+          symbol: symbol,
+        });
         break;
     }
   }
@@ -140,17 +149,26 @@ const handleUnsubscription = (ws: AuthenticatedWebSocket, data: any): void => {
 
   console.log(`User unsubscribed from: ${subscriptionKey}`);
 
-  // Unsubscribe from Polygon WebSocket
+  // Unsubscribe from QuestDB WebSocket
   if (symbol) {
     switch (channel) {
       case 'options_whale':
-        polygonWebSocketService.unsubscribe(symbol, 'options');
+        questdbWebSocketService.unsubscribe({
+          type: 'option_trades',
+          underlying_ticker: symbol,
+        });
         break;
       case 'account_quote':
-        polygonWebSocketService.unsubscribe(symbol, 'quotes');
+        questdbWebSocketService.unsubscribe({
+          type: 'stock_trades',
+          symbol: symbol,
+        });
         break;
       case 'chart_quote':
-        polygonWebSocketService.unsubscribe(symbol, 'trades');
+        questdbWebSocketService.unsubscribe({
+          type: 'stock_aggregates',
+          symbol: symbol,
+        });
         break;
     }
   }
@@ -162,51 +180,82 @@ const handleUnsubscription = (ws: AuthenticatedWebSocket, data: any): void => {
   });
 };
 
-const initializePolygonConnection = (wss: WebSocketServer): void => {
-  // Connect to Polygon WebSocket
-  polygonWebSocketService.connect().catch((error) => {
-    console.error('Failed to connect to Polygon WebSocket:', error);
+const initializeQuestDBConnection = (wss: WebSocketServer): void => {
+  // Start QuestDB streaming
+  questdbWebSocketService.startStreaming().catch((error) => {
+    console.error('Failed to start QuestDB streaming:', error);
   });
 
-  // Handle real-time options trades from Polygon
-  polygonWebSocketService.on('options_trade', (trade) => {
-    console.log('✅ Broadcasting valid options trade:', {
-      symbol: trade.symbol,
-      strike: trade.contract.strike_price,
-      type: trade.contract.option_type,
-      price: trade.price,
-      size: trade.size,
+  // Handle real-time option trades from QuestDB
+  questdbWebSocketService.on('option_trade', (message) => {
+    console.log('✅ Broadcasting option trade from QuestDB:', {
+      symbol: message.symbol,
+      underlying_ticker: message.underlying_ticker,
+      price: message.data.price,
+      size: message.data.size,
     });
-    broadcastToSubscribers(wss, 'options_whale', trade);
+    broadcastToSubscribers(wss, 'options_whale', message.data, message.underlying_ticker);
   });
 
-  // Handle errors from Polygon WebSocket
-  polygonWebSocketService.on('error', (error) => {
-    console.error('❌ Polygon WebSocket error:', error.message);
+  // Handle real-time stock trades from QuestDB
+  questdbWebSocketService.on('stock_trade', (message) => {
+    console.log('✅ Broadcasting stock trade from QuestDB:', {
+      symbol: message.symbol,
+      price: message.data.price,
+      size: message.data.size,
+    });
+    broadcastToSubscribers(
+      wss,
+      'account_quote',
+      {
+        symbol: message.symbol,
+        price: message.data.price,
+        timestamp: message.data.timestamp,
+      },
+      message.symbol
+    );
+  });
+
+  // Handle real-time stock aggregates from QuestDB
+  questdbWebSocketService.on('stock_aggregate', (message) => {
+    console.log('✅ Broadcasting stock aggregate from QuestDB:', {
+      symbol: message.symbol,
+      close: message.data.close,
+      volume: message.data.volume,
+    });
+    broadcastToSubscribers(
+      wss,
+      'chart_quote',
+      {
+        symbol: message.symbol,
+        bar: {
+          t: message.data.timestamp,
+          o: message.data.open,
+          h: message.data.high,
+          l: message.data.low,
+          c: message.data.close,
+          v: message.data.volume,
+          n: message.data.transaction_count,
+          vw: message.data.vwap,
+        },
+      },
+      message.symbol
+    );
+  });
+
+  // Handle errors from QuestDB WebSocket
+  questdbWebSocketService.on('error', (error) => {
+    console.error('❌ QuestDB WebSocket error:', error.message);
     // Don't broadcast errors to clients, just log them
   });
 
-  // Handle real-time quotes from Polygon
-  polygonWebSocketService.on('quote', (quote) => {
-    broadcastToSubscribers(wss, 'account_quote', quote, quote.symbol);
+  // Handle QuestDB connection events
+  questdbWebSocketService.on('connected', () => {
+    console.log('✅ QuestDB streaming started - real-time data available');
   });
 
-  // Handle real-time trades from Polygon
-  polygonWebSocketService.on('trade', (tradeData) => {
-    broadcastToSubscribers(wss, 'chart_quote', tradeData, tradeData.symbol);
-  });
-
-  // Handle Polygon connection events
-  polygonWebSocketService.on('connected', () => {
-    console.log('✅ Polygon WebSocket connected - real-time data available');
-  });
-
-  polygonWebSocketService.on('disconnected', () => {
-    console.log('❌ Polygon WebSocket disconnected - attempting reconnection');
-  });
-
-  polygonWebSocketService.on('error', (error) => {
-    console.error('Polygon WebSocket error:', error);
+  questdbWebSocketService.on('disconnected', () => {
+    console.log('❌ QuestDB streaming stopped');
   });
 };
 

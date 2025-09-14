@@ -294,41 +294,5 @@ export type ChartTimeframe = '1m' | '5m' | '15m' | '1H' | '4H' | '1D' | '1W';
 // Chart Type
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 
-// Polygon API Types
-export interface PolygonOptionsTrade {
-  id: string;
-  conditions: number[];
-  exchange: number;
-  price: number;
-  size: number;
-  timestamp: number;
-  participant_timestamp: number;
-  sip_timestamp: number;
-  tape: number;
-}
-
-export interface PolygonOptionsContract {
-  cfi: string;
-  contract_type: string;
-  exercise_style: string;
-  expiration_date: string;
-  primary_exchange: string;
-  shares_per_contract: number;
-  strike_price: number;
-  ticker: string;
-  underlying_ticker: string;
-}
-
-export interface PolygonOptionsTradesResponse {
-  next_url?: string;
-  request_id: string;
-  results: PolygonOptionsTrade[];
-  status: string;
-}
-
-export interface PolygonOptionsContractsResponse {
-  next_url?: string;
-  request_id: string;
-  results: PolygonOptionsContract[];
-  status: string;
-}
+// QuestDB Types
+export * from './questdb';

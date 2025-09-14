@@ -23,7 +23,7 @@ describe('AlpacaService', () => {
         status: 'ACTIVE',
         currency: 'USD',
         buying_power: '10000.00',
-        portfolio_value: '50000.00'
+        portfolio_value: '50000.00',
       };
 
       mockAlpacaApi.getAccount.mockResolvedValue(mockAccount as any);
@@ -37,7 +37,9 @@ describe('AlpacaService', () => {
     it('should throw error on API failure', async () => {
       mockAlpacaApi.getAccount.mockRejectedValue(new Error('API Error'));
 
-      await expect(alpacaService.getAccount()).rejects.toThrow('Failed to fetch account information');
+      await expect(alpacaService.getAccount()).rejects.toThrow(
+        'Failed to fetch account information'
+      );
     });
   });
 
@@ -49,8 +51,8 @@ describe('AlpacaService', () => {
           symbol: 'AAPL',
           qty: '10',
           side: 'long',
-          market_value: '1500.00'
-        }
+          market_value: '1500.00',
+        },
       ];
 
       mockAlpacaApi.getPositions.mockResolvedValue(mockPositions as any);
@@ -74,8 +76,8 @@ describe('AlpacaService', () => {
         {
           id: 'activity-1',
           activity_type: 'FILL',
-          transaction_time: '2024-01-01T10:00:00Z'
-        }
+          transaction_time: '2024-01-01T10:00:00Z',
+        },
       ];
 
       mockAlpacaApi.getActivities.mockResolvedValue(mockActivities as any);
@@ -95,7 +97,7 @@ describe('AlpacaService', () => {
       expect(result).toEqual(mockActivities);
       expect(mockAlpacaApi.getActivities).toHaveBeenCalledWith({
         start: '2024-01-01',
-        end: '2024-01-31'
+        end: '2024-01-31',
       });
     });
 
@@ -106,85 +108,7 @@ describe('AlpacaService', () => {
     });
   });
 
-  describe('convertPolygonBarsToAlpaca', () => {
-    it('should convert Polygon bars to Alpaca format', () => {
-      const polygonBars = [
-        {
-          t: 1640995200000,
-          o: 100.0,
-          h: 105.0,
-          l: 95.0,
-          c: 102.0,
-          v: 1000000,
-          n: 5000,
-          vw: 101.0,
-        },
-        {
-          t: 1640995260000,
-          o: 102.0,
-          h: 108.0,
-          l: 98.0,
-          c: 106.0,
-          v: 1200000,
-          n: 6000,
-          vw: 103.0,
-        },
-      ];
-
-      const result = alpacaService.convertPolygonBarsToAlpaca(polygonBars);
-
-      expect(result).toEqual([
-        {
-          t: '1640995200000',
-          o: 100.0,
-          h: 105.0,
-          l: 95.0,
-          c: 102.0,
-          v: 1000000,
-          n: 5000,
-          vw: 101.0,
-        },
-        {
-          t: '1640995260000',
-          o: 102.0,
-          h: 108.0,
-          l: 98.0,
-          c: 106.0,
-          v: 1200000,
-          n: 6000,
-          vw: 103.0,
-        },
-      ]);
-    });
-
-    it('should handle optional properties correctly', () => {
-      const polygonBars = [
-        {
-          t: 1640995200000,
-          o: 100.0,
-          h: 105.0,
-          l: 95.0,
-          c: 102.0,
-          v: 1000000,
-          // n and vw are undefined
-        },
-      ];
-
-      const result = alpacaService.convertPolygonBarsToAlpaca(polygonBars);
-
-      expect(result).toEqual([
-        {
-          t: '1640995200000',
-          o: 100.0,
-          h: 105.0,
-          l: 95.0,
-          c: 102.0,
-          v: 1000000,
-          // n and vw should not be present
-        },
-      ]);
-    });
-  });
+  // Polygon conversion tests removed - now using QuestDB
 
   describe('getBars', () => {
     it('should return bars for 1D timeframe', async () => {
@@ -197,12 +121,12 @@ describe('AlpacaService', () => {
           ClosePrice: 102,
           Volume: 1000000,
           TradeCount: 5000,
-          VWAP: 101
-        }
+          VWAP: 101,
+        },
       ];
 
       mockAlpacaApi.getBarsV2.mockResolvedValue({
-        'AAPL': mockBars
+        AAPL: mockBars,
       } as any);
 
       const result = await alpacaService.getBars('AAPL', '1D', 100);
@@ -216,7 +140,7 @@ describe('AlpacaService', () => {
         c: 102,
         v: 1000000,
         n: 5000,
-        vw: 101
+        vw: 101,
       });
     });
 
@@ -231,7 +155,9 @@ describe('AlpacaService', () => {
     it('should throw error on API failure', async () => {
       mockAlpacaApi.getBarsV2.mockRejectedValue(new Error('API Error'));
 
-      await expect(alpacaService.getBars('AAPL', '1D', 100)).rejects.toThrow('Failed to fetch chart data');
+      await expect(alpacaService.getBars('AAPL', '1D', 100)).rejects.toThrow(
+        'Failed to fetch chart data'
+      );
     });
   });
 
@@ -243,7 +169,7 @@ describe('AlpacaService', () => {
         qty: '10',
         side: 'buy',
         type: 'limit',
-        status: 'new'
+        status: 'new',
       };
 
       mockAlpacaApi.createOrder.mockResolvedValue(mockOrder as any);
@@ -254,7 +180,7 @@ describe('AlpacaService', () => {
         side: 'buy' as const,
         type: 'limit' as const,
         time_in_force: 'day' as const,
-        limit_price: 150
+        limit_price: 150,
       };
 
       const result = await alpacaService.createOrder(orderData);
@@ -272,7 +198,7 @@ describe('AlpacaService', () => {
         side: 'buy' as const,
         type: 'limit' as const,
         time_in_force: 'day' as const,
-        limit_price: 150
+        limit_price: 150,
       };
 
       await expect(alpacaService.createOrder(orderData)).rejects.toThrow('Failed to create order');
