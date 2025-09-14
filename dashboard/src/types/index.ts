@@ -289,6 +289,23 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
+// Chart API Response Types
+export interface ChartDataResponse {
+  symbol: string;
+  timeframe: string;
+  bars: AlpacaBar[];
+  data_source: string;
+  success: boolean;
+  data_range: {
+    earliest: string;
+    latest: string;
+  };
+  available_data_range?: {
+    earliest: string;
+    latest: string;
+  } | null;
+}
+
 // OAuth Types
 export interface OAuthUser {
   id: string;

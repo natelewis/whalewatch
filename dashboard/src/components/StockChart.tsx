@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
-import { AlpacaBar, ChartTimeframe, ChartType } from '../types';
+import { AlpacaBar, ChartTimeframe, ChartType, ChartDataResponse } from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
@@ -36,6 +36,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const [isLive, setIsLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dataRange, setDataRange] = useState<{ earliest: string; latest: string } | null>(null);
+  const [availableDataRange, setAvailableDataRange] = useState<{
+    earliest: string;
+    latest: string;
+  } | null>(null);
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -74,7 +78,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       setIsLoading(true);
       setError(null);
 
-      const response = await apiService.getChartData(symbol, timeframe, 1000);
+      const response: ChartDataResponse = await apiService.getChartData(symbol, timeframe, 1000);
       const bars = response.bars;
 
       // Remove duplicate entries by timestamp and sort by time
@@ -98,17 +102,24 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
       setChartData(formattedData);
 
-      // Set data range if available
+      // Set full time range (always provided by server)
       if (response.data_range) {
         setDataRange(response.data_range);
+      } else {
+        setDataRange(null);
+      }
+
+      // Set available data range (only where data actually exists)
+      if (response.available_data_range) {
+        setAvailableDataRange(response.available_data_range);
       } else if (uniqueBars.length > 0) {
-        // Calculate data range from the actual data
-        setDataRange({
+        // Fallback: calculate from actual data if server doesn't provide it
+        setAvailableDataRange({
           earliest: uniqueBars[0].t,
           latest: uniqueBars[uniqueBars.length - 1].t,
         });
       } else {
-        setDataRange(null);
+        setAvailableDataRange(null);
       }
 
       // Subscribe to real-time chart data
@@ -211,7 +222,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   }, [chartData, chartType, symbol]);
 
   const getPlotlyLayout = useCallback(() => {
-    return {
+    const layout: any = {
       title: {
         text: `${symbol} - ${timeframe}`,
         font: { color: '#d1d5db', size: 16 },
@@ -234,7 +245,14 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       showlegend: false,
       hovermode: 'x unified' as const,
     };
-  }, [symbol, timeframe]);
+
+    // Set the x-axis range to the full selected timeframe
+    if (dataRange) {
+      layout.xaxis.range = [dataRange.earliest, dataRange.latest];
+    }
+
+    return layout;
+  }, [symbol, timeframe, dataRange]);
 
   const timeframes: { value: ChartTimeframe; label: string }[] = [
     { value: '1H', label: '1H' },
@@ -374,7 +392,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             <span>Timeframe: {timeframe}</span>
             {dataRange && (
               <div className="text-amber-500 text-xs">
-                <div className="font-medium">Historical Data Available:</div>
+                <div className="font-medium">Chart Time Range:</div>
                 <div>
                   UTC: {new Date(dataRange.earliest).toLocaleString('en-US', { timeZone: 'UTC' })}{' '}
                   to {new Date(dataRange.latest).toLocaleString('en-US', { timeZone: 'UTC' })}
@@ -383,6 +401,25 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                   Local: {new Date(dataRange.earliest).toLocaleString()} to{' '}
                   {new Date(dataRange.latest).toLocaleString()}
                 </div>
+                {availableDataRange && (
+                  <>
+                    <div className="font-medium mt-1">Data Available:</div>
+                    <div>
+                      UTC:{' '}
+                      {new Date(availableDataRange.earliest).toLocaleString('en-US', {
+                        timeZone: 'UTC',
+                      })}{' '}
+                      to{' '}
+                      {new Date(availableDataRange.latest).toLocaleString('en-US', {
+                        timeZone: 'UTC',
+                      })}
+                    </div>
+                    <div>
+                      Local: {new Date(availableDataRange.earliest).toLocaleString()} to{' '}
+                      {new Date(availableDataRange.latest).toLocaleString()}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

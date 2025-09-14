@@ -7,6 +7,7 @@ import {
   AlpacaOptionsTrade,
   AlpacaOptionsContract,
   CreateOrderRequest,
+  ChartDataResponse,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -14,8 +15,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Add token to requests for the default api instance
@@ -67,12 +68,7 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       symbol: string,
       timeframe: string = '1D',
       limit: number = 1000
-    ): Promise<{
-      symbol: string;
-      timeframe: string;
-      bars: AlpacaBar[];
-      data_range?: { earliest: string; latest: string };
-    }> {
+    ): Promise<ChartDataResponse> {
       const response = await api.get(`/api/chart/${symbol}`, {
         params: { timeframe, limit },
       });
@@ -143,12 +139,7 @@ export const apiService = {
     symbol: string,
     timeframe: string = '1D',
     limit: number = 1000
-  ): Promise<{
-    symbol: string;
-    timeframe: string;
-    bars: AlpacaBar[];
-    data_range?: { earliest: string; latest: string };
-  }> {
+  ): Promise<ChartDataResponse> {
     const response = await api.get(`/api/chart/${symbol}`, {
       params: { timeframe, limit },
     });

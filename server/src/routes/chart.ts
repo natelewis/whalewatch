@@ -189,31 +189,52 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     let aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
 
     // If no data found in the requested time range, try to get the most recent available data
-    if (aggregates.length === 0 && !start_time && !end_time) {
+    // to understand what time range actually has data
+    if (aggregates.length === 0) {
       console.log(
-        `No data found for ${symbol} in current time range, fetching most recent available data`
+        `No data found for ${symbol} in time range ${calculatedStartTime} to ${calculatedEndTime}`
       );
 
-      // Query for the most recent data without time constraints
+      // Query for the most recent available data to understand the data range
       const fallbackParams: QuestDBQueryParams = {
-        limit: limitNum,
+        limit: 1,
         order_by: 'timestamp',
         order_direction: 'DESC',
       };
 
-      aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), fallbackParams);
+      const recentData = await questdbService.getStockAggregates(
+        symbol.toUpperCase(),
+        fallbackParams
+      );
 
-      // If we found data, get the time range of available data
-      if (aggregates.length > 0) {
-        const latestTimestamp = aggregates[0].timestamp;
-        const earliestTimestamp = aggregates[aggregates.length - 1].timestamp;
+      if (recentData.length > 0) {
+        const latestTimestamp = recentData[0].timestamp;
+        console.log(`Found most recent data for ${symbol} at: ${latestTimestamp}`);
 
-        console.log(
-          `Found ${aggregates.length} records for ${symbol} from ${earliestTimestamp} to ${latestTimestamp}`
+        // Calculate the actual time range based on the most recent data
+        const latestDate = new Date(latestTimestamp);
+        const config = getTimeframeConfig(timeframe as string);
+        const actualStartDate = new Date(
+          latestDate.getTime() - config.timeRangeHours * 60 * 60 * 1000
         );
 
-        // Reverse the order to maintain ASC order for the frontend
-        aggregates.reverse();
+        // Update the calculated times to be based on the actual data
+        calculatedStartTime = actualStartDate.toISOString();
+        calculatedEndTime = latestDate.toISOString();
+
+        console.log(`Adjusted time range to: ${calculatedStartTime} to ${calculatedEndTime}`);
+
+        // Query again with the adjusted time range
+        const adjustedParams: QuestDBQueryParams = {
+          start_time: calculatedStartTime,
+          end_time: calculatedEndTime,
+          limit: Math.min(limitNum, config.maxDataPoints * 10),
+          order_by: 'timestamp',
+          order_direction: 'ASC',
+        };
+
+        aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), adjustedParams);
+        console.log(`Found ${aggregates.length} records with adjusted time range`);
       }
     }
 
@@ -247,7 +268,11 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       bars,
       data_source: 'questdb',
       success: true,
-      data_range:
+      data_range: {
+        earliest: calculatedStartTime,
+        latest: calculatedEndTime,
+      },
+      available_data_range:
         aggregatedData.length > 0
           ? {
               earliest: aggregatedData[0]?.timestamp,
