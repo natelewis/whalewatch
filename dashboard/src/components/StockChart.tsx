@@ -242,6 +242,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 tooltip.style.position = 'fixed';
                 tooltip.style.backgroundColor = '#6b7280';
                 tooltip.style.border = 'none';
+                tooltip.style.marginTop = '3px';
                 tooltip.style.padding = '0 0 0 8px ';
                 tooltip.style.borderRadius = '0px';
                 tooltip.style.width = '60px';
