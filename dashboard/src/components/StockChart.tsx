@@ -145,9 +145,22 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         const y = event.clientY - rect.top;
 
         console.log('Mouse position:', { x, y, rectWidth: rect.width, rectHeight: rect.height });
+        console.log('Plot area element:', plotArea);
+        console.log('Plot area computed style:', window.getComputedStyle(plotArea));
+
+        // If rect height is 0, try to get dimensions from the parent or use chart ref dimensions
+        let effectiveHeight = rect.height;
+        let effectiveWidth = rect.width;
+
+        if (effectiveHeight === 0 || effectiveWidth === 0) {
+          const chartRect = chartRef.getBoundingClientRect();
+          effectiveHeight = chartRect.height;
+          effectiveWidth = chartRect.width;
+          console.log('Using chart ref dimensions:', { effectiveWidth, effectiveHeight });
+        }
 
         // Check if mouse is within the plot area
-        if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+        if (x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
           console.log('Mouse is within plot area');
 
           // Calculate y-axis range from chart data
@@ -169,19 +182,44 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             console.log('Calculated Y-axis range:', { yMin: paddedYMin, yMax: paddedYMax });
 
             // Convert to data coordinates
-            const dataY = paddedYMin + (y / rect.height) * (paddedYMax - paddedYMin);
+            // Note: y=0 is at the top of the plot area, so we need to invert the calculation
+            const dataY = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
 
             console.log('Calculated dataY:', dataY, 'LastY:', lastY);
-            console.log('Mouse y position:', y, 'Rect height:', rect.height);
+            console.log('Mouse y position:', y, 'Effective height:', effectiveHeight);
             console.log('Y-axis range:', { paddedYMin, paddedYMax });
+            console.log(
+              'Calculation: paddedYMax - (y/height) * range =',
+              paddedYMax,
+              '- (',
+              y,
+              '/',
+              effectiveHeight,
+              ') * (',
+              paddedYMax - paddedYMin,
+              ')'
+            );
 
             // Update hover state
-            if (lastY !== dataY) {
+            const tolerance = 0.01; // Small tolerance for floating point comparison
+            const yChanged = lastY === null || Math.abs(lastY - dataY) > tolerance;
+
+            console.log('Y-value comparison:', {
+              lastY,
+              dataY,
+              difference: lastY ? Math.abs(lastY - dataY) : 'null',
+              tolerance,
+              yChanged,
+            });
+
+            if (yChanged) {
               console.log('Y-value changed! Setting hover state:', dataY);
               console.log('Price to display: $' + dataY.toFixed(2));
               lastY = dataY;
               setHoveredY(dataY);
               setHoveredPrice(dataY);
+            } else {
+              console.log('Y-value unchanged, not updating state');
             }
           } else {
             console.log('No chart data available for y-axis calculation');
