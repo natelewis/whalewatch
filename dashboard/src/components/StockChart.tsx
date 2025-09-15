@@ -303,9 +303,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             connectgaps: true, // Connect gaps to ensure continuous hover detection
             // This invisible line enables hover detection across the entire chart
             name: `${symbol}_hover_overlay`,
-            // Add fill to cover more area for hover detection
-            fill: 'tonexty' as const,
-            fillcolor: 'transparent',
+            // Remove fill to avoid filling from bottom of chart
           },
         ];
 
