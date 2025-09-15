@@ -224,6 +224,22 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         if (yValue !== undefined) {
           setHoveredY(yValue);
           setHoveredPrice(yValue);
+
+          // Update the persistent tooltip with the exact Plotly value
+          const tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
+          if (tooltip) {
+            tooltip.textContent = yValue.toFixed(2);
+            tooltip.style.display = 'block';
+
+            // Position the tooltip using the exact mouse position from Plotly
+            if (chartRef) {
+              const chartRect = chartRef.getBoundingClientRect();
+              const rightEdge = chartRect.right - 48; // Position closer to the right edge
+              tooltip.style.left = `${rightEdge}px`;
+              // Use the exact mouse Y position from the event
+              tooltip.style.top = `${event.event.clientY - 12}px`;
+            }
+          }
         }
       }
     },
@@ -299,6 +315,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             // Calculate price from mouse Y position
             if (yAxisRange) {
               const { paddedYMin, paddedYMax, effectiveHeight } = yAxisRange;
+
               const dataY = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
               const roundedDataY = Math.round(dataY * 100) / 100;
 
@@ -307,6 +324,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 roundedDataY,
                 'Mouse Y:',
                 y,
+                'EffectiveHeight:',
+                effectiveHeight,
                 'YAxisRange:',
                 yAxisRange
               );
@@ -318,7 +337,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               lastY = roundedDataY;
 
               // Create or update persistent tooltip that follows the mouse
-              let tooltip = document.querySelector('.persistent-price-tooltip');
+              let tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
               console.log('Existing tooltip:', tooltip);
 
               if (!tooltip) {
@@ -327,7 +346,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 tooltip = document.createElement('div');
                 tooltip.className = 'persistent-price-tooltip';
                 tooltip.style.position = 'fixed';
-                tooltip.style.backgroundColor = 'black';
+                tooltip.style.backgroundColor = '#6b7280';
                 tooltip.style.border = 'none';
                 tooltip.style.padding = '4px 8px';
                 tooltip.style.borderRadius = '0px';
@@ -342,10 +361,15 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
               // Position tooltip to overlay on the right price labels
               const chartRect = chartRef.getBoundingClientRect();
-              const rightEdge = chartRect.right - 60; // Position near the right edge
-              const relativeY = y; // Use the mouse Y position relative to the chart
+              const rightEdge = chartRect.right - 48; // Position closer to the right edge
+
+              // Calculate the exact Y position of the data point on the chart
+              const dataPointY =
+                ((paddedYMax - roundedDataY) / (paddedYMax - paddedYMin)) * effectiveHeight;
+
               tooltip.style.left = `${rightEdge}px`;
-              tooltip.style.top = `${chartRect.top + relativeY - 10}px`;
+              // Center the tooltip vertically on the calculated data point position
+              tooltip.style.top = `${chartRect.top + dataPointY - 12}px`;
               tooltip.style.width = 'auto';
               tooltip.style.height = 'auto';
               tooltip.style.minWidth = '60px';
@@ -353,12 +377,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               tooltip.style.whiteSpace = 'nowrap';
               tooltip.style.borderRadius = '0px';
               tooltip.style.setProperty('color', 'white', 'important');
+              tooltip.style.setProperty('background-color', '#6b7280', 'important');
               tooltip.textContent = roundedDataY.toFixed(2);
               tooltip.style.display = 'block';
               console.log(
                 'Tooltip positioned at mouse:',
-                mouseX,
-                mouseY,
+                event.clientX,
+                event.clientY,
                 'Text:',
                 roundedDataY.toFixed(2)
               );
@@ -380,7 +405,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         lastY = null;
 
         // Hide the persistent tooltip
-        const tooltip = document.querySelector('.persistent-price-tooltip');
+        const tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
         if (tooltip) {
           tooltip.style.display = 'none';
         }
