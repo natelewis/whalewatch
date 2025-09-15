@@ -325,6 +325,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             line: { width: 1 },
             whiskerwidth: 0.8,
             showlegend: false,
+            hovertemplate: '<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
           // Add invisible scatter overlay for hover detection on candlestick charts
@@ -343,6 +344,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             showlegend: false,
             // Enable hover detection but don't show tooltip for this trace
             hoveron: 'points' as const,
+            hovertemplate: '<extra></extra>',
             connectgaps: true, // Connect gaps to ensure continuous hover detection
             // This invisible line enables hover detection across the entire chart
             name: `${symbol}_hover_overlay`,
@@ -528,13 +530,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
       hovermode: 'x unified' as const,
-      hoverlabel: {
-        bgcolor: 'transparent',
-        bordercolor: 'transparent',
-        font: { color: 'transparent', size: 0 },
-        namelength: 0,
-        align: 'left',
-      },
       // Configure hover line and spike appearance
       shapes: [
         // Bottom border line
@@ -774,7 +769,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
                   responsive: true,
                   // Enable hover behavior
-                  showTips: true,
+                  showTips: false,
                   showLink: false,
                   // Ensure hover mode works properly
                   doubleClick: 'reset+autosize',
@@ -801,6 +796,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   }
                   .plotly .hoverlayer .spikeline:hover {
                     stroke-width: 0.5px !important;
+                  }
+                  .plotly .hoverlayer .hovertext {
+                    display: none !important;
+                  }
+                  .plotly .hoverlayer .hoverlabel {
+                    display: none !important;
                   }
                 `;
                   document.head.appendChild(style);
