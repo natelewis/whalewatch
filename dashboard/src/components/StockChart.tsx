@@ -316,15 +316,43 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             if (yAxisRange) {
               const { paddedYMin, paddedYMax, effectiveHeight } = yAxisRange;
 
-              // Simple calculation: map mouse Y to price
-              const dataY = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
+              // Get the actual spike line coordinates dynamically
+              const spikeLine = plotlyDiv.querySelector('.spikeline');
+              let spikeLineTop = 50;
+              let spikeLineBottom = 400;
+              let spikeLineHeight = 350;
+
+              if (spikeLine) {
+                const spikeLineRect = spikeLine.getBoundingClientRect();
+                const chartRect = chartRef.getBoundingClientRect();
+
+                // Convert spike line coordinates to be relative to the chart
+                spikeLineTop = spikeLineRect.top - chartRect.top;
+                spikeLineBottom = spikeLineRect.bottom - chartRect.top;
+                spikeLineHeight = spikeLineBottom - spikeLineTop;
+
+                console.log('Spike line coordinates:', {
+                  spikeLineTop,
+                  spikeLineBottom,
+                  spikeLineHeight,
+                  mouseY: y,
+                });
+              }
+
+              // Adjust mouse Y to be relative to the spike line area
+              const adjustedY = y - spikeLineTop;
+
+              // Map the adjusted Y position to price using the spike line height
+              const dataY = paddedYMax - (adjustedY / spikeLineHeight) * (paddedYMax - paddedYMin);
               const roundedDataY = Math.round(dataY * 100) / 100;
 
               console.log(
-                'Simple calculation - Mouse Y:',
+                'Adjusted calculation - Mouse Y:',
                 y,
-                'EffectiveHeight:',
-                effectiveHeight,
+                'Adjusted Y:',
+                adjustedY,
+                'SpikeLineHeight:',
+                spikeLineHeight,
                 'YMin:',
                 paddedYMin,
                 'YMax:',
@@ -366,9 +394,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               const chartRect = chartRef.getBoundingClientRect();
               const rightEdge = chartRect.right - 48; // Position closer to the right edge
 
-              // Calculate the exact Y position of the data point on the chart
+              // Calculate the exact Y position of the data point on the chart using dynamic spike line coordinates
               const dataPointY =
-                ((paddedYMax - roundedDataY) / (paddedYMax - paddedYMin)) * effectiveHeight;
+                ((paddedYMax - roundedDataY) / (paddedYMax - paddedYMin)) * spikeLineHeight +
+                spikeLineTop;
 
               tooltip.style.left = `${rightEdge}px`;
               // Center the tooltip vertically on the calculated data point position
