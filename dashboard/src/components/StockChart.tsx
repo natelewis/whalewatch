@@ -327,16 +327,15 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 tooltip = document.createElement('div');
                 tooltip.className = 'persistent-price-tooltip';
                 tooltip.style.position = 'fixed';
-                tooltip.style.backgroundColor = 'white';
-                tooltip.style.border = '1px solid #333';
+                tooltip.style.backgroundColor = 'black';
+                tooltip.style.border = 'none';
                 tooltip.style.padding = '4px 8px';
-                tooltip.style.borderRadius = '4px';
+                tooltip.style.borderRadius = '0px';
                 tooltip.style.fontSize = '12px';
-                tooltip.style.setProperty('color', '#000000', 'important');
-                tooltip.style.fontWeight = 'bold';
+                tooltip.style.setProperty('color', 'white', 'important');
+                tooltip.style.fontWeight = 'normal';
                 tooltip.style.pointerEvents = 'none';
                 tooltip.style.zIndex = '1000';
-                tooltip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
                 document.body.appendChild(tooltip);
                 console.log('Persistent tooltip created and appended to body');
               }
@@ -352,8 +351,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               tooltip.style.minWidth = '60px';
               tooltip.style.textAlign = 'center';
               tooltip.style.whiteSpace = 'nowrap';
-              tooltip.style.borderRadius = '4px';
-              tooltip.style.setProperty('color', '#000000', 'important');
+              tooltip.style.borderRadius = '0px';
+              tooltip.style.setProperty('color', 'white', 'important');
               tooltip.textContent = roundedDataY.toFixed(2);
               tooltip.style.display = 'block';
               console.log(
