@@ -58,6 +58,9 @@ const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
 };
 
 
+// Plotly internal padding constant
+const PLOTLY_INTERNAL_PADDING = 35; // 15px top + 15px bottom
+
 export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
@@ -171,11 +174,21 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       const rect = plotArea.getBoundingClientRect();
       const chartRect = chartRef.getBoundingClientRect();
 
-      const height = rect.height || chartRect.height || null;
-      const width = rect.width || chartRect.width || null;
+      // Calculate the actual visible chart area height by accounting for Plotly's internal padding
+      // The plot area includes some internal padding, so we need to subtract it
+      const actualPlotHeight = Math.max(0, (rect.height || 0) - PLOTLY_INTERNAL_PADDING);
+      const actualPlotWidth = rect.width || null;
 
-      setEffectiveHeight(height);
-      setEffectiveWidth(width);
+      console.log('Plot area dimensions:', {
+        plotAreaHeight: rect.height,
+        plotAreaWidth: rect.width,
+        chartHeight: chartRect.height,
+        chartWidth: chartRect.width,
+        adjustedHeight: actualPlotHeight,
+      });
+
+      setEffectiveHeight(actualPlotHeight);
+      setEffectiveWidth(actualPlotWidth);
     }, 100); // 100ms delay to ensure Plotly has rendered
 
     return () => clearTimeout(timeoutId);
@@ -216,6 +229,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
+        // Adjust Y position to account for Plotly's internal padding
+        const adjustedY = Math.max(0, y - PLOTLY_INTERNAL_PADDING / 2);
+
         // Skip if mouse Y hasn't changed much (reduce unnecessary updates)
         if (Math.abs(y - lastMouseY) < 1) return;
         lastMouseY = y;
@@ -225,14 +241,24 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           effectiveWidth &&
           x >= 0 &&
           x <= effectiveWidth &&
-          y >= 0 &&
-          y <= effectiveHeight
+          adjustedY >= 0 &&
+          adjustedY <= effectiveHeight
         ) {
           // Calculate the actual price at the mouse Y position on the spike line
           if (topPrice !== null && minPrice !== null) {
             // Convert mouse Y position to actual price value using the proper formula
-            // Price = topPrice - (y / effectiveHeight) * (topPrice - minPrice)
-            const mousePrice = topPrice - (y / effectiveHeight) * (topPrice - minPrice);
+            // Price = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice)
+            const mousePrice = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice);
+
+            console.log('Price calculation debug:', {
+              y,
+              adjustedY,
+              effectiveHeight,
+              topPrice,
+              minPrice,
+              calculatedPrice: mousePrice,
+              yRatio: adjustedY / effectiveHeight,
+            });
 
             // Cache tooltip element
             if (!tooltip) {
