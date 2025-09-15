@@ -161,8 +161,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             const yMin = Math.min(...allValues);
             const yMax = Math.max(...allValues);
 
-            // Add some padding (5% on each side)
-            const padding = (yMax - yMin) * 0.05;
+            // Add more padding to match Plotly's default behavior (10% on each side)
+            const padding = (yMax - yMin) * 0.1;
             const paddedYMin = yMin - padding;
             const paddedYMax = yMax + padding;
 
@@ -172,10 +172,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             const dataY = paddedYMin + (y / rect.height) * (paddedYMax - paddedYMin);
 
             console.log('Calculated dataY:', dataY, 'LastY:', lastY);
+            console.log('Mouse y position:', y, 'Rect height:', rect.height);
+            console.log('Y-axis range:', { paddedYMin, paddedYMax });
 
             // Update hover state
             if (lastY !== dataY) {
               console.log('Y-value changed! Setting hover state:', dataY);
+              console.log('Price to display: $' + dataY.toFixed(2));
               lastY = dataY;
               setHoveredY(dataY);
               setHoveredPrice(dataY);
@@ -193,9 +196,12 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
     const handleMouseLeave = () => {
       console.log('Mouse left chart area');
-      setHoveredY(null);
-      setHoveredPrice(null);
-      lastY = null;
+      // Add a small delay before clearing to prevent flickering
+      setTimeout(() => {
+        setHoveredY(null);
+        setHoveredPrice(null);
+        lastY = null;
+      }, 100);
     };
 
     chartRef.addEventListener('mousemove', handleMouseMove);
@@ -664,27 +670,32 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               },
             ]
           : []),
-        // Price annotation (overlay on right y-axis labels)
+        // Price annotation (to the right of the spike line)
         ...(hoveredPrice !== null
-          ? [
-              {
-                x: 1.02,
-                y: hoveredPrice,
-                xref: 'paper',
-                yref: 'y',
-                text: `$${hoveredPrice.toFixed(2)}`,
-                showarrow: false,
-                bgcolor: 'rgba(0, 0, 0, 0.9)',
-                bordercolor: '#6b7280',
-                borderwidth: 1,
-                font: { color: '#d1d5db', size: 12 },
-                xanchor: 'left',
-                yanchor: 'middle',
-                // Position it to overlay the y-axis labels
-                xshift: 0,
-                yshift: 0,
-              },
-            ]
+          ? (() => {
+              console.log('Creating price annotation with hoveredPrice:', hoveredPrice);
+              return [
+                {
+                  x: 0.95, // Move to the left so it's visible on screen
+                  y: hoveredPrice,
+                  xref: 'paper',
+                  yref: 'y',
+                  text: `$${hoveredPrice.toFixed(2)}`,
+                  showarrow: true,
+                  arrowhead: 0,
+                  arrowcolor: '#6b7280',
+                  arrowwidth: 1,
+                  ax: -10, // Arrow pointing left towards the spike line
+                  ay: 0,
+                  bgcolor: 'rgba(0, 0, 0, 0.9)',
+                  bordercolor: '#6b7280',
+                  borderwidth: 1,
+                  font: { color: '#d1d5db', size: 12 },
+                  xanchor: 'left',
+                  yanchor: 'middle',
+                },
+              ];
+            })()
           : []),
       ],
       hoverdistance: 20,
