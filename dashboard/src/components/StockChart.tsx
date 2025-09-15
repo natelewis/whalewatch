@@ -87,28 +87,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       console.warn('Failed to load chart timeframe from localStorage:', error);
       setTimeframe('1h'); // Fallback to default if localStorage fails
     }
-
-    // Test tooltip creation
-    setTimeout(() => {
-      const testTooltip = document.createElement('div');
-      testTooltip.className = 'test-tooltip';
-      testTooltip.style.position = 'fixed';
-      testTooltip.style.top = '10px';
-      testTooltip.style.left = '10px';
-      testTooltip.style.backgroundColor = 'red';
-      testTooltip.style.color = 'white';
-      testTooltip.style.padding = '10px';
-      testTooltip.style.zIndex = '9999';
-      testTooltip.textContent = 'Test tooltip - if you see this, tooltip creation works';
-      document.body.appendChild(testTooltip);
-
-      // Remove after 3 seconds
-      setTimeout(() => {
-        if (testTooltip.parentNode) {
-          testTooltip.parentNode.removeChild(testTooltip);
-        }
-      }, 3000);
-    }, 1000);
   }, []);
 
   // Save timeframe to localStorage whenever it changes (but only after initial load)
@@ -192,7 +170,39 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     let plotArea: Element | null = null;
     let tooltip: HTMLElement | null = null;
     let lastMouseY = -1;
+    let lastMouseX = -1;
+    let lastPrice = -1;
     let animationFrameId: number | null = null;
+    let stateUpdateTimeout: number | null = null;
+
+    // Cache DOM elements once
+    const initializeElements = () => {
+      if (!plotArea) {
+        plotArea = chartRef.querySelector('.nsewdrag.drag');
+      }
+      if (!tooltip) {
+        tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
+        if (!tooltip) {
+          tooltip = document.createElement('div');
+          tooltip.className = 'persistent-price-tooltip';
+          tooltip.style.position = 'fixed';
+          tooltip.style.backgroundColor = '#6b7280';
+          tooltip.style.border = 'none';
+          tooltip.style.marginTop = '3px';
+          tooltip.style.padding = '0 0 0 8px ';
+          tooltip.style.borderRadius = '0px';
+          tooltip.style.width = '60px';
+          tooltip.style.fontSize = '12px';
+          tooltip.style.setProperty('color', 'white', 'important');
+          tooltip.style.fontWeight = 'normal';
+          tooltip.style.pointerEvents = 'none';
+          tooltip.style.zIndex = '1000';
+          tooltip.style.willChange = 'transform';
+          tooltip.style.transform = 'translateZ(0)'; // Force hardware acceleration
+          document.body.appendChild(tooltip);
+        }
+      }
+    };
 
     const handleMouseMove = (event: MouseEvent) => {
       // Cancel previous animation frame to prevent lag
@@ -201,10 +211,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       }
 
       animationFrameId = requestAnimationFrame(() => {
-        // Cache plot area on first access using simplified method
-        if (!plotArea) {
-          plotArea = chartRef.querySelector('.nsewdrag.drag');
-        }
+        // Initialize elements only once
+        initializeElements();
 
         if (!plotArea) return;
 
@@ -212,12 +220,17 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
+        // Skip if mouse position hasn't changed significantly (reduce unnecessary updates)
+        const deltaY = Math.abs(y - lastMouseY);
+        const deltaX = Math.abs(x - lastMouseX);
+        if (deltaY < 2 && deltaX < 2) return;
+
+        lastMouseY = y;
+        lastMouseX = x;
+
         // Adjust Y position to account for Plotly's internal padding
         const adjustedY = Math.max(0, y - PLOTLY_INTERNAL_PADDING / 2);
 
-        // Skip if mouse Y hasn't changed much (reduce unnecessary updates)
-        if (Math.abs(y - lastMouseY) < 1) return;
-        lastMouseY = y;
         // Check if mouse is within the plot area and we have valid dimensions
         if (
           effectiveHeight &&
@@ -233,38 +246,26 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             // Price = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice)
             const mousePrice = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice);
 
-            // Cache tooltip element
-            if (!tooltip) {
-              tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
-              if (!tooltip) {
-                tooltip = document.createElement('div');
-                tooltip.className = 'persistent-price-tooltip';
-                tooltip.style.position = 'fixed';
-                tooltip.style.backgroundColor = '#6b7280';
-                tooltip.style.border = 'none';
-                tooltip.style.marginTop = '3px';
-                tooltip.style.padding = '0 0 0 8px ';
-                tooltip.style.borderRadius = '0px';
-                tooltip.style.width = '60px';
-                tooltip.style.fontSize = '12px';
-                tooltip.style.setProperty('color', 'white', 'important');
-                tooltip.style.fontWeight = 'normal';
-                tooltip.style.pointerEvents = 'none';
-                tooltip.style.zIndex = '1000';
-                tooltip.style.willChange = 'transform'; // Optimize for animations
-                document.body.appendChild(tooltip);
+            // Only update if price has changed significantly (reduce unnecessary updates)
+            if (Math.abs(mousePrice - lastPrice) > 0.001) {
+              lastPrice = mousePrice;
+
+              // Update tooltip content and position in one go
+              if (tooltip) {
+                tooltip.textContent = `${mousePrice.toFixed(2)}`;
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${rect.right}px`;
+                tooltip.style.top = `${event.clientY - 12}px`;
               }
+
+              // Throttle state updates to reduce React re-renders
+              if (stateUpdateTimeout) {
+                clearTimeout(stateUpdateTimeout);
+              }
+              stateUpdateTimeout = window.setTimeout(() => {
+                setHoveredPrice(mousePrice);
+              }, 16); // ~60fps throttling
             }
-
-            // Update tooltip content and position in one go
-            tooltip.textContent = `${mousePrice.toFixed(2)}`;
-            tooltip.style.display = 'block';
-            // Position tooltip on the right side of the chart, aligned with labels
-            tooltip.style.left = `${rect.right}px`; // Position relative to chart's right edge
-            tooltip.style.top = `${event.clientY - 12}px`;
-
-            // Update state for consistency (throttled)
-            setHoveredPrice(mousePrice);
           }
         }
       });
@@ -277,6 +278,12 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         animationFrameId = null;
       }
 
+      // Cancel any pending state update
+      if (stateUpdateTimeout) {
+        clearTimeout(stateUpdateTimeout);
+        stateUpdateTimeout = null;
+      }
+
       // Add a small delay before clearing to prevent flickering
       setTimeout(() => {
         setHoveredPrice(null);
@@ -287,7 +294,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         }
       }, 100);
     };
-
     chartRef.addEventListener('mousemove', handleMouseMove);
     chartRef.addEventListener('mouseleave', handleMouseLeave);
 
@@ -296,6 +302,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       chartRef.removeEventListener('mouseleave', handleMouseLeave);
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
+      }
+      if (stateUpdateTimeout) {
+        clearTimeout(stateUpdateTimeout);
       }
     };
   }, [chartRef, chartData, topPrice, minPrice, effectiveHeight, effectiveWidth]);
