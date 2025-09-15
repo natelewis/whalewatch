@@ -283,10 +283,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Open: $%{open}<br>' +
-              'High: $%{high}<br>' +
-              'Low: $%{low}<br>' +
-              'Close: $%{close}<extra></extra>',
+              'Open: $%{open:.2f}<br>' +
+              'High: $%{high:.2f}<br>' +
+              'Low: $%{low:.2f}<br>' +
+              'Close: $%{close:.2f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
           // Add invisible scatter overlay for hover detection on candlestick charts
@@ -324,7 +324,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y}<extra></extra>',
+              'Price: $%{y:.2f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -340,7 +340,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y}<extra></extra>',
+              'Price: $%{y:.2f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -359,7 +359,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y}<extra></extra>',
+              'Price: $%{y:.2f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -472,6 +472,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         tickcolor: '#6b7280',
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
+        tickformat: '.2f', // Format y-axis labels to show 2 decimal places
       },
       plot_bgcolor: 'transparent',
       paper_bgcolor: 'transparent',
