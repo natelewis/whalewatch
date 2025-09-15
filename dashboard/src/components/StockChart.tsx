@@ -274,13 +274,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       const mouseXPos = event.clientX - rect.left;
       const mouseYPos = event.clientY - rect.top;
 
-      // Check if mouse is within the plot area
-      if (mouseXPos < 0 || mouseXPos > rect.width || mouseYPos < 0 || mouseYPos > rect.height) {
-        setMouseX(null);
-        setMouseY(null);
-        return;
-      }
-
       // Convert plot area coordinates to container coordinates
       const plotAreaLeft = rect.left - containerRect.left;
       const plotAreaTop = rect.top - containerRect.top;
@@ -295,20 +288,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       const relativeX = (plotAreaLeft + mouseXPos - virtualBoxLeft) / virtualBoxWidth;
       const relativeY = (plotAreaTop + mouseYPos - virtualBoxTop) / virtualBoxHeight;
 
-      // Validate coordinates before setting
-      if (
-        isFinite(relativeX) &&
-        isFinite(relativeY) &&
-        relativeX >= 0 &&
-        relativeX <= 1 &&
-        relativeY >= 0 &&
-        relativeY <= 1
-      ) {
-        setMouseX(relativeX);
-        setMouseY(relativeY);
-      } else {
-        setMouseX(null);
-        setMouseY(null);
+      // Always set coordinates if they're finite, clamp them to 0-1 range
+      if (isFinite(relativeX) && isFinite(relativeY)) {
+        const clampedX = Math.max(0, Math.min(1, relativeX));
+        const clampedY = Math.max(0, Math.min(1, relativeY));
+        setMouseX(clampedX);
+        setMouseY(clampedY);
       }
     };
 
@@ -317,6 +302,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       setMouseY(null);
     };
 
+    // Simple approach - just listen to the chart container
     chartRef.addEventListener('mousemove', handleMouseMove);
     chartRef.addEventListener('mouseleave', handleMouseLeave);
 
