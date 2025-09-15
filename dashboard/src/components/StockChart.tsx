@@ -48,10 +48,6 @@ const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
 
 // Plotly internal padding constant
 const PLOTLY_INTERNAL_PADDING = 35; // 15px top + 15px bottom
-const PLOTLY_PADDING_LEFT = 35;
-const PLOTLY_PADDING_TOP = 35;
-const PLOTLY_PADDING_WIDTH = 35;
-const PLOTLY_PADDING_HEIGHT = 35;
 
 const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
