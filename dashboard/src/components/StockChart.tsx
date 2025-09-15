@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Plot from 'react-plotly.js';
 
 // Extend window to include Plotly
@@ -57,11 +57,10 @@ const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
   return intervalMap[timeframe] || 60;
 };
 
-
 // Plotly internal padding constant
 const PLOTLY_INTERNAL_PADDING = 35; // 15px top + 15px bottom
 
-export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
+const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartType, setChartType] = useState<ChartType>('candlestick');
@@ -78,25 +77,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const [effectiveWidth, setEffectiveWidth] = useState<number | null>(null);
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
 
-  // Track component re-renders
-  const renderStart = performance.now();
-  console.log('🔄 StockChart component render', {
-    timestamp: renderStart,
-    chartDataLength: chartData.length,
-    timeframe,
-    chartType,
-    isLoading,
-    isLive,
-    error: !!error,
-    dataRange: !!dataRange,
-    topPrice,
-    minPrice,
-    effectiveHeight,
-    effectiveWidth,
-    chartRef: !!chartRef,
-  });
-
-  // Removed hoveredPrice effect - no longer needed
+  // Removed hoveredPrice state - tooltip is now completely DOM-based
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -183,21 +164,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
   // Optimized mouse move handler for spike line hover detection
   useEffect(() => {
-    const effectStart = performance.now();
-    console.log('🎯 Mouse handler effect triggered', {
-      timestamp: effectStart,
-      dependencies: {
-        chartRef: !!chartRef,
-        chartDataLength: chartData.length,
-        topPrice,
-        minPrice,
-        effectiveHeight,
-        effectiveWidth,
-      },
-    });
-
     if (!chartRef) {
-      console.log('❌ No chart ref, skipping mouse handler setup');
       return;
     }
 
@@ -210,35 +177,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
     // Cache DOM elements once
     const initializeElements = () => {
-      const initStart = performance.now();
-      console.log('🔧 Initializing elements', {
-        plotAreaExists: !!plotArea,
-        tooltipExists: !!tooltip,
-      });
-
       if (!plotArea) {
-        const plotAreaStart = performance.now();
         plotArea = chartRef.querySelector('.nsewdrag.drag');
-        const plotAreaEnd = performance.now();
-        console.log('📊 Plot area query', {
-          duration: plotAreaEnd - plotAreaStart,
-          found: !!plotArea,
-          selector: '.nsewdrag.drag',
-        });
       }
 
       if (!tooltip) {
-        const tooltipQueryStart = performance.now();
         tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
-        const tooltipQueryEnd = performance.now();
-        console.log('💬 Tooltip query', {
-          duration: tooltipQueryEnd - tooltipQueryStart,
-          found: !!tooltip,
-          selector: '.persistent-price-tooltip',
-        });
-
         if (!tooltip) {
-          const tooltipCreateStart = performance.now();
           tooltip = document.createElement('div');
           tooltip.className = 'persistent-price-tooltip';
           tooltip.style.position = 'fixed';
@@ -255,69 +200,22 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           tooltip.style.zIndex = '1000';
           tooltip.style.willChange = 'transform';
           tooltip.style.transform = 'translateZ(0)'; // Force hardware acceleration
-
-          const appendStart = performance.now();
           document.body.appendChild(tooltip);
-          const appendEnd = performance.now();
-          const tooltipCreateEnd = performance.now();
-
-          console.log('🆕 Tooltip created and appended', {
-            creationDuration: appendStart - tooltipCreateStart,
-            appendDuration: appendEnd - appendStart,
-            totalDuration: tooltipCreateEnd - tooltipCreateStart,
-          });
         }
       }
-
-      const initEnd = performance.now();
-      console.log('✅ Element initialization completed', {
-        totalDuration: initEnd - initStart,
-        plotArea: !!plotArea,
-        tooltip: !!tooltip,
-      });
     };
 
     const handleMouseMove = (event: MouseEvent) => {
-      const debugStart = performance.now();
-      console.log('🐭 Mouse move event triggered', {
-        clientX: event.clientX,
-        clientY: event.clientY,
-        timestamp: debugStart,
-      });
-
-      // No throttling needed - DOM updates are fast enough
-
       // Initialize elements only once
-      const initStart = performance.now();
       initializeElements();
-      const initEnd = performance.now();
-      console.log('🔧 Element initialization', {
-        duration: initEnd - initStart,
-        plotArea: !!plotArea,
-        tooltip: !!tooltip,
-      });
 
       if (!plotArea) {
-        console.log('❌ No plot area found, returning early');
         return;
       }
 
-      const rectStart = performance.now();
       const rect = plotArea.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
-      const rectEnd = performance.now();
-      console.log('📐 Position calculation', {
-        duration: rectEnd - rectStart,
-        x,
-        y,
-        rect: {
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height,
-        },
-      });
 
       // Update position tracking
       lastMouseY = y;
@@ -325,50 +223,26 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
       // Adjust Y position to account for Plotly's internal padding
       const adjustedY = Math.max(0, y - PLOTLY_INTERNAL_PADDING / 2);
-      console.log('🎯 Y position adjustment', {
-        originalY: y,
-        adjustedY,
-        padding: PLOTLY_INTERNAL_PADDING,
-      });
 
       // Check if mouse is within the plot area and we have valid dimensions
-      const boundsCheck = {
-        effectiveHeight,
-        effectiveWidth,
-        xInBounds: x >= 0 && effectiveWidth !== null && x <= effectiveWidth,
-        yInBounds: adjustedY >= 0 && effectiveHeight !== null && adjustedY <= effectiveHeight,
-        allValid:
-          effectiveHeight !== null &&
-          effectiveWidth !== null &&
-          x >= 0 &&
-          x <= effectiveWidth &&
-          adjustedY >= 0 &&
-          adjustedY <= effectiveHeight,
-      };
-      console.log('🔍 Bounds check', boundsCheck);
-
-      if (boundsCheck.allValid) {
+      if (
+        effectiveHeight !== null &&
+        effectiveWidth !== null &&
+        x >= 0 &&
+        x <= effectiveWidth &&
+        adjustedY >= 0 &&
+        adjustedY <= effectiveHeight
+      ) {
         // Calculate the actual price at the mouse Y position on the spike line
         if (topPrice !== null && minPrice !== null) {
-          const priceCalcStart = performance.now();
           // Convert mouse Y position to actual price value using the proper formula
           // Price = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice)
           const mousePrice =
             topPrice - (adjustedY / (effectiveHeight || 1)) * (topPrice - minPrice);
-          const priceCalcEnd = performance.now();
-          console.log('💰 Price calculation', {
-            duration: priceCalcEnd - priceCalcStart,
-            topPrice,
-            minPrice,
-            mousePrice,
-            lastPrice,
-            priceDelta: Math.abs(mousePrice - lastPrice),
-          });
 
           // Update price and tooltip for every mouse move
           lastPrice = mousePrice;
 
-          const tooltipStart = performance.now();
           // Update tooltip content and position in one go
           if (tooltip) {
             tooltip.textContent = `${mousePrice.toFixed(2)}`;
@@ -376,77 +250,25 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             tooltip.style.left = `${rect.right}px`;
             tooltip.style.top = `${event.clientY - 12}px`;
           }
-          const tooltipEnd = performance.now();
-          console.log('💬 Tooltip update', {
-            duration: tooltipEnd - tooltipStart,
-            content: `${mousePrice.toFixed(2)}`,
-            position: { left: rect.right, top: event.clientY - 12 },
-          });
-
-          // No React state updates - tooltip is completely DOM-based
-          console.log('💡 Price updated in DOM tooltip only', {
-            price: mousePrice,
-          });
-        } else {
-          console.log('❌ Missing price data', { topPrice, minPrice });
         }
-      } else {
-        console.log('❌ Mouse outside bounds');
       }
-
-      const processingEnd = performance.now();
-      console.log('✅ Mouse move processing completed', {
-        totalDuration: processingEnd - debugStart,
-      });
     };
 
     const handleMouseLeave = () => {
-      const debugStart = performance.now();
-      console.log('🚪 Mouse leave event triggered', { timestamp: debugStart });
-
       // Add a small delay before clearing to prevent flickering
-      const timeoutStart = performance.now();
       setTimeout(() => {
-        const timeoutEnd = performance.now();
-        console.log('🧹 Mouse leave cleanup executed', {
-          delay: timeoutEnd - timeoutStart,
-          timestamp: timeoutEnd,
-        });
-
         // Hide the persistent tooltip
         if (tooltip) {
           tooltip.style.display = 'none';
-          console.log('💬 Tooltip hidden');
         }
       }, 100);
     };
-    const listenerStart = performance.now();
     chartRef.addEventListener('mousemove', handleMouseMove);
     chartRef.addEventListener('mouseleave', handleMouseLeave);
-    const listenerEnd = performance.now();
-    console.log('📡 Event listeners added', {
-      duration: listenerEnd - listenerStart,
-      mousemove: true,
-      mouseleave: true,
-    });
-
-    const effectEnd = performance.now();
-    console.log('✅ Mouse handler effect setup completed', {
-      totalDuration: effectEnd - effectStart,
-    });
 
     return () => {
-      const cleanupStart = performance.now();
-      console.log('🧹 Starting cleanup', { timestamp: cleanupStart });
-
       chartRef.removeEventListener('mousemove', handleMouseMove);
       chartRef.removeEventListener('mouseleave', handleMouseLeave);
-      console.log('📡 Event listeners removed');
-
-      const cleanupEnd = performance.now();
-      console.log('✅ Cleanup completed', {
-        duration: cleanupEnd - cleanupStart,
-      });
     };
   }, [chartRef, chartData, topPrice, minPrice, effectiveHeight, effectiveWidth]);
 
@@ -592,17 +414,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     });
   };
 
-  const getPlotlyData = useCallback(() => {
-    const dataStart = performance.now();
-    console.log('📊 getPlotlyData called', {
-      timestamp: dataStart,
-      chartDataLength: chartData.length,
-      chartType,
-      symbol,
-    });
-
+  const plotlyData = useMemo(() => {
     if (chartData.length === 0) {
-      console.log('📊 getPlotlyData returning empty array');
       return [];
     }
 
@@ -722,19 +535,11 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     }
   }, [chartData, chartType, symbol]);
 
-  // Add debugging to track when getPlotlyData completes
-  const plotlyData = getPlotlyData();
-  const dataEnd = performance.now();
-  console.log('📊 getPlotlyData completed', {
-    duration: dataEnd - performance.now(),
-    dataLength: plotlyData.length,
-  });
+  // Memoized time axis calculations
+  const timeAxisTicks = useMemo(() => {
+    if (chartData.length === 0) return [];
 
-  // Helper function to generate time axis ticks (indices)
-  const getTimeAxisTicks = (data: CandlestickData[]): number[] => {
-    if (data.length === 0) return [];
-
-    const sortedData = [...data].sort(
+    const sortedData = [...chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
     const totalPoints = sortedData.length;
@@ -750,21 +555,19 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     }
 
     return ticks;
-  };
+  }, [chartData]);
 
-  // Helper function to generate time axis labels
-  const getTimeAxisLabels = (data: CandlestickData[]): string[] => {
-    if (data.length === 0) return [];
+  const timeAxisLabels = useMemo(() => {
+    if (chartData.length === 0) return [];
 
-    const sortedData = [...data].sort(
+    const sortedData = [...chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
-    const ticks = getTimeAxisTicks(data);
 
     // Determine if we should show only time (for intervals < 1 day)
     const isTimeOnly = timeframe && ['1m', '5m', '30m', '1h', '2h', '4h'].includes(timeframe);
 
-    return ticks.map((index) => {
+    return timeAxisTicks.map((index: number) => {
       const time = new Date(sortedData[index].time);
 
       if (isTimeOnly) {
@@ -785,17 +588,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         });
       }
     });
-  };
+  }, [chartData, timeframe, timeAxisTicks]);
 
-  const getPlotlyLayout = useCallback(() => {
-    const layoutStart = performance.now();
-    console.log('📐 getPlotlyLayout called', {
-      timestamp: layoutStart,
-      symbol,
-      timeframe,
-      dataRange,
-    });
-
+  const plotlyLayout = useMemo(() => {
     const layout: any = {
       title: {
         text: `${symbol} - ${timeframe || 'Loading...'}`,
@@ -808,8 +603,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         rangeslider: { visible: false },
         showgrid: false,
         tickmode: 'array',
-        tickvals: chartData.length > 0 ? getTimeAxisTicks(chartData) : [],
-        ticktext: chartData.length > 0 ? getTimeAxisLabels(chartData) : [],
+        tickvals: timeAxisTicks,
+        ticktext: timeAxisLabels,
         tickangle: 0,
         showspikes: true,
         spikecolor: '#6b7280',
@@ -896,11 +691,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
     // Let Plotly auto-scale to show the actual data points with natural gaps
     // No need to force ranges since we want to show the true time distribution
-
-    const layoutEnd = performance.now();
-    console.log('📐 getPlotlyLayout completed', {
-      duration: layoutEnd - layoutStart,
-    });
 
     return layout;
   }, [symbol, timeframe, dataRange]);
@@ -1021,7 +811,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           <div ref={setChartRef} className="w-full h-full relative" style={{ minHeight: '400px' }}>
             <Plot
               data={plotlyData}
-              layout={getPlotlyLayout()}
+              layout={plotlyLayout}
               config={{
                 displayModeBar: true,
                 displaylogo: false,
@@ -1045,13 +835,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               onHover={undefined}
               onUnhover={undefined}
               onInitialized={(figure, graphDiv) => {
-                const initStart = performance.now();
-                console.log('🎨 Plot component initialized', {
-                  timestamp: initStart,
-                  figure: !!figure,
-                  graphDiv: !!graphDiv,
-                });
-
                 // Add CSS to make spike lines thinner
                 const style = document.createElement('style');
                 style.textContent = `
@@ -1065,21 +848,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                   }
                 `;
                 document.head.appendChild(style);
-
-                const initEnd = performance.now();
-                console.log('🎨 Plot initialization completed', {
-                  duration: initEnd - initStart,
-                });
-
-                return undefined;
-              }}
-              onUpdate={(figure, graphDiv) => {
-                const updateStart = performance.now();
-                console.log('🔄 Plot component updated', {
-                  timestamp: updateStart,
-                  figure: !!figure,
-                  graphDiv: !!graphDiv,
-                });
                 return undefined;
               }}
             />
@@ -1107,3 +875,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     </div>
   );
 };
+
+// Memoize the component to prevent unnecessary re-renders
+export const StockChart = React.memo(StockChartComponent);
