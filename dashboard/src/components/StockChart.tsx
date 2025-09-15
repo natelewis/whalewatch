@@ -71,6 +71,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   } | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [hoveredX, setHoveredX] = useState<number | null>(null);
+  const [hoveredY, setHoveredY] = useState<number | null>(null);
+  const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
+
+  // Debug state changes
+  useEffect(() => {
+    console.log('HoveredY changed:', hoveredY);
+  }, [hoveredY]);
+
+  useEffect(() => {
+    console.log('HoveredPrice changed:', hoveredPrice);
+  }, [hoveredPrice]);
+  const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -93,6 +105,108 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       }
     }
   }, [timeframe]);
+
+  // Add mouse move listener for spike line hover detection
+  useEffect(() => {
+    if (!chartRef) {
+      console.log('Chart ref not available yet');
+      return;
+    }
+
+    console.log('Setting up mouse listeners on chart ref:', chartRef);
+    let lastY: number | null = null;
+
+    // Get current layout for axis ranges - we'll calculate it directly
+    // Since we can't call getPlotlyLayout here due to hoisting, we'll use the data directly
+    console.log('Setting up mouse listeners - will calculate y-axis range from data');
+
+    const handleMouseMove = (event: MouseEvent) => {
+      console.log('Mouse move event detected');
+
+      // Try different selectors to find the plot area
+      let plotArea = chartRef.querySelector('.plotly .plot');
+      if (!plotArea) {
+        plotArea = chartRef.querySelector('.plotly');
+      }
+      if (!plotArea) {
+        plotArea = chartRef.querySelector('[data-testid="plot"]');
+      }
+      if (!plotArea) {
+        plotArea = chartRef.querySelector('.js-plotly-plot');
+      }
+
+      console.log('Plot area found:', plotArea);
+      console.log('Chart ref children:', chartRef.children);
+      console.log('Chart ref innerHTML length:', chartRef.innerHTML.length);
+
+      if (plotArea) {
+        const rect = plotArea.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        console.log('Mouse position:', { x, y, rectWidth: rect.width, rectHeight: rect.height });
+
+        // Check if mouse is within the plot area
+        if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+          console.log('Mouse is within plot area');
+
+          // Calculate y-axis range from chart data
+          if (chartData.length > 0) {
+            const sortedData = [...chartData].sort(
+              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+            );
+
+            // Get min and max values from the data
+            const allValues = sortedData.flatMap((d) => [d.open, d.high, d.low, d.close]);
+            const yMin = Math.min(...allValues);
+            const yMax = Math.max(...allValues);
+
+            // Add some padding (5% on each side)
+            const padding = (yMax - yMin) * 0.05;
+            const paddedYMin = yMin - padding;
+            const paddedYMax = yMax + padding;
+
+            console.log('Calculated Y-axis range:', { yMin: paddedYMin, yMax: paddedYMax });
+
+            // Convert to data coordinates
+            const dataY = paddedYMin + (y / rect.height) * (paddedYMax - paddedYMin);
+
+            console.log('Calculated dataY:', dataY, 'LastY:', lastY);
+
+            // Update hover state
+            if (lastY !== dataY) {
+              console.log('Y-value changed! Setting hover state:', dataY);
+              lastY = dataY;
+              setHoveredY(dataY);
+              setHoveredPrice(dataY);
+            }
+          } else {
+            console.log('No chart data available for y-axis calculation');
+          }
+        } else {
+          console.log('Mouse is outside plot area');
+        }
+      } else {
+        console.log('Plot area not found');
+      }
+    };
+
+    const handleMouseLeave = () => {
+      console.log('Mouse left chart area');
+      setHoveredY(null);
+      setHoveredPrice(null);
+      lastY = null;
+    };
+
+    chartRef.addEventListener('mousemove', handleMouseMove);
+    chartRef.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      console.log('Cleaning up mouse listeners');
+      chartRef.removeEventListener('mousemove', handleMouseMove);
+      chartRef.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [chartRef, chartData]);
 
   // WebSocket for real-time chart data
   const { lastMessage, sendMessage } = useWebSocket();
@@ -518,8 +632,16 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           },
         },
       ],
-      annotations:
-        hoveredDate && hoveredX !== null
+      annotations: [
+        // Debug logging
+        ...(console.log(
+          'Creating annotations - hoveredPrice:',
+          hoveredPrice,
+          'hoveredY:',
+          hoveredY
+        ) || []),
+        // Date annotation (bottom of chart)
+        ...(hoveredDate && hoveredX !== null
           ? [
               {
                 x: hoveredX,
@@ -541,7 +663,30 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 yanchor: 'top',
               },
             ]
-          : [],
+          : []),
+        // Price annotation (overlay on right y-axis labels)
+        ...(hoveredPrice !== null
+          ? [
+              {
+                x: 1.02,
+                y: hoveredPrice,
+                xref: 'paper',
+                yref: 'y',
+                text: `$${hoveredPrice.toFixed(2)}`,
+                showarrow: false,
+                bgcolor: 'rgba(0, 0, 0, 0.9)',
+                bordercolor: '#6b7280',
+                borderwidth: 1,
+                font: { color: '#d1d5db', size: 12 },
+                xanchor: 'left',
+                yanchor: 'middle',
+                // Position it to overlay the y-axis labels
+                xshift: 0,
+                yshift: 0,
+              },
+            ]
+          : []),
+      ],
       hoverdistance: 20,
       spikedistance: -1, // Use -1 for better spike line behavior
     };
@@ -550,7 +695,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, dataRange, hoveredDate, hoveredX]);
+  }, [symbol, timeframe, dataRange, hoveredDate, hoveredX, hoveredPrice]);
 
   const timeframes: { value: ChartTimeframe; label: string; dataPoints: number }[] = [
     { value: '1m', label: '1m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 1-minute data
@@ -665,7 +810,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             </div>
           </div>
         ) : (
-          <div className="w-full h-full" style={{ minHeight: '400px' }}>
+          <div ref={setChartRef} className="w-full h-full" style={{ minHeight: '400px' }}>
             <Plot
               data={getPlotlyData()}
               layout={getPlotlyLayout()}
@@ -695,6 +840,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                   const point = event.points[0];
                   const xIndex = point.pointIndex;
                   const xValue = point.x;
+                  const yValue = point.y;
 
                   if (xIndex !== undefined && chartData.length > 0) {
                     // Get the sorted data to match the chart display
@@ -717,12 +863,24 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                       setHoveredX(typeof xValue === 'number' ? xValue : xIndex);
                     }
                   }
+
+                  // Handle y-value changes for spike line tooltip
+                  if (typeof yValue === 'number') {
+                    // Check if y-value has changed to trigger spike line tooltip
+                    if (hoveredY !== yValue) {
+                      console.log('Y-value changed:', yValue, 'Previous:', hoveredY);
+                      setHoveredY(yValue);
+                      setHoveredPrice(yValue);
+                    }
+                  }
                 }
               }}
               onUnhover={() => {
                 // Handle unhover events
                 setHoveredDate(null);
                 setHoveredX(null);
+                setHoveredY(null);
+                setHoveredPrice(null);
               }}
               onInitialized={(figure, graphDiv) => {
                 // Add CSS to make spike lines thinner
