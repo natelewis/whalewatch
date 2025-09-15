@@ -17,6 +17,10 @@ import {
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
+import { usePriceTooltip } from '../hooks/usePriceTooltip';
+import { useDateTooltip } from '../hooks/useDateTooltip';
+import { useMouseHover } from '../hooks/useMouseHover';
+import { PriceTooltip, DateTooltip } from './tooltips';
 import {
   BarChart3,
   LineChart,
@@ -158,119 +162,27 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     return () => clearTimeout(timeoutId);
   }, [chartRef, chartData]);
 
-  const handlePlotlyUnhover = useCallback(() => {
-    // Don't clear everything on unhover - let the mouse leave handler handle it
-  }, []);
+  // Use the new modular hooks for tooltip functionality
+  const priceTooltip = usePriceTooltip({
+    chartRef,
+    topPrice,
+    minPrice,
+    effectiveHeight,
+    effectiveWidth,
+    enabled: true,
+  });
 
-  // Optimized mouse move handler for spike line hover detection
-  useEffect(() => {
-    if (!chartRef) {
-      return;
-    }
+  const dateTooltip = useDateTooltip({
+    chartRef,
+    chartData,
+    timeframe,
+    enabled: true,
+  });
 
-    let plotArea: Element | null = null;
-    let tooltip: HTMLElement | null = null;
-    let lastMouseY = -1;
-    let lastMouseX = -1;
-    let lastPrice = -1;
-    // Removed throttling - DOM updates are fast enough without it
-
-    // Cache DOM elements once
-    const initializeElements = () => {
-      if (!plotArea) {
-        plotArea = chartRef.querySelector('.nsewdrag.drag');
-      }
-
-      if (!tooltip) {
-        tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
-        if (!tooltip) {
-          tooltip = document.createElement('div');
-          tooltip.className = 'persistent-price-tooltip';
-          tooltip.style.position = 'fixed';
-          tooltip.style.backgroundColor = '#6b7280';
-          tooltip.style.border = 'none';
-          tooltip.style.marginTop = '3px';
-          tooltip.style.padding = '0 0 0 8px ';
-          tooltip.style.borderRadius = '0px';
-          tooltip.style.width = '60px';
-          tooltip.style.fontSize = '12px';
-          tooltip.style.setProperty('color', 'white', 'important');
-          tooltip.style.fontWeight = 'normal';
-          tooltip.style.pointerEvents = 'none';
-          tooltip.style.zIndex = '1000';
-          tooltip.style.willChange = 'transform';
-          tooltip.style.transform = 'translateZ(0)'; // Force hardware acceleration
-          document.body.appendChild(tooltip);
-        }
-      }
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      // Initialize elements only once
-      initializeElements();
-
-      if (!plotArea) {
-        return;
-      }
-
-      const rect = plotArea.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-
-      // Update position tracking
-      lastMouseY = y;
-      lastMouseX = x;
-
-      // Adjust Y position to account for Plotly's internal padding
-      const adjustedY = Math.max(0, y - PLOTLY_INTERNAL_PADDING / 2);
-
-      // Check if mouse is within the plot area and we have valid dimensions
-      if (
-        effectiveHeight !== null &&
-        effectiveWidth !== null &&
-        x >= 0 &&
-        x <= effectiveWidth &&
-        adjustedY >= 0 &&
-        adjustedY <= effectiveHeight
-      ) {
-        // Calculate the actual price at the mouse Y position on the spike line
-        if (topPrice !== null && minPrice !== null) {
-          // Convert mouse Y position to actual price value using the proper formula
-          // Price = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice)
-          const mousePrice =
-            topPrice - (adjustedY / (effectiveHeight || 1)) * (topPrice - minPrice);
-
-          // Update price and tooltip for every mouse move
-          lastPrice = mousePrice;
-
-          // Update tooltip content and position in one go
-          if (tooltip) {
-            tooltip.textContent = `${mousePrice.toFixed(2)}`;
-            tooltip.style.display = 'block';
-            tooltip.style.left = `${rect.right}px`;
-            tooltip.style.top = `${event.clientY - 12}px`;
-          }
-        }
-      }
-    };
-
-    const handleMouseLeave = () => {
-      // Add a small delay before clearing to prevent flickering
-      setTimeout(() => {
-        // Hide the persistent tooltip
-        if (tooltip) {
-          tooltip.style.display = 'none';
-        }
-      }, 100);
-    };
-    chartRef.addEventListener('mousemove', handleMouseMove);
-    chartRef.addEventListener('mouseleave', handleMouseLeave);
-
-    return () => {
-      chartRef.removeEventListener('mousemove', handleMouseMove);
-      chartRef.removeEventListener('mouseleave', handleMouseLeave);
-    };
-  }, [chartRef, chartData, topPrice, minPrice, effectiveHeight, effectiveWidth]);
+  const mouseHover = useMouseHover({
+    chartRef,
+    enabled: true,
+  });
 
   // WebSocket for real-time chart data
   const { lastMessage, sendMessage } = useWebSocket();
@@ -851,7 +763,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                 return undefined;
               }}
             />
-            <div className="price-tooltip" style={{ display: 'none' }}></div>
+            {/* Tooltip components are now handled by the hooks */}
           </div>
         )}
       </div>
