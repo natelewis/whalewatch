@@ -300,7 +300,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     // Don't clear everything on unhover - let the mouse leave handler handle it
   }, []);
 
-  // Optimized mouse move handler for spike line hover detection
+  // Custom mouse move handler for spike line hover detection
   useEffect(() => {
     if (!chartRef) {
       console.log('Chart ref not available yet');
@@ -321,35 +321,25 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       return;
     }
 
-    let plotArea: Element | null = null;
-    let tooltip: HTMLElement | null = null;
-    let lastMouseY = -1;
-    let animationFrameId: number | null = null;
+    let lastY: number | null = null;
 
     const handleMouseMove = (event: MouseEvent) => {
-      // Cancel previous animation frame to prevent lag
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+      // Try different selectors to find the plot area
+      let plotArea = chartRef.querySelector('.plotly .plot');
+      if (!plotArea) {
+        plotArea = chartRef.querySelector('.plotly');
       }
-      
-      animationFrameId = requestAnimationFrame(() => {
-        // Cache plot area on first access
-        if (!plotArea) {
-          plotArea = chartRef.querySelector('.plotly .plot') || 
-                    chartRef.querySelector('.plotly') ||
-                    chartRef.querySelector('[data-testid="plot"]') ||
-                    chartRef.querySelector('.js-plotly-plot');
-        }
+      if (!plotArea) {
+        plotArea = chartRef.querySelector('[data-testid="plot"]');
+      }
+      if (!plotArea) {
+        plotArea = chartRef.querySelector('.js-plotly-plot');
+      }
 
-        if (!plotArea) return;
-
+      if (plotArea) {
         const rect = plotArea.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
-
-        // Skip if mouse Y hasn't changed much (reduce unnecessary updates)
-        if (Math.abs(y - lastMouseY) < 1) return;
-        lastMouseY = y;
 
         // If rect height is 0, try to get dimensions from the parent or use chart ref dimensions
         let effectiveHeight = rect.height;
@@ -363,61 +353,65 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
         // Check if mouse is within the plot area
         if (x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
+          console.log('Mouse in plot area, calculating price from Y position...');
+
           // Calculate the actual price at the mouse Y position on the spike line
           if (yAxisRange) {
-            const { paddedYMin, paddedYMax } = yAxisRange;
+            const { paddedYMin, paddedYMax, effectiveHeight: yAxisHeight } = yAxisRange;
 
             // Convert mouse Y position to actual price value
             const mousePrice = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
 
-            // Cache tooltip element
+            console.log('Mouse Y position:', y, 'Calculated price:', mousePrice);
+
+            // Update the tooltip with the calculated price
+            let tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
+
             if (!tooltip) {
-              tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
-              if (!tooltip) {
-                tooltip = document.createElement('div');
-                tooltip.className = 'persistent-price-tooltip';
-                tooltip.style.position = 'fixed';
-                tooltip.style.backgroundColor = '#6b7280';
-                tooltip.style.border = 'none';
-                tooltip.style.padding = '4px 8px';
-                tooltip.style.borderRadius = '0px';
-                tooltip.style.fontSize = '12px';
-                tooltip.style.setProperty('color', 'white', 'important');
-                tooltip.style.fontWeight = 'normal';
-                tooltip.style.pointerEvents = 'none';
-                tooltip.style.zIndex = '1000';
-                tooltip.style.willChange = 'transform'; // Optimize for animations
-                document.body.appendChild(tooltip);
-              }
+              // Create tooltip element if it doesn't exist
+              tooltip = document.createElement('div');
+              tooltip.className = 'persistent-price-tooltip';
+              tooltip.style.position = 'fixed';
+              tooltip.style.backgroundColor = '#6b7280';
+              tooltip.style.border = 'none';
+              tooltip.style.padding = '4px 8px';
+              tooltip.style.borderRadius = '0px';
+              tooltip.style.fontSize = '12px';
+              tooltip.style.setProperty('color', 'white', 'important');
+              tooltip.style.fontWeight = 'normal';
+              tooltip.style.pointerEvents = 'none';
+              tooltip.style.zIndex = '1000';
+              document.body.appendChild(tooltip);
+              console.log('Persistent tooltip created');
             }
 
-            // Update tooltip content and position in one go
             tooltip.textContent = mousePrice.toFixed(4);
             tooltip.style.display = 'block';
-            tooltip.style.left = `${event.clientX + 10}px`; // Position relative to mouse
-            tooltip.style.top = `${event.clientY - 12}px`;
 
-            // Update state for consistency (throttled)
+            // Position the tooltip at the mouse Y position
+            const chartRect = chartRef.getBoundingClientRect();
+            const rightEdge = chartRect.right - 48; // Position closer to the right edge
+
+            tooltip.style.left = `${rightEdge}px`;
+            tooltip.style.top = `${event.clientY - 12}px`; // Position at mouse Y position
+
+            // Update state for consistency
             setHoveredY(mousePrice);
             setHoveredPrice(mousePrice);
           }
         }
-      });
+      }
     };
 
     const handleMouseLeave = () => {
-      // Cancel any pending animation frame
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-      
       // Add a small delay before clearing to prevent flickering
       setTimeout(() => {
         setHoveredY(null);
         setHoveredPrice(null);
+        lastY = null;
 
         // Hide the persistent tooltip
+        const tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
         if (tooltip) {
           tooltip.style.display = 'none';
         }
@@ -430,9 +424,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     return () => {
       chartRef.removeEventListener('mousemove', handleMouseMove);
       chartRef.removeEventListener('mouseleave', handleMouseLeave);
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
     };
   }, [chartRef, chartData, yAxisRange]);
 
