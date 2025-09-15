@@ -342,21 +342,32 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               // Adjust mouse Y to be relative to the spike line area
               const adjustedY = y - spikeLineTop;
 
-              // Map the adjusted Y position to price using the spike line height
-              const dataY = paddedYMax - (adjustedY / spikeLineHeight) * (paddedYMax - paddedYMin);
-              const roundedDataY = Math.round(dataY * 100) / 100;
+              // Clamp the adjusted Y to ensure it's within the spike line bounds
+              const clampedY = Math.max(0, Math.min(adjustedY, spikeLineHeight));
+
+              // Map the clamped Y position to price using the spike line height
+              // Use a more precise calculation that accounts for the actual data range
+              const dataY = paddedYMax - (clampedY / spikeLineHeight) * (paddedYMax - paddedYMin);
+              // Use more precision to avoid rounding errors
+              const roundedDataY = Math.round(dataY * 1000) / 1000;
 
               console.log(
                 'Adjusted calculation - Mouse Y:',
                 y,
                 'Adjusted Y:',
                 adjustedY,
+                'Clamped Y:',
+                clampedY,
                 'SpikeLineHeight:',
                 spikeLineHeight,
                 'YMin:',
                 paddedYMin,
                 'YMax:',
                 paddedYMax,
+                'Price Range:',
+                paddedYMax - paddedYMin,
+                'Ratio:',
+                clampedY / spikeLineHeight,
                 'Calculated Price:',
                 roundedDataY
               );
