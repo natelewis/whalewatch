@@ -325,13 +325,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             line: { width: 1 },
             whiskerwidth: 0.8,
             showlegend: false,
-            hovertemplate:
-              '<b>%{fullData.name}</b><br>' +
-              '<b>Time: %{customdata}</b><br>' +
-              'Open: $%{open:.4f}<br>' +
-              'High: $%{high:.4f}<br>' +
-              'Low: $%{low:.4f}<br>' +
-              'Close: $%{close:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
           // Add invisible scatter overlay for hover detection on candlestick charts
@@ -365,10 +358,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             y: sortedData.map((d) => d.close),
             line: { color: '#26a69a', width: 2 },
             name: symbol,
-            hovertemplate:
-              '<b>%{fullData.name}</b><br>' +
-              '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -381,10 +370,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             y: sortedData.map((d) => d.close),
             marker: { color: '#26a69a' },
             name: symbol,
-            hovertemplate:
-              '<b>%{fullData.name}</b><br>' +
-              '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -400,10 +385,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             line: { color: '#26a69a', width: 2 },
             fillcolor: 'rgba(38, 166, 154, 0.2)',
             name: symbol,
-            hovertemplate:
-              '<b>%{fullData.name}</b><br>' +
-              '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -548,10 +529,10 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       showlegend: false,
       hovermode: 'x unified' as const,
       hoverlabel: {
-        bgcolor: 'rgba(0, 0, 0, 0.8)',
-        bordercolor: '#374151',
-        font: { color: '#d1d5db', size: 12 },
-        namelength: -1,
+        bgcolor: 'transparent',
+        bordercolor: 'transparent',
+        font: { color: 'transparent', size: 0 },
+        namelength: 0,
         align: 'left',
       },
       // Configure hover line and spike appearance
