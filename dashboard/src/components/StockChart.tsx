@@ -567,7 +567,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
           ? [
               {
                 x: mouseX,
-                y: 0.02,
+                y: 0.002,
                 xref: 'paper',
                 yref: 'paper',
                 text: hoveredDate,
