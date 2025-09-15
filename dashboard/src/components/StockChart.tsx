@@ -63,6 +63,8 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   // Hover state for time tooltip at bottom
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [mouseX, setMouseX] = useState<number | null>(null);
+  const [mouseY, setMouseY] = useState<number | null>(null);
+  const [dataPointIndex, setDataPointIndex] = useState<number | null>(null);
 
   // Hover state for OHLC data in title
   const [hoveredOHLC, setHoveredOHLC] = useState<{
@@ -229,6 +231,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
               low: hoveredCandle.low,
               close: hoveredCandle.close,
             });
+
+            // Set the data point index for spike line positioning
+            setDataPointIndex(xIndex);
           }
         }
       }
@@ -239,6 +244,8 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   const handlePlotlyUnhover = useCallback(() => {
     setHoveredDate(null);
     setMouseX(null);
+    setMouseY(null);
+    setDataPointIndex(null);
     setHoveredOHLC(null);
   }, []);
 
@@ -252,14 +259,37 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
       const rect = plotArea.getBoundingClientRect();
       const mouseXPos = event.clientX - rect.left;
+      const mouseYPos = event.clientY - rect.top;
 
-      // Convert mouse X position to paper coordinates (0 to 1)
-      const paperX = mouseXPos / rect.width;
-      setMouseX(paperX);
+      // Use Plotly's actual plot area for more accurate positioning
+      // The plot area is the inner area without margins
+      const plotlyPlot = chartRef.querySelector('.plotly .plot');
+      if (plotlyPlot) {
+        const plotRect = plotlyPlot.getBoundingClientRect();
+        const containerRect = chartRef.getBoundingClientRect();
+        
+        // Calculate relative position within the actual plot area
+        const relativeX = (plotRect.left - containerRect.left) / containerRect.width;
+        const relativeY = (plotRect.top - containerRect.top) / containerRect.height;
+        const plotWidth = plotRect.width / containerRect.width;
+        const plotHeight = plotRect.height / containerRect.height;
+        
+        // Convert mouse position to plot-relative coordinates
+        const plotMouseX = (mouseXPos - (plotRect.left - rect.left)) / plotRect.width;
+        const plotMouseY = (mouseYPos - (plotRect.top - rect.top)) / plotRect.height;
+        
+        setMouseX(Math.max(0, Math.min(1, plotMouseX)));
+        setMouseY(Math.max(0, Math.min(1, plotMouseY)));
+      } else {
+        // Fallback to simple calculation
+        setMouseX(mouseXPos / rect.width);
+        setMouseY(mouseYPos / rect.height);
+      }
     };
 
     const handleMouseLeave = () => {
       setMouseX(null);
+      setMouseY(null);
     };
 
     chartRef.addEventListener('mousemove', handleMouseMove);
@@ -270,6 +300,32 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       chartRef.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [chartRef]);
+
+  // Calculate chart area bounds for spike line positioning
+  const chartBounds = useMemo(() => {
+    if (!chartRef) return null;
+
+    const plotArea = chartRef.querySelector('.nsewdrag.drag');
+    if (!plotArea) return null;
+
+    const rect = plotArea.getBoundingClientRect();
+    const containerRect = chartRef.getBoundingClientRect();
+
+    return {
+      left: rect.left - containerRect.left,
+      top: rect.top - containerRect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+  }, [chartRef, chartDataHook.chartData]);
+
+  // Debug: Log mouse coordinates and chart bounds
+  useEffect(() => {
+    console.log('Mouse X:', mouseX, 'Mouse Y:', mouseY);
+    if (chartBounds) {
+      console.log('Chart bounds:', chartBounds);
+    }
+  }, [mouseX, mouseY, chartBounds]);
 
   // WebSocket for real-time chart data
   const chartWebSocket = useChartWebSocket({
@@ -325,7 +381,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             line: { width: 1 },
             whiskerwidth: 0.8,
             showlegend: false,
-            hovertemplate: '<extra></extra>',
+            hoverinfo: 'none',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
           // Add invisible scatter overlay for hover detection on candlestick charts
@@ -344,7 +400,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             showlegend: false,
             // Enable hover detection but don't show tooltip for this trace
             hoveron: 'points' as const,
-            hovertemplate: '<extra></extra>',
+            hoverinfo: 'none',
             connectgaps: true, // Connect gaps to ensure continuous hover detection
             // This invisible line enables hover detection across the entire chart
             name: `${symbol}_hover_overlay`,
@@ -360,6 +416,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             y: sortedData.map((d) => d.close),
             line: { color: '#26a69a', width: 2 },
             name: symbol,
+            hoverinfo: 'none',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -372,6 +429,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             y: sortedData.map((d) => d.close),
             marker: { color: '#26a69a' },
             name: symbol,
+            hoverinfo: 'none',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -387,6 +445,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             line: { color: '#26a69a', width: 2 },
             fillcolor: 'rgba(38, 166, 154, 0.2)',
             name: symbol,
+            hoverinfo: 'none',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -492,12 +551,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         tickvals: timeAxisTicks,
         ticktext: timeAxisLabels,
         tickangle: 0,
-        showspikes: true,
-        spikecolor: '#6b7280',
-        spikesnap: 'cursor',
-        spikemode: 'across',
-        spikethickness: 0.5,
-        spikedash: [2, 2],
+        showspikes: false,
         showticklabels: true,
         ticklen: 4, // Length of tick marks extending outward
         tickwidth: 1,
@@ -508,14 +562,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       yaxis: {
         color: '#d1d5db',
         title: { text: '', font: { color: '#d1d5db' } },
-        showspikes: true,
-        spikecolor: '#6b7280',
-        spikesnap: 'cursor',
-        spikemode: 'across',
-        spikethickness: 0.5,
-        spikedash: [2, 2],
         side: 'right',
         showgrid: false,
+        showspikes: false,
         showticklabels: true,
         ticklen: 4, // Length of tick marks extending outward
         tickwidth: 1,
@@ -529,7 +578,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       font: { color: '#d1d5db' },
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
-      hovermode: 'x unified' as const,
+      hovermode: false,
       // Configure hover line and spike appearance
       shapes: [
         // Bottom border line
@@ -789,18 +838,16 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   // Add CSS to make spike lines thinner
                   const style = document.createElement('style');
                   style.textContent = `
-                  .plotly .hoverlayer .spikeline {
-                    stroke-width: 0.5px !important;
-                    stroke: #d1d5db !important;
-                    stroke-dasharray: 4,2 !important;
-                  }
-                  .plotly .hoverlayer .spikeline:hover {
-                    stroke-width: 0.5px !important;
-                  }
                   .plotly .hoverlayer .hovertext {
                     display: none !important;
                   }
                   .plotly .hoverlayer .hoverlabel {
+                    display: none !important;
+                  }
+                  .plotly .hoverlayer .hovertext .hovertext {
+                    display: none !important;
+                  }
+                  .plotly .hoverlayer .hovertext .hovertext .hovertext {
                     display: none !important;
                   }
                 `;
@@ -808,6 +855,44 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   return undefined;
                 }}
               />
+
+              {/* Custom Spike Lines */}
+              {mouseX !== null && mouseY !== null && (
+                <svg
+                  className="absolute pointer-events-none"
+                  style={{
+                    zIndex: 10,
+                    left: chartBounds?.left || 0,
+                    top: chartBounds?.top || 0,
+                    width: chartBounds?.width || '100%',
+                    height: chartBounds?.height || '100%',
+                  }}
+                >
+                  {/* Vertical spike line - follows mouse X position */}
+                  <line
+                    x1={`${mouseX * 100}%`}
+                    y1="0%"
+                    x2={`${mouseX * 100}%`}
+                    y2="100%"
+                    stroke="#6b7280"
+                    strokeWidth="0.5"
+                    strokeDasharray="4,2"
+                    opacity="0.8"
+                  />
+                  {/* Horizontal spike line - follows mouse Y position */}
+                  <line
+                    x1="0%"
+                    y1={`${mouseY * 100}%`}
+                    x2="100%"
+                    y2={`${mouseY * 100}%`}
+                    stroke="#6b7280"
+                    strokeWidth="0.5"
+                    strokeDasharray="4,2"
+                    opacity="0.8"
+                  />
+                </svg>
+              )}
+
               {/* Tooltip components are now handled by the hooks */}
             </div>
           </div>
