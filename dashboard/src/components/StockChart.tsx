@@ -107,6 +107,47 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
     let lastY: number | null = null;
 
+    // Calculate y-axis range once and reuse it
+    let yAxisRange: { paddedYMin: number; paddedYMax: number; effectiveHeight: number } | null =
+      null;
+
+    const calculateYAxisRange = () => {
+      if (chartData.length > 0) {
+        const sortedData = [...chartData].sort(
+          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+        );
+
+        // Get min and max values from the data
+        const allValues = sortedData.flatMap((d) => [d.open, d.high, d.low, d.close]);
+        const yMin = Math.min(...allValues);
+        const yMax = Math.max(...allValues);
+
+        // Add more padding to match Plotly's default behavior (10% on each side)
+        const padding = (yMax - yMin) * 0.1;
+        const paddedYMin = yMin - padding;
+        const paddedYMax = yMax + padding;
+
+        // Get effective height
+        const plotArea =
+          chartRef.querySelector('.plotly .plot') ||
+          chartRef.querySelector('.plotly') ||
+          chartRef.querySelector('[data-testid="plot"]') ||
+          chartRef.querySelector('.js-plotly-plot');
+
+        let effectiveHeight = 400; // fallback
+        if (plotArea) {
+          const rect = plotArea.getBoundingClientRect();
+          effectiveHeight = rect.height || chartRef.getBoundingClientRect().height || 400;
+        }
+
+        yAxisRange = { paddedYMin, paddedYMax, effectiveHeight };
+        console.log('Calculated y-axis range:', yAxisRange);
+      }
+    };
+
+    // Calculate range when chart data changes
+    calculateYAxisRange();
+
     const handleMouseMove = (event: MouseEvent) => {
       // Try different selectors to find the plot area
       let plotArea = chartRef.querySelector('.plotly .plot');
@@ -120,7 +161,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         plotArea = chartRef.querySelector('.js-plotly-plot');
       }
 
-      if (plotArea) {
+      if (plotArea && yAxisRange) {
         const rect = plotArea.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
@@ -137,35 +178,31 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
         // Check if mouse is within the plot area
         if (x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
-          // Calculate y-axis range from chart data
-          if (chartData.length > 0) {
-            const sortedData = [...chartData].sort(
-              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+          // Use the pre-calculated y-axis range with its stable height
+          const { paddedYMin, paddedYMax, effectiveHeight: stableHeight } = yAxisRange;
+
+          // Convert to data coordinates using the stable height
+          // Note: y=0 is at the top of the plot area, so we need to invert the calculation
+          const dataY = paddedYMax - (y / stableHeight) * (paddedYMax - paddedYMin);
+
+          // Update hover state
+          const tolerance = 0.5; // Smaller tolerance for more precision
+          const yChanged = lastY === null || Math.abs(lastY - dataY) > tolerance;
+
+          if (yChanged) {
+            console.log(
+              'Custom mouse move - updating price:',
+              dataY.toFixed(2),
+              'from y:',
+              y,
+              'stableHeight:',
+              stableHeight,
+              'currentHeight:',
+              effectiveHeight
             );
-
-            // Get min and max values from the data
-            const allValues = sortedData.flatMap((d) => [d.open, d.high, d.low, d.close]);
-            const yMin = Math.min(...allValues);
-            const yMax = Math.max(...allValues);
-
-            // Add more padding to match Plotly's default behavior (10% on each side)
-            const padding = (yMax - yMin) * 0.1;
-            const paddedYMin = yMin - padding;
-            const paddedYMax = yMax + padding;
-
-            // Convert to data coordinates
-            // Note: y=0 is at the top of the plot area, so we need to invert the calculation
-            const dataY = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
-
-            // Update hover state
-            const tolerance = 1.0; // Increase tolerance to reduce fluttering
-            const yChanged = lastY === null || Math.abs(lastY - dataY) > tolerance;
-
-            if (yChanged) {
-              lastY = dataY;
-              setHoveredY(dataY);
-              setHoveredPrice(dataY);
-            }
+            lastY = dataY;
+            setHoveredY(dataY);
+            setHoveredPrice(dataY);
           }
         }
       }
@@ -840,15 +877,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                     }
                   }
 
-                  // Handle y-value changes for spike line tooltip
-                  if (typeof yValue === 'number') {
-                    // Check if y-value has changed to trigger spike line tooltip
-                    if (hoveredY !== yValue) {
-                      console.log('Y-value changed:', yValue, 'Previous:', hoveredY);
-                      setHoveredY(yValue);
-                      setHoveredPrice(yValue);
-                    }
-                  }
+                  // Note: y-value updates are now handled by custom mouse move listener
+                  // to avoid conflicts and ensure consistent positioning
                 }
               }}
               onUnhover={() => {
