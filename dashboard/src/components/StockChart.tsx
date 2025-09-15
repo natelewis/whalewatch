@@ -69,6 +69,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     earliest: string;
     latest: string;
   } | null>(null);
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [hoveredX, setHoveredX] = useState<number | null>(null);
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -474,7 +476,30 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       },
       // Configure hover line and spike appearance
       shapes: [],
-      annotations: [],
+      annotations:
+        hoveredDate && hoveredX !== null
+          ? [
+              {
+                x: hoveredX,
+                y: 0,
+                xref: 'x',
+                yref: 'paper',
+                text: hoveredDate,
+                showarrow: true,
+                arrowhead: 0,
+                arrowcolor: '#6b7280',
+                arrowwidth: 0.5,
+                ax: 0,
+                ay: 20,
+                bgcolor: 'rgba(0, 0, 0, 0.8)',
+                bordercolor: '#374151',
+                borderwidth: 1,
+                font: { color: '#d1d5db', size: 12 },
+                xanchor: 'center',
+                yanchor: 'top',
+              },
+            ]
+          : [],
       hoverdistance: 20,
       spikedistance: -1, // Use -1 for better spike line behavior
     };
@@ -483,7 +508,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, dataRange]);
+  }, [symbol, timeframe, dataRange, hoveredDate, hoveredX]);
 
   const timeframes: { value: ChartTimeframe; label: string; dataPoints: number }[] = [
     { value: '1m', label: '1m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 1-minute data
@@ -625,12 +650,37 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               onHover={(event) => {
                 // Handle hover events - this should work for all chart types
                 if (event && event.points && event.points.length > 0) {
-                  console.log('Hover event triggered:', event.points[0]);
+                  const point = event.points[0];
+                  const xIndex = point.pointIndex;
+                  const xValue = point.x;
+
+                  if (xIndex !== undefined && chartData.length > 0) {
+                    // Get the sorted data to match the chart display
+                    const sortedData = [...chartData].sort(
+                      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+                    );
+
+                    if (xIndex < sortedData.length) {
+                      const hoveredTime = sortedData[xIndex].time;
+                      const formattedDate = new Date(hoveredTime).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false,
+                      });
+
+                      setHoveredDate(formattedDate);
+                      // Use the actual x value from the hover event for more accurate positioning
+                      setHoveredX(typeof xValue === 'number' ? xValue : xIndex);
+                    }
+                  }
                 }
               }}
               onUnhover={() => {
                 // Handle unhover events
-                console.log('Unhover event triggered');
+                setHoveredDate(null);
+                setHoveredX(null);
               }}
               onInitialized={(figure, graphDiv) => {
                 // Add CSS to make spike lines thinner
