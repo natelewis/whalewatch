@@ -449,7 +449,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         spikethickness: 0.5,
         spikedash: [2, 2],
         showticklabels: true,
-        ticklen: 8, // Length of tick marks extending outward
+        ticklen: 4, // Length of tick marks extending outward
         tickwidth: 1,
         tickcolor: '#6b7280',
         zeroline: false,
@@ -467,7 +467,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         side: 'right',
         showgrid: false,
         showticklabels: true,
-        ticklen: 8, // Length of tick marks extending outward
+        ticklen: 4, // Length of tick marks extending outward
         tickwidth: 1,
         tickcolor: '#6b7280',
         zeroline: false,
@@ -531,7 +531,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 arrowcolor: '#6b7280',
                 arrowwidth: 0.5,
                 ax: 0,
-                ay: -1,
+                ay: 6,
                 bgcolor: 'rgba(0, 0, 0, 0.8)',
                 bordercolor: '#374151',
                 borderwidth: 1,
