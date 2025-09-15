@@ -70,25 +70,33 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const [error, setError] = useState<string | null>(null);
   const [dataRange, setDataRange] = useState<{ earliest: string; latest: string } | null>(null);
 
-  const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
+  // Removed hoveredPrice state - tooltip is now completely DOM-based
 
-  // Debug wrapper for setHoveredPrice to track state updates
-  const debugSetHoveredPrice = useCallback((price: number | null) => {
-    const stateUpdateStart = performance.now();
-    console.log('🔄 React state update triggered', {
-      price,
-      timestamp: stateUpdateStart,
-    });
-    setHoveredPrice(price);
-    // Note: We can't measure the actual state update completion here
-    // as it's asynchronous, but we can track when it's triggered
-  }, []);
   const [topPrice, setTopPrice] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState<number | null>(null);
   const [effectiveHeight, setEffectiveHeight] = useState<number | null>(null);
   const [effectiveWidth, setEffectiveWidth] = useState<number | null>(null);
-
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
+
+  // Track component re-renders
+  const renderStart = performance.now();
+  console.log('🔄 StockChart component render', {
+    timestamp: renderStart,
+    chartDataLength: chartData.length,
+    timeframe,
+    chartType,
+    isLoading,
+    isLive,
+    error: !!error,
+    dataRange: !!dataRange,
+    topPrice,
+    minPrice,
+    effectiveHeight,
+    effectiveWidth,
+    chartRef: !!chartRef,
+  });
+
+  // Removed hoveredPrice effect - no longer needed
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -198,9 +206,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     let lastMouseY = -1;
     let lastMouseX = -1;
     let lastPrice = -1;
-    let lastUpdate = 0;
-    let stateUpdateTimeout: number | null = null;
-    const THROTTLE_MS = 16; // ~60fps throttling
+    // Removed throttling - DOM updates are fast enough without it
 
     // Cache DOM elements once
     const initializeElements = () => {
@@ -279,16 +285,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         timestamp: debugStart,
       });
 
-      // Throttle processing to ~60fps
-      const now = performance.now();
-      if (now - lastUpdate < THROTTLE_MS) {
-        console.log('⏭️ Skipping update - throttled', {
-          timeSinceLastUpdate: now - lastUpdate,
-          throttleMs: THROTTLE_MS,
-        });
-        return;
-      }
-      lastUpdate = now;
+      // No throttling needed - DOM updates are fast enough
 
       // Initialize elements only once
       const initStart = performance.now();
@@ -322,22 +319,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         },
       });
 
-      // Skip if mouse position hasn't changed significantly (reduce unnecessary updates)
-      const deltaY = Math.abs(y - lastMouseY);
-      const deltaX = Math.abs(x - lastMouseX);
-      console.log('📊 Position delta check', {
-        deltaY,
-        deltaX,
-        lastMouseY,
-        lastMouseX,
-        shouldSkip: deltaY < 2 && deltaX < 2,
-      });
-
-      if (deltaY < 2 && deltaX < 2) {
-        console.log('⏭️ Skipping update - position change too small');
-        return;
-      }
-
+      // Update position tracking
       lastMouseY = y;
       lastMouseX = x;
 
@@ -383,46 +365,28 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             priceDelta: Math.abs(mousePrice - lastPrice),
           });
 
-          // Only update if price has changed significantly (reduce unnecessary updates)
-          if (Math.abs(mousePrice - lastPrice) > 0.001) {
-            lastPrice = mousePrice;
+          // Update price and tooltip for every mouse move
+          lastPrice = mousePrice;
 
-            const tooltipStart = performance.now();
-            // Update tooltip content and position in one go
-            if (tooltip) {
-              tooltip.textContent = `${mousePrice.toFixed(2)}`;
-              tooltip.style.display = 'block';
-              tooltip.style.left = `${rect.right}px`;
-              tooltip.style.top = `${event.clientY - 12}px`;
-            }
-            const tooltipEnd = performance.now();
-            console.log('💬 Tooltip update', {
-              duration: tooltipEnd - tooltipStart,
-              content: `${mousePrice.toFixed(2)}`,
-              position: { left: rect.right, top: event.clientY - 12 },
-            });
-
-            // Throttle state updates to reduce React re-renders
-            if (stateUpdateTimeout) {
-              console.log('⏰ Clearing previous state update timeout');
-              clearTimeout(stateUpdateTimeout);
-            }
-            const stateUpdateStart = performance.now();
-            stateUpdateTimeout = window.setTimeout(() => {
-              const stateUpdateEnd = performance.now();
-              console.log('🔄 State update executed', {
-                duration: stateUpdateEnd - stateUpdateStart,
-                price: mousePrice,
-              });
-              debugSetHoveredPrice(mousePrice);
-            }, 16); // ~60fps throttling
-            console.log('⏰ State update scheduled', {
-              delay: 16,
-              price: mousePrice,
-            });
-          } else {
-            console.log('⏭️ Skipping price update - change too small');
+          const tooltipStart = performance.now();
+          // Update tooltip content and position in one go
+          if (tooltip) {
+            tooltip.textContent = `${mousePrice.toFixed(2)}`;
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${rect.right}px`;
+            tooltip.style.top = `${event.clientY - 12}px`;
           }
+          const tooltipEnd = performance.now();
+          console.log('💬 Tooltip update', {
+            duration: tooltipEnd - tooltipStart,
+            content: `${mousePrice.toFixed(2)}`,
+            position: { left: rect.right, top: event.clientY - 12 },
+          });
+
+          // No React state updates - tooltip is completely DOM-based
+          console.log('💡 Price updated in DOM tooltip only', {
+            price: mousePrice,
+          });
         } else {
           console.log('❌ Missing price data', { topPrice, minPrice });
         }
@@ -440,13 +404,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       const debugStart = performance.now();
       console.log('🚪 Mouse leave event triggered', { timestamp: debugStart });
 
-      // Cancel any pending state update
-      if (stateUpdateTimeout) {
-        console.log('⏰ Clearing state update timeout on mouse leave');
-        clearTimeout(stateUpdateTimeout);
-        stateUpdateTimeout = null;
-      }
-
       // Add a small delay before clearing to prevent flickering
       const timeoutStart = performance.now();
       setTimeout(() => {
@@ -455,7 +412,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           delay: timeoutEnd - timeoutStart,
           timestamp: timeoutEnd,
         });
-        debugSetHoveredPrice(null);
 
         // Hide the persistent tooltip
         if (tooltip) {
@@ -487,25 +443,12 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       chartRef.removeEventListener('mouseleave', handleMouseLeave);
       console.log('📡 Event listeners removed');
 
-      if (stateUpdateTimeout) {
-        console.log('⏰ Clearing state update timeout in cleanup');
-        clearTimeout(stateUpdateTimeout);
-      }
-
       const cleanupEnd = performance.now();
       console.log('✅ Cleanup completed', {
         duration: cleanupEnd - cleanupStart,
       });
     };
-  }, [
-    chartRef,
-    chartData,
-    topPrice,
-    minPrice,
-    effectiveHeight,
-    effectiveWidth,
-    debugSetHoveredPrice,
-  ]);
+  }, [chartRef, chartData, topPrice, minPrice, effectiveHeight, effectiveWidth]);
 
   // WebSocket for real-time chart data
   const { lastMessage, sendMessage } = useWebSocket();
@@ -650,7 +593,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   };
 
   const getPlotlyData = useCallback(() => {
-    if (chartData.length === 0) return [];
+    const dataStart = performance.now();
+    console.log('📊 getPlotlyData called', {
+      timestamp: dataStart,
+      chartDataLength: chartData.length,
+      chartType,
+      symbol,
+    });
+
+    if (chartData.length === 0) {
+      console.log('📊 getPlotlyData returning empty array');
+      return [];
+    }
 
     // Ensure data is sorted by time and convert to proper format for Plotly
     const sortedData = [...chartData].sort(
@@ -768,6 +722,14 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     }
   }, [chartData, chartType, symbol]);
 
+  // Add debugging to track when getPlotlyData completes
+  const plotlyData = getPlotlyData();
+  const dataEnd = performance.now();
+  console.log('📊 getPlotlyData completed', {
+    duration: dataEnd - performance.now(),
+    dataLength: plotlyData.length,
+  });
+
   // Helper function to generate time axis ticks (indices)
   const getTimeAxisTicks = (data: CandlestickData[]): number[] => {
     if (data.length === 0) return [];
@@ -826,6 +788,14 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   };
 
   const getPlotlyLayout = useCallback(() => {
+    const layoutStart = performance.now();
+    console.log('📐 getPlotlyLayout called', {
+      timestamp: layoutStart,
+      symbol,
+      timeframe,
+      dataRange,
+    });
+
     const layout: any = {
       title: {
         text: `${symbol} - ${timeframe || 'Loading...'}`,
@@ -927,8 +897,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     // Let Plotly auto-scale to show the actual data points with natural gaps
     // No need to force ranges since we want to show the true time distribution
 
+    const layoutEnd = performance.now();
+    console.log('📐 getPlotlyLayout completed', {
+      duration: layoutEnd - layoutStart,
+    });
+
     return layout;
-  }, [symbol, timeframe, dataRange, hoveredPrice]);
+  }, [symbol, timeframe, dataRange]);
 
   const timeframes: { value: ChartTimeframe; label: string; dataPoints: number }[] = [
     { value: '1m', label: '1m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 1-minute data
@@ -1045,7 +1020,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         ) : (
           <div ref={setChartRef} className="w-full h-full relative" style={{ minHeight: '400px' }}>
             <Plot
-              data={getPlotlyData()}
+              data={plotlyData}
               layout={getPlotlyLayout()}
               config={{
                 displayModeBar: true,
@@ -1070,6 +1045,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               onHover={undefined}
               onUnhover={undefined}
               onInitialized={(figure, graphDiv) => {
+                const initStart = performance.now();
+                console.log('🎨 Plot component initialized', {
+                  timestamp: initStart,
+                  figure: !!figure,
+                  graphDiv: !!graphDiv,
+                });
+
                 // Add CSS to make spike lines thinner
                 const style = document.createElement('style');
                 style.textContent = `
@@ -1083,6 +1065,21 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                   }
                 `;
                 document.head.appendChild(style);
+
+                const initEnd = performance.now();
+                console.log('🎨 Plot initialization completed', {
+                  duration: initEnd - initStart,
+                });
+
+                return undefined;
+              }}
+              onUpdate={(figure, graphDiv) => {
+                const updateStart = performance.now();
+                console.log('🔄 Plot component updated', {
+                  timestamp: updateStart,
+                  figure: !!figure,
+                  graphDiv: !!graphDiv,
+                });
                 return undefined;
               }}
             />
