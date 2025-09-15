@@ -341,11 +341,12 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 console.log('Persistent tooltip created and appended to body');
               }
 
-              // Position tooltip to the right of the mouse cursor
-              const mouseX = event.clientX;
-              const mouseY = event.clientY;
-              tooltip.style.left = `${mouseX + 20}px`;
-              tooltip.style.top = `${mouseY - 10}px`;
+              // Position tooltip to overlay on the right price labels
+              const chartRect = chartRef.getBoundingClientRect();
+              const rightEdge = chartRect.right - 60; // Position near the right edge
+              const relativeY = y; // Use the mouse Y position relative to the chart
+              tooltip.style.left = `${rightEdge}px`;
+              tooltip.style.top = `${chartRect.top + relativeY - 10}px`;
               tooltip.style.width = 'auto';
               tooltip.style.height = 'auto';
               tooltip.style.minWidth = '60px';
