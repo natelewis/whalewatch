@@ -172,20 +172,11 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       }
 
       const rect = plotArea.getBoundingClientRect();
-      const chartRect = chartRef.getBoundingClientRect();
 
       // Calculate the actual visible chart area height by accounting for Plotly's internal padding
       // The plot area includes some internal padding, so we need to subtract it
       const actualPlotHeight = Math.max(0, (rect.height || 0) - PLOTLY_INTERNAL_PADDING);
       const actualPlotWidth = rect.width || null;
-
-      console.log('Plot area dimensions:', {
-        plotAreaHeight: rect.height,
-        plotAreaWidth: rect.width,
-        chartHeight: chartRect.height,
-        chartWidth: chartRect.width,
-        adjustedHeight: actualPlotHeight,
-      });
 
       setEffectiveHeight(actualPlotHeight);
       setEffectiveWidth(actualPlotWidth);
@@ -201,7 +192,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   // Optimized mouse move handler for spike line hover detection
   useEffect(() => {
     if (!chartRef) {
-      console.log('Chart ref not available yet');
       return;
     }
 
@@ -211,7 +201,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     let animationFrameId: number | null = null;
 
     const handleMouseMove = (event: MouseEvent) => {
-      console.log('Mouse move event');
       // Cancel previous animation frame to prevent lag
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
@@ -249,16 +238,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             // Convert mouse Y position to actual price value using the proper formula
             // Price = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice)
             const mousePrice = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice);
-
-            console.log('Price calculation debug:', {
-              y,
-              adjustedY,
-              effectiveHeight,
-              topPrice,
-              minPrice,
-              calculatedPrice: mousePrice,
-              yRatio: adjustedY / effectiveHeight,
-            });
 
             // Cache tooltip element
             if (!tooltip) {
