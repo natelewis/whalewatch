@@ -71,6 +71,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const [dataRange, setDataRange] = useState<{ earliest: string; latest: string } | null>(null);
 
   const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
+
+  // Debug wrapper for setHoveredPrice to track state updates
+  const debugSetHoveredPrice = useCallback((price: number | null) => {
+    const stateUpdateStart = performance.now();
+    console.log('🔄 React state update triggered', {
+      price,
+      timestamp: stateUpdateStart,
+    });
+    setHoveredPrice(price);
+    // Note: We can't measure the actual state update completion here
+    // as it's asynchronous, but we can track when it's triggered
+  }, []);
   const [topPrice, setTopPrice] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState<number | null>(null);
   const [effectiveHeight, setEffectiveHeight] = useState<number | null>(null);
@@ -163,7 +175,21 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
   // Optimized mouse move handler for spike line hover detection
   useEffect(() => {
+    const effectStart = performance.now();
+    console.log('🎯 Mouse handler effect triggered', {
+      timestamp: effectStart,
+      dependencies: {
+        chartRef: !!chartRef,
+        chartDataLength: chartData.length,
+        topPrice,
+        minPrice,
+        effectiveHeight,
+        effectiveWidth,
+      },
+    });
+
     if (!chartRef) {
+      console.log('❌ No chart ref, skipping mouse handler setup');
       return;
     }
 
@@ -172,17 +198,41 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     let lastMouseY = -1;
     let lastMouseX = -1;
     let lastPrice = -1;
-    let animationFrameId: number | null = null;
+    let lastUpdate = 0;
     let stateUpdateTimeout: number | null = null;
+    const THROTTLE_MS = 16; // ~60fps throttling
 
     // Cache DOM elements once
     const initializeElements = () => {
+      const initStart = performance.now();
+      console.log('🔧 Initializing elements', {
+        plotAreaExists: !!plotArea,
+        tooltipExists: !!tooltip,
+      });
+
       if (!plotArea) {
+        const plotAreaStart = performance.now();
         plotArea = chartRef.querySelector('.nsewdrag.drag');
+        const plotAreaEnd = performance.now();
+        console.log('📊 Plot area query', {
+          duration: plotAreaEnd - plotAreaStart,
+          found: !!plotArea,
+          selector: '.nsewdrag.drag',
+        });
       }
+
       if (!tooltip) {
+        const tooltipQueryStart = performance.now();
         tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
+        const tooltipQueryEnd = performance.now();
+        console.log('💬 Tooltip query', {
+          duration: tooltipQueryEnd - tooltipQueryStart,
+          found: !!tooltip,
+          selector: '.persistent-price-tooltip',
+        });
+
         if (!tooltip) {
+          const tooltipCreateStart = performance.now();
           tooltip = document.createElement('div');
           tooltip.className = 'persistent-price-tooltip';
           tooltip.style.position = 'fixed';
@@ -199,115 +249,263 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           tooltip.style.zIndex = '1000';
           tooltip.style.willChange = 'transform';
           tooltip.style.transform = 'translateZ(0)'; // Force hardware acceleration
+
+          const appendStart = performance.now();
           document.body.appendChild(tooltip);
+          const appendEnd = performance.now();
+          const tooltipCreateEnd = performance.now();
+
+          console.log('🆕 Tooltip created and appended', {
+            creationDuration: appendStart - tooltipCreateStart,
+            appendDuration: appendEnd - appendStart,
+            totalDuration: tooltipCreateEnd - tooltipCreateStart,
+          });
         }
       }
+
+      const initEnd = performance.now();
+      console.log('✅ Element initialization completed', {
+        totalDuration: initEnd - initStart,
+        plotArea: !!plotArea,
+        tooltip: !!tooltip,
+      });
     };
 
     const handleMouseMove = (event: MouseEvent) => {
-      // Cancel previous animation frame to prevent lag
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+      const debugStart = performance.now();
+      console.log('🐭 Mouse move event triggered', {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        timestamp: debugStart,
+      });
+
+      // Throttle processing to ~60fps
+      const now = performance.now();
+      if (now - lastUpdate < THROTTLE_MS) {
+        console.log('⏭️ Skipping update - throttled', {
+          timeSinceLastUpdate: now - lastUpdate,
+          throttleMs: THROTTLE_MS,
+        });
+        return;
+      }
+      lastUpdate = now;
+
+      // Initialize elements only once
+      const initStart = performance.now();
+      initializeElements();
+      const initEnd = performance.now();
+      console.log('🔧 Element initialization', {
+        duration: initEnd - initStart,
+        plotArea: !!plotArea,
+        tooltip: !!tooltip,
+      });
+
+      if (!plotArea) {
+        console.log('❌ No plot area found, returning early');
+        return;
       }
 
-      animationFrameId = requestAnimationFrame(() => {
-        // Initialize elements only once
-        initializeElements();
+      const rectStart = performance.now();
+      const rect = plotArea.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const rectEnd = performance.now();
+      console.log('📐 Position calculation', {
+        duration: rectEnd - rectStart,
+        x,
+        y,
+        rect: {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        },
+      });
 
-        if (!plotArea) return;
+      // Skip if mouse position hasn't changed significantly (reduce unnecessary updates)
+      const deltaY = Math.abs(y - lastMouseY);
+      const deltaX = Math.abs(x - lastMouseX);
+      console.log('📊 Position delta check', {
+        deltaY,
+        deltaX,
+        lastMouseY,
+        lastMouseX,
+        shouldSkip: deltaY < 2 && deltaX < 2,
+      });
 
-        const rect = plotArea.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+      if (deltaY < 2 && deltaX < 2) {
+        console.log('⏭️ Skipping update - position change too small');
+        return;
+      }
 
-        // Skip if mouse position hasn't changed significantly (reduce unnecessary updates)
-        const deltaY = Math.abs(y - lastMouseY);
-        const deltaX = Math.abs(x - lastMouseX);
-        if (deltaY < 2 && deltaX < 2) return;
+      lastMouseY = y;
+      lastMouseX = x;
 
-        lastMouseY = y;
-        lastMouseX = x;
+      // Adjust Y position to account for Plotly's internal padding
+      const adjustedY = Math.max(0, y - PLOTLY_INTERNAL_PADDING / 2);
+      console.log('🎯 Y position adjustment', {
+        originalY: y,
+        adjustedY,
+        padding: PLOTLY_INTERNAL_PADDING,
+      });
 
-        // Adjust Y position to account for Plotly's internal padding
-        const adjustedY = Math.max(0, y - PLOTLY_INTERNAL_PADDING / 2);
-
-        // Check if mouse is within the plot area and we have valid dimensions
-        if (
-          effectiveHeight &&
-          effectiveWidth &&
+      // Check if mouse is within the plot area and we have valid dimensions
+      const boundsCheck = {
+        effectiveHeight,
+        effectiveWidth,
+        xInBounds: x >= 0 && effectiveWidth !== null && x <= effectiveWidth,
+        yInBounds: adjustedY >= 0 && effectiveHeight !== null && adjustedY <= effectiveHeight,
+        allValid:
+          effectiveHeight !== null &&
+          effectiveWidth !== null &&
           x >= 0 &&
           x <= effectiveWidth &&
           adjustedY >= 0 &&
-          adjustedY <= effectiveHeight
-        ) {
-          // Calculate the actual price at the mouse Y position on the spike line
-          if (topPrice !== null && minPrice !== null) {
-            // Convert mouse Y position to actual price value using the proper formula
-            // Price = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice)
-            const mousePrice = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice);
+          adjustedY <= effectiveHeight,
+      };
+      console.log('🔍 Bounds check', boundsCheck);
 
-            // Only update if price has changed significantly (reduce unnecessary updates)
-            if (Math.abs(mousePrice - lastPrice) > 0.001) {
-              lastPrice = mousePrice;
+      if (boundsCheck.allValid) {
+        // Calculate the actual price at the mouse Y position on the spike line
+        if (topPrice !== null && minPrice !== null) {
+          const priceCalcStart = performance.now();
+          // Convert mouse Y position to actual price value using the proper formula
+          // Price = topPrice - (adjustedY / effectiveHeight) * (topPrice - minPrice)
+          const mousePrice =
+            topPrice - (adjustedY / (effectiveHeight || 1)) * (topPrice - minPrice);
+          const priceCalcEnd = performance.now();
+          console.log('💰 Price calculation', {
+            duration: priceCalcEnd - priceCalcStart,
+            topPrice,
+            minPrice,
+            mousePrice,
+            lastPrice,
+            priceDelta: Math.abs(mousePrice - lastPrice),
+          });
 
-              // Update tooltip content and position in one go
-              if (tooltip) {
-                tooltip.textContent = `${mousePrice.toFixed(2)}`;
-                tooltip.style.display = 'block';
-                tooltip.style.left = `${rect.right}px`;
-                tooltip.style.top = `${event.clientY - 12}px`;
-              }
+          // Only update if price has changed significantly (reduce unnecessary updates)
+          if (Math.abs(mousePrice - lastPrice) > 0.001) {
+            lastPrice = mousePrice;
 
-              // Throttle state updates to reduce React re-renders
-              if (stateUpdateTimeout) {
-                clearTimeout(stateUpdateTimeout);
-              }
-              stateUpdateTimeout = window.setTimeout(() => {
-                setHoveredPrice(mousePrice);
-              }, 16); // ~60fps throttling
+            const tooltipStart = performance.now();
+            // Update tooltip content and position in one go
+            if (tooltip) {
+              tooltip.textContent = `${mousePrice.toFixed(2)}`;
+              tooltip.style.display = 'block';
+              tooltip.style.left = `${rect.right}px`;
+              tooltip.style.top = `${event.clientY - 12}px`;
             }
+            const tooltipEnd = performance.now();
+            console.log('💬 Tooltip update', {
+              duration: tooltipEnd - tooltipStart,
+              content: `${mousePrice.toFixed(2)}`,
+              position: { left: rect.right, top: event.clientY - 12 },
+            });
+
+            // Throttle state updates to reduce React re-renders
+            if (stateUpdateTimeout) {
+              console.log('⏰ Clearing previous state update timeout');
+              clearTimeout(stateUpdateTimeout);
+            }
+            const stateUpdateStart = performance.now();
+            stateUpdateTimeout = window.setTimeout(() => {
+              const stateUpdateEnd = performance.now();
+              console.log('🔄 State update executed', {
+                duration: stateUpdateEnd - stateUpdateStart,
+                price: mousePrice,
+              });
+              debugSetHoveredPrice(mousePrice);
+            }, 16); // ~60fps throttling
+            console.log('⏰ State update scheduled', {
+              delay: 16,
+              price: mousePrice,
+            });
+          } else {
+            console.log('⏭️ Skipping price update - change too small');
           }
+        } else {
+          console.log('❌ Missing price data', { topPrice, minPrice });
         }
+      } else {
+        console.log('❌ Mouse outside bounds');
+      }
+
+      const processingEnd = performance.now();
+      console.log('✅ Mouse move processing completed', {
+        totalDuration: processingEnd - debugStart,
       });
     };
 
     const handleMouseLeave = () => {
-      // Cancel any pending animation frame
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
+      const debugStart = performance.now();
+      console.log('🚪 Mouse leave event triggered', { timestamp: debugStart });
 
       // Cancel any pending state update
       if (stateUpdateTimeout) {
+        console.log('⏰ Clearing state update timeout on mouse leave');
         clearTimeout(stateUpdateTimeout);
         stateUpdateTimeout = null;
       }
 
       // Add a small delay before clearing to prevent flickering
+      const timeoutStart = performance.now();
       setTimeout(() => {
-        setHoveredPrice(null);
+        const timeoutEnd = performance.now();
+        console.log('🧹 Mouse leave cleanup executed', {
+          delay: timeoutEnd - timeoutStart,
+          timestamp: timeoutEnd,
+        });
+        debugSetHoveredPrice(null);
 
         // Hide the persistent tooltip
         if (tooltip) {
           tooltip.style.display = 'none';
+          console.log('💬 Tooltip hidden');
         }
       }, 100);
     };
+    const listenerStart = performance.now();
     chartRef.addEventListener('mousemove', handleMouseMove);
     chartRef.addEventListener('mouseleave', handleMouseLeave);
+    const listenerEnd = performance.now();
+    console.log('📡 Event listeners added', {
+      duration: listenerEnd - listenerStart,
+      mousemove: true,
+      mouseleave: true,
+    });
+
+    const effectEnd = performance.now();
+    console.log('✅ Mouse handler effect setup completed', {
+      totalDuration: effectEnd - effectStart,
+    });
 
     return () => {
+      const cleanupStart = performance.now();
+      console.log('🧹 Starting cleanup', { timestamp: cleanupStart });
+
       chartRef.removeEventListener('mousemove', handleMouseMove);
       chartRef.removeEventListener('mouseleave', handleMouseLeave);
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      console.log('📡 Event listeners removed');
+
       if (stateUpdateTimeout) {
+        console.log('⏰ Clearing state update timeout in cleanup');
         clearTimeout(stateUpdateTimeout);
       }
+
+      const cleanupEnd = performance.now();
+      console.log('✅ Cleanup completed', {
+        duration: cleanupEnd - cleanupStart,
+      });
     };
-  }, [chartRef, chartData, topPrice, minPrice, effectiveHeight, effectiveWidth]);
+  }, [
+    chartRef,
+    chartData,
+    topPrice,
+    minPrice,
+    effectiveHeight,
+    effectiveWidth,
+    debugSetHoveredPrice,
+  ]);
 
   // WebSocket for real-time chart data
   const { lastMessage, sendMessage } = useWebSocket();
