@@ -15,12 +15,14 @@ import {
   DEFAULT_CHART_DATA_POINTS,
 } from '../types';
 import { apiService } from '../services/apiService';
-import { useWebSocket } from '../hooks/useWebSocket';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { usePriceTooltip } from '../hooks/usePriceTooltip';
 import { useDateTooltip } from '../hooks/useDateTooltip';
 import { useMouseHover } from '../hooks/useMouseHover';
+import { useChartData } from '../hooks/useChartData';
+import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { PriceTooltip, DateTooltip } from './tooltips';
+import { CandlestickData, DataRange, TimeframeConfig } from '../utils/chartDataUtils';
 import {
   BarChart3,
   LineChart,
@@ -35,14 +37,6 @@ import {
 interface StockChartProps {
   symbol: string;
   onSymbolChange: (symbol: string) => void;
-}
-
-interface CandlestickData {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
 }
 
 // Helper function to get interval minutes for a timeframe
@@ -65,13 +59,9 @@ const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
 const PLOTLY_INTERNAL_PADDING = 35; // 15px top + 15px bottom
 
 const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
-  const [chartData, setChartData] = useState<CandlestickData[]>([]);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartType, setChartType] = useState<ChartType>('candlestick');
-  const [isLoading, setIsLoading] = useState(false);
   const [isLive, setIsLive] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [dataRange, setDataRange] = useState<{ earliest: string; latest: string } | null>(null);
 
   // Removed hoveredPrice state - tooltip is now completely DOM-based
 
@@ -81,7 +71,32 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   const [effectiveWidth, setEffectiveWidth] = useState<number | null>(null);
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
 
-  // Removed hoveredPrice state - tooltip is now completely DOM-based
+  // Define timeframes array early - memoized to prevent unnecessary re-renders
+  const timeframes: TimeframeConfig[] = useMemo(
+    () => [
+      { value: '1m', label: '1m', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '5m', label: '5m', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '30m', label: '30m', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '1h', label: '1h', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '2h', label: '2h', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '4h', label: '4h', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '1d', label: '1d', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '1w', label: '1w', dataPoints: DEFAULT_CHART_DATA_POINTS },
+      { value: '1M', label: '1M', dataPoints: DEFAULT_CHART_DATA_POINTS },
+    ],
+    []
+  );
+
+  // Chart data management
+  const chartDataHook = useChartData({
+    timeframes,
+    onDataLoaded: (data, range) => {
+      // Data loaded callback - could be used for additional processing
+    },
+    onError: (error) => {
+      // Error callback - could be used for additional error handling
+    },
+  });
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -107,7 +122,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
   // Calculate topPrice and minPrice whenever chart data changes
   useEffect(() => {
-    if (chartData.length === 0) {
+    if (chartDataHook.chartData.length === 0) {
       setTopPrice(null);
       setMinPrice(null);
       return;
@@ -117,7 +132,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     let highest = -Infinity;
     let lowest = Infinity;
 
-    chartData.forEach((candle) => {
+    chartDataHook.chartData.forEach((candle) => {
       // Check high and low values for each candle
       if (candle.high > highest) highest = candle.high;
       if (candle.low < lowest) lowest = candle.low;
@@ -128,7 +143,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       setTopPrice(highest);
       setMinPrice(lowest);
     }
-  }, [chartData]);
+  }, [chartDataHook.chartData]);
 
   // Update effective dimensions when chart ref or chart data changes
   useEffect(() => {
@@ -160,7 +175,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     }, 100); // 100ms delay to ensure Plotly has rendered
 
     return () => clearTimeout(timeoutId);
-  }, [chartRef, chartData]);
+  }, [chartRef, chartDataHook.chartData]);
 
   // Use the new modular hooks for tooltip functionality
   const priceTooltip = usePriceTooltip({
@@ -174,7 +189,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
   const dateTooltip = useDateTooltip({
     chartRef,
-    chartData,
+    chartData: chartDataHook.chartData,
     timeframe,
     enabled: true,
   });
@@ -185,154 +200,33 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   });
 
   // WebSocket for real-time chart data
-  const { lastMessage, sendMessage } = useWebSocket();
+  const chartWebSocket = useChartWebSocket({
+    symbol,
+    onChartData: chartDataHook.updateChartWithLiveData,
+  });
 
   useEffect(() => {
     if (timeframe !== null) {
-      loadChartData(symbol, timeframe);
+      chartDataHook.loadChartData(symbol, timeframe);
     }
   }, [symbol, timeframe]);
 
+  // Subscribe to WebSocket when live mode is enabled
   useEffect(() => {
-    if (lastMessage?.type === 'chart_quote' && lastMessage.data.symbol === symbol) {
-      updateChartWithLiveData(lastMessage.data.bar);
+    if (isLive) {
+      chartWebSocket.subscribeToChartData();
+    } else {
+      chartWebSocket.unsubscribeFromChartData();
     }
-  }, [lastMessage, symbol]);
-
-  const fillMissingMinutes = (
-    data: CandlestickData[],
-    timeframe: ChartTimeframe
-  ): CandlestickData[] => {
-    if (data.length === 0) return data;
-
-    // Only fill for 1m timeframe to avoid over-filling
-    if (timeframe !== '1m') return data;
-
-    const filledData: CandlestickData[] = [];
-    const intervalMs = 60 * 1000; // 1 minute in milliseconds
-
-    for (let i = 0; i < data.length; i++) {
-      filledData.push(data[i]);
-
-      // Check if there's a gap to the next data point
-      if (i < data.length - 1) {
-        const currentTime = new Date(data[i].time).getTime();
-        const nextTime = new Date(data[i + 1].time).getTime();
-        const gapMs = nextTime - currentTime;
-
-        // If gap is more than 2 minutes, fill with last known price
-        if (gapMs > intervalMs * 2) {
-          const missingMinutes = Math.floor(gapMs / intervalMs) - 1;
-          const lastPrice = data[i].close;
-
-          for (let j = 1; j <= missingMinutes; j++) {
-            const fillTime = new Date(currentTime + j * intervalMs).toISOString();
-            filledData.push({
-              time: fillTime,
-              open: lastPrice,
-              high: lastPrice,
-              low: lastPrice,
-              close: lastPrice,
-            });
-          }
-        }
-      }
-    }
-
-    return filledData;
-  };
-
-  const loadChartData = async (symbol: string, timeframe: ChartTimeframe) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Find the timeframe configuration to get the appropriate data points
-      const timeframeConfig = timeframes.find((tf) => tf.value === timeframe);
-      const dataPoints = timeframeConfig?.dataPoints || DEFAULT_CHART_DATA_POINTS;
-
-      const response: ChartDataResponse = await apiService.getChartData(
-        symbol,
-        timeframe,
-        dataPoints
-      );
-      const bars = response.bars;
-
-      // Remove duplicate entries by timestamp and sort by time
-      const uniqueBars = bars
-        .reduce((acc, bar) => {
-          const timestamp = bar.t;
-          if (!acc.find((b) => b.t === timestamp)) {
-            acc.push(bar);
-          }
-          return acc;
-        }, [] as typeof bars)
-        .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime());
-
-      const formattedData: CandlestickData[] = uniqueBars.map((bar) => ({
-        time: bar.t,
-        open: bar.o,
-        high: bar.h,
-        low: bar.l,
-        close: bar.c,
-      }));
-
-      // Use the data as-is to show natural gaps in time series
-      setChartData(formattedData);
-
-      // Set data range from actual data returned (no time restrictions)
-      if (uniqueBars.length > 0) {
-        setDataRange({
-          earliest: uniqueBars[0].t,
-          latest: uniqueBars[uniqueBars.length - 1].t,
-        });
-      } else {
-        setDataRange(null);
-      }
-
-      // Subscribe to real-time chart data
-      sendMessage({
-        type: 'subscribe',
-        data: { channel: 'chart_quote', symbol },
-      });
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load chart data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateChartWithLiveData = (bar: AlpacaBar) => {
-    const newCandle: CandlestickData = {
-      time: bar.t,
-      open: bar.o,
-      high: bar.h,
-      low: bar.l,
-      close: bar.c,
-    };
-
-    // Update the last candle or add a new one
-    setChartData((prevData) => {
-      const lastCandle = prevData[prevData.length - 1];
-      if (lastCandle && lastCandle.time === newCandle.time) {
-        // Update existing candle
-        const updatedData = [...prevData];
-        updatedData[updatedData.length - 1] = newCandle;
-        return updatedData;
-      } else {
-        // Add new candle
-        return [...prevData, newCandle];
-      }
-    });
-  };
+  }, [isLive]);
 
   const plotlyData = useMemo(() => {
-    if (chartData.length === 0) {
+    if (chartDataHook.chartData.length === 0) {
       return [];
     }
 
     // Ensure data is sorted by time and convert to proper format for Plotly
-    const sortedData = [...chartData].sort(
+    const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
     const x = sortedData.map((_, index) => index); // Use indices for x-axis to eliminate gaps
@@ -445,13 +339,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       default:
         return [];
     }
-  }, [chartData, chartType, symbol]);
+  }, [chartDataHook.chartData, chartType, symbol]);
 
   // Memoized time axis calculations
   const timeAxisTicks = useMemo(() => {
-    if (chartData.length === 0) return [];
+    if (chartDataHook.chartData.length === 0) return [];
 
-    const sortedData = [...chartData].sort(
+    const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
     const totalPoints = sortedData.length;
@@ -467,12 +361,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     }
 
     return ticks;
-  }, [chartData]);
+  }, [chartDataHook.chartData]);
 
   const timeAxisLabels = useMemo(() => {
-    if (chartData.length === 0) return [];
+    if (chartDataHook.chartData.length === 0) return [];
 
-    const sortedData = [...chartData].sort(
+    const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
@@ -500,7 +394,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         });
       }
     });
-  }, [chartData, timeframe, timeAxisTicks]);
+  }, [chartDataHook.chartData, timeframe, timeAxisTicks]);
 
   const plotlyLayout = useMemo(() => {
     const layout: any = {
@@ -605,20 +499,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, dataRange]);
-
-  const timeframes: { value: ChartTimeframe; label: string; dataPoints: number }[] = [
-    { value: '1m', label: '1m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 1-minute data
-    { value: '5m', label: '5m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 5-minute intervals
-    { value: '30m', label: '30m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 30-minute intervals
-    { value: '1h', label: '1h', dataPoints: DEFAULT_CHART_DATA_POINTS }, // hourly data
-    { value: '2h', label: '2h', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 2-hour intervals
-    { value: '4h', label: '4h', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 4-hour intervals
-    { value: '1d', label: '1d', dataPoints: DEFAULT_CHART_DATA_POINTS }, // daily data
-    { value: '1w', label: '1w', dataPoints: DEFAULT_CHART_DATA_POINTS }, // weekly data
-    { value: '1M', label: '1M', dataPoints: DEFAULT_CHART_DATA_POINTS }, // monthly data
-  ];
-
+  }, [symbol, timeframe, chartDataHook.dataRange]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
     { value: 'line', label: 'Line', icon: <LineChart className="h-4 w-4" /> },
@@ -646,7 +527,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                 {isLive ? 'Live' : 'Paused'}
               </button>
               <button
-                onClick={() => timeframe && loadChartData(symbol, timeframe)}
+                onClick={() => timeframe && chartDataHook.loadChartData(symbol, timeframe)}
                 className="p-1 text-muted-foreground hover:text-foreground"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -700,19 +581,19 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
       {/* Chart Container */}
       <div className="flex-1 p-4">
-        {isLoading ? (
+        {chartDataHook.isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
               <p className="text-muted-foreground">Loading chart data...</p>
             </div>
           </div>
-        ) : error ? (
+        ) : chartDataHook.error ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <p className="text-destructive mb-4">{error}</p>
+              <p className="text-destructive mb-4">{chartDataHook.error}</p>
               <button
-                onClick={() => timeframe && loadChartData(symbol, timeframe)}
+                onClick={() => timeframe && chartDataHook.loadChartData(symbol, timeframe)}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               >
                 Retry
@@ -772,7 +653,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       <div className="p-4 border-t border-border">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
-            <span>Data points: {chartData.length}</span>
+            <span>Data points: {chartDataHook.chartData.length}</span>
             <span>Interval: {timeframe || 'Loading...'}</span>
           </div>
           <div className="flex items-center space-x-2">
