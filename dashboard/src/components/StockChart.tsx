@@ -7,13 +7,7 @@ declare global {
     Plotly: any;
   }
 }
-import {
-  AlpacaBar,
-  ChartTimeframe,
-  ChartType,
-  ChartDataResponse,
-  DEFAULT_CHART_DATA_POINTS,
-} from '../types';
+import { ChartTimeframe, ChartType, DEFAULT_CHART_DATA_POINTS } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { usePriceTooltip } from '../hooks/usePriceTooltip';
 import { useMouseHover } from '../hooks/useMouseHover';
@@ -69,6 +63,14 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   // Hover state for time tooltip at bottom
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [mouseX, setMouseX] = useState<number | null>(null);
+
+  // Hover state for OHLC data in title
+  const [hoveredOHLC, setHoveredOHLC] = useState<{
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+  } | null>(null);
 
   // Define timeframes array early - memoized to prevent unnecessary re-renders
   const timeframes: TimeframeConfig[] = useMemo(
@@ -218,6 +220,15 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             const formattedDate = `${month}-${day}-${year} ${hours}:${minutes}`;
 
             setHoveredDate(formattedDate);
+
+            // Capture OHLC data for the hovered bar
+            const hoveredCandle = sortedData[xIndex];
+            setHoveredOHLC({
+              open: hoveredCandle.open,
+              high: hoveredCandle.high,
+              low: hoveredCandle.low,
+              close: hoveredCandle.close,
+            });
           }
         }
       }
@@ -228,6 +239,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   const handlePlotlyUnhover = useCallback(() => {
     setHoveredDate(null);
     setMouseX(null);
+    setHoveredOHLC(null);
   }, []);
 
   // Track mouse position for tooltip positioning
@@ -456,10 +468,35 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     });
   }, [chartDataHook.chartData, timeframe, timeAxisTicks]);
 
+  // Function to get title data for custom title component
+  const getTitleData = useCallback(() => {
+    if (hoveredOHLC) {
+      const formatPrice = (price: number) => price.toFixed(2);
+
+      // Determine if the bar is bullish (green) or bearish (red)
+      const isBullish = hoveredOHLC.close >= hoveredOHLC.open;
+      const priceColor = isBullish ? '#26a69a' : '#ef5350'; // Green for bullish, red for bearish
+
+      return {
+        symbol: symbol,
+        ohlc: {
+          open: { value: formatPrice(hoveredOHLC.open), color: priceColor },
+          high: { value: formatPrice(hoveredOHLC.high), color: priceColor },
+          low: { value: formatPrice(hoveredOHLC.low), color: priceColor },
+          close: { value: formatPrice(hoveredOHLC.close), color: priceColor },
+        },
+      };
+    }
+    return {
+      symbol: symbol,
+      timeframe: timeframe || 'Loading...',
+    };
+  }, [symbol, timeframe, hoveredOHLC]);
+
   const plotlyLayout = useMemo(() => {
     const layout: any = {
       title: {
-        text: `${symbol} - ${timeframe || 'Loading...'}`,
+        text: '', // Remove Plotly title - we'll use custom title above
         font: { color: '#d1d5db', size: 16 },
       },
       xaxis: {
@@ -684,36 +721,98 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             </div>
           </div>
         ) : (
-          <div ref={setChartRef} className="w-full h-full relative" style={{ minHeight: '400px' }}>
-            <Plot
-              data={plotlyData}
-              layout={plotlyLayout}
-              config={{
-                displayModeBar: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
-                responsive: true,
-                // Enable hover behavior
-                showTips: true,
-                showLink: false,
-                // Ensure hover mode works properly
-                doubleClick: 'reset+autosize',
-                toImageButtonOptions: {
-                  format: 'png',
-                  filename: 'chart',
-                  height: 500,
-                  width: 700,
-                  scale: 1,
-                },
-              }}
-              style={{ width: '100%', height: '100%' }}
-              useResizeHandler={true}
-              onHover={handlePlotlyHover}
-              onUnhover={handlePlotlyUnhover}
-              onInitialized={(figure, graphDiv) => {
-                // Add CSS to make spike lines thinner
-                const style = document.createElement('style');
-                style.textContent = `
+          <div className="w-full h-full relative" style={{ minHeight: '400px' }}>
+            {/* Custom Title Component */}
+            <div className="mb-4 px-2">
+              {(() => {
+                const titleData = getTitleData();
+                if ('ohlc' in titleData) {
+                  // Show OHLC data when hovering
+                  return (
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-foreground text-lg">{titleData.symbol}</span>
+                      <div className="flex gap-3 text-sm">
+                        <span className="text-muted-foreground">
+                          O:{' '}
+                          <span
+                            style={{ color: titleData.ohlc.open.color }}
+                            className="inline-block w-16 text-right font-mono"
+                          >
+                            {titleData.ohlc.open.value}
+                          </span>
+                        </span>
+                        <span className="text-muted-foreground">
+                          H:{' '}
+                          <span
+                            style={{ color: titleData.ohlc.high.color }}
+                            className="inline-block w-16 text-right font-mono"
+                          >
+                            {titleData.ohlc.high.value}
+                          </span>
+                        </span>
+                        <span className="text-muted-foreground">
+                          L:{' '}
+                          <span
+                            style={{ color: titleData.ohlc.low.color }}
+                            className="inline-block w-16 text-right font-mono"
+                          >
+                            {titleData.ohlc.low.value}
+                          </span>
+                        </span>
+                        <span className="text-muted-foreground">
+                          C:{' '}
+                          <span
+                            style={{ color: titleData.ohlc.close.color }}
+                            className="inline-block w-16 text-right font-mono"
+                          >
+                            {titleData.ohlc.close.value}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  // Show symbol and timeframe when not hovering
+                  return (
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-foreground text-lg">{titleData.symbol}</span>
+                      <span className="text-muted-foreground">{titleData.timeframe}</span>
+                    </div>
+                  );
+                }
+              })()}
+            </div>
+
+            <div ref={setChartRef} className="w-full h-full relative">
+              <Plot
+                data={plotlyData}
+                layout={plotlyLayout}
+                config={{
+                  displayModeBar: true,
+                  displaylogo: false,
+                  modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
+                  responsive: true,
+                  // Enable hover behavior
+                  showTips: true,
+                  showLink: false,
+                  // Ensure hover mode works properly
+                  doubleClick: 'reset+autosize',
+                  toImageButtonOptions: {
+                    format: 'png',
+                    filename: 'chart',
+                    height: 500,
+                    width: 700,
+                    scale: 1,
+                  },
+                }}
+                style={{ width: '100%', height: '100%' }}
+                useResizeHandler={true}
+                onHover={handlePlotlyHover}
+                onUnhover={handlePlotlyUnhover}
+                onInitialized={(figure, graphDiv) => {
+                  // Add CSS to make spike lines thinner
+                  const style = document.createElement('style');
+                  style.textContent = `
                   .plotly .hoverlayer .spikeline {
                     stroke-width: 0.5px !important;
                     stroke: #d1d5db !important;
@@ -723,11 +822,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                     stroke-width: 0.5px !important;
                   }
                 `;
-                document.head.appendChild(style);
-                return undefined;
-              }}
-            />
-            {/* Tooltip components are now handled by the hooks */}
+                  document.head.appendChild(style);
+                  return undefined;
+                }}
+              />
+              {/* Tooltip components are now handled by the hooks */}
+            </div>
           </div>
         )}
       </div>
