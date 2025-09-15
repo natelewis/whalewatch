@@ -312,25 +312,28 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           if (spikeLine) {
             console.log('Spike line exists, calculating price...');
 
-            // Calculate price from mouse Y position
+            // Calculate price from mouse Y position - simple approach
             if (yAxisRange) {
               const { paddedYMin, paddedYMax, effectiveHeight } = yAxisRange;
 
+              // Simple calculation: map mouse Y to price
               const dataY = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
               const roundedDataY = Math.round(dataY * 100) / 100;
 
               console.log(
-                'Calculated price:',
-                roundedDataY,
-                'Mouse Y:',
+                'Simple calculation - Mouse Y:',
                 y,
                 'EffectiveHeight:',
                 effectiveHeight,
-                'YAxisRange:',
-                yAxisRange
+                'YMin:',
+                paddedYMin,
+                'YMax:',
+                paddedYMax,
+                'Calculated Price:',
+                roundedDataY
               );
 
-              // Always update the tooltip, don't wait for price changes
+              // Always update the tooltip with the calculated price
               console.log('Updating tooltip...');
               setHoveredY(roundedDataY);
               setHoveredPrice(roundedDataY);
