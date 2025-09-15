@@ -257,7 +257,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             // Update tooltip content and position in one go
             tooltip.textContent = mousePrice.toFixed(4);
             tooltip.style.display = 'block';
-            tooltip.style.left = `${event.clientX + 10}px`; // Position relative to mouse
+            // Position tooltip on the right side of the chart, aligned with labels
+            tooltip.style.left = `${rect.right}px`; // Position relative to chart's right edge
             tooltip.style.top = `${event.clientY - 12}px`;
 
             // Update state for consistency (throttled)
