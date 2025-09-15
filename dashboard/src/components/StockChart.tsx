@@ -85,8 +85,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   } | null>(null);
 
   // Chart interaction state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [currentRange, setCurrentRange] = useState<[number, number] | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
 
@@ -324,13 +322,49 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
           }
         }
       }
+
+      // Handle mouse positioning for tooltips
+      if (chartRef && event.event) {
+        const plotArea = chartRef.querySelector('.nsewdrag.drag');
+        if (plotArea) {
+          const rect = plotArea.getBoundingClientRect();
+          const containerRect = chartRef.getBoundingClientRect();
+
+          // Calculate mouse position relative to the plot area
+          const mouseXPos = event.event.clientX - rect.left;
+          const mouseYPos = event.event.clientY - rect.top;
+
+          // Convert plot area coordinates to container coordinates
+          const plotAreaLeft = rect.left - containerRect.left;
+          const plotAreaTop = rect.top - containerRect.top;
+
+          // Create virtual bounding box for calculations (expanded from actual plot area)
+          const virtualBoxLeft = plotAreaLeft - VIRTUAL_BOX_EXPAND_X;
+          const virtualBoxTop = plotAreaTop - VIRTUAL_BOX_EXPAND_Y;
+          const virtualBoxWidth = rect.width + VIRTUAL_BOX_EXPAND_X * 2;
+          const virtualBoxHeight = rect.height + VIRTUAL_BOX_EXPAND_Y * 2;
+
+          // Convert to relative coordinates (0-1) within the virtual box
+          const relativeX = (plotAreaLeft + mouseXPos - virtualBoxLeft) / virtualBoxWidth;
+          const relativeY = (plotAreaTop + mouseYPos - virtualBoxTop) / virtualBoxHeight;
+
+          // Always set coordinates if they're finite, clamp them to 0-1 range
+          if (isFinite(relativeX) && isFinite(relativeY)) {
+            const clampedX = Math.max(0, Math.min(1, relativeX));
+            const clampedY = Math.max(0, Math.min(1, relativeY));
+            setMouseX(clampedX);
+            setMouseY(clampedY);
+          }
+        }
+      }
     },
-    [chartDataHook.chartData, timeframe]
+    [chartRef, chartDataHook.chartData, timeframe]
   );
 
   const handlePlotlyUnhover = useCallback(() => {
     setHoveredDate(null);
-    // Don't clear mouseX/mouseY here - we handle mouse tracking separately
+    setMouseX(null);
+    setMouseY(null);
     setDataPointIndex(null);
     setHoveredOHLC(null);
   }, []);
@@ -405,159 +439,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     },
     [chartDataHook.chartData, currentRange, zoomLevel]
   );
-
-  const handlePlotlyMouseDown = useCallback((event: any) => {
-    if (event.event.button === 0) {
-      // Left mouse button
-      setIsDragging(true);
-      setDragStartX(event.event.clientX);
-    }
-  }, []);
-
-  const handlePlotlyMouseUp = useCallback(() => {
-    setIsDragging(false);
-    setDragStartX(null);
-  }, []);
-
-  const handlePlotlyMouseLeave = useCallback(() => {
-    setIsDragging(false);
-    setDragStartX(null);
-    setMouseX(null);
-    setMouseY(null);
-  }, []);
-
-  // Combined mouse move handler for both tooltip positioning and drag functionality
-  const handlePlotlyMouseMove = useCallback(
-    (event: any) => {
-      // Handle tooltip positioning (always update mouse position)
-      if (chartRef) {
-        const plotArea = chartRef.querySelector('.nsewdrag.drag');
-        if (plotArea) {
-          const rect = plotArea.getBoundingClientRect();
-          const containerRect = chartRef.getBoundingClientRect();
-
-          // Calculate mouse position relative to the plot area
-          const mouseXPos = event.event.clientX - rect.left;
-          const mouseYPos = event.event.clientY - rect.top;
-
-          // Convert plot area coordinates to container coordinates
-          const plotAreaLeft = rect.left - containerRect.left;
-          const plotAreaTop = rect.top - containerRect.top;
-
-          // Create virtual bounding box for calculations (expanded from actual plot area)
-          const virtualBoxLeft = plotAreaLeft - VIRTUAL_BOX_EXPAND_X;
-          const virtualBoxTop = plotAreaTop - VIRTUAL_BOX_EXPAND_Y;
-          const virtualBoxWidth = rect.width + VIRTUAL_BOX_EXPAND_X * 2;
-          const virtualBoxHeight = rect.height + VIRTUAL_BOX_EXPAND_Y * 2;
-
-          // Convert to relative coordinates (0-1) within the virtual box
-          const relativeX = (plotAreaLeft + mouseXPos - virtualBoxLeft) / virtualBoxWidth;
-          const relativeY = (plotAreaTop + mouseYPos - virtualBoxTop) / virtualBoxHeight;
-
-          // Always set coordinates if they're finite, clamp them to 0-1 range
-          if (isFinite(relativeX) && isFinite(relativeY)) {
-            const clampedX = Math.max(0, Math.min(1, relativeX));
-            const clampedY = Math.max(0, Math.min(1, relativeY));
-            setMouseX(clampedX);
-            setMouseY(clampedY);
-          }
-        }
-      }
-
-      // Handle drag functionality (only when dragging)
-      if (isDragging && dragStartX !== null && chartDataHook.chartData.length > 0) {
-        const sortedData = [...chartDataHook.chartData].sort(
-          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-        );
-        const totalPoints = sortedData.length;
-
-        if (totalPoints === 0) return;
-
-        const deltaX = event.event.clientX - dragStartX;
-        const plotArea = chartRef?.querySelector('.nsewdrag.drag');
-
-        if (!plotArea) return;
-
-        const rect = plotArea.getBoundingClientRect();
-        const chartWidth = rect.width;
-
-        // Convert pixel movement to data point movement
-        const dataPointDelta = (deltaX / chartWidth) * totalPoints;
-
-        // Get current range or use full range
-        const currentXRange = currentRange || [0, totalPoints - 1];
-        const rangeSize = currentXRange[1] - currentXRange[0];
-
-        // Calculate new range
-        let newStart = currentXRange[0] - dataPointDelta;
-        let newEnd = currentXRange[1] - dataPointDelta;
-
-        // Clamp to valid range
-        if (newStart < 0) {
-          newStart = 0;
-          newEnd = Math.min(totalPoints - 1, rangeSize);
-        } else if (newEnd >= totalPoints) {
-          newEnd = totalPoints - 1;
-          newStart = Math.max(0, newEnd - rangeSize);
-        }
-
-        setCurrentRange([newStart, newEnd]);
-
-        // Update scroll time for debouncing
-        setLastScrollTime(Date.now());
-      }
-    },
-    [chartRef, isDragging, dragStartX, chartDataHook.chartData, currentRange]
-  );
-
-  // Track mouse position and handle interactions using Plotly event handlers
-  useEffect(() => {
-    if (!chartRef) return;
-
-    const handleMouseMove = (event: MouseEvent) => {
-      // Call the Plotly event handler with the event wrapped in the expected format
-      handlePlotlyMouseMove({ event });
-    };
-
-    const handleMouseLeave = () => {
-      handlePlotlyMouseLeave();
-    };
-
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      handlePlotlyWheel(event);
-    };
-
-    const handleMouseDown = (event: MouseEvent) => {
-      handlePlotlyMouseDown({ event });
-    };
-
-    const handleMouseUp = () => {
-      handlePlotlyMouseUp();
-    };
-
-    // Add event listeners to the chart container
-    chartRef.addEventListener('mousemove', handleMouseMove);
-    chartRef.addEventListener('mouseleave', handleMouseLeave);
-    chartRef.addEventListener('wheel', handleWheel, { passive: false });
-    chartRef.addEventListener('mousedown', handleMouseDown);
-    chartRef.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      chartRef.removeEventListener('mousemove', handleMouseMove);
-      chartRef.removeEventListener('mouseleave', handleMouseLeave);
-      chartRef.removeEventListener('wheel', handleWheel);
-      chartRef.removeEventListener('mousedown', handleMouseDown);
-      chartRef.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [
-    chartRef,
-    handlePlotlyMouseMove,
-    handlePlotlyMouseLeave,
-    handlePlotlyWheel,
-    handlePlotlyMouseDown,
-    handlePlotlyMouseUp,
-  ]);
 
   // Calculate chart area bounds for spike line positioning
   const [chartBounds, setChartBounds] = useState<{
@@ -872,7 +753,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
               Math.max(0, Math.min(currentRange[1], chartDataHook.chartData.length - 1)),
             ],
           }),
-        fixedrange: false, // Allow zoom and pan
+        fixedrange: false, // Allow pan
+        // Disable any selection or trim zoom behavior
+        selectdirection: false,
       },
       yaxis: {
         color: '#d1d5db',
@@ -1129,19 +1012,22 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                     'lasso2d',
                     'select2d',
                     'zoom2d',
-                    'pan2d',
                     'select2d',
                     'lasso2d',
                     'autoScale2d',
                     'resetScale2d',
+                    'zoomIn2d',
+                    'zoomOut2d',
                   ],
                   responsive: true,
                   // Enable hover behavior
                   showTips: false,
                   showLink: false,
-                  // Disable built-in zoom and pan - we handle this with custom logic
+                  // Enable pan but disable zoom
                   scrollZoom: false,
                   doubleClick: false,
+                  // Disable any trim zoom or selection behavior
+                  editable: false,
                   toImageButtonOptions: {
                     format: 'png',
                     filename: 'chart',
