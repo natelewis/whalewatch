@@ -183,7 +183,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
           // Convert to data coordinates using the stable height
           // Note: y=0 is at the top of the plot area, so we need to invert the calculation
-          const dataY = paddedYMax - (y / stableHeight) * (paddedYMax - paddedYMin);
+          // Add a small offset to align with the spike line
+          const yOffset = 25; // Adjust this value to align with spike line
+          const adjustedY = Math.max(0, y - yOffset);
+          const dataY = paddedYMax - (adjustedY / stableHeight) * (paddedYMax - paddedYMin);
 
           // Update hover state
           const tolerance = 0.5; // Smaller tolerance for more precision
