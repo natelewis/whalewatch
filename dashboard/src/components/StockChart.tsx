@@ -294,7 +294,11 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             mode: 'lines' as const,
             x: x,
             y: sortedData.map((d) => d.close),
-            line: { width: 0, color: 'transparent' },
+            line: {
+              width: 0,
+              color: 'transparent',
+              shape: 'linear' as const,
+            },
             opacity: 0,
             showlegend: false,
             hoverinfo: 'skip' as const,
@@ -303,12 +307,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             connectgaps: true, // Connect gaps to ensure continuous hover detection
             // This invisible line enables hover detection across the entire chart
             name: `${symbol}_hover_overlay`,
-            // Make the line more responsive to hover
-            line: { 
-              width: 0, 
-              color: 'transparent',
-              shape: 'linear' as const
-            },
           },
         ];
 
@@ -447,8 +445,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         spikecolor: '#6b7280',
         spikesnap: 'cursor',
         spikemode: 'across',
-        spikethickness: 1,
-        spikedash: 'dot',
+        spikethickness: 0.5,
+        spikedash: [2, 2],
       },
       yaxis: {
         gridcolor: '#374151',
@@ -458,8 +456,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         spikecolor: '#6b7280',
         spikesnap: 'cursor',
         spikemode: 'across',
-        spikethickness: 1,
-        spikedash: 'dot',
+        spikethickness: 0.5,
+        spikedash: [2, 2],
       },
       plot_bgcolor: 'transparent',
       paper_bgcolor: 'transparent',
@@ -633,6 +631,22 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               onUnhover={() => {
                 // Handle unhover events
                 console.log('Unhover event triggered');
+              }}
+              onInitialized={(figure, graphDiv) => {
+                // Add CSS to make spike lines thinner
+                const style = document.createElement('style');
+                style.textContent = `
+                  .plotly .hoverlayer .spikeline {
+                    stroke-width: 0.5px !important;
+                    stroke: #6b7280 !important;
+                    stroke-dasharray: 2,2 !important;
+                  }
+                  .plotly .hoverlayer .spikeline:hover {
+                    stroke-width: 0.5px !important;
+                  }
+                `;
+                document.head.appendChild(style);
+                return undefined;
               }}
             />
           </div>
