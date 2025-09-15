@@ -90,6 +90,28 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       console.warn('Failed to load chart timeframe from localStorage:', error);
       setTimeframe('1h'); // Fallback to default if localStorage fails
     }
+
+    // Test tooltip creation
+    setTimeout(() => {
+      const testTooltip = document.createElement('div');
+      testTooltip.className = 'test-tooltip';
+      testTooltip.style.position = 'fixed';
+      testTooltip.style.top = '10px';
+      testTooltip.style.left = '10px';
+      testTooltip.style.backgroundColor = 'red';
+      testTooltip.style.color = 'white';
+      testTooltip.style.padding = '10px';
+      testTooltip.style.zIndex = '9999';
+      testTooltip.textContent = 'Test tooltip - if you see this, tooltip creation works';
+      document.body.appendChild(testTooltip);
+
+      // Remove after 3 seconds
+      setTimeout(() => {
+        if (testTooltip.parentNode) {
+          testTooltip.parentNode.removeChild(testTooltip);
+        }
+      }, 3000);
+    }, 1000);
   }, []);
 
   // Save timeframe to localStorage whenever it changes (but only after initial load)
@@ -193,6 +215,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   // Use Plotly's built-in hover events for reliable spike line tracking
   const handlePlotlyHover = useCallback(
     (event: any) => {
+      console.log('Plotly hover event fired:', event);
       if (event.points && event.points.length > 0) {
         const point = event.points[0];
         const xIndex = point.pointIndex;
@@ -221,29 +244,56 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         }
 
         // Handle y value and price for spike line tooltip
+        console.log('yValue:', yValue, 'xValue:', xValue, 'xIndex:', xIndex);
         if (yValue !== undefined) {
           setHoveredY(yValue);
           setHoveredPrice(yValue);
 
-          // Update the persistent tooltip with the exact Plotly value
-          const tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
-          if (tooltip) {
-            tooltip.textContent = yValue.toFixed(2);
-            tooltip.style.display = 'block';
+          // Create or update the persistent tooltip with the exact Plotly value
+          let tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
 
-            // Position the tooltip using the exact mouse position from Plotly
-            if (chartRef) {
-              const chartRect = chartRef.getBoundingClientRect();
-              const rightEdge = chartRect.right - 48; // Position closer to the right edge
-              tooltip.style.left = `${rightEdge}px`;
-              // Use the exact mouse Y position from the event
-              tooltip.style.top = `${event.event.clientY - 12}px`;
-            }
+          if (!tooltip) {
+            // Create tooltip element if it doesn't exist
+            tooltip = document.createElement('div');
+            tooltip.className = 'persistent-price-tooltip';
+            tooltip.style.position = 'fixed';
+            tooltip.style.backgroundColor = '#6b7280';
+            tooltip.style.border = 'none';
+            tooltip.style.padding = '4px 8px';
+            tooltip.style.borderRadius = '0px';
+            tooltip.style.fontSize = '12px';
+            tooltip.style.setProperty('color', 'white', 'important');
+            tooltip.style.fontWeight = 'normal';
+            tooltip.style.pointerEvents = 'none';
+            tooltip.style.zIndex = '1000';
+            document.body.appendChild(tooltip);
+            console.log('Persistent tooltip created');
+          }
+
+          tooltip.textContent = yValue.toFixed(4);
+          tooltip.style.display = 'block';
+
+          // Debug logging to help identify accuracy issues
+          console.log('Plotly hover price:', yValue, 'Formatted:', yValue.toFixed(4));
+
+          // Position the tooltip at the correct Y position based on the data point
+          if (chartRef && yAxisRange) {
+            const chartRect = chartRef.getBoundingClientRect();
+            const rightEdge = chartRect.right - 48; // Position closer to the right edge
+
+            // Calculate the Y position based on the actual data point value
+            const { paddedYMin, paddedYMax, effectiveHeight } = yAxisRange;
+            const dataPointY =
+              ((paddedYMax - yValue) / (paddedYMax - paddedYMin)) * effectiveHeight;
+
+            tooltip.style.left = `${rightEdge}px`;
+            // Position tooltip at the correct Y coordinate of the data point
+            tooltip.style.top = `${chartRect.top + dataPointY - 12}px`;
           }
         }
       }
     },
-    [chartData]
+    [chartData, yAxisRange]
   );
 
   const handlePlotlyUnhover = useCallback(() => {
@@ -303,138 +353,51 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
         // Check if mouse is within the plot area
         if (x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
-          console.log('Mouse in plot area, looking for spike line...');
+          console.log('Mouse in plot area, calculating price from Y position...');
 
-          // Find the spike line element
-          const spikeLine = plotlyDiv.querySelector('.spikeline');
-          console.log('Spike line found:', spikeLine);
+          // Calculate the actual price at the mouse Y position on the spike line
+          if (yAxisRange) {
+            const { paddedYMin, paddedYMax, effectiveHeight: yAxisHeight } = yAxisRange;
 
-          if (spikeLine) {
-            console.log('Spike line exists, calculating price...');
+            // Convert mouse Y position to actual price value
+            const mousePrice = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
 
-            // Calculate price from mouse Y position - simple approach
-            if (yAxisRange) {
-              const { paddedYMin, paddedYMax, effectiveHeight } = yAxisRange;
+            console.log('Mouse Y position:', y, 'Calculated price:', mousePrice);
 
-              // Get the actual spike line coordinates dynamically
-              const spikeLine = plotlyDiv.querySelector('.spikeline');
-              let spikeLineTop = 50;
-              let spikeLineBottom = 400;
-              let spikeLineHeight = 350;
+            // Update the tooltip with the calculated price
+            let tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
 
-              if (spikeLine) {
-                const spikeLineRect = spikeLine.getBoundingClientRect();
-                const chartRect = chartRef.getBoundingClientRect();
-
-                // Convert spike line coordinates to be relative to the chart
-                spikeLineTop = spikeLineRect.top - chartRect.top;
-                spikeLineBottom = spikeLineRect.bottom - chartRect.top;
-                spikeLineHeight = spikeLineBottom - spikeLineTop;
-
-                console.log('Spike line coordinates:', {
-                  spikeLineTop,
-                  spikeLineBottom,
-                  spikeLineHeight,
-                  mouseY: y,
-                });
-              }
-
-              // Adjust mouse Y to be relative to the spike line area
-              const adjustedY = y - spikeLineTop;
-
-              // Clamp the adjusted Y to ensure it's within the spike line bounds
-              const clampedY = Math.max(0, Math.min(adjustedY, spikeLineHeight));
-
-              // Map the clamped Y position to price using the spike line height
-              // Use a more precise calculation that accounts for the actual data range
-              const dataY = paddedYMax - (clampedY / spikeLineHeight) * (paddedYMax - paddedYMin);
-              // Use more precision to avoid rounding errors
-              const roundedDataY = Math.round(dataY * 1000) / 1000;
-
-              console.log(
-                'Adjusted calculation - Mouse Y:',
-                y,
-                'Adjusted Y:',
-                adjustedY,
-                'Clamped Y:',
-                clampedY,
-                'SpikeLineHeight:',
-                spikeLineHeight,
-                'YMin:',
-                paddedYMin,
-                'YMax:',
-                paddedYMax,
-                'Price Range:',
-                paddedYMax - paddedYMin,
-                'Ratio:',
-                clampedY / spikeLineHeight,
-                'Calculated Price:',
-                roundedDataY
-              );
-
-              // Always update the tooltip with the calculated price
-              console.log('Updating tooltip...');
-              setHoveredY(roundedDataY);
-              setHoveredPrice(roundedDataY);
-              lastY = roundedDataY;
-
-              // Create or update persistent tooltip that follows the mouse
-              let tooltip = document.querySelector('.persistent-price-tooltip') as HTMLElement;
-              console.log('Existing tooltip:', tooltip);
-
-              if (!tooltip) {
-                console.log('Creating new persistent tooltip...');
-                // Create tooltip element
-                tooltip = document.createElement('div');
-                tooltip.className = 'persistent-price-tooltip';
-                tooltip.style.position = 'fixed';
-                tooltip.style.backgroundColor = '#6b7280';
-                tooltip.style.border = 'none';
-                tooltip.style.padding = '4px 8px';
-                tooltip.style.borderRadius = '0px';
-                tooltip.style.fontSize = '12px';
-                tooltip.style.setProperty('color', 'white', 'important');
-                tooltip.style.fontWeight = 'normal';
-                tooltip.style.pointerEvents = 'none';
-                tooltip.style.zIndex = '1000';
-                document.body.appendChild(tooltip);
-                console.log('Persistent tooltip created and appended to body');
-              }
-
-              // Position tooltip to overlay on the right price labels
-              const chartRect = chartRef.getBoundingClientRect();
-              const rightEdge = chartRect.right - 48; // Position closer to the right edge
-
-              // Calculate the exact Y position of the data point on the chart using dynamic spike line coordinates
-              const dataPointY =
-                ((paddedYMax - roundedDataY) / (paddedYMax - paddedYMin)) * spikeLineHeight +
-                spikeLineTop;
-
-              tooltip.style.left = `${rightEdge}px`;
-              // Center the tooltip vertically on the calculated data point position
-              tooltip.style.top = `${chartRect.top + dataPointY - 12}px`;
-              tooltip.style.width = 'auto';
-              tooltip.style.height = 'auto';
-              tooltip.style.minWidth = '60px';
-              tooltip.style.textAlign = 'center';
-              tooltip.style.whiteSpace = 'nowrap';
+            if (!tooltip) {
+              // Create tooltip element if it doesn't exist
+              tooltip = document.createElement('div');
+              tooltip.className = 'persistent-price-tooltip';
+              tooltip.style.position = 'fixed';
+              tooltip.style.backgroundColor = '#6b7280';
+              tooltip.style.border = 'none';
+              tooltip.style.padding = '4px 8px';
               tooltip.style.borderRadius = '0px';
+              tooltip.style.fontSize = '12px';
               tooltip.style.setProperty('color', 'white', 'important');
-              tooltip.style.setProperty('background-color', '#6b7280', 'important');
-              tooltip.textContent = roundedDataY.toFixed(2);
-              tooltip.style.display = 'block';
-              console.log(
-                'Tooltip positioned at mouse:',
-                event.clientX,
-                event.clientY,
-                'Text:',
-                roundedDataY.toFixed(2)
-              );
-            } else {
-              console.log('No yAxisRange available');
+              tooltip.style.fontWeight = 'normal';
+              tooltip.style.pointerEvents = 'none';
+              tooltip.style.zIndex = '1000';
+              document.body.appendChild(tooltip);
+              console.log('Persistent tooltip created');
             }
-          } else {
-            console.log('No spike line found');
+
+            tooltip.textContent = mousePrice.toFixed(4);
+            tooltip.style.display = 'block';
+
+            // Position the tooltip at the mouse Y position
+            const chartRect = chartRef.getBoundingClientRect();
+            const rightEdge = chartRect.right - 48; // Position closer to the right edge
+
+            tooltip.style.left = `${rightEdge}px`;
+            tooltip.style.top = `${event.clientY - 12}px`; // Position at mouse Y position
+
+            // Update state for consistency
+            setHoveredY(mousePrice);
+            setHoveredPrice(mousePrice);
           }
         }
       }
@@ -653,10 +616,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Open: $%{open:.2f}<br>' +
-              'High: $%{high:.2f}<br>' +
-              'Low: $%{low:.2f}<br>' +
-              'Close: $%{close:.2f}<extra></extra>',
+              'Open: $%{open:.4f}<br>' +
+              'High: $%{high:.4f}<br>' +
+              'Low: $%{low:.4f}<br>' +
+              'Close: $%{close:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
           // Add invisible scatter overlay for hover detection on candlestick charts
@@ -673,7 +636,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             },
             opacity: 0,
             showlegend: false,
-            hoverinfo: 'skip' as const,
             // Enable hover detection but don't show tooltip for this trace
             hoveron: 'points' as const,
             connectgaps: true, // Connect gaps to ensure continuous hover detection
@@ -694,7 +656,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y:.2f}<extra></extra>',
+              'Price: $%{y:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -710,7 +672,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y:.2f}<extra></extra>',
+              'Price: $%{y:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -729,7 +691,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
               '<b>Time: %{customdata}</b><br>' +
-              'Price: $%{y:.2f}<extra></extra>',
+              'Price: $%{y:.4f}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -842,7 +804,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         tickcolor: '#6b7280',
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
-        tickformat: '.2f', // Format y-axis labels to show 2 decimal places
+        tickformat: '.4f', // Format y-axis labels to show 4 decimal places
       },
       plot_bgcolor: 'transparent',
       paper_bgcolor: 'transparent',
@@ -1062,8 +1024,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               }}
               style={{ width: '100%', height: '100%' }}
               useResizeHandler={true}
-              onHover={handlePlotlyHover}
-              onUnhover={handlePlotlyUnhover}
+              onHover={undefined}
+              onUnhover={undefined}
               onInitialized={(figure, graphDiv) => {
                 // Add CSS to make spike lines thinner
                 const style = document.createElement('style');
