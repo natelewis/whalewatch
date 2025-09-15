@@ -369,7 +369,7 @@ export class QuestDBService {
     try {
       // Get all available tables first
       const tablesResponse = await this.executeQuery<{ table_name: string }>('SHOW TABLES');
-      const availableTables = tablesResponse.dataset.map(row => row[0]);
+      const availableTables = tablesResponse.dataset.map((row) => (row as any)[0]);
       
       console.log('📊 Available tables:', availableTables);
 

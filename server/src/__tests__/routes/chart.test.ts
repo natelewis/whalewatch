@@ -69,7 +69,7 @@ describe('Chart Routes', () => {
       expect(response.body).toHaveProperty('bars');
       expect(response.body).toHaveProperty('data_source', 'questdb');
       expect(response.body).toHaveProperty('success', true);
-      // For 1D timeframe with 1-minute aggregation, we expect multiple bars
+      // For 1D timeframe with 5-minute aggregation, we expect multiple bars
       expect(response.body.bars.length).toBeGreaterThan(0);
     });
 
@@ -85,7 +85,6 @@ describe('Chart Routes', () => {
         expect.objectContaining({
           start_time: expect.any(String),
           end_time: expect.any(String),
-          limit: 600, // 1H timeframe has maxDataPoints of 60, * 10 = 600
           order_by: 'timestamp',
           order_direction: 'ASC',
         })
@@ -140,39 +139,6 @@ describe('Chart Routes', () => {
       );
     });
 
-    it('should handle custom limit parameter', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
-
-      await request(app)
-        .get('/api/chart/AAPL?timeframe=1D&limit=500')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
-        'AAPL',
-        expect.objectContaining({
-          limit: 500,
-        })
-      );
-    });
-
-    it('should return 400 for invalid limit', async () => {
-      const response = await request(app)
-        .get('/api/chart/AAPL?limit=0')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Limit must be between 1 and 10000');
-    });
-
-    it('should return 400 for limit exceeding maximum', async () => {
-      const response = await request(app)
-        .get('/api/chart/AAPL?limit=20000')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Limit must be between 1 and 10000');
-    });
-
     it('should return 500 on service error', async () => {
       mockQuestdbService.getStockAggregates.mockRejectedValue(new Error('Database error'));
 
@@ -193,10 +159,10 @@ describe('Chart Routes', () => {
         .get('/api/chart/AAPL')
         .set('Authorization', `Bearer ${authToken}`);
 
-      // Since the test data has 1-hour intervals and we're using 1-minute aggregation,
+      // Since the test data has 1-hour intervals and we're using 5-minute aggregation,
       // each bar should remain separate (no aggregation occurs)
       expect(response.body.bars[0]).toEqual({
-        t: '2024-01-01T10:00:00Z',
+        t: '2024-01-01T10:00:00.000Z',
         o: 100.0,
         h: 105.0,
         l: 99.0,

@@ -30,7 +30,7 @@ interface CandlestickData {
 
 export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
-  const [timeframe, setTimeframe] = useState<ChartTimeframe>('1D');
+  const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLoading, setIsLoading] = useState(false);
   const [isLive, setIsLive] = useState(false);
@@ -48,15 +48,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       setTimeframe(savedTimeframe);
     } catch (error) {
       console.warn('Failed to load chart timeframe from localStorage:', error);
+      setTimeframe('1D'); // Fallback to default if localStorage fails
     }
   }, []);
 
-  // Save timeframe to localStorage whenever it changes
+  // Save timeframe to localStorage whenever it changes (but only after initial load)
   useEffect(() => {
-    try {
-      setLocalStorageItem('chartTimeframe', timeframe);
-    } catch (error) {
-      console.warn('Failed to save chart timeframe to localStorage:', error);
+    if (timeframe !== null) {
+      try {
+        setLocalStorageItem('chartTimeframe', timeframe);
+      } catch (error) {
+        console.warn('Failed to save chart timeframe to localStorage:', error);
+      }
     }
   }, [timeframe]);
 
@@ -64,7 +67,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const { lastMessage, sendMessage } = useWebSocket();
 
   useEffect(() => {
-    loadChartData(symbol, timeframe);
+    if (timeframe !== null) {
+      loadChartData(symbol, timeframe);
+    }
   }, [symbol, timeframe]);
 
   useEffect(() => {
@@ -278,7 +283,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const getPlotlyLayout = useCallback(() => {
     const layout: any = {
       title: {
-        text: `${symbol} - ${timeframe}`,
+        text: `${symbol} - ${timeframe || 'Loading...'}`,
         font: { color: '#d1d5db', size: 16 },
       },
       xaxis: {
@@ -286,6 +291,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         gridcolor: '#374151',
         color: '#d1d5db',
         title: { text: 'Time', font: { color: '#d1d5db' } },
+        rangeslider: { visible: false },
       },
       yaxis: {
         gridcolor: '#374151',
@@ -309,7 +315,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           : timeframe === '4H'
           ? 240
           : timeframe === '1D'
-          ? 1440
+          ? 288
           : timeframe === '1W'
           ? 168
           : timeframe === '1M'
@@ -390,6 +396,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
+                disabled={timeframe === null}
               >
                 {tf.label}
               </button>
@@ -460,7 +467,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
             <span>Data points: {chartData.length}</span>
-            <span>Timeframe: {timeframe}</span>
+            <span>Timeframe: {timeframe || 'Loading...'}</span>
             {dataRange && (
               <div className="text-amber-500 text-xs">
                 <div className="font-medium">Chart Time Range:</div>
