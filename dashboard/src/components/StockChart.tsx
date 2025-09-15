@@ -69,13 +69,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const [isLive, setIsLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dataRange, setDataRange] = useState<{ earliest: string; latest: string } | null>(null);
-  const [availableDataRange, setAvailableDataRange] = useState<{
-    earliest: string;
-    latest: string;
-  } | null>(null);
-  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
-  const [hoveredX, setHoveredX] = useState<number | null>(null);
-  const [hoveredY, setHoveredY] = useState<number | null>(null);
+
   const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
   const [topPrice, setTopPrice] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState<number | null>(null);
@@ -267,7 +261,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             tooltip.style.top = `${event.clientY - 12}px`;
 
             // Update state for consistency (throttled)
-            setHoveredY(mousePrice);
             setHoveredPrice(mousePrice);
           }
         }
@@ -283,7 +276,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
       // Add a small delay before clearing to prevent flickering
       setTimeout(() => {
-        setHoveredY(null);
         setHoveredPrice(null);
 
         // Hide the persistent tooltip
@@ -409,19 +401,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         });
       } else {
         setDataRange(null);
-      }
-
-      // Set available data range (only where data actually exists)
-      if (response.actual_data_range) {
-        setAvailableDataRange(response.actual_data_range);
-      } else if (uniqueBars.length > 0) {
-        // Fallback: calculate from actual data if server doesn't provide it
-        setAvailableDataRange({
-          earliest: uniqueBars[0].t,
-          latest: uniqueBars[uniqueBars.length - 1].t,
-        });
-      } else {
-        setAvailableDataRange(null);
       }
 
       // Subscribe to real-time chart data
@@ -729,30 +708,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         },
       ],
       annotations: [
-        // Date annotation (bottom of chart)
-        ...(hoveredDate && hoveredX !== null
-          ? [
-              {
-                x: hoveredX,
-                y: 0,
-                xref: 'x',
-                yref: 'paper',
-                text: hoveredDate,
-                showarrow: true,
-                arrowhead: 0,
-                arrowcolor: '#6b7280',
-                arrowwidth: 0.5,
-                ax: 0,
-                ay: 6,
-                bgcolor: 'rgba(0, 0, 0, 0.8)',
-                bordercolor: '#374151',
-                borderwidth: 1,
-                font: { color: '#d1d5db', size: 12 },
-                xanchor: 'center',
-                yanchor: 'top',
-              },
-            ]
-          : []),
         // Price annotation removed - using spike line tooltip instead
       ],
       hoverdistance: 20,
@@ -763,7 +718,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, dataRange, hoveredDate, hoveredX, hoveredPrice]);
+  }, [symbol, timeframe, dataRange, hoveredPrice]);
 
   const timeframes: { value: ChartTimeframe; label: string; dataPoints: number }[] = [
     { value: '1m', label: '1m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 1-minute data

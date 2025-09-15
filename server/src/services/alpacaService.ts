@@ -51,8 +51,12 @@ export class AlpacaService {
   async getActivities(startDate?: string, endDate?: string): Promise<AlpacaActivity[]> {
     try {
       const params: any = {};
-      if (startDate) params.start = startDate;
-      if (endDate) params.end = endDate;
+      if (startDate) {
+params.start = startDate;
+}
+      if (endDate) {
+params.end = endDate;
+}
 
       const response = await axios.get(`${this.baseUrl}/account/activities`, {
         headers: this.headers,

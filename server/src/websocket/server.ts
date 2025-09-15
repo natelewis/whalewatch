@@ -269,7 +269,7 @@ const broadcastToSubscribers = (
   const message: WebSocketMessage = {
     type: channel as any,
     data,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 
   wss.clients.forEach((client: AuthenticatedWebSocket) => {
@@ -293,6 +293,6 @@ const sendError = (ws: AuthenticatedWebSocket, message: string): void => {
   sendMessage(ws, {
     type: 'error',
     data: { message },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 };

@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { questdbService } from './questdbService';
 import {
   QuestDBWebSocketMessage,
-  QuestDBSubscription
+  QuestDBSubscription,
 } from '../types/questdb';
 
 export class QuestDBWebSocketService extends EventEmitter {
@@ -72,7 +72,7 @@ export class QuestDBWebSocketService extends EventEmitter {
       type: subscription.type,
       symbol: subscription.symbol,
       underlying_ticker: subscription.underlying_ticker,
-      totalSubscriptions: this.subscriptions.size
+      totalSubscriptions: this.subscriptions.size,
     });
     this.emit('subscription_confirmed', { subscription });
   }
@@ -109,7 +109,7 @@ export class QuestDBWebSocketService extends EventEmitter {
       Array.from(this.subscriptions.entries()).map(([key, sub]) => ({
         key,
         type: sub.type,
-        symbol: sub.symbol
+        symbol: sub.symbol,
       }))
     );
 
@@ -162,28 +162,38 @@ export class QuestDBWebSocketService extends EventEmitter {
     lastTimestamp: string | undefined,
     currentTimestamp: string
   ): Promise<void> {
-    if (!subscription.symbol) return;
+    if (!subscription.symbol) {
+return;
+}
 
     const trades = await questdbService.getStockTrades(subscription.symbol, {
       start_time: lastTimestamp || undefined,
       end_time: currentTimestamp,
-      limit: 1000
+      limit: 1000,
     });
 
     for (const trade of trades) {
       // Apply filters if specified
       if (subscription.filters) {
-        if (subscription.filters.min_price && trade.price < subscription.filters.min_price) continue;
-        if (subscription.filters.max_price && trade.price > subscription.filters.max_price) continue;
-        if (subscription.filters.min_size && trade.size < subscription.filters.min_size) continue;
-        if (subscription.filters.max_size && trade.size > subscription.filters.max_size) continue;
+        if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
+continue;
+}
+        if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
+continue;
+}
+        if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
+continue;
+}
+        if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
+continue;
+}
       }
 
       const message: QuestDBWebSocketMessage = {
         type: 'stock_trade',
         data: trade,
         timestamp: new Date().toISOString(),
-        symbol: trade.symbol
+        symbol: trade.symbol,
       };
 
       this.emit('stock_trade', message);
@@ -204,17 +214,25 @@ export class QuestDBWebSocketService extends EventEmitter {
       {
         start_time: lastTimestamp || undefined,
         end_time: currentTimestamp,
-        limit: 1000
+        limit: 1000,
       }
     );
 
     for (const trade of trades) {
       // Apply filters if specified
       if (subscription.filters) {
-        if (subscription.filters.min_price && trade.price < subscription.filters.min_price) continue;
-        if (subscription.filters.max_price && trade.price > subscription.filters.max_price) continue;
-        if (subscription.filters.min_size && trade.size < subscription.filters.min_size) continue;
-        if (subscription.filters.max_size && trade.size > subscription.filters.max_size) continue;
+        if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
+continue;
+}
+        if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
+continue;
+}
+        if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
+continue;
+}
+        if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
+continue;
+}
       }
 
       const message: QuestDBWebSocketMessage = {
@@ -222,7 +240,7 @@ export class QuestDBWebSocketService extends EventEmitter {
         data: trade,
         timestamp: new Date().toISOString(),
         symbol: trade.ticker,
-        underlying_ticker: trade.underlying_ticker
+        underlying_ticker: trade.underlying_ticker,
       };
 
       this.emit('option_trade', message);
@@ -243,7 +261,7 @@ export class QuestDBWebSocketService extends EventEmitter {
       {
         start_time: lastTimestamp || undefined,
         end_time: currentTimestamp,
-        limit: 1000
+        limit: 1000,
       }
     );
 
@@ -253,7 +271,7 @@ export class QuestDBWebSocketService extends EventEmitter {
         data: quote,
         timestamp: new Date().toISOString(),
         symbol: quote.ticker,
-        underlying_ticker: quote.underlying_ticker
+        underlying_ticker: quote.underlying_ticker,
       };
 
       this.emit('option_quote', message);
@@ -276,13 +294,13 @@ export class QuestDBWebSocketService extends EventEmitter {
     console.log(`🔍 Polling stock aggregates for ${subscription.symbol}:`, {
       lastTimestamp: lastTimestamp || 'none (first poll)',
       currentTimestamp,
-      timeRange: lastTimestamp ? `${lastTimestamp} to ${currentTimestamp}` : `up to ${currentTimestamp}`
+      timeRange: lastTimestamp ? `${lastTimestamp} to ${currentTimestamp}` : `up to ${currentTimestamp}`,
     });
 
     const aggregates = await questdbService.getStockAggregates(subscription.symbol, {
       start_time: lastTimestamp || undefined,
       end_time: currentTimestamp,
-      limit: 1000
+      limit: 1000,
     });
 
     console.log(`📊 Found ${aggregates.length} new stock aggregates for ${subscription.symbol}`);
@@ -291,7 +309,7 @@ export class QuestDBWebSocketService extends EventEmitter {
       console.log('📈 Sample aggregate data:', {
         first: aggregates[0],
         last: aggregates[aggregates.length - 1],
-        count: aggregates.length
+        count: aggregates.length,
       });
     }
 
@@ -300,13 +318,13 @@ export class QuestDBWebSocketService extends EventEmitter {
         type: 'stock_aggregate',
         data: aggregate,
         timestamp: new Date().toISOString(),
-        symbol: aggregate.symbol
+        symbol: aggregate.symbol,
       };
 
       console.log(`📡 Emitting stock aggregate for ${aggregate.symbol}:`, {
         timestamp: aggregate.timestamp,
         close: aggregate.close,
-        volume: aggregate.volume
+        volume: aggregate.volume,
       });
 
       this.emit('stock_aggregate', message);
@@ -321,7 +339,7 @@ export class QuestDBWebSocketService extends EventEmitter {
       subscription.type,
       subscription.symbol || '',
       subscription.underlying_ticker || '',
-      subscription.ticker || ''
+      subscription.ticker || '',
     ];
     return parts.join('|');
   }
@@ -345,7 +363,7 @@ export class QuestDBWebSocketService extends EventEmitter {
     return {
       isStreaming: this.isStreaming,
       subscriptionCount: this.subscriptions.size,
-      pollingIntervalMs: this.streamingIntervalMs
+      pollingIntervalMs: this.streamingIntervalMs,
     };
   }
 }

@@ -11,7 +11,7 @@ import {
   QuestDBQueryParams,
   QuestDBResponse,
   QuestDBConfig,
-  QuestDBError
+  QuestDBError,
 } from '../types/questdb';
 
 // Load environment variables from the server directory
@@ -41,7 +41,7 @@ export class QuestDBService {
       username: this.config.username || 'none',
       password: this.config.password ? '***' : 'none',
       ssl: this.config.ssl,
-      timeout: this.config.timeout
+      timeout: this.config.timeout,
     });
 
     if (!this.config.host) {

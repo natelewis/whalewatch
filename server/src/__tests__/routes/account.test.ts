@@ -38,7 +38,7 @@ describe('Account Routes', () => {
         status: 'ACTIVE',
         currency: 'USD',
         buying_power: '10000.00',
-        portfolio_value: '50000.00'
+        portfolio_value: '50000.00',
       };
 
       mockAlpacaService.getAccount.mockResolvedValue(mockAccount as any);
@@ -81,8 +81,8 @@ describe('Account Routes', () => {
           qty: '10',
           side: 'long',
           market_value: '1500.00',
-          unrealized_pl: '50.00'
-        }
+          unrealized_pl: '50.00',
+        },
       ];
 
       mockAlpacaService.getPositions.mockResolvedValue(mockPositions as any);
@@ -114,8 +114,8 @@ describe('Account Routes', () => {
           transaction_time: '2024-01-01T10:00:00Z',
           symbol: 'AAPL',
           qty: '10',
-          side: 'buy'
-        }
+          side: 'buy',
+        },
       ];
 
       mockAlpacaService.getActivities.mockResolvedValue(mockActivities as any);

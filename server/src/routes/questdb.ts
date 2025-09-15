@@ -13,7 +13,7 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
       end_time, 
       limit = '1000',
       order_by = 'timestamp',
-      order_direction = 'DESC'
+      order_direction = 'DESC',
     } = req.query;
 
     if (!symbol) {
@@ -30,7 +30,7 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
       end_time: end_time as string | undefined,
       limit: limitNum,
       order_by: order_by as string,
-      order_direction: order_direction as 'ASC' | 'DESC'
+      order_direction: order_direction as 'ASC' | 'DESC',
     };
 
     const trades = await questdbService.getStockTrades(symbol.toUpperCase(), params);
@@ -40,14 +40,14 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
       trades,
       count: trades.length,
       data_source: 'questdb',
-      success: true
+      success: true,
     });
   } catch (error: any) {
     console.error('Error fetching stock trades from QuestDB:', error);
     res.status(500).json({ 
       error: `Failed to fetch stock trades: ${error.message}`,
       data_source: 'questdb',
-      success: false
+      success: false,
     });
   }
 });
@@ -61,7 +61,7 @@ router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
       end_time, 
       limit = '1000',
       order_by = 'timestamp',
-      order_direction = 'ASC'
+      order_direction = 'ASC',
     } = req.query;
 
     if (!symbol) {
@@ -78,7 +78,7 @@ router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
       end_time: end_time as string | undefined,
       limit: limitNum,
       order_by: order_by as string,
-      order_direction: order_direction as 'ASC' | 'DESC'
+      order_direction: order_direction as 'ASC' | 'DESC',
     };
 
     const aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
@@ -88,14 +88,14 @@ router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
       aggregates,
       count: aggregates.length,
       data_source: 'questdb',
-      success: true
+      success: true,
     });
   } catch (error: any) {
     console.error('Error fetching stock aggregates from QuestDB:', error);
     res.status(500).json({ 
       error: `Failed to fetch stock aggregates: ${error.message}`,
       data_source: 'questdb',
-      success: false
+      success: false,
     });
   }
 });
@@ -107,7 +107,7 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
     const { 
       limit = '1000',
       order_by = 'created_at',
-      order_direction = 'DESC'
+      order_direction = 'DESC',
     } = req.query;
 
     if (!underlying_ticker) {
@@ -122,7 +122,7 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
     const params: QuestDBQueryParams = {
       limit: limitNum,
       order_by: order_by as string,
-      order_direction: order_direction as 'ASC' | 'DESC'
+      order_direction: order_direction as 'ASC' | 'DESC',
     };
 
     const contracts = await questdbService.getOptionContracts(underlying_ticker.toUpperCase(), params);
@@ -132,14 +132,14 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
       contracts,
       count: contracts.length,
       data_source: 'questdb',
-      success: true
+      success: true,
     });
   } catch (error: any) {
     console.error('Error fetching option contracts from QuestDB:', error);
     res.status(500).json({ 
       error: `Failed to fetch option contracts: ${error.message}`,
       data_source: 'questdb',
-      success: false
+      success: false,
     });
   }
 });
@@ -154,7 +154,7 @@ router.get('/option-trades', async (req: Request, res: Response) => {
       end_time, 
       limit = '1000',
       order_by = 'timestamp',
-      order_direction = 'DESC'
+      order_direction = 'DESC',
     } = req.query;
 
     if (!ticker && !underlying_ticker) {
@@ -171,7 +171,7 @@ router.get('/option-trades', async (req: Request, res: Response) => {
       end_time: end_time as string | undefined,
       limit: limitNum,
       order_by: order_by as string,
-      order_direction: order_direction as 'ASC' | 'DESC'
+      order_direction: order_direction as 'ASC' | 'DESC',
     };
 
     const trades = await questdbService.getOptionTrades(
@@ -186,14 +186,14 @@ router.get('/option-trades', async (req: Request, res: Response) => {
       trades,
       count: trades.length,
       data_source: 'questdb',
-      success: true
+      success: true,
     });
   } catch (error: any) {
     console.error('Error fetching option trades from QuestDB:', error);
     res.status(500).json({ 
       error: `Failed to fetch option trades: ${error.message}`,
       data_source: 'questdb',
-      success: false
+      success: false,
     });
   }
 });
@@ -208,7 +208,7 @@ router.get('/option-quotes', async (req: Request, res: Response) => {
       end_time, 
       limit = '1000',
       order_by = 'timestamp',
-      order_direction = 'DESC'
+      order_direction = 'DESC',
     } = req.query;
 
     if (!ticker && !underlying_ticker) {
@@ -225,7 +225,7 @@ router.get('/option-quotes', async (req: Request, res: Response) => {
       end_time: end_time as string | undefined,
       limit: limitNum,
       order_by: order_by as string,
-      order_direction: order_direction as 'ASC' | 'DESC'
+      order_direction: order_direction as 'ASC' | 'DESC',
     };
 
     const quotes = await questdbService.getOptionQuotes(
@@ -240,14 +240,14 @@ router.get('/option-quotes', async (req: Request, res: Response) => {
       quotes,
       count: quotes.length,
       data_source: 'questdb',
-      success: true
+      success: true,
     });
   } catch (error: any) {
     console.error('Error fetching option quotes from QuestDB:', error);
     res.status(500).json({ 
       error: `Failed to fetch option quotes: ${error.message}`,
       data_source: 'questdb',
-      success: false
+      success: false,
     });
   }
 });
@@ -265,13 +265,13 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
         message: 'QuestDB connection successful',
         data_source: 'questdb',
         stats,
-        config
+        config,
       });
     } else {
       res.status(500).json({
         success: false,
         message: 'QuestDB connection failed',
-        data_source: 'questdb'
+        data_source: 'questdb',
       });
     }
   } catch (error: any) {
@@ -279,7 +279,7 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: `QuestDB connection test failed: ${error.message}`,
-      data_source: 'questdb'
+      data_source: 'questdb',
     });
   }
 });
@@ -291,14 +291,14 @@ router.get('/stats', async (_req: Request, res: Response) => {
     res.json({
       success: true,
       stats,
-      data_source: 'questdb'
+      data_source: 'questdb',
     });
   } catch (error: any) {
     console.error('Error fetching QuestDB stats:', error);
     res.status(500).json({
       success: false,
       error: `Failed to fetch database statistics: ${error.message}`,
-      data_source: 'questdb'
+      data_source: 'questdb',
     });
   }
 });

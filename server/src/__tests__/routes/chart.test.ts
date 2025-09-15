@@ -41,7 +41,7 @@ describe('Chart Routes', () => {
         close: 104.0,
         volume: 1000,
         transaction_count: 50,
-        vwap: 102.0
+        vwap: 102.0,
       },
       {
         symbol: 'AAPL',
@@ -52,8 +52,8 @@ describe('Chart Routes', () => {
         close: 105.0,
         volume: 1200,
         transaction_count: 60,
-        vwap: 104.5
-      }
+        vwap: 104.5,
+      },
     ];
 
     it('should return chart data with default timeframe', async () => {

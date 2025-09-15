@@ -12,7 +12,7 @@ export const errorHandler = (
   // Default error
   let error: ApiError = {
     message: 'Internal Server Error',
-    status: 500
+    status: 500,
   };
 
   // Handle specific error types
@@ -20,31 +20,31 @@ export const errorHandler = (
     error = {
       message: 'Validation Error',
       status: 400,
-      code: 'VALIDATION_ERROR'
+      code: 'VALIDATION_ERROR',
     };
   } else if (err.name === 'UnauthorizedError') {
     error = {
       message: 'Unauthorized',
       status: 401,
-      code: 'UNAUTHORIZED'
+      code: 'UNAUTHORIZED',
     };
   } else if (err.name === 'ForbiddenError') {
     error = {
       message: 'Forbidden',
       status: 403,
-      code: 'FORBIDDEN'
+      code: 'FORBIDDEN',
     };
   } else if (err.name === 'NotFoundError') {
     error = {
       message: 'Not Found',
       status: 404,
-      code: 'NOT_FOUND'
+      code: 'NOT_FOUND',
     };
   } else if (err.name === 'AlpacaAPIError') {
     error = {
       message: 'Alpaca API Error',
       status: 502,
-      code: 'ALPACA_API_ERROR'
+      code: 'ALPACA_API_ERROR',
     };
   }
 
@@ -52,6 +52,6 @@ export const errorHandler = (
     error: error.message,
     code: error.code,
     timestamp: new Date().toISOString(),
-    path: req.path
+    path: req.path,
   });
 };

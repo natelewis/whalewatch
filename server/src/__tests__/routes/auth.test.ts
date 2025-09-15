@@ -9,11 +9,11 @@ jest.mock('../../config/auth0', () => ({
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
     audience: 'https://test-tenant.auth0.com/api/v2/',
-    issuer: 'https://test-tenant.auth0.com/'
+    issuer: 'https://test-tenant.auth0.com/',
   },
   verifyAuth0Token: jest.fn(),
   createOrUpdateUser: jest.fn(),
-  generateToken: jest.fn()
+  generateToken: jest.fn(),
 }));
 
 const app = express();
@@ -41,7 +41,7 @@ describe('Auth Routes', () => {
         sub: 'auth0|123456789',
         email: 'test@example.com',
         name: 'Test User',
-        picture: 'https://example.com/photo.jpg'
+        picture: 'https://example.com/photo.jpg',
       };
       
       const mockUser = {
@@ -49,7 +49,7 @@ describe('Auth Routes', () => {
         auth0Id: 'auth0|123456789',
         email: 'test@example.com',
         name: 'Test User',
-        picture: 'https://example.com/photo.jpg'
+        picture: 'https://example.com/photo.jpg',
       };
 
       verifyAuth0Token.mockResolvedValue(mockAuth0User);
@@ -79,7 +79,7 @@ describe('Auth Routes', () => {
     it('should handle Auth0 token exchange failure', async () => {
       // Mock fetch to return error
       global.fetch = jest.fn().mockResolvedValue({
-        json: () => Promise.resolve({ error: 'invalid_grant' })
+        json: () => Promise.resolve({ error: 'invalid_grant' }),
       });
 
       const response = await request(app)
@@ -96,7 +96,7 @@ describe('Auth Routes', () => {
       const mockDecoded = {
         userId: 'test-user-id',
         email: 'test@example.com',
-        auth0Id: 'auth0|123456789'
+        auth0Id: 'auth0|123456789',
       };
 
       const jwt = require('jsonwebtoken');

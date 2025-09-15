@@ -40,26 +40,26 @@ export class SecretValidator {
         value: process.env.ALPACA_API_KEY,
         required: true,
         description: 'Alpaca API key for trading operations',
-        maskValue: true
+        maskValue: true,
       },
       {
         name: 'ALPACA_SECRET_KEY',
         value: process.env.ALPACA_SECRET_KEY,
         required: true,
         description: 'Alpaca secret key for trading operations',
-        maskValue: true
+        maskValue: true,
       },
       {
         name: 'ALPACA_BASE_URL',
         value: process.env.ALPACA_BASE_URL,
         required: false,
-        description: 'Alpaca base URL (defaults to paper trading)'
+        description: 'Alpaca base URL (defaults to paper trading)',
       },
       {
         name: 'ALPACA_DATA_URL',
         value: process.env.ALPACA_DATA_URL,
         required: false,
-        description: 'Alpaca data URL (defaults to data.alpaca.markets)'
+        description: 'Alpaca data URL (defaults to data.alpaca.markets)',
       },
 
       // JWT Configuration
@@ -68,13 +68,13 @@ export class SecretValidator {
         value: process.env.JWT_SECRET,
         required: true,
         description: 'JWT secret for token signing',
-        maskValue: true
+        maskValue: true,
       },
       {
         name: 'JWT_EXPIRES_IN',
         value: process.env.JWT_EXPIRES_IN,
         required: false,
-        description: 'JWT token expiration time (defaults to 24h)'
+        description: 'JWT token expiration time (defaults to 24h)',
       },
 
       // Google OAuth Configuration
@@ -82,20 +82,20 @@ export class SecretValidator {
         name: 'GOOGLE_CLIENT_ID',
         value: process.env.GOOGLE_CLIENT_ID,
         required: true,
-        description: 'Google OAuth client ID for authentication'
+        description: 'Google OAuth client ID for authentication',
       },
       {
         name: 'GOOGLE_CLIENT_SECRET',
         value: process.env.GOOGLE_CLIENT_SECRET,
         required: true,
         description: 'Google OAuth client secret for authentication',
-        maskValue: true
+        maskValue: true,
       },
       {
         name: 'GOOGLE_CALLBACK_URL',
         value: process.env.GOOGLE_CALLBACK_URL,
         required: false,
-        description: 'Google OAuth callback URL (defaults to localhost)'
+        description: 'Google OAuth callback URL (defaults to localhost)',
       },
 
       // Session Configuration
@@ -104,7 +104,7 @@ export class SecretValidator {
         value: process.env.SESSION_SECRET,
         required: true,
         description: 'Session secret for secure sessions',
-        maskValue: true
+        maskValue: true,
       },
 
       // Server Configuration
@@ -112,13 +112,13 @@ export class SecretValidator {
         name: 'PORT',
         value: process.env.PORT,
         required: false,
-        description: 'Server port (defaults to 3001)'
+        description: 'Server port (defaults to 3001)',
       },
       {
         name: 'NODE_ENV',
         value: process.env.NODE_ENV,
         required: false,
-        description: 'Node environment (development/production)'
+        description: 'Node environment (development/production)',
       },
 
       // CORS Configuration
@@ -126,7 +126,7 @@ export class SecretValidator {
         name: 'CORS_ORIGIN',
         value: process.env.CORS_ORIGIN,
         required: false,
-        description: 'CORS origin URL (defaults to localhost:5173)'
+        description: 'CORS origin URL (defaults to localhost:5173)',
       },
 
       // Test Configuration (only required in test environment)
@@ -134,14 +134,14 @@ export class SecretValidator {
         name: 'TEST_ALPACA_API_KEY',
         value: process.env.TEST_ALPACA_API_KEY,
         required: process.env.NODE_ENV === 'test',
-        description: 'Test Alpaca API key for testing'
+        description: 'Test Alpaca API key for testing',
       },
       {
         name: 'TEST_ALPACA_SECRET_KEY',
         value: process.env.TEST_ALPACA_SECRET_KEY,
         required: process.env.NODE_ENV === 'test',
-        description: 'Test Alpaca secret key for testing'
-      }
+        description: 'Test Alpaca secret key for testing',
+      },
     ];
   }
 
@@ -214,8 +214,8 @@ export class SecretValidator {
         total: this.secrets.length,
         required: requiredCount,
         missing: missingSecrets.length,
-        present: presentCount
-      }
+        present: presentCount,
+      },
     };
   }
 
@@ -243,7 +243,7 @@ export class SecretValidator {
       auth: ['JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_CALLBACK_URL', 'SESSION_SECRET'],
       trading: ['ALPACA_API_KEY', 'ALPACA_SECRET_KEY', 'ALPACA_BASE_URL', 'ALPACA_DATA_URL'],
       server: ['PORT', 'NODE_ENV', 'CORS_ORIGIN'],
-      test: ['TEST_ALPACA_API_KEY', 'TEST_ALPACA_SECRET_KEY']
+      test: ['TEST_ALPACA_API_KEY', 'TEST_ALPACA_SECRET_KEY'],
     };
 
     return this.secrets.filter(secret => 
@@ -337,8 +337,8 @@ export class SecretValidator {
         total: this.secrets.length,
         required: requiredCount,
         missing: missingSecrets.length,
-        present: presentCount
-      }
+        present: presentCount,
+      },
     };
   }
 }

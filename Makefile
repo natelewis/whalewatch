@@ -89,11 +89,11 @@ lint: lint-server lint-dashboard
 
 lint-server:
 	@echo "🔍 Linting server code..."
-	cd server && npm run lint || echo "No lint script found for server"
+	npx eslint server/src --ext .ts,.tsx --fix
 
 lint-dashboard:
 	@echo "🔍 Linting dashboard code..."
-	cd dashboard && npm run lint
+	npx eslint dashboard/src --ext .ts,.tsx --fix
 
 # Building commands
 build: build-server build-dashboard

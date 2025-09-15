@@ -10,7 +10,7 @@ router.get('/test-env', (req: Request, res: Response) => {
   res.json({
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Missing',
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Missing',
-    GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL || 'Using default'
+    GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL || 'Using default',
   });
 });
 
@@ -19,13 +19,13 @@ router.get('/test-strategy', (req: Request, res: Response) => {
   const strategies = Object.keys(passport._strategies || {});
   res.json({
     registeredStrategies: strategies,
-    hasGoogleStrategy: strategies.includes('google')
+    hasGoogleStrategy: strategies.includes('google'),
   });
 });
 
 // Google OAuth login endpoint
 router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
+  scope: ['profile', 'email'],
 }));
 
 // Google OAuth callback endpoint
@@ -66,8 +66,8 @@ router.get('/verify', (req: Request, res: Response) => {
       user: {
         id: decoded.userId,
         email: decoded.email,
-        googleId: decoded.googleId
-      }
+        googleId: decoded.googleId,
+      },
     });
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });

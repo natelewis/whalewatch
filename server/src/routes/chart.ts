@@ -44,7 +44,9 @@ function aggregateDataWithIntervals(
   data: QuestDBStockAggregate[],
   params: ChartQueryParams
 ): QuestDBStockAggregate[] {
-  if (data.length === 0) return data;
+  if (data.length === 0) {
+return data;
+}
 
   const intervalMinutes = getIntervalMinutes(params.interval);
   const intervalMs = intervalMinutes * 60 * 1000;
@@ -82,7 +84,9 @@ function aggregateDataWithIntervals(
 
   let dataPointsCollected = 0;
   for (const [bucketTime, bucketData] of sortedBuckets) {
-    if (dataPointsCollected >= params.dataPoints) break;
+    if (dataPointsCollected >= params.dataPoints) {
+break;
+}
 
     if (bucketData.length > 0) {
       const aggregated = aggregateGroup(bucketData);
@@ -294,4 +298,3 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 });
 
 export { router as chartRoutes };
-

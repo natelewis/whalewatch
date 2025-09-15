@@ -52,7 +52,7 @@ if (
           }
 
           // Check if user already exists
-          let user = users.find((u) => u.googleId === googleId);
+          const user = users.find((u) => u.googleId === googleId);
 
           if (user) {
             // Update existing user

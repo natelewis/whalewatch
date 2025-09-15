@@ -15,14 +15,14 @@ router.post('/sell', [
   body('symbol').isString().isLength({ min: 1, max: 10 }),
   body('quantity').isNumeric().isFloat({ min: 0.01 }),
   body('limit_price').isNumeric().isFloat({ min: 0.01 }),
-  body('time_in_force').optional().isIn(['day', 'gtc', 'ioc', 'fok'])
+  body('time_in_force').optional().isIn(['day', 'gtc', 'ioc', 'fok']),
 ], async (req: AuthenticatedRequest, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
         error: 'Validation failed',
-        details: errors.array()
+        details: errors.array(),
       });
     }
 
@@ -34,14 +34,14 @@ router.post('/sell', [
       side: 'sell' as const,
       type: 'limit' as const,
       time_in_force: time_in_force as 'day' | 'gtc' | 'ioc' | 'fok',
-      limit_price: parseFloat(limit_price)
+      limit_price: parseFloat(limit_price),
     };
 
     const order = await alpacaService.createOrder(orderData);
 
     res.status(201).json({
       message: 'Order created successfully',
-      order
+      order,
     });
   } catch (error) {
     console.error('Error creating sell order:', error);
@@ -55,14 +55,14 @@ router.post('/buy', [
   body('quantity').isNumeric().isFloat({ min: 0.01 }),
   body('limit_price').optional().isNumeric().isFloat({ min: 0.01 }),
   body('type').optional().isIn(['market', 'limit', 'stop', 'stop_limit']),
-  body('time_in_force').optional().isIn(['day', 'gtc', 'ioc', 'fok'])
+  body('time_in_force').optional().isIn(['day', 'gtc', 'ioc', 'fok']),
 ], async (req: AuthenticatedRequest, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
         error: 'Validation failed',
-        details: errors.array()
+        details: errors.array(),
       });
     }
 
@@ -71,7 +71,7 @@ router.post('/buy', [
       quantity, 
       limit_price, 
       type = 'market',
-      time_in_force = 'day' 
+      time_in_force = 'day', 
     } = req.body;
 
     const orderData = {
@@ -80,14 +80,14 @@ router.post('/buy', [
       side: 'buy' as const,
       type: type as 'market' | 'limit' | 'stop' | 'stop_limit',
       time_in_force: time_in_force as 'day' | 'gtc' | 'ioc' | 'fok',
-      limit_price: limit_price ? parseFloat(limit_price) : undefined
+      limit_price: limit_price ? parseFloat(limit_price) : undefined,
     };
 
     const order = await alpacaService.createOrder(orderData);
 
     res.status(201).json({
       message: 'Order created successfully',
-      order
+      order,
     });
   } catch (error) {
     console.error('Error creating buy order:', error);
