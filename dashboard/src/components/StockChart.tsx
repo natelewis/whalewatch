@@ -297,13 +297,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             line: { width: 0, color: 'transparent' },
             opacity: 0,
             showlegend: false,
-            hoverinfo: 'none' as const,
+            hoverinfo: 'skip' as const,
             // Enable hover detection but don't show tooltip for this trace
             hoveron: 'points' as const,
             connectgaps: true, // Connect gaps to ensure continuous hover detection
             // This invisible line enables hover detection across the entire chart
             name: `${symbol}_hover_overlay`,
-            // Remove fill to avoid filling from bottom of chart
+            // Make the line more responsive to hover
+            line: { 
+              width: 0, 
+              color: 'transparent',
+              shape: 'linear' as const
+            },
           },
         ];
 
@@ -625,36 +630,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                   console.log('Hover event triggered:', event.points[0]);
                 }
               }}
-              onInitialized={(figure, graphDiv) => {
-                // Set up hover behavior to work anywhere on the chart
-                if (graphDiv) {
-                  // Add mouse move event listener to the plot div
-                  const plotDiv = graphDiv as HTMLElement;
-
-                  const handleMouseMove = (event: MouseEvent) => {
-                    // Get mouse position relative to the plot
-                    const rect = plotDiv.getBoundingClientRect();
-                    const x = event.clientX - rect.left;
-                    const y = event.clientY - rect.top;
-
-                    // Trigger Plotly's hover programmatically
-                    if (window.Plotly) {
-                      // Use the standard hover method - should work with the invisible overlay
-                      window.Plotly.Fx.hover(plotDiv, {
-                        x: x,
-                        y: y,
-                      });
-                    }
-                  };
-
-                  plotDiv.addEventListener('mousemove', handleMouseMove);
-
-                  // Cleanup function
-                  return () => {
-                    plotDiv.removeEventListener('mousemove', handleMouseMove);
-                  };
-                }
-                return undefined;
+              onUnhover={() => {
+                // Handle unhover events
+                console.log('Unhover event triggered');
               }}
             />
           </div>
