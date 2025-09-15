@@ -74,14 +74,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const [hoveredY, setHoveredY] = useState<number | null>(null);
   const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
 
-  // Debug state changes
-  useEffect(() => {
-    console.log('HoveredY changed:', hoveredY);
-  }, [hoveredY]);
-
-  useEffect(() => {
-    console.log('HoveredPrice changed:', hoveredPrice);
-  }, [hoveredPrice]);
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
 
   // Load saved timeframe from localStorage on component mount
@@ -113,16 +105,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       return;
     }
 
-    console.log('Setting up mouse listeners on chart ref:', chartRef);
     let lastY: number | null = null;
 
-    // Get current layout for axis ranges - we'll calculate it directly
-    // Since we can't call getPlotlyLayout here due to hoisting, we'll use the data directly
-    console.log('Setting up mouse listeners - will calculate y-axis range from data');
-
     const handleMouseMove = (event: MouseEvent) => {
-      console.log('Mouse move event detected');
-
       // Try different selectors to find the plot area
       let plotArea = chartRef.querySelector('.plotly .plot');
       if (!plotArea) {
@@ -135,18 +120,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         plotArea = chartRef.querySelector('.js-plotly-plot');
       }
 
-      console.log('Plot area found:', plotArea);
-      console.log('Chart ref children:', chartRef.children);
-      console.log('Chart ref innerHTML length:', chartRef.innerHTML.length);
-
       if (plotArea) {
         const rect = plotArea.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
-
-        console.log('Mouse position:', { x, y, rectWidth: rect.width, rectHeight: rect.height });
-        console.log('Plot area element:', plotArea);
-        console.log('Plot area computed style:', window.getComputedStyle(plotArea));
 
         // If rect height is 0, try to get dimensions from the parent or use chart ref dimensions
         let effectiveHeight = rect.height;
@@ -156,13 +133,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           const chartRect = chartRef.getBoundingClientRect();
           effectiveHeight = chartRect.height;
           effectiveWidth = chartRect.width;
-          console.log('Using chart ref dimensions:', { effectiveWidth, effectiveHeight });
         }
 
         // Check if mouse is within the plot area
         if (x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
-          console.log('Mouse is within plot area');
-
           // Calculate y-axis range from chart data
           if (chartData.length > 0) {
             const sortedData = [...chartData].sort(
@@ -179,61 +153,25 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             const paddedYMin = yMin - padding;
             const paddedYMax = yMax + padding;
 
-            console.log('Calculated Y-axis range:', { yMin: paddedYMin, yMax: paddedYMax });
-
             // Convert to data coordinates
             // Note: y=0 is at the top of the plot area, so we need to invert the calculation
             const dataY = paddedYMax - (y / effectiveHeight) * (paddedYMax - paddedYMin);
 
-            console.log('Calculated dataY:', dataY, 'LastY:', lastY);
-            console.log('Mouse y position:', y, 'Effective height:', effectiveHeight);
-            console.log('Y-axis range:', { paddedYMin, paddedYMax });
-            console.log(
-              'Calculation: paddedYMax - (y/height) * range =',
-              paddedYMax,
-              '- (',
-              y,
-              '/',
-              effectiveHeight,
-              ') * (',
-              paddedYMax - paddedYMin,
-              ')'
-            );
-
             // Update hover state
-            const tolerance = 0.01; // Small tolerance for floating point comparison
+            const tolerance = 1.0; // Increase tolerance to reduce fluttering
             const yChanged = lastY === null || Math.abs(lastY - dataY) > tolerance;
 
-            console.log('Y-value comparison:', {
-              lastY,
-              dataY,
-              difference: lastY ? Math.abs(lastY - dataY) : 'null',
-              tolerance,
-              yChanged,
-            });
-
             if (yChanged) {
-              console.log('Y-value changed! Setting hover state:', dataY);
-              console.log('Price to display: $' + dataY.toFixed(2));
               lastY = dataY;
               setHoveredY(dataY);
               setHoveredPrice(dataY);
-            } else {
-              console.log('Y-value unchanged, not updating state');
             }
-          } else {
-            console.log('No chart data available for y-axis calculation');
           }
-        } else {
-          console.log('Mouse is outside plot area');
         }
-      } else {
-        console.log('Plot area not found');
       }
     };
 
     const handleMouseLeave = () => {
-      console.log('Mouse left chart area');
       // Add a small delay before clearing to prevent flickering
       setTimeout(() => {
         setHoveredY(null);
@@ -246,7 +184,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     chartRef.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
-      console.log('Cleaning up mouse listeners');
       chartRef.removeEventListener('mousemove', handleMouseMove);
       chartRef.removeEventListener('mouseleave', handleMouseLeave);
     };
@@ -677,13 +614,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         },
       ],
       annotations: [
-        // Debug logging
-        ...(console.log(
-          'Creating annotations - hoveredPrice:',
-          hoveredPrice,
-          'hoveredY:',
-          hoveredY
-        ) || []),
         // Date annotation (bottom of chart)
         ...(hoveredDate && hoveredX !== null
           ? [
@@ -710,30 +640,27 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           : []),
         // Price annotation (to the right of the spike line)
         ...(hoveredPrice !== null
-          ? (() => {
-              console.log('Creating price annotation with hoveredPrice:', hoveredPrice);
-              return [
-                {
-                  x: 0.95, // Move to the left so it's visible on screen
-                  y: hoveredPrice,
-                  xref: 'paper',
-                  yref: 'y',
-                  text: `$${hoveredPrice.toFixed(2)}`,
-                  showarrow: true,
-                  arrowhead: 0,
-                  arrowcolor: '#6b7280',
-                  arrowwidth: 1,
-                  ax: -10, // Arrow pointing left towards the spike line
-                  ay: 0,
-                  bgcolor: 'rgba(0, 0, 0, 0.9)',
-                  bordercolor: '#6b7280',
-                  borderwidth: 1,
-                  font: { color: '#d1d5db', size: 12 },
-                  xanchor: 'left',
-                  yanchor: 'middle',
-                },
-              ];
-            })()
+          ? [
+              {
+                x: 1.02, // Position to the right of the y-axis labels
+                y: hoveredPrice,
+                xref: 'paper',
+                yref: 'y',
+                text: `$${hoveredPrice.toFixed(2)}`,
+                showarrow: true,
+                arrowhead: 0,
+                arrowcolor: '#6b7280',
+                arrowwidth: 1,
+                ax: -15, // Arrow pointing left towards the spike line
+                ay: 0,
+                bgcolor: 'rgba(0, 0, 0, 0.9)',
+                bordercolor: '#6b7280',
+                borderwidth: 1,
+                font: { color: '#d1d5db', size: 12 },
+                xanchor: 'left',
+                yanchor: 'middle',
+              },
+            ]
           : []),
       ],
       hoverdistance: 20,
