@@ -295,24 +295,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       const relativeX = (plotAreaLeft + mouseXPos - virtualBoxLeft) / virtualBoxWidth;
       const relativeY = (plotAreaTop + mouseYPos - virtualBoxTop) / virtualBoxHeight;
 
-      // Debug the calculation
-      console.log('Mouse calculation debug:', {
-        mouseXPos,
-        mouseYPos,
-        plotAreaLeft,
-        plotAreaTop,
-        containerRect: { width: containerRect.width, height: containerRect.height },
-        rect: { width: rect.width, height: rect.height },
-        virtualBox: {
-          left: virtualBoxLeft,
-          top: virtualBoxTop,
-          width: virtualBoxWidth,
-          height: virtualBoxHeight,
-        },
-        relativeX,
-        relativeY,
-      });
-
       // Validate coordinates before setting
       if (
         isFinite(relativeX) &&
@@ -325,7 +307,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         setMouseX(relativeX);
         setMouseY(relativeY);
       } else {
-        console.log('Invalid coordinates detected, clearing');
         setMouseX(null);
         setMouseY(null);
       }
@@ -390,24 +371,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
     return () => clearTimeout(timeoutId);
   }, [chartRef, chartDataHook.chartData]);
-
-  // Debug: Log mouse coordinates and chart bounds
-  useEffect(() => {
-    console.log('Mouse X:', mouseX, 'Mouse Y:', mouseY);
-    console.log('Should show spike lines:', mouseX !== null && mouseY !== null);
-    console.log('Chart bounds:', chartBounds);
-    console.log('Chart ref:', chartRef);
-    if (mouseX !== null && mouseY !== null) {
-      console.log('Spike line positions - X:', `${mouseX * 100}%`, 'Y:', `${mouseY * 100}%`);
-    }
-  }, [mouseX, mouseY, chartBounds, chartRef]);
-
-  // Debug: Log when mouse coordinates change
-  useEffect(() => {
-    if (mouseX === null && mouseY === null) {
-      console.log('Mouse coordinates cleared!');
-    }
-  }, [mouseX, mouseY]);
 
   // WebSocket for real-time chart data
   const chartWebSocket = useChartWebSocket({
@@ -938,60 +901,42 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                 }}
               />
 
-              {/* Custom Spike Lines - Always render for debugging */}
-              <svg
-                className="absolute pointer-events-none"
-                style={{
-                  zIndex: 10,
-                  left: (chartBounds?.left || 0) - VIRTUAL_BOX_EXPAND_X,
-                  top: (chartBounds?.top || 0) - VIRTUAL_BOX_EXPAND_Y,
-                  width: (chartBounds?.width || 0) + VIRTUAL_BOX_EXPAND_X * 2,
-                  height: (chartBounds?.height || 0) + VIRTUAL_BOX_EXPAND_Y * 2,
-                  border: '1px solid red', // Debug border to see if SVG is visible
-                }}
-              >
-                {/* Always show a test line in the center */}
-                <line
-                  x1="50%"
-                  y1="0%"
-                  x2="50%"
-                  y2="100%"
-                  stroke="#00ff00"
-                  strokeWidth="3"
-                  opacity="0.5"
-                />
-                {/* Show mouse-based lines only when coordinates exist */}
-                {mouseX !== null && mouseY !== null && (
-                  <>
-                    {/* Vertical spike line - follows mouse X position */}
-                    <line
-                      x1={`${(mouseX * SPIKE_LINE_SCALE_X + SPIKE_LINE_OFFSET_X) * 100}%`}
-                      y1="0%"
-                      x2={`${(mouseX * SPIKE_LINE_SCALE_X + SPIKE_LINE_OFFSET_X) * 100}%`}
-                      y2="100%"
-                      stroke="#ff0000"
-                      strokeWidth="3"
-                      strokeDasharray="4,2"
-                      opacity="1"
-                    />
-                    {/* Horizontal spike line - follows mouse Y position */}
-                    <line
-                      x1="0%"
-                      y1={`${(mouseY * SPIKE_LINE_SCALE_Y + SPIKE_LINE_OFFSET_Y) * 100}%`}
-                      x2="100%"
-                      y2={`${(mouseY * SPIKE_LINE_SCALE_Y + SPIKE_LINE_OFFSET_Y) * 100}%`}
-                      stroke="#00ff00"
-                      strokeWidth="4"
-                      strokeDasharray="8,4"
-                      opacity="1"
-                    />
-                    {/* Debug text showing coordinates */}
-                    <text x="10" y="20" fill="white" fontSize="12" fontFamily="monospace">
-                      X: {mouseX?.toFixed(3)} Y: {mouseY?.toFixed(3)}
-                    </text>
-                  </>
-                )}
-              </svg>
+              {/* Custom Spike Lines */}
+              {mouseX !== null && mouseY !== null && (
+                <svg
+                  className="absolute pointer-events-none"
+                  style={{
+                    zIndex: 10,
+                    left: (chartBounds?.left || 0) - VIRTUAL_BOX_EXPAND_X,
+                    top: (chartBounds?.top || 0) - VIRTUAL_BOX_EXPAND_Y,
+                    width: (chartBounds?.width || 0) + VIRTUAL_BOX_EXPAND_X * 2,
+                    height: (chartBounds?.height || 0) + VIRTUAL_BOX_EXPAND_Y * 2,
+                  }}
+                >
+                  {/* Vertical spike line - follows mouse X position */}
+                  <line
+                    x1={`${(mouseX * SPIKE_LINE_SCALE_X + SPIKE_LINE_OFFSET_X) * 100}%`}
+                    y1="0%"
+                    x2={`${(mouseX * SPIKE_LINE_SCALE_X + SPIKE_LINE_OFFSET_X) * 100}%`}
+                    y2="100%"
+                    stroke="#6b7280"
+                    strokeWidth="0.5"
+                    strokeDasharray="4,2"
+                    opacity="0.8"
+                  />
+                  {/* Horizontal spike line - follows mouse Y position */}
+                  <line
+                    x1="0%"
+                    y1={`${(mouseY * SPIKE_LINE_SCALE_Y + SPIKE_LINE_OFFSET_Y) * 100}%`}
+                    x2="100%"
+                    y2={`${(mouseY * SPIKE_LINE_SCALE_Y + SPIKE_LINE_OFFSET_Y) * 100}%`}
+                    stroke="#6b7280"
+                    strokeWidth="0.5"
+                    strokeDasharray="4,2"
+                    opacity="0.8"
+                  />
+                </svg>
+              )}
 
               {/* Tooltip components are now handled by the hooks */}
             </div>
