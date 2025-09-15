@@ -565,7 +565,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       font: { color: '#d1d5db' },
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
-      hovermode: false,
+      hovermode: 'x unified' as const,
       // Configure hover line and spike appearance
       shapes: [
         // Bottom border line
