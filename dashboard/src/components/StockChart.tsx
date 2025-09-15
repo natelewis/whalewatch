@@ -638,8 +638,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 style.textContent = `
                   .plotly .hoverlayer .spikeline {
                     stroke-width: 0.5px !important;
-                    stroke: #6b7280 !important;
-                    stroke-dasharray: 2,2 !important;
+                    stroke: #d1d5db !important;
+                    stroke-dasharray: 4,2 !important;
                   }
                   .plotly .hoverlayer .spikeline:hover {
                     stroke-width: 0.5px !important;
