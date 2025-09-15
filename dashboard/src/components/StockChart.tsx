@@ -449,9 +449,11 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         spikethickness: 0.5,
         spikedash: [2, 2],
         showticklabels: true,
-        ticklen: 0,
-        tickwidth: 0,
+        ticklen: 8, // Length of tick marks extending outward
+        tickwidth: 1,
+        tickcolor: '#6b7280',
         zeroline: false,
+        mirror: false, // Don't mirror ticks on opposite side
       },
       yaxis: {
         color: '#d1d5db',
@@ -465,9 +467,11 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         side: 'right',
         showgrid: false,
         showticklabels: true,
-        ticklen: 0,
-        tickwidth: 0,
+        ticklen: 8, // Length of tick marks extending outward
+        tickwidth: 1,
+        tickcolor: '#6b7280',
         zeroline: false,
+        mirror: false, // Don't mirror ticks on opposite side
       },
       plot_bgcolor: 'transparent',
       paper_bgcolor: 'transparent',
@@ -512,65 +516,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             width: 1,
           },
         },
-        // X-axis tick nubs
-        ...(chartData.length > 0
-          ? getTimeAxisTicks(chartData).map((tickIndex) => {
-              const sortedData = [...chartData].sort(
-                (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-              );
-              const totalPoints = sortedData.length;
-              const xPosition = tickIndex / (totalPoints - 1);
-
-              return {
-                type: 'line',
-                x0: xPosition,
-                y0: 0,
-                x1: xPosition,
-                y1: -0.01,
-                xref: 'paper',
-                yref: 'paper',
-                line: {
-                  color: '#6b7280',
-                  width: 1,
-                },
-              };
-            })
-          : []),
-        // Y-axis tick nubs (we'll add these dynamically based on the data range)
-        ...(chartData.length > 0
-          ? (() => {
-              const sortedData = [...chartData].sort(
-                (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-              );
-              const prices = sortedData.map((d) => d.close);
-              const minPrice = Math.min(...prices);
-              const maxPrice = Math.max(...prices);
-              const priceRange = maxPrice - minPrice;
-
-              // Generate 5-6 tick marks for Y axis
-              const numTicks = 6;
-              const tickPositions = [];
-              for (let i = 0; i < numTicks; i++) {
-                const price = minPrice + (priceRange * i) / (numTicks - 1);
-                const yPosition = (price - minPrice) / priceRange;
-                tickPositions.push({ price, yPosition });
-              }
-
-              return tickPositions.map(({ price, yPosition }) => ({
-                type: 'line',
-                x0: 1,
-                y0: yPosition,
-                x1: 1.01,
-                y1: yPosition,
-                xref: 'paper',
-                yref: 'paper',
-                line: {
-                  color: '#6b7280',
-                  width: 1,
-                },
-              }));
-            })()
-          : []),
       ],
       annotations:
         hoveredDate && hoveredX !== null
