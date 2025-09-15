@@ -300,6 +300,7 @@ export interface ChartDataResponse {
   symbol: string;
   interval: string;
   data_points: number;
+  buffer_points?: number;
   bars: AlpacaBar[];
   data_source: string;
   success: boolean;
@@ -307,6 +308,7 @@ export interface ChartDataResponse {
     end_time: string;
     interval: string;
     requested_data_points: number;
+    buffer_points?: number;
   };
   actual_data_range?: {
     earliest: string;

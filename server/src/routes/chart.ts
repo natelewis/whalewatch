@@ -28,6 +28,7 @@ interface ChartQueryParams {
   endTime: string; // ISO timestamp
   interval: AggregationInterval;
   dataPoints: number; // Number of data points to return
+  bufferPoints?: number; // Additional buffer points to load
 }
 
 /**
@@ -45,8 +46,8 @@ function aggregateDataWithIntervals(
   params: ChartQueryParams
 ): QuestDBStockAggregate[] {
   if (data.length === 0) {
-return data;
-}
+    return data;
+  }
 
   const intervalMinutes = getIntervalMinutes(params.interval);
   const intervalMs = intervalMinutes * 60 * 1000;
@@ -83,10 +84,12 @@ return data;
     .filter(([bucketTime]) => bucketTime <= endTime); // Only include buckets up to end time
 
   let dataPointsCollected = 0;
+  const totalPointsToCollect = params.dataPoints + (params.bufferPoints || 0);
+
   for (const [bucketTime, bucketData] of sortedBuckets) {
-    if (dataPointsCollected >= params.dataPoints) {
-break;
-}
+    if (dataPointsCollected >= totalPointsToCollect) {
+      break;
+    }
 
     if (bucketData.length > 0) {
       const aggregated = aggregateGroup(bucketData);
@@ -139,6 +142,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       end_time,
       interval = '1h',
       data_points = process.env.DEFAULT_CHART_DATA_POINTS || '80',
+      buffer_points,
     } = req.query;
 
     if (!symbol) {
@@ -164,6 +168,11 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'data_points must be a positive integer' });
     }
 
+    const bufferPoints = buffer_points ? parseInt(buffer_points as string, 10) : 0;
+    if (bufferPoints < 0) {
+      return res.status(400).json({ error: 'buffer_points must be a non-negative integer' });
+    }
+
     // Validate end_time format
     const endTime = new Date(end_time as string);
     if (isNaN(endTime.getTime())) {
@@ -174,10 +183,13 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       endTime: endTime.toISOString(),
       interval: intervalKey,
       dataPoints: dataPoints,
+      bufferPoints: bufferPoints,
     };
 
     console.log(
-      `🔍 DEBUG: Querying ${symbol} up to ${endTime.toISOString()} with ${intervalKey} intervals, requesting ${dataPoints} data points`
+      `🔍 DEBUG: Querying ${symbol} up to ${endTime.toISOString()} with ${intervalKey} intervals, requesting ${dataPoints} data points${
+        bufferPoints > 0 ? ` + ${bufferPoints} buffer points` : ''
+      }`
     );
 
     // Get aggregates from QuestDB - only specify end_time, let QuestDB return all available data up to that point
@@ -271,6 +283,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       symbol: symbol.toUpperCase(),
       interval: intervalKey,
       data_points: dataPoints,
+      buffer_points: bufferPoints,
       bars,
       data_source: 'questdb',
       success: true,
@@ -278,6 +291,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
         end_time: chartParams.endTime,
         interval: chartParams.interval,
         requested_data_points: chartParams.dataPoints,
+        buffer_points: chartParams.bufferPoints,
       },
       actual_data_range:
         aggregatedData.length > 0

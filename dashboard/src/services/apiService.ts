@@ -69,7 +69,8 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       symbol: string,
       interval: string = '1h',
       dataPoints: number = DEFAULT_CHART_DATA_POINTS,
-      endTime?: string
+      endTime?: string,
+      bufferPoints?: number
     ): Promise<ChartDataResponse> {
       const params: Record<string, string> = {
         interval,
@@ -81,6 +82,10 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       } else {
         // Use current time as default end time
         params.end_time = new Date().toISOString();
+      }
+
+      if (bufferPoints && bufferPoints > 0) {
+        params.buffer_points = bufferPoints.toString();
       }
 
       const response = await api.get(`/api/chart/${symbol}`, { params });
@@ -151,7 +156,8 @@ export const apiService = {
     symbol: string,
     interval: string = '1h',
     dataPoints: number = DEFAULT_CHART_DATA_POINTS,
-    endTime?: string
+    endTime?: string,
+    bufferPoints?: number
   ): Promise<ChartDataResponse> {
     const params: Record<string, string> = {
       interval,
@@ -163,6 +169,10 @@ export const apiService = {
     } else {
       // Use current time as default end time
       params.end_time = new Date().toISOString();
+    }
+
+    if (bufferPoints && bufferPoints > 0) {
+      params.buffer_points = bufferPoints.toString();
     }
 
     const response = await api.get(`/api/chart/${symbol}`, { params });

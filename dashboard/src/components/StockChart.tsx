@@ -90,6 +90,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   const [currentRange, setCurrentRange] = useState<[number, number] | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
 
+  // Continuous data loading state
+  const [lastScrollTime, setLastScrollTime] = useState<number>(0);
+  const [isNearLeftBoundary, setIsNearLeftBoundary] = useState(false);
+  const [isNearRightBoundary, setIsNearRightBoundary] = useState(false);
+  const BUFFER_THRESHOLD = 0.1; // 10% from the edge triggers loading
+  const SCROLL_DEBOUNCE_MS = 100; // Debounce scroll events
+
   // Reset zoom and pan
   const resetZoomAndPan = useCallback(() => {
     setCurrentRange(null);
@@ -115,6 +122,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   // Chart data management
   const chartDataHook = useChartData({
     timeframes,
+    bufferPoints: 20, // Load 20 buffer points on each side
     onDataLoaded: (data, range) => {
       // Data loaded callback - could be used for additional processing
     },
@@ -122,6 +130,63 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       // Error callback - could be used for additional error handling
     },
   });
+
+  // Check if we're near boundaries and trigger data loading
+  const checkBoundariesAndLoadData = useCallback(() => {
+    if (!chartDataHook.chartData.length || !timeframe || !symbol) return;
+
+    // Don't check if already loading
+    if (chartDataHook.isLeftLoading || chartDataHook.isRightLoading) return;
+
+    const sortedData = [...chartDataHook.chartData].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+    const totalPoints = sortedData.length;
+
+    if (totalPoints === 0) return;
+
+    // Get current range or use full range
+    const currentXRange = currentRange || [0, totalPoints - 1];
+    const leftPosition = currentXRange[0];
+    const rightPosition = currentXRange[1];
+
+    // Check if we're near the left boundary (need more historical data)
+    const leftThreshold = totalPoints * BUFFER_THRESHOLD;
+    const nearLeft = leftPosition <= leftThreshold;
+
+    // Check if we're near the right boundary (need more recent data)
+    const rightThreshold = totalPoints - totalPoints * BUFFER_THRESHOLD;
+    const nearRight = rightPosition >= rightThreshold;
+
+    // Update boundary states
+    setIsNearLeftBoundary(nearLeft);
+    setIsNearRightBoundary(nearRight);
+
+    // Only trigger loading if we're near boundaries and haven't loaded recently
+    const now = Date.now();
+    if (nearLeft && now - lastScrollTime > 2000 && !isNearLeftBoundary) {
+      // 2 second cooldown and not already near left boundary
+      console.log('Loading more data to the left...');
+      chartDataHook.loadMoreDataLeft(symbol, timeframe);
+      setLastScrollTime(now); // Update scroll time to prevent immediate re-trigger
+    }
+
+    if (nearRight && now - lastScrollTime > 2000 && !isNearRightBoundary) {
+      // 2 second cooldown and not already near right boundary
+      console.log('Loading more data to the right...');
+      chartDataHook.loadMoreDataRight(symbol, timeframe);
+      setLastScrollTime(now); // Update scroll time to prevent immediate re-trigger
+    }
+  }, [
+    chartDataHook,
+    timeframe,
+    symbol,
+    currentRange,
+    BUFFER_THRESHOLD,
+    lastScrollTime,
+    isNearLeftBoundary,
+    isNearRightBoundary,
+  ]);
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -362,6 +427,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
       setCurrentRange([finalStart, finalEnd]);
       setZoomLevel(newZoomLevel);
+
+      // Update scroll time for debouncing
+      setLastScrollTime(Date.now());
     };
 
     const handleMouseDown = (event: MouseEvent) => {
@@ -411,6 +479,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       }
 
       setCurrentRange([newStart, newEnd]);
+
+      // Update scroll time for debouncing
+      setLastScrollTime(Date.now());
     };
 
     const handleMouseUp = () => {
@@ -458,7 +529,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         chartRef.querySelector('.js-plotly-plot .plot');
 
       if (!plotArea) {
-        console.log('Plot area not found, trying again...');
         return null;
       }
 
@@ -472,18 +542,19 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         height: rect.height,
       };
 
-      console.log('Chart bounds calculated:', bounds);
       return bounds;
     };
 
-    // Add a delay to ensure Plotly has rendered
+    // Add a longer delay and only calculate when chart data changes significantly
     const timeoutId = setTimeout(() => {
       const bounds = calculateBounds();
-      setChartBounds(bounds);
-    }, 100);
+      if (bounds) {
+        setChartBounds(bounds);
+      }
+    }, 300); // Increased delay
 
     return () => clearTimeout(timeoutId);
-  }, [chartRef, chartDataHook.chartData]);
+  }, [chartRef]); // Removed chartDataHook.chartData dependency
 
   // WebSocket for real-time chart data
   const chartWebSocket = useChartWebSocket({
@@ -505,6 +576,34 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       chartWebSocket.unsubscribeFromChartData();
     }
   }, [isLive]);
+
+  // Check boundaries when range changes (debounced) - only when user actually scrolls
+  useEffect(() => {
+    // Only check boundaries if we have a current range (user has scrolled)
+    if (currentRange) {
+      const timeoutId = setTimeout(() => {
+        checkBoundariesAndLoadData();
+      }, SCROLL_DEBOUNCE_MS);
+
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [currentRange, checkBoundariesAndLoadData, SCROLL_DEBOUNCE_MS]);
+
+  // Handle data changes and update range accordingly
+  useEffect(() => {
+    if (chartDataHook.chartData.length > 0 && currentRange) {
+      const sortedData = [...chartDataHook.chartData].sort(
+        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+      const totalPoints = sortedData.length;
+
+      // If current range is outside the new data bounds, reset it
+      if (currentRange[0] >= totalPoints || currentRange[1] >= totalPoints) {
+        setCurrentRange(null); // Reset to show full data
+      }
+    }
+  }, [chartDataHook.chartData, currentRange]);
 
   const plotlyData = useMemo(() => {
     if (chartDataHook.chartData.length === 0) {
@@ -716,11 +815,15 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         tickcolor: '#6b7280',
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
-        // Apply current range if available
-        ...(currentRange && {
-          range: currentRange,
-          fixedrange: false, // Allow zoom and pan
-        }),
+        // Apply current range if available, ensuring it's within bounds
+        ...(currentRange &&
+          chartDataHook.chartData.length > 0 && {
+            range: [
+              Math.max(0, Math.min(currentRange[0], chartDataHook.chartData.length - 1)),
+              Math.max(0, Math.min(currentRange[1], chartDataHook.chartData.length - 1)),
+            ],
+            fixedrange: false, // Allow zoom and pan
+          }),
       },
       yaxis: {
         color: '#d1d5db',
@@ -981,8 +1084,8 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   // Enable hover behavior
                   showTips: false,
                   showLink: false,
-                  // Ensure hover mode works properly
-                  doubleClick: 'reset+autosize',
+                  // Disable double-click reset to prevent snap-back
+                  doubleClick: false,
                   // Enable zoom and pan
                   scrollZoom: false, // We handle this manually
                   toImageButtonOptions: {
@@ -997,6 +1100,31 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                 useResizeHandler={true}
                 onHover={handlePlotlyHover}
                 onUnhover={handlePlotlyUnhover}
+                onUpdate={(figure, graphDiv) => {
+                  // Capture range changes from user interaction (slider, zoom, pan)
+                  if (figure.layout.xaxis && figure.layout.xaxis.range) {
+                    const newRange = figure.layout.xaxis.range;
+                    const totalPoints = chartDataHook.chartData.length;
+
+                    // Only update if the range is different and within bounds
+                    if (
+                      totalPoints > 0 &&
+                      (newRange[0] !== currentRange?.[0] || newRange[1] !== currentRange?.[1]) &&
+                      newRange[0] >= 0 &&
+                      newRange[1] <= totalPoints - 1 &&
+                      newRange[0] <= newRange[1] // Ensure valid range
+                    ) {
+                      console.log('Range update:', {
+                        newRange,
+                        totalPoints,
+                        currentRange,
+                        dataLength: chartDataHook.chartData.length,
+                      });
+                      setCurrentRange([Math.floor(newRange[0]), Math.floor(newRange[1])]);
+                      setLastScrollTime(Date.now());
+                    }
+                  }
+                }}
                 onInitialized={(figure, graphDiv) => {
                   // Add CSS to make spike lines thinner
                   const style = document.createElement('style');
@@ -1068,6 +1196,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
           <div className="flex items-center space-x-4">
             <span>Data points: {chartDataHook.chartData.length}</span>
             <span>Interval: {timeframe || 'Loading...'}</span>
+            {(chartDataHook.isLeftLoading || chartDataHook.isRightLoading) && (
+              <span className="text-blue-500 text-xs">
+                {chartDataHook.isLeftLoading && 'Loading historical data...'}
+                {chartDataHook.isRightLoading && 'Loading recent data...'}
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-2">
             <div
