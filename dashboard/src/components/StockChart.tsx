@@ -127,13 +127,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
   // Calculate topPrice and minPrice whenever chart data changes
   useEffect(() => {
-    console.log('Price calculation useEffect triggered:', {
-      chartDataLength: chartData.length,
-      chartData: chartData.slice(0, 3), // Show first 3 items for debugging
-    });
-
     if (chartData.length === 0) {
-      console.log('No chart data, setting prices to null');
       setTopPrice(null);
       setMinPrice(null);
       return;
@@ -149,11 +143,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       if (candle.low < lowest) lowest = candle.low;
     });
 
-    console.log('Price calculation results:', { highest, lowest });
-
     // Only update if we found valid values
     if (highest !== -Infinity && lowest !== Infinity) {
-      console.log('Setting prices:', { topPrice: highest, minPrice: lowest });
       setTopPrice(highest);
       setMinPrice(lowest);
     }
@@ -161,13 +152,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
   // Update effective dimensions when chart ref or chart data changes
   useEffect(() => {
-    console.log('Dimensions useEffect triggered:', {
-      chartRef: !!chartRef,
-      chartDataLength: chartData.length,
-    });
-
     if (!chartRef) {
-      console.log('No chart ref, setting dimensions to null');
       setEffectiveHeight(null);
       setEffectiveWidth(null);
       return;
@@ -176,52 +161,19 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     // Add a small delay to ensure Plotly has rendered
     const timeoutId = setTimeout(() => {
       const plotArea = chartRef.querySelector('.nsewdrag.drag');
-      console.log('Plot area found:', !!plotArea);
 
-      // Debug: Let's see what elements are available
-      const allElements = chartRef.querySelectorAll('*');
-      console.log(
-        'All elements in chartRef:',
-        Array.from(allElements).map((el) => el.className)
-      );
-
-      // Try alternative selectors
-      const alternativeSelectors = [
-        '.nsewdrag.drag',
-        '.nsewdrag',
-        '.drag',
-        '.plotly .nsewdrag.drag',
-        '.plotly .nsewdrag',
-        '[class*="nsewdrag"]',
-        '[class*="drag"]',
-      ];
-
-      let foundPlotArea = plotArea;
-      for (const selector of alternativeSelectors) {
-        const element = chartRef.querySelector(selector);
-        if (element) {
-          console.log('Found element with selector:', selector, element);
-          foundPlotArea = element;
-          break;
-        }
-      }
-
-      if (!foundPlotArea) {
-        console.log('No plot area found with any selector, setting dimensions to null');
+      if (!plotArea) {
         setEffectiveHeight(null);
         setEffectiveWidth(null);
         return;
       }
 
-      const rect = foundPlotArea.getBoundingClientRect();
+      const rect = plotArea.getBoundingClientRect();
       const chartRect = chartRef.getBoundingClientRect();
-      console.log('Plot area rect:', rect);
-      console.log('Chart ref rect:', chartRect);
 
       const height = rect.height || chartRect.height || null;
       const width = rect.width || chartRect.width || null;
 
-      console.log('Setting dimensions:', { height, width });
       setEffectiveHeight(height);
       setEffectiveWidth(width);
     }, 100); // 100ms delay to ensure Plotly has rendered
@@ -267,20 +219,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         // Skip if mouse Y hasn't changed much (reduce unnecessary updates)
         if (Math.abs(y - lastMouseY) < 1) return;
         lastMouseY = y;
-
-        // Debug: Log all the values we're checking
-        console.log('Debug values:', {
-          effectiveHeight,
-          effectiveWidth,
-          topPrice,
-          minPrice,
-          x,
-          y,
-          xInRange: x >= 0 && x <= (effectiveWidth || 0),
-          yInRange: y >= 0 && y <= (effectiveHeight || 0),
-          chartDataLength: chartData.length,
-        });
-
         // Check if mouse is within the plot area and we have valid dimensions
         if (
           effectiveHeight &&
@@ -290,7 +228,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           y >= 0 &&
           y <= effectiveHeight
         ) {
-          console.log('Mouse in plot area, calculating price from Y position...');
           // Calculate the actual price at the mouse Y position on the spike line
           if (topPrice !== null && minPrice !== null) {
             // Convert mouse Y position to actual price value using the proper formula
@@ -327,7 +264,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             // Update state for consistency (throttled)
             setHoveredY(mousePrice);
             setHoveredPrice(mousePrice);
-            console.log('Mouse price:', mousePrice);
           }
         }
       });
