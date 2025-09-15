@@ -662,13 +662,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
                     if (xIndex < sortedData.length) {
                       const hoveredTime = sortedData[xIndex].time;
-                      const formattedDate = new Date(hoveredTime).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      });
+                      const date = new Date(hoveredTime);
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const day = String(date.getDate()).padStart(2, '0');
+                      const year = date.getFullYear();
+                      const hours = String(date.getHours()).padStart(2, '0');
+                      const minutes = String(date.getMinutes()).padStart(2, '0');
+                      const formattedDate = `${month}-${day}-${year} ${hours}:${minutes}`;
 
                       setHoveredDate(formattedDate);
                       // Use the actual x value from the hover event for more accurate positioning
