@@ -288,6 +288,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
           // Add invisible scatter overlay for hover detection on candlestick charts
+          // This is a known workaround for Plotly candlestick hover issues
           {
             type: 'scatter' as const,
             mode: 'lines' as const,
@@ -296,9 +297,15 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             line: { width: 0, color: 'transparent' },
             opacity: 0,
             showlegend: false,
-            hoverinfo: 'skip' as const,
+            hoverinfo: 'none' as const,
+            // Enable hover detection but don't show tooltip for this trace
+            hoveron: 'points' as const,
+            connectgaps: true, // Connect gaps to ensure continuous hover detection
             // This invisible line enables hover detection across the entire chart
-            connectgaps: false,
+            name: `${symbol}_hover_overlay`,
+            // Add fill to cover more area for hover detection
+            fill: 'tonexty' as const,
+            fillcolor: 'transparent',
           },
         ];
 
@@ -468,7 +475,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       shapes: [],
       annotations: [],
       hoverdistance: 20,
-      spikedistance: 20,
+      spikedistance: -1, // Use -1 for better spike line behavior
     };
 
     // Let Plotly auto-scale to show the actual data points with natural gaps
