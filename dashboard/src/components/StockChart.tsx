@@ -57,6 +57,19 @@ const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
   return intervalMap[timeframe] || 60;
 };
 
+// Helper function to get effective height using the simplified method
+const getEffectiveHeight = (chartRef: HTMLDivElement | null): number | undefined => {
+  if (!chartRef) return undefined;
+  
+  const plotArea = chartRef.querySelector('.nsewdrag.drag');
+  if (plotArea) {
+    const rect = plotArea.getBoundingClientRect();
+    return rect.height || undefined;
+  }
+  
+  return undefined;
+};
+
 export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
@@ -76,7 +89,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const [yAxisRange, setYAxisRange] = useState<{
     paddedYMin: number;
     paddedYMax: number;
-    effectiveHeight: number;
+    effectiveHeight: number | undefined;
   } | null>(null);
 
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
@@ -146,18 +159,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           const paddedYMin = yaxis.range[0];
           const paddedYMax = yaxis.range[1];
 
-          // Get effective height from the plot area
-          const plotArea =
-            chartRef.querySelector('.plotly .plot') ||
-            chartRef.querySelector('.plotly') ||
-            chartRef.querySelector('[data-testid="plot"]') ||
-            chartRef.querySelector('.js-plotly-plot');
-
-          let effectiveHeight = 400; // fallback
-          if (plotArea) {
-            const rect = plotArea.getBoundingClientRect();
-            effectiveHeight = rect.height || chartRef.getBoundingClientRect().height || 400;
-          }
+          // Get effective height using simplified method
+          const effectiveHeight = getEffectiveHeight(chartRef);
 
           setYAxisRange({ paddedYMin, paddedYMax, effectiveHeight });
           console.log('Got Plotly y-axis range:', { paddedYMin, paddedYMax, effectiveHeight });
@@ -184,17 +187,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           const paddedYMin = yMin - padding;
           const paddedYMax = yMax + padding;
 
-          const plotArea =
-            chartRef.querySelector('.plotly .plot') ||
-            chartRef.querySelector('.plotly') ||
-            chartRef.querySelector('[data-testid="plot"]') ||
-            chartRef.querySelector('.js-plotly-plot');
-
-          let effectiveHeight = 400;
-          if (plotArea) {
-            const rect = plotArea.getBoundingClientRect();
-            effectiveHeight = rect.height || chartRef.getBoundingClientRect().height || 400;
-          }
+          // Get effective height using simplified method
+          const effectiveHeight = getEffectiveHeight(chartRef);
 
           setYAxisRange({ paddedYMin, paddedYMax, effectiveHeight });
           console.log('Fallback calculated y-axis range:', {
@@ -277,7 +271,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           console.log('Plotly hover price:', yValue, 'Formatted:', yValue.toFixed(4));
 
           // Position the tooltip at the correct Y position based on the data point
-          if (chartRef && yAxisRange) {
+          if (chartRef && yAxisRange && yAxisRange.effectiveHeight) {
             const chartRect = chartRef.getBoundingClientRect();
             const rightEdge = chartRect.right - 48; // Position closer to the right edge
 
@@ -331,14 +325,11 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
-      
+
       animationFrameId = requestAnimationFrame(() => {
-        // Cache plot area on first access
+        // Cache plot area on first access using simplified method
         if (!plotArea) {
-          plotArea = chartRef.querySelector('.plotly .plot') || 
-                    chartRef.querySelector('.plotly') ||
-                    chartRef.querySelector('[data-testid="plot"]') ||
-                    chartRef.querySelector('.js-plotly-plot');
+          plotArea = chartRef.querySelector('.nsewdrag.drag');
         }
 
         if (!plotArea) return;
@@ -351,18 +342,12 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         if (Math.abs(y - lastMouseY) < 1) return;
         lastMouseY = y;
 
-        // If rect height is 0, try to get dimensions from the parent or use chart ref dimensions
-        let effectiveHeight = rect.height;
-        let effectiveWidth = rect.width;
+        // Get effective height using simplified method
+        const effectiveHeight = getEffectiveHeight(chartRef);
+        const effectiveWidth = rect.width || chartRef.getBoundingClientRect().width;
 
-        if (effectiveHeight === 0 || effectiveWidth === 0) {
-          const chartRect = chartRef.getBoundingClientRect();
-          effectiveHeight = chartRect.height;
-          effectiveWidth = chartRect.width;
-        }
-
-        // Check if mouse is within the plot area
-        if (x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
+        // Check if mouse is within the plot area and we have a valid height
+        if (effectiveHeight && x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
           // Calculate the actual price at the mouse Y position on the spike line
           if (yAxisRange) {
             const { paddedYMin, paddedYMax } = yAxisRange;
@@ -411,7 +396,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
       }
-      
+
       // Add a small delay before clearing to prevent flickering
       setTimeout(() => {
         setHoveredY(null);
