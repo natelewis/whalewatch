@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
+
+// Extend window to include Plotly
+declare global {
+  interface Window {
+    Plotly: any;
+  }
+}
 import {
   AlpacaBar,
   ChartTimeframe,
@@ -273,12 +280,25 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             showlegend: false,
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
-              'Time: %{customdata}<br>' +
+              '<b>Time: %{customdata}</b><br>' +
               'Open: $%{open}<br>' +
               'High: $%{high}<br>' +
               'Low: $%{low}<br>' +
               'Close: $%{close}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
+          },
+          // Add invisible scatter overlay for hover detection on candlestick charts
+          {
+            type: 'scatter' as const,
+            mode: 'lines' as const,
+            x: x,
+            y: sortedData.map((d) => d.close),
+            line: { width: 0, color: 'transparent' },
+            opacity: 0,
+            showlegend: false,
+            hoverinfo: 'skip' as const,
+            // This invisible line enables hover detection across the entire chart
+            connectgaps: false,
           },
         ];
 
@@ -293,7 +313,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             name: symbol,
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
-              'Time: %{customdata}<br>' +
+              '<b>Time: %{customdata}</b><br>' +
               'Price: $%{y}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
@@ -309,7 +329,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             name: symbol,
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
-              'Time: %{customdata}<br>' +
+              '<b>Time: %{customdata}</b><br>' +
               'Price: $%{y}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
@@ -328,7 +348,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             name: symbol,
             hovertemplate:
               '<b>%{fullData.name}</b><br>' +
-              'Time: %{customdata}<br>' +
+              '<b>Time: %{customdata}</b><br>' +
               'Price: $%{y}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
@@ -413,11 +433,23 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         tickvals: chartData.length > 0 ? getTimeAxisTicks(chartData) : [],
         ticktext: chartData.length > 0 ? getTimeAxisLabels(chartData) : [],
         tickangle: 0,
+        showspikes: true,
+        spikecolor: '#6b7280',
+        spikesnap: 'cursor',
+        spikemode: 'across',
+        spikethickness: 1,
+        spikedash: 'dot',
       },
       yaxis: {
         gridcolor: '#374151',
         color: '#d1d5db',
         title: { text: 'Price', font: { color: '#d1d5db' } },
+        showspikes: true,
+        spikecolor: '#6b7280',
+        spikesnap: 'cursor',
+        spikemode: 'across',
+        spikethickness: 1,
+        spikedash: 'dot',
       },
       plot_bgcolor: 'transparent',
       paper_bgcolor: 'transparent',
@@ -425,6 +457,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
       hovermode: 'x unified' as const,
+      hoverlabel: {
+        bgcolor: 'rgba(0, 0, 0, 0.8)',
+        bordercolor: '#374151',
+        font: { color: '#d1d5db', size: 12 },
+        namelength: -1,
+        align: 'left',
+      },
+      // Configure hover line and spike appearance
+      shapes: [],
+      annotations: [],
+      hoverdistance: 20,
+      spikedistance: 20,
     };
 
     // Let Plotly auto-scale to show the actual data points with natural gaps
@@ -555,9 +599,58 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 displaylogo: false,
                 modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
                 responsive: true,
+                // Enable hover behavior
+                showTips: true,
+                showLink: false,
+                // Ensure hover mode works properly
+                doubleClick: 'reset+autosize',
+                toImageButtonOptions: {
+                  format: 'png',
+                  filename: 'chart',
+                  height: 500,
+                  width: 700,
+                  scale: 1,
+                },
               }}
               style={{ width: '100%', height: '100%' }}
               useResizeHandler={true}
+              onHover={(event) => {
+                // Handle hover events - this should work for all chart types
+                if (event && event.points && event.points.length > 0) {
+                  console.log('Hover event triggered:', event.points[0]);
+                }
+              }}
+              onInitialized={(figure, graphDiv) => {
+                // Set up hover behavior to work anywhere on the chart
+                if (graphDiv) {
+                  // Add mouse move event listener to the plot div
+                  const plotDiv = graphDiv as HTMLElement;
+
+                  const handleMouseMove = (event: MouseEvent) => {
+                    // Get mouse position relative to the plot
+                    const rect = plotDiv.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const y = event.clientY - rect.top;
+
+                    // Trigger Plotly's hover programmatically
+                    if (window.Plotly) {
+                      // Use the standard hover method - should work with the invisible overlay
+                      window.Plotly.Fx.hover(plotDiv, {
+                        x: x,
+                        y: y,
+                      });
+                    }
+                  };
+
+                  plotDiv.addEventListener('mousemove', handleMouseMove);
+
+                  // Cleanup function
+                  return () => {
+                    plotDiv.removeEventListener('mousemove', handleMouseMove);
+                  };
+                }
+                return undefined;
+              }}
             />
           </div>
         )}
