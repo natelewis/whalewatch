@@ -253,8 +253,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
   const handlePlotlyUnhover = useCallback(() => {
     setHoveredDate(null);
-    setMouseX(null);
-    setMouseY(null);
+    // Don't clear mouseX/mouseY here - we handle mouse tracking separately
     setDataPointIndex(null);
     setHoveredOHLC(null);
   }, []);
@@ -263,9 +262,15 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   useEffect(() => {
     if (!chartRef) return;
 
+    // Debug: Log when mouseX/mouseY state changes
+    console.log('🔄 Mouse state changed:', { mouseX, mouseY });
+
     const handleMouseMove = (event: MouseEvent) => {
       const plotArea = chartRef.querySelector('.nsewdrag.drag');
-      if (!plotArea) return;
+      if (!plotArea) {
+        console.log('🚫 Spike lines removed: plotArea not found');
+        return;
+      }
 
       const rect = plotArea.getBoundingClientRect();
       const containerRect = chartRef.getBoundingClientRect();
@@ -288,16 +293,40 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       const relativeX = (plotAreaLeft + mouseXPos - virtualBoxLeft) / virtualBoxWidth;
       const relativeY = (plotAreaTop + mouseYPos - virtualBoxTop) / virtualBoxHeight;
 
+      // Debug logging for coordinate calculation
+      console.log('🖱️ Mouse move debug:', {
+        mousePos: { x: event.clientX, y: event.clientY },
+        plotAreaRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        containerRect: {
+          left: containerRect.left,
+          top: containerRect.top,
+          width: containerRect.width,
+          height: containerRect.height,
+        },
+        mouseXPos,
+        mouseYPos,
+        relativeX,
+        relativeY,
+        isFiniteX: isFinite(relativeX),
+        isFiniteY: isFinite(relativeY),
+      });
+
       // Always set coordinates if they're finite, clamp them to 0-1 range
       if (isFinite(relativeX) && isFinite(relativeY)) {
         const clampedX = Math.max(0, Math.min(1, relativeX));
         const clampedY = Math.max(0, Math.min(1, relativeY));
+        console.log('📝 Setting mouse state:', { x: clampedX, y: clampedY });
         setMouseX(clampedX);
         setMouseY(clampedY);
+        console.log('✅ Spike lines updated:', { x: clampedX, y: clampedY });
+      } else {
+        console.log('🚫 Spike lines removed: Invalid coordinates', { relativeX, relativeY });
       }
     };
 
     const handleMouseLeave = () => {
+      console.log('🚫 Spike lines removed: Mouse left chart container');
+      console.log('📝 Clearing mouse state');
       setMouseX(null);
       setMouseY(null);
     };
@@ -923,6 +952,25 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   />
                 </svg>
               )}
+              {/* Debug: Show current state */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  background: 'rgba(0,0,0,0.8)',
+                  color: 'white',
+                  padding: '5px',
+                  fontSize: '12px',
+                  zIndex: 1000,
+                }}
+              >
+                Mouse: {mouseX?.toFixed(3)}, {mouseY?.toFixed(3)}
+                <br />
+                ChartBounds: {chartBounds ? 'OK' : 'NULL'}
+                <br />
+                Should show: {mouseX !== null && mouseY !== null ? 'YES' : 'NO'}
+              </div>
 
               {/* Tooltip components are now handled by the hooks */}
             </div>
