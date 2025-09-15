@@ -188,14 +188,17 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           const adjustedY = Math.max(0, y - yOffset);
           const dataY = paddedYMax - (adjustedY / stableHeight) * (paddedYMax - paddedYMin);
 
+          // Round to 2 decimal places for consistency
+          const roundedDataY = Math.round(dataY * 100) / 100;
+
           // Update hover state
-          const tolerance = 0.5; // Smaller tolerance for more precision
-          const yChanged = lastY === null || Math.abs(lastY - dataY) > tolerance;
+          const tolerance = 0.0; // Very small tolerance for maximum precision
+          const yChanged = lastY === null || Math.abs(lastY - roundedDataY) > tolerance;
 
           if (yChanged) {
             console.log(
               'Custom mouse move - updating price:',
-              dataY.toFixed(2),
+              roundedDataY.toFixed(2),
               'from y:',
               y,
               'stableHeight:',
@@ -203,9 +206,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
               'currentHeight:',
               effectiveHeight
             );
-            lastY = dataY;
-            setHoveredY(dataY);
-            setHoveredPrice(dataY);
+            lastY = roundedDataY;
+            setHoveredY(roundedDataY);
+            setHoveredPrice(roundedDataY);
           }
         }
       }
@@ -686,7 +689,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 y: hoveredPrice,
                 xref: 'paper',
                 yref: 'y',
-                text: `$${hoveredPrice.toFixed(2)}`,
+                text: hoveredPrice.toFixed(2),
                 showarrow: true,
                 arrowhead: 0,
                 arrowcolor: '#6b7280',
