@@ -14,15 +14,12 @@ import {
   ChartDataResponse,
   DEFAULT_CHART_DATA_POINTS,
 } from '../types';
-import { apiService } from '../services/apiService';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { usePriceTooltip } from '../hooks/usePriceTooltip';
-import { useDateTooltip } from '../hooks/useDateTooltip';
 import { useMouseHover } from '../hooks/useMouseHover';
 import { useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
-import { PriceTooltip, DateTooltip } from './tooltips';
-import { CandlestickData, DataRange, TimeframeConfig } from '../utils/chartDataUtils';
+import { TimeframeConfig } from '../utils/chartDataUtils';
 import {
   BarChart3,
   LineChart,
@@ -71,7 +68,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
   // Hover state for time tooltip at bottom
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
-  const [hoveredX, setHoveredX] = useState<number | null>(null);
   const [mouseX, setMouseX] = useState<number | null>(null);
 
   // Define timeframes array early - memoized to prevent unnecessary re-renders
@@ -180,20 +176,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     return () => clearTimeout(timeoutId);
   }, [chartRef, chartDataHook.chartData]);
 
-  // Use the new modular hooks for tooltip functionality
+  // Use the price tooltip hook
   const priceTooltip = usePriceTooltip({
     chartRef,
     topPrice,
     minPrice,
     effectiveHeight,
     effectiveWidth,
-    enabled: true,
-  });
-
-  const dateTooltip = useDateTooltip({
-    chartRef,
-    chartData: chartDataHook.chartData,
-    timeframe,
     enabled: true,
   });
 
@@ -229,7 +218,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             const formattedDate = `${month}-${day}-${year} ${hours}:${minutes}`;
 
             setHoveredDate(formattedDate);
-            setHoveredX(xValue); // Use the actual x-value from the point
           }
         }
       }
@@ -239,7 +227,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
   const handlePlotlyUnhover = useCallback(() => {
     setHoveredDate(null);
-    setHoveredX(null);
     setMouseX(null);
   }, []);
 
@@ -595,7 +582,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, chartDataHook.dataRange, hoveredDate, hoveredX, mouseX]);
+  }, [symbol, timeframe, chartDataHook.dataRange, hoveredDate, mouseX]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
     { value: 'line', label: 'Line', icon: <LineChart className="h-4 w-4" /> },
