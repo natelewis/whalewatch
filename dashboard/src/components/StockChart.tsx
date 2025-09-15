@@ -48,6 +48,10 @@ const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
 
 // Plotly internal padding constant
 const PLOTLY_INTERNAL_PADDING = 35; // 15px top + 15px bottom
+const PLOTLY_PADDING_LEFT = 35;
+const PLOTLY_PADDING_TOP = 35;
+const PLOTLY_PADDING_WIDTH = 35;
+const PLOTLY_PADDING_HEIGHT = 35;
 
 const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
@@ -258,20 +262,55 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       if (!plotArea) return;
 
       const rect = plotArea.getBoundingClientRect();
+      const containerRect = chartRef.getBoundingClientRect();
+
+      // Calculate mouse position relative to the plot area
       const mouseXPos = event.clientX - rect.left;
       const mouseYPos = event.clientY - rect.top;
 
-      // Account for Plotly's internal padding
-      // Plotly adds internal margins to the plot area
-      const plotlyPadding = 50; // Adjust this value based on your chart margins
-      const adjustedWidth = rect.width - plotlyPadding;
-      const adjustedHeight = rect.height - plotlyPadding;
+      // Check if mouse is within the plot area
+      if (mouseXPos < 0 || mouseXPos > rect.width || mouseYPos < 0 || mouseYPos > rect.height) {
+        setMouseX(null);
+        setMouseY(null);
+        return;
+      }
 
-      // Convert mouse position to paper coordinates (0 to 1) accounting for padding
-      const paperX = Math.max(0, Math.min(1, (mouseXPos - plotlyPadding / 2) / adjustedWidth));
-      const paperY = Math.max(0, Math.min(1, (mouseYPos - plotlyPadding / 2) / adjustedHeight));
-      setMouseX(paperX);
-      setMouseY(paperY);
+      // Convert plot area coordinates to container coordinates
+      const plotAreaLeft = rect.left - containerRect.left;
+      const plotAreaTop = rect.top - containerRect.top;
+
+      // Convert to relative coordinates (0-1) within the container
+      const relativeX = (plotAreaLeft + mouseXPos) / containerRect.width;
+      const relativeY = (plotAreaTop + mouseYPos) / containerRect.height;
+
+      // Debug the calculation
+      console.log('Mouse calculation debug:', {
+        mouseXPos,
+        mouseYPos,
+        plotAreaLeft,
+        plotAreaTop,
+        containerRect: { width: containerRect.width, height: containerRect.height },
+        rect: { width: rect.width, height: rect.height },
+        relativeX,
+        relativeY,
+      });
+
+      // Validate coordinates before setting
+      if (
+        isFinite(relativeX) &&
+        isFinite(relativeY) &&
+        relativeX >= 0 &&
+        relativeX <= 1 &&
+        relativeY >= 0 &&
+        relativeY <= 1
+      ) {
+        setMouseX(relativeX);
+        setMouseY(relativeY);
+      } else {
+        console.log('Invalid coordinates detected, clearing');
+        setMouseX(null);
+        setMouseY(null);
+      }
     };
 
     const handleMouseLeave = () => {
@@ -289,30 +328,68 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   }, [chartRef]);
 
   // Calculate chart area bounds for spike line positioning
-  const chartBounds = useMemo(() => {
-    if (!chartRef) return null;
+  const [chartBounds, setChartBounds] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
-    const plotArea = chartRef.querySelector('.nsewdrag.drag');
-    if (!plotArea) return null;
+  useEffect(() => {
+    if (!chartRef) return;
 
-    const rect = plotArea.getBoundingClientRect();
-    const containerRect = chartRef.getBoundingClientRect();
+    const calculateBounds = () => {
+      // Try multiple selectors to find the plot area
+      const plotArea =
+        chartRef.querySelector('.nsewdrag.drag') ||
+        chartRef.querySelector('.plotly .plot') ||
+        chartRef.querySelector('.js-plotly-plot .plot');
 
-    return {
-      left: rect.left - containerRect.left,
-      top: rect.top - containerRect.top,
-      width: rect.width,
-      height: rect.height,
+      if (!plotArea) {
+        console.log('Plot area not found, trying again...');
+        return null;
+      }
+
+      const rect = plotArea.getBoundingClientRect();
+      const containerRect = chartRef.getBoundingClientRect();
+
+      const bounds = {
+        left: rect.left - containerRect.left,
+        top: rect.top - containerRect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+
+      console.log('Chart bounds calculated:', bounds);
+      return bounds;
     };
+
+    // Add a delay to ensure Plotly has rendered
+    const timeoutId = setTimeout(() => {
+      const bounds = calculateBounds();
+      setChartBounds(bounds);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [chartRef, chartDataHook.chartData]);
 
   // Debug: Log mouse coordinates and chart bounds
   useEffect(() => {
     console.log('Mouse X:', mouseX, 'Mouse Y:', mouseY);
-    if (chartBounds) {
-      console.log('Chart bounds:', chartBounds);
+    console.log('Should show spike lines:', mouseX !== null && mouseY !== null);
+    console.log('Chart bounds:', chartBounds);
+    console.log('Chart ref:', chartRef);
+    if (mouseX !== null && mouseY !== null) {
+      console.log('Spike line positions - X:', `${mouseX * 100}%`, 'Y:', `${mouseY * 100}%`);
     }
-  }, [mouseX, mouseY, chartBounds]);
+  }, [mouseX, mouseY, chartBounds, chartRef]);
+
+  // Debug: Log when mouse coordinates change
+  useEffect(() => {
+    if (mouseX === null && mouseY === null) {
+      console.log('Mouse coordinates cleared!');
+    }
+  }, [mouseX, mouseY]);
 
   // WebSocket for real-time chart data
   const chartWebSocket = useChartWebSocket({
@@ -843,42 +920,60 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                 }}
               />
 
-              {/* Custom Spike Lines */}
-              {mouseX !== null && mouseY !== null && (
-                <svg
-                  className="absolute pointer-events-none"
-                  style={{
-                    zIndex: 10,
-                    left: '25px', // Half of plotlyPadding
-                    top: '25px', // Half of plotlyPadding
-                    width: 'calc(100% - 50px)', // Full width minus plotlyPadding
-                    height: 'calc(100% - 50px)', // Full height minus plotlyPadding
-                  }}
-                >
-                  {/* Vertical spike line - follows mouse X position */}
-                  <line
-                    x1={`${mouseX * 100}%`}
-                    y1="0%"
-                    x2={`${mouseX * 100}%`}
-                    y2="100%"
-                    stroke="#6b7280"
-                    strokeWidth="0.5"
-                    strokeDasharray="4,2"
-                    opacity="0.8"
-                  />
-                  {/* Horizontal spike line - follows mouse Y position */}
-                  <line
-                    x1="0%"
-                    y1={`${mouseY * 100}%`}
-                    x2="100%"
-                    y2={`${mouseY * 100}%`}
-                    stroke="#6b7280"
-                    strokeWidth="0.5"
-                    strokeDasharray="4,2"
-                    opacity="0.8"
-                  />
-                </svg>
-              )}
+              {/* Custom Spike Lines - Always render for debugging */}
+              <svg
+                className="absolute pointer-events-none"
+                style={{
+                  zIndex: 10,
+                  left: chartBounds?.left || 0,
+                  top: chartBounds?.top || 0,
+                  width: chartBounds?.width || '100%',
+                  height: chartBounds?.height || '100%',
+                  border: '1px solid red', // Debug border to see if SVG is visible
+                }}
+              >
+                {/* Always show a test line in the center */}
+                <line
+                  x1="50%"
+                  y1="0%"
+                  x2="50%"
+                  y2="100%"
+                  stroke="#00ff00"
+                  strokeWidth="3"
+                  opacity="0.5"
+                />
+                {/* Show mouse-based lines only when coordinates exist */}
+                {mouseX !== null && mouseY !== null && (
+                  <>
+                    {/* Vertical spike line - follows mouse X position */}
+                    <line
+                      x1={`${mouseX * 100}%`}
+                      y1="0%"
+                      x2={`${mouseX * 100}%`}
+                      y2="100%"
+                      stroke="#ff0000"
+                      strokeWidth="3"
+                      strokeDasharray="4,2"
+                      opacity="1"
+                    />
+                    {/* Horizontal spike line - follows mouse Y position */}
+                    <line
+                      x1="0%"
+                      y1={`${mouseY * 100}%`}
+                      x2="100%"
+                      y2={`${mouseY * 100}%`}
+                      stroke="#00ff00"
+                      strokeWidth="4"
+                      strokeDasharray="8,4"
+                      opacity="1"
+                    />
+                    {/* Debug text showing coordinates */}
+                    <text x="10" y="20" fill="white" fontSize="12" fontFamily="monospace">
+                      X: {mouseX?.toFixed(3)} Y: {mouseY?.toFixed(3)}
+                    </text>
+                  </>
+                )}
+              </svg>
 
               {/* Tooltip components are now handled by the hooks */}
             </div>
