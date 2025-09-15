@@ -244,7 +244,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     if (chartData.length === 0) return [];
 
     // Ensure data is sorted by time and convert to proper format for Plotly
-    const sortedData = [...chartData].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    const sortedData = [...chartData].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
     const x = sortedData.map((_, index) => index); // Use indices for x-axis to eliminate gaps
 
     switch (chartType) {
@@ -269,7 +271,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             line: { width: 1 },
             whiskerwidth: 0.8,
             showlegend: false,
-            hovertemplate: '<b>%{fullData.name}</b><br>' +
+            hovertemplate:
+              '<b>%{fullData.name}</b><br>' +
               'Time: %{customdata}<br>' +
               'Open: $%{open}<br>' +
               'High: $%{high}<br>' +
@@ -288,7 +291,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             y: sortedData.map((d) => d.close),
             line: { color: '#26a69a', width: 2 },
             name: symbol,
-            hovertemplate: '<b>%{fullData.name}</b><br>' +
+            hovertemplate:
+              '<b>%{fullData.name}</b><br>' +
               'Time: %{customdata}<br>' +
               'Price: $%{y}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
@@ -303,7 +307,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             y: sortedData.map((d) => d.close),
             marker: { color: '#26a69a' },
             name: symbol,
-            hovertemplate: '<b>%{fullData.name}</b><br>' +
+            hovertemplate:
+              '<b>%{fullData.name}</b><br>' +
               'Time: %{customdata}<br>' +
               'Price: $%{y}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
@@ -321,7 +326,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             line: { color: '#26a69a', width: 2 },
             fillcolor: 'rgba(38, 166, 154, 0.2)',
             name: symbol,
-            hovertemplate: '<b>%{fullData.name}</b><br>' +
+            hovertemplate:
+              '<b>%{fullData.name}</b><br>' +
               'Time: %{customdata}<br>' +
               'Price: $%{y}<extra></extra>',
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
@@ -333,6 +339,63 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     }
   }, [chartData, chartType, symbol]);
 
+  // Helper function to generate time axis ticks (indices)
+  const getTimeAxisTicks = (data: CandlestickData[]): number[] => {
+    if (data.length === 0) return [];
+
+    const sortedData = [...data].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+    const totalPoints = sortedData.length;
+
+    // Show 5-8 ticks depending on data length
+    const numTicks = Math.min(8, Math.max(5, Math.floor(totalPoints / 10)));
+    const step = Math.max(1, Math.floor(totalPoints / (numTicks - 1)));
+
+    const ticks: number[] = [];
+    for (let i = 0; i < numTicks; i++) {
+      const index = Math.min(i * step, totalPoints - 1);
+      ticks.push(index);
+    }
+
+    return ticks;
+  };
+
+  // Helper function to generate time axis labels
+  const getTimeAxisLabels = (data: CandlestickData[]): string[] => {
+    if (data.length === 0) return [];
+
+    const sortedData = [...data].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+    const ticks = getTimeAxisTicks(data);
+
+    // Determine if we should show only time (for intervals < 1 day)
+    const isTimeOnly = timeframe && ['1m', '5m', '30m', '1h', '2h', '4h'].includes(timeframe);
+
+    return ticks.map((index) => {
+      const time = new Date(sortedData[index].time);
+
+      if (isTimeOnly) {
+        // Show only time for intervals less than 1 day
+        return time.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+      } else {
+        // Show date and time for daily and longer intervals
+        return time.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+      }
+    });
+  };
+
   const getPlotlyLayout = useCallback(() => {
     const layout: any = {
       title: {
@@ -343,12 +406,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         type: 'linear' as const,
         gridcolor: '#374151',
         color: '#d1d5db',
-        title: { text: 'Data Points', font: { color: '#d1d5db' } },
+        title: { text: 'Time', font: { color: '#d1d5db' } },
         rangeslider: { visible: false },
         showgrid: true,
         tickmode: 'array',
-        tickvals: [],
-        ticktext: [],
+        tickvals: chartData.length > 0 ? getTimeAxisTicks(chartData) : [],
+        ticktext: chartData.length > 0 ? getTimeAxisLabels(chartData) : [],
+        tickangle: 0,
       },
       yaxis: {
         gridcolor: '#374151',
