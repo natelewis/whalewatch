@@ -261,30 +261,17 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       const mouseXPos = event.clientX - rect.left;
       const mouseYPos = event.clientY - rect.top;
 
-      // Use Plotly's actual plot area for more accurate positioning
-      // The plot area is the inner area without margins
-      const plotlyPlot = chartRef.querySelector('.plotly .plot');
-      if (plotlyPlot) {
-        const plotRect = plotlyPlot.getBoundingClientRect();
-        const containerRect = chartRef.getBoundingClientRect();
-        
-        // Calculate relative position within the actual plot area
-        const relativeX = (plotRect.left - containerRect.left) / containerRect.width;
-        const relativeY = (plotRect.top - containerRect.top) / containerRect.height;
-        const plotWidth = plotRect.width / containerRect.width;
-        const plotHeight = plotRect.height / containerRect.height;
-        
-        // Convert mouse position to plot-relative coordinates
-        const plotMouseX = (mouseXPos - (plotRect.left - rect.left)) / plotRect.width;
-        const plotMouseY = (mouseYPos - (plotRect.top - rect.top)) / plotRect.height;
-        
-        setMouseX(Math.max(0, Math.min(1, plotMouseX)));
-        setMouseY(Math.max(0, Math.min(1, plotMouseY)));
-      } else {
-        // Fallback to simple calculation
-        setMouseX(mouseXPos / rect.width);
-        setMouseY(mouseYPos / rect.height);
-      }
+      // Account for Plotly's internal padding
+      // Plotly adds internal margins to the plot area
+      const plotlyPadding = 50; // Adjust this value based on your chart margins
+      const adjustedWidth = rect.width - plotlyPadding;
+      const adjustedHeight = rect.height - plotlyPadding;
+
+      // Convert mouse position to paper coordinates (0 to 1) accounting for padding
+      const paperX = Math.max(0, Math.min(1, (mouseXPos - plotlyPadding / 2) / adjustedWidth));
+      const paperY = Math.max(0, Math.min(1, (mouseYPos - plotlyPadding / 2) / adjustedHeight));
+      setMouseX(paperX);
+      setMouseY(paperY);
     };
 
     const handleMouseLeave = () => {
@@ -862,10 +849,10 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   className="absolute pointer-events-none"
                   style={{
                     zIndex: 10,
-                    left: chartBounds?.left || 0,
-                    top: chartBounds?.top || 0,
-                    width: chartBounds?.width || '100%',
-                    height: chartBounds?.height || '100%',
+                    left: '25px', // Half of plotlyPadding
+                    top: '25px', // Half of plotlyPadding
+                    width: 'calc(100% - 50px)', // Full width minus plotlyPadding
+                    height: 'calc(100% - 50px)', // Full height minus plotlyPadding
                   }}
                 >
                   {/* Vertical spike line - follows mouse X position */}
