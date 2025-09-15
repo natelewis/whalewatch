@@ -490,7 +490,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 arrowcolor: '#6b7280',
                 arrowwidth: 0.5,
                 ax: 0,
-                ay: 20,
+                ay: -1,
                 bgcolor: 'rgba(0, 0, 0, 0.8)',
                 bordercolor: '#374151',
                 borderwidth: 1,
@@ -709,38 +709,6 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           <div className="flex items-center space-x-4">
             <span>Data points: {chartData.length}</span>
             <span>Interval: {timeframe || 'Loading...'}</span>
-            {dataRange && (
-              <div className="text-amber-500 text-xs">
-                <div className="font-medium">Chart Time Range:</div>
-                <div>
-                  UTC: {new Date(dataRange.earliest).toLocaleString('en-US', { timeZone: 'UTC' })}{' '}
-                  to {new Date(dataRange.latest).toLocaleString('en-US', { timeZone: 'UTC' })}
-                </div>
-                <div>
-                  Local: {new Date(dataRange.earliest).toLocaleString()} to{' '}
-                  {new Date(dataRange.latest).toLocaleString()}
-                </div>
-                {availableDataRange && (
-                  <>
-                    <div className="font-medium mt-1">Data Available:</div>
-                    <div>
-                      UTC:{' '}
-                      {new Date(availableDataRange.earliest).toLocaleString('en-US', {
-                        timeZone: 'UTC',
-                      })}{' '}
-                      to{' '}
-                      {new Date(availableDataRange.latest).toLocaleString('en-US', {
-                        timeZone: 'UTC',
-                      })}
-                    </div>
-                    <div>
-                      Local: {new Date(availableDataRange.earliest).toLocaleString()} to{' '}
-                      {new Date(availableDataRange.latest).toLocaleString()}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
           </div>
           <div className="flex items-center space-x-2">
             <div
