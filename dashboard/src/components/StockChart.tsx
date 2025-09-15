@@ -242,8 +242,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 tooltip.style.position = 'fixed';
                 tooltip.style.backgroundColor = '#6b7280';
                 tooltip.style.border = 'none';
-                tooltip.style.padding = '4px 8px';
+                tooltip.style.padding = '0 0 0 8px ';
                 tooltip.style.borderRadius = '0px';
+                tooltip.style.width = '60px';
                 tooltip.style.fontSize = '12px';
                 tooltip.style.setProperty('color', 'white', 'important');
                 tooltip.style.fontWeight = 'normal';
@@ -255,7 +256,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             }
 
             // Update tooltip content and position in one go
-            tooltip.textContent = mousePrice.toFixed(4);
+            tooltip.textContent = `${mousePrice.toFixed(2)}`;
             tooltip.style.display = 'block';
             // Position tooltip on the right side of the chart, aligned with labels
             tooltip.style.left = `${rect.right}px`; // Position relative to chart's right edge
