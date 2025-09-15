@@ -67,7 +67,13 @@ export class QuestDBWebSocketService extends EventEmitter {
     const key = this.getSubscriptionKey(subscription);
     this.subscriptions.set(key, subscription);
     
-    console.log(`Subscribed to QuestDB data:`, subscription);
+    console.log(`✅ Subscribed to QuestDB data:`, {
+      key,
+      type: subscription.type,
+      symbol: subscription.symbol,
+      underlying_ticker: subscription.underlying_ticker,
+      totalSubscriptions: this.subscriptions.size
+    });
     this.emit('subscription_confirmed', { subscription });
   }
 
@@ -94,6 +100,19 @@ export class QuestDBWebSocketService extends EventEmitter {
    * Poll QuestDB for new data based on active subscriptions
    */
   private async pollForNewData(): Promise<void> {
+    if (this.subscriptions.size === 0) {
+      console.log('🔍 No active subscriptions to poll');
+      return;
+    }
+
+    console.log(`🔍 Polling ${this.subscriptions.size} active subscriptions:`, 
+      Array.from(this.subscriptions.entries()).map(([key, sub]) => ({
+        key,
+        type: sub.type,
+        symbol: sub.symbol
+      }))
+    );
+
     for (const [key, subscription] of this.subscriptions) {
       try {
         await this.pollSubscriptionData(key, subscription);
@@ -249,13 +268,32 @@ export class QuestDBWebSocketService extends EventEmitter {
     lastTimestamp: string | undefined,
     currentTimestamp: string
   ): Promise<void> {
-    if (!subscription.symbol) return;
+    if (!subscription.symbol) {
+      console.log('⚠️ No symbol provided for stock aggregates subscription');
+      return;
+    }
+
+    console.log(`🔍 Polling stock aggregates for ${subscription.symbol}:`, {
+      lastTimestamp: lastTimestamp || 'none (first poll)',
+      currentTimestamp,
+      timeRange: lastTimestamp ? `${lastTimestamp} to ${currentTimestamp}` : `up to ${currentTimestamp}`
+    });
 
     const aggregates = await questdbService.getStockAggregates(subscription.symbol, {
       start_time: lastTimestamp || undefined,
       end_time: currentTimestamp,
       limit: 1000
     });
+
+    console.log(`📊 Found ${aggregates.length} new stock aggregates for ${subscription.symbol}`);
+
+    if (aggregates.length > 0) {
+      console.log('📈 Sample aggregate data:', {
+        first: aggregates[0],
+        last: aggregates[aggregates.length - 1],
+        count: aggregates.length
+      });
+    }
 
     for (const aggregate of aggregates) {
       const message: QuestDBWebSocketMessage = {
@@ -264,6 +302,12 @@ export class QuestDBWebSocketService extends EventEmitter {
         timestamp: new Date().toISOString(),
         symbol: aggregate.symbol
       };
+
+      console.log(`📡 Emitting stock aggregate for ${aggregate.symbol}:`, {
+        timestamp: aggregate.timestamp,
+        close: aggregate.close,
+        volume: aggregate.volume
+      });
 
       this.emit('stock_aggregate', message);
     }

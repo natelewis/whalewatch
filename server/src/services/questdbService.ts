@@ -36,6 +36,14 @@ export class QuestDBService {
     const protocol = this.config.ssl ? 'https' : 'http';
     this.baseUrl = `${protocol}://${this.config.host}:${this.config.port}`;
 
+    console.log('🔧 QuestDB Service Configuration:', {
+      baseUrl: this.baseUrl,
+      username: this.config.username || 'none',
+      password: this.config.password ? '***' : 'none',
+      ssl: this.config.ssl,
+      timeout: this.config.timeout
+    });
+
     if (!this.config.host) {
       console.warn('QUESTDB_HOST not found in environment variables');
     }
@@ -360,21 +368,46 @@ export class QuestDBService {
     option_quotes_count: number;
   }> {
     try {
-      const [trades, aggregates, contracts, optionTrades, optionQuotes] = await Promise.all([
-        this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM stock_trades'),
-        this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM stock_aggregates'),
-        this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM option_contracts'),
-        this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM option_trades'),
-        this.executeQuery<{ count: number }>('SELECT COUNT(*) as count FROM option_quotes'),
-      ]);
+      // Get all available tables first
+      const tablesResponse = await this.executeQuery<{ table_name: string }>('SHOW TABLES');
+      const availableTables = tablesResponse.dataset.map(row => row[0]);
+      
+      console.log('📊 Available tables:', availableTables);
 
-      return {
-        stock_trades_count: trades.dataset[0]?.count || 0,
-        stock_aggregates_count: aggregates.dataset[0]?.count || 0,
-        option_contracts_count: contracts.dataset[0]?.count || 0,
-        option_trades_count: optionTrades.dataset[0]?.count || 0,
-        option_quotes_count: optionQuotes.dataset[0]?.count || 0,
+      // Query each table if it exists
+      const stats = {
+        stock_trades_count: 0,
+        stock_aggregates_count: 0,
+        option_contracts_count: 0,
+        option_trades_count: 0,
+        option_quotes_count: 0,
       };
+
+      const tableQueries = [
+        { table: 'stock_trades', key: 'stock_trades_count' },
+        { table: 'stock_aggregates', key: 'stock_aggregates_count' },
+        { table: 'option_contracts', key: 'option_contracts_count' },
+        { table: 'option_trades', key: 'option_trades_count' },
+        { table: 'option_quotes', key: 'option_quotes_count' },
+      ];
+
+      for (const { table, key } of tableQueries) {
+        if (availableTables.includes(table)) {
+          try {
+            const result = await this.executeQuery<{ count: number }>(`SELECT COUNT(*) as count FROM ${table}`);
+            stats[key as keyof typeof stats] = result.dataset[0]?.count || 0;
+            console.log(`✅ ${table}: ${stats[key as keyof typeof stats]} records`);
+          } catch (error: any) {
+            console.warn(`⚠️ Failed to count ${table}:`, error.message);
+            stats[key as keyof typeof stats] = 0;
+          }
+        } else {
+          console.log(`ℹ️ Table ${table} does not exist, setting count to 0`);
+          stats[key as keyof typeof stats] = 0;
+        }
+      }
+
+      return stats;
     } catch (error: any) {
       console.error('Failed to get database stats:', error.message);
       throw new Error('Failed to retrieve database statistics');

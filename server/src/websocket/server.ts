@@ -121,6 +121,7 @@ const handleSubscription = (ws: AuthenticatedWebSocket, data: any): void => {
         });
         break;
       case 'chart_quote':
+        console.log(`📊 Client subscribing to chart data for ${symbol}`);
         questdbWebSocketService.subscribe({
           type: 'stock_aggregates',
           symbol: symbol,
@@ -222,25 +223,25 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
       symbol: message.symbol,
       close: message.data.close,
       volume: message.data.volume,
+      timestamp: message.data.timestamp,
     });
-    broadcastToSubscribers(
-      wss,
-      'chart_quote',
-      {
-        symbol: message.symbol,
-        bar: {
-          t: message.data.timestamp,
-          o: message.data.open,
-          h: message.data.high,
-          l: message.data.low,
-          c: message.data.close,
-          v: message.data.volume,
-          n: message.data.transaction_count,
-          vw: message.data.vwap,
-        },
+    
+    const barData = {
+      symbol: message.symbol,
+      bar: {
+        t: message.data.timestamp,
+        o: message.data.open,
+        h: message.data.high,
+        l: message.data.low,
+        c: message.data.close,
+        v: message.data.volume,
+        n: message.data.transaction_count,
+        vw: message.data.vwap,
       },
-      message.symbol
-    );
+    };
+    
+    console.log('📡 Broadcasting to chart_quote subscribers:', barData);
+    broadcastToSubscribers(wss, 'chart_quote', barData, message.symbol);
   });
 
   // Handle errors from QuestDB WebSocket

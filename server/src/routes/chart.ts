@@ -238,11 +238,23 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       }
     }
 
-    // Remove duplicates by timestamp to avoid chart rendering issues
+    // Remove duplicates by timestamp and aggregate them properly
     const uniqueAggregates = aggregates.reduce((acc, agg) => {
       const timestamp = agg.timestamp;
-      if (!acc.find((a) => a.timestamp === timestamp)) {
+      const existing = acc.find((a) => a.timestamp === timestamp);
+
+      if (!existing) {
         acc.push(agg);
+      } else {
+        // If duplicate found, aggregate the data properly
+        existing.high = Math.max(existing.high, agg.high);
+        existing.low = Math.min(existing.low, agg.low);
+        existing.close = agg.close; // Use the latest close price
+        existing.volume += agg.volume;
+        existing.transaction_count += agg.transaction_count;
+        existing.vwap =
+          (existing.vwap * existing.volume + agg.vwap * agg.volume) /
+          (existing.volume + agg.volume);
       }
       return acc;
     }, [] as typeof aggregates);

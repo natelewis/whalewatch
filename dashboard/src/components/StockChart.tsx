@@ -73,6 +73,49 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     }
   }, [lastMessage, symbol]);
 
+  const fillMissingMinutes = (
+    data: CandlestickData[],
+    timeframe: ChartTimeframe
+  ): CandlestickData[] => {
+    if (data.length === 0) return data;
+
+    // Only fill for 1H timeframe to avoid over-filling
+    if (timeframe !== '1H') return data;
+
+    const filledData: CandlestickData[] = [];
+    const intervalMs = 60 * 1000; // 1 minute in milliseconds
+
+    for (let i = 0; i < data.length; i++) {
+      filledData.push(data[i]);
+
+      // Check if there's a gap to the next data point
+      if (i < data.length - 1) {
+        const currentTime = new Date(data[i].time).getTime();
+        const nextTime = new Date(data[i + 1].time).getTime();
+        const gapMs = nextTime - currentTime;
+
+        // If gap is more than 2 minutes, fill with last known price
+        if (gapMs > intervalMs * 2) {
+          const missingMinutes = Math.floor(gapMs / intervalMs) - 1;
+          const lastPrice = data[i].close;
+
+          for (let j = 1; j <= missingMinutes; j++) {
+            const fillTime = new Date(currentTime + j * intervalMs).toISOString();
+            filledData.push({
+              time: fillTime,
+              open: lastPrice,
+              high: lastPrice,
+              low: lastPrice,
+              close: lastPrice,
+            });
+          }
+        }
+      }
+    }
+
+    return filledData;
+  };
+
   const loadChartData = async (symbol: string, timeframe: ChartTimeframe) => {
     try {
       setIsLoading(true);
@@ -100,7 +143,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         close: bar.c,
       }));
 
-      setChartData(formattedData);
+      // Fill missing minutes for better chart continuity
+      const filledData = fillMissingMinutes(formattedData, timeframe);
+      setChartData(filledData);
 
       // Set full time range (always provided by server)
       if (response.data_range) {
@@ -173,9 +218,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             high: chartData.map((d) => d.high),
             low: chartData.map((d) => d.low),
             close: chartData.map((d) => d.close),
-            increasing: { line: { color: '#26a69a' } },
-            decreasing: { line: { color: '#ef5350' } },
+            increasing: {
+              line: { color: '#26a69a', width: 1 },
+              fillcolor: '#26a69a',
+            },
+            decreasing: {
+              line: { color: '#ef5350', width: 1 },
+              fillcolor: '#ef5350',
+            },
             name: symbol,
+            line: { width: 1 },
+            whiskerwidth: 0.8,
+            showlegend: false,
           },
         ];
 
@@ -246,9 +300,26 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       hovermode: 'x unified' as const,
     };
 
-    // Set the x-axis range to the full selected timeframe
-    if (dataRange) {
-      layout.xaxis.range = [dataRange.earliest, dataRange.latest];
+    // Set the x-axis range to the full selected timeframe only if we have dense data
+    // For sparse data, let Plotly auto-scale to show the actual data points
+    if (dataRange && chartData.length > 0) {
+      const expectedDataPoints =
+        timeframe === '1H'
+          ? 60
+          : timeframe === '4H'
+          ? 240
+          : timeframe === '1D'
+          ? 1440
+          : timeframe === '1W'
+          ? 168
+          : timeframe === '1M'
+          ? 720
+          : 100;
+
+      // Only force the range if we have at least 80% of expected data points
+      if (chartData.length >= expectedDataPoints * 0.8) {
+        layout.xaxis.range = [dataRange.earliest, dataRange.latest];
+      }
     }
 
     return layout;
