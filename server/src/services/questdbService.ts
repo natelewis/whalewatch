@@ -153,13 +153,7 @@ export class QuestDBService {
     symbol: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBStockAggregate[]> {
-    const {
-      start_time,
-      end_time,
-      limit = 1000,
-      order_by = 'timestamp',
-      order_direction = 'ASC',
-    } = params;
+    const { start_time, end_time, limit, order_by = 'timestamp', order_direction = 'ASC' } = params;
 
     let query = `SELECT * FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
 
@@ -171,7 +165,12 @@ export class QuestDBService {
       query += ` AND timestamp <= '${end_time}'`;
     }
 
-    query += ` ORDER BY ${order_by} ${order_direction} LIMIT ${limit}`;
+    query += ` ORDER BY ${order_by} ${order_direction}`;
+
+    // Only add LIMIT if explicitly provided
+    if (limit) {
+      query += ` LIMIT ${limit}`;
+    }
 
     const response = await this.executeQuery<QuestDBStockAggregate>(query);
     return this.convertArrayToObject<QuestDBStockAggregate>(response.dataset, response.columns);

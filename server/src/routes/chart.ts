@@ -73,7 +73,7 @@ function aggregateDataByTimeframe(
 
   // For timeframes that don't need aggregation, return as-is
   if (timeframe === 'ALL') {
-    return data.slice(0, config.maxDataPoints);
+    return data; // Return all data, no limits
   }
 
   // Sort data by timestamp to ensure proper aggregation
@@ -81,40 +81,41 @@ function aggregateDataByTimeframe(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
-  // Group data by aggregation interval
-  const aggregatedData: QuestDBStockAggregate[] = [];
-  const intervalMs = config.aggregationIntervalMinutes * 60 * 1000; // Convert minutes to milliseconds
+  // For 1-minute intervals (1H, 4H, 1D), no aggregation needed
+  if (config.aggregationIntervalMinutes === 1) {
+    return sortedData; // Return all data, no limits
+  }
 
-  let currentGroup: QuestDBStockAggregate[] = [];
-  let groupStartTime: number | null = null;
+  // Use time-based bucketing for proper aggregation
+  const intervalMs = config.aggregationIntervalMinutes * 60 * 1000;
+  const buckets = new Map<number, QuestDBStockAggregate[]>();
 
   for (const item of sortedData) {
     const itemTime = new Date(item.timestamp).getTime();
+    // Create buckets based on time intervals (floor to the nearest interval)
+    const bucketTime = Math.floor(itemTime / intervalMs) * intervalMs;
 
-    if (groupStartTime === null) {
-      groupStartTime = itemTime;
-      currentGroup = [item];
-    } else if (itemTime - groupStartTime < intervalMs) {
-      currentGroup.push(item);
-    } else {
-      // Time to create a new group, first aggregate the current group
-      if (currentGroup.length > 0) {
-        aggregatedData.push(aggregateGroup(currentGroup));
-      }
+    if (!buckets.has(bucketTime)) {
+      buckets.set(bucketTime, []);
+    }
+    buckets.get(bucketTime)!.push(item);
+  }
 
-      // Start new group
-      groupStartTime = itemTime;
-      currentGroup = [item];
+  // Convert buckets to aggregated data
+  const aggregatedData: QuestDBStockAggregate[] = [];
+  const sortedBuckets = Array.from(buckets.entries()).sort(([a], [b]) => a - b);
+
+  for (const [bucketTime, bucketData] of sortedBuckets) {
+    if (bucketData.length > 0) {
+      const aggregated = aggregateGroup(bucketData);
+      // Use the bucket time as the timestamp for consistency
+      aggregated.timestamp = new Date(bucketTime).toISOString();
+      aggregatedData.push(aggregated);
     }
   }
 
-  // Don't forget the last group
-  if (currentGroup.length > 0) {
-    aggregatedData.push(aggregateGroup(currentGroup));
-  }
-
-  // Limit to max data points for performance
-  return aggregatedData.slice(0, config.maxDataPoints);
+  // Return all aggregated data - no artificial limits
+  return aggregatedData;
 }
 
 /**
@@ -152,16 +153,14 @@ function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
 router.get('/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { timeframe = '1D', limit = '1000', start_time, end_time } = req.query;
+    const { timeframe = '1D', start_time, end_time } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
     }
 
-    const limitNum = parseInt(limit as string);
-    if (isNaN(limitNum) || limitNum < 1 || limitNum > 10000) {
-      return res.status(400).json({ error: 'Limit must be between 1 and 10000' });
-    }
+    // Remove limit restrictions - we want all available data
+    // The limit parameter is ignored to ensure we get complete datasets
 
     // Calculate time range based on timeframe if not provided
     let calculatedStartTime = start_time as string | undefined;
@@ -177,16 +176,19 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     }
 
     // Get aggregates from QuestDB
-    const config = getTimeframeConfig(timeframe as string);
+    // const config = getTimeframeConfig(timeframe as string); // Not needed since we removed limits
     const params: QuestDBQueryParams = {
       start_time: calculatedStartTime,
       end_time: calculatedEndTime,
-      limit: Math.min(limitNum, config.maxDataPoints * 10), // Allow more data for aggregation
+      // No limit - get all available data in the time range
       order_by: 'timestamp',
       order_direction: 'ASC',
     };
 
     let aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
+    console.log(
+      `🔍 DEBUG: Retrieved ${aggregates.length} aggregates for ${symbol} in timeframe ${timeframe}`
+    );
 
     // If no data found in the requested time range, try to get the most recent available data
     // to understand what time range actually has data
@@ -197,7 +199,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
       // Query for the most recent available data to understand the data range
       const fallbackParams: QuestDBQueryParams = {
-        limit: 1,
+        // No limit - get the most recent data
         order_by: 'timestamp',
         order_direction: 'DESC',
       };
@@ -228,7 +230,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
         const adjustedParams: QuestDBQueryParams = {
           start_time: calculatedStartTime,
           end_time: calculatedEndTime,
-          limit: Math.min(limitNum, config.maxDataPoints * 10),
+          // No limit - get all available data in the time range
           order_by: 'timestamp',
           order_direction: 'ASC',
         };
@@ -303,3 +305,4 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 });
 
 export { router as chartRoutes };
+
