@@ -47,7 +47,17 @@ const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
 };
 
 // Plotly internal padding constant
-const PLOTLY_INTERNAL_PADDING = 35; // 15px top + 15px bottom
+const PLOTLY_INTERNAL_PADDING = 35;
+
+// Manual offset adjustments for spike line positioning
+const SPIKE_LINE_OFFSET_X = 0; // Adjust horizontal positioning
+const SPIKE_LINE_OFFSET_Y = 0; // Adjust vertical positioning
+const SPIKE_LINE_SCALE_X = 1.0; // Adjust horizontal scaling
+const SPIKE_LINE_SCALE_Y = 1.0; // Adjust vertical scaling
+
+// Virtual bounding box expansion for spike line calculations
+const VIRTUAL_BOX_EXPAND_X = 0; // Expand virtual box horizontally (pixels)
+const VIRTUAL_BOX_EXPAND_Y = 0; // Expand virtual box vertically (pixels)
 
 const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
@@ -275,9 +285,15 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       const plotAreaLeft = rect.left - containerRect.left;
       const plotAreaTop = rect.top - containerRect.top;
 
-      // Convert to relative coordinates (0-1) within the container
-      const relativeX = (plotAreaLeft + mouseXPos) / containerRect.width;
-      const relativeY = (plotAreaTop + mouseYPos) / containerRect.height;
+      // Create virtual bounding box for calculations (expanded from actual plot area)
+      const virtualBoxLeft = plotAreaLeft - VIRTUAL_BOX_EXPAND_X;
+      const virtualBoxTop = plotAreaTop - VIRTUAL_BOX_EXPAND_Y;
+      const virtualBoxWidth = rect.width + VIRTUAL_BOX_EXPAND_X * 2;
+      const virtualBoxHeight = rect.height + VIRTUAL_BOX_EXPAND_Y * 2;
+
+      // Convert to relative coordinates (0-1) within the virtual box
+      const relativeX = (plotAreaLeft + mouseXPos - virtualBoxLeft) / virtualBoxWidth;
+      const relativeY = (plotAreaTop + mouseYPos - virtualBoxTop) / virtualBoxHeight;
 
       // Debug the calculation
       console.log('Mouse calculation debug:', {
@@ -287,6 +303,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         plotAreaTop,
         containerRect: { width: containerRect.width, height: containerRect.height },
         rect: { width: rect.width, height: rect.height },
+        virtualBox: {
+          left: virtualBoxLeft,
+          top: virtualBoxTop,
+          width: virtualBoxWidth,
+          height: virtualBoxHeight,
+        },
         relativeX,
         relativeY,
       });
@@ -921,10 +943,10 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                 className="absolute pointer-events-none"
                 style={{
                   zIndex: 10,
-                  left: chartBounds?.left || 0,
-                  top: chartBounds?.top || 0,
-                  width: chartBounds?.width || '100%',
-                  height: chartBounds?.height || '100%',
+                  left: (chartBounds?.left || 0) - VIRTUAL_BOX_EXPAND_X,
+                  top: (chartBounds?.top || 0) - VIRTUAL_BOX_EXPAND_Y,
+                  width: (chartBounds?.width || 0) + VIRTUAL_BOX_EXPAND_X * 2,
+                  height: (chartBounds?.height || 0) + VIRTUAL_BOX_EXPAND_Y * 2,
                   border: '1px solid red', // Debug border to see if SVG is visible
                 }}
               >
@@ -943,9 +965,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   <>
                     {/* Vertical spike line - follows mouse X position */}
                     <line
-                      x1={`${mouseX * 100}%`}
+                      x1={`${(mouseX * SPIKE_LINE_SCALE_X + SPIKE_LINE_OFFSET_X) * 100}%`}
                       y1="0%"
-                      x2={`${mouseX * 100}%`}
+                      x2={`${(mouseX * SPIKE_LINE_SCALE_X + SPIKE_LINE_OFFSET_X) * 100}%`}
                       y2="100%"
                       stroke="#ff0000"
                       strokeWidth="3"
@@ -955,9 +977,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                     {/* Horizontal spike line - follows mouse Y position */}
                     <line
                       x1="0%"
-                      y1={`${mouseY * 100}%`}
+                      y1={`${(mouseY * SPIKE_LINE_SCALE_Y + SPIKE_LINE_OFFSET_Y) * 100}%`}
                       x2="100%"
-                      y2={`${mouseY * 100}%`}
+                      y2={`${(mouseY * SPIKE_LINE_SCALE_Y + SPIKE_LINE_OFFSET_Y) * 100}%`}
                       stroke="#00ff00"
                       strokeWidth="4"
                       strokeDasharray="8,4"
