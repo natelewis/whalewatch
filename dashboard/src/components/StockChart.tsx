@@ -79,6 +79,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     paddedYMax?: number;
     effectiveHeight: number | undefined;
   } | null>(null);
+  const [topPrice, setTopPrice] = useState<number | null>(null);
+  const [minPrice, setMinPrice] = useState<number | null>(null);
 
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
 
@@ -125,6 +127,31 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       }
     }
   }, [timeframe]);
+
+  // Calculate topPrice and minPrice whenever chart data changes
+  useEffect(() => {
+    if (chartData.length === 0) {
+      setTopPrice(null);
+      setMinPrice(null);
+      return;
+    }
+
+    // Find the highest and lowest prices from the chart data
+    let highest = -Infinity;
+    let lowest = Infinity;
+
+    chartData.forEach((candle) => {
+      // Check high and low values for each candle
+      if (candle.high > highest) highest = candle.high;
+      if (candle.low < lowest) lowest = candle.low;
+    });
+
+    // Only update if we found valid values
+    if (highest !== -Infinity && lowest !== Infinity) {
+      setTopPrice(highest);
+      setMinPrice(lowest);
+    }
+  }, [chartData]);
 
   // Add mouse move listener for spike line hover detection
   useEffect(() => {
@@ -196,9 +223,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         // Check if mouse is within the plot area and we have a valid height
         if (effectiveHeight && x >= 0 && x <= effectiveWidth && y >= 0 && y <= effectiveHeight) {
           // Calculate the actual price at the mouse Y position on the spike line
-          if (yAxisRange) {
-            // Convert mouse Y position to actual price value
-            const mousePrice = y / effectiveHeight;
+          if (topPrice !== null && minPrice !== null) {
+            // Convert mouse Y position to actual price value using the proper formula
+            // Price = topPrice - (y / effectiveHeight) * (topPrice - minPrice)
+            const mousePrice = topPrice - (y / effectiveHeight) * (topPrice - minPrice);
 
             // Cache tooltip element
             if (!tooltip) {
@@ -265,7 +293,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [chartRef, chartData, yAxisRange]);
+  }, [chartRef, chartData, yAxisRange, topPrice, minPrice]);
 
   // WebSocket for real-time chart data
   const { lastMessage, sendMessage } = useWebSocket();
