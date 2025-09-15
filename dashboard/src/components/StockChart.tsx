@@ -63,13 +63,16 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLive, setIsLive] = useState(false);
 
-  // Removed hoveredPrice state - tooltip is now completely DOM-based
-
   const [topPrice, setTopPrice] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState<number | null>(null);
   const [effectiveHeight, setEffectiveHeight] = useState<number | null>(null);
   const [effectiveWidth, setEffectiveWidth] = useState<number | null>(null);
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
+
+  // Hover state for time tooltip at bottom
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [hoveredX, setHoveredX] = useState<number | null>(null);
+  const [mouseX, setMouseX] = useState<number | null>(null);
 
   // Define timeframes array early - memoized to prevent unnecessary re-renders
   const timeframes: TimeframeConfig[] = useMemo(
@@ -198,6 +201,76 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     chartRef,
     enabled: true,
   });
+
+  // Handle Plotly hover events for time tooltip at bottom
+  const handlePlotlyHover = useCallback(
+    (event: any) => {
+      if (event.points && event.points.length > 0) {
+        const point = event.points[0];
+        const xIndex = point.pointIndex;
+        const xValue = point.x;
+
+        // Handle date and x positioning
+        if (xIndex !== undefined && chartDataHook.chartData.length > 0) {
+          const sortedData = [...chartDataHook.chartData].sort(
+            (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+          );
+
+          if (xIndex < sortedData.length) {
+            const hoveredTime = sortedData[xIndex].time;
+            const date = new Date(hoveredTime);
+
+            // Format date to show full date and time like "01-02-2003 10:11"
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const formattedDate = `${month}-${day}-${year} ${hours}:${minutes}`;
+
+            setHoveredDate(formattedDate);
+            setHoveredX(xValue); // Use the actual x-value from the point
+          }
+        }
+      }
+    },
+    [chartDataHook.chartData, timeframe]
+  );
+
+  const handlePlotlyUnhover = useCallback(() => {
+    setHoveredDate(null);
+    setHoveredX(null);
+    setMouseX(null);
+  }, []);
+
+  // Track mouse position for tooltip positioning
+  useEffect(() => {
+    if (!chartRef) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const plotArea = chartRef.querySelector('.nsewdrag.drag');
+      if (!plotArea) return;
+
+      const rect = plotArea.getBoundingClientRect();
+      const mouseXPos = event.clientX - rect.left;
+
+      // Convert mouse X position to paper coordinates (0 to 1)
+      const paperX = mouseXPos / rect.width;
+      setMouseX(paperX);
+    };
+
+    const handleMouseLeave = () => {
+      setMouseX(null);
+    };
+
+    chartRef.addEventListener('mousemove', handleMouseMove);
+    chartRef.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      chartRef.removeEventListener('mousemove', handleMouseMove);
+      chartRef.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [chartRef]);
 
   // WebSocket for real-time chart data
   const chartWebSocket = useChartWebSocket({
@@ -489,7 +562,30 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         },
       ],
       annotations: [
-        // Price annotation removed - using spike line tooltip instead
+        // Date annotation (bottom of chart)
+        ...(hoveredDate && mouseX !== null
+          ? [
+              {
+                x: mouseX,
+                y: 0.02,
+                xref: 'paper',
+                yref: 'paper',
+                text: hoveredDate,
+                showarrow: true,
+                arrowhead: 0,
+                arrowcolor: '#6b7280',
+                arrowwidth: 0.5,
+                ax: 0,
+                ay: 6,
+                bgcolor: 'rgba(0, 0, 0, 0.8)',
+                bordercolor: '#374151',
+                borderwidth: 1,
+                font: { color: '#d1d5db', size: 12 },
+                xanchor: 'center',
+                yanchor: 'top',
+              },
+            ]
+          : []),
       ],
       hoverdistance: 20,
       spikedistance: -1, // Use -1 for better spike line behavior
@@ -499,7 +595,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, chartDataHook.dataRange]);
+  }, [symbol, timeframe, chartDataHook.dataRange, hoveredDate, hoveredX, mouseX]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
     { value: 'line', label: 'Line', icon: <LineChart className="h-4 w-4" /> },
@@ -625,8 +721,8 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
               }}
               style={{ width: '100%', height: '100%' }}
               useResizeHandler={true}
-              onHover={undefined}
-              onUnhover={undefined}
+              onHover={handlePlotlyHover}
+              onUnhover={handlePlotlyUnhover}
               onInitialized={(figure, graphDiv) => {
                 // Add CSS to make spike lines thinner
                 const style = document.createElement('style');
