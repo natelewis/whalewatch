@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Plot from 'react-plotly.js';
-import { AlpacaBar, ChartTimeframe, ChartType, ChartDataResponse } from '../types';
+import {
+  AlpacaBar,
+  ChartTimeframe,
+  ChartType,
+  ChartDataResponse,
+  DEFAULT_CHART_DATA_POINTS,
+} from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
@@ -28,6 +34,22 @@ interface CandlestickData {
   close: number;
 }
 
+// Helper function to get interval minutes for a timeframe
+const getIntervalMinutes = (timeframe: ChartTimeframe): number => {
+  const intervalMap: Record<ChartTimeframe, number> = {
+    '1m': 1,
+    '5m': 5,
+    '30m': 30,
+    '1h': 60,
+    '2h': 120,
+    '4h': 240,
+    '1d': 1440,
+    '1w': 10080,
+    '1M': 43200, // 30 days
+  };
+  return intervalMap[timeframe] || 60;
+};
+
 export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const [chartData, setChartData] = useState<CandlestickData[]>([]);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
@@ -44,11 +66,11 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
     try {
-      const savedTimeframe = getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1D');
+      const savedTimeframe = getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1h');
       setTimeframe(savedTimeframe);
     } catch (error) {
       console.warn('Failed to load chart timeframe from localStorage:', error);
-      setTimeframe('1D'); // Fallback to default if localStorage fails
+      setTimeframe('1h'); // Fallback to default if localStorage fails
     }
   }, []);
 
@@ -84,8 +106,8 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   ): CandlestickData[] => {
     if (data.length === 0) return data;
 
-    // Only fill for 1H timeframe to avoid over-filling
-    if (timeframe !== '1H') return data;
+    // Only fill for 1m timeframe to avoid over-filling
+    if (timeframe !== '1m') return data;
 
     const filledData: CandlestickData[] = [];
     const intervalMs = 60 * 1000; // 1 minute in milliseconds
@@ -126,7 +148,15 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       setIsLoading(true);
       setError(null);
 
-      const response: ChartDataResponse = await apiService.getChartData(symbol, timeframe, 1000);
+      // Find the timeframe configuration to get the appropriate data points
+      const timeframeConfig = timeframes.find((tf) => tf.value === timeframe);
+      const dataPoints = timeframeConfig?.dataPoints || DEFAULT_CHART_DATA_POINTS;
+
+      const response: ChartDataResponse = await apiService.getChartData(
+        symbol,
+        timeframe,
+        dataPoints
+      );
       const bars = response.bars;
 
       // Remove duplicate entries by timestamp and sort by time
@@ -148,20 +178,22 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         close: bar.c,
       }));
 
-      // Fill missing minutes for better chart continuity
-      const filledData = fillMissingMinutes(formattedData, timeframe);
-      setChartData(filledData);
+      // Use the data as-is to show natural gaps in time series
+      setChartData(formattedData);
 
-      // Set full time range (always provided by server)
-      if (response.data_range) {
-        setDataRange(response.data_range);
+      // Set data range from actual data returned (no time restrictions)
+      if (uniqueBars.length > 0) {
+        setDataRange({
+          earliest: uniqueBars[0].t,
+          latest: uniqueBars[uniqueBars.length - 1].t,
+        });
       } else {
         setDataRange(null);
       }
 
       // Set available data range (only where data actually exists)
-      if (response.available_data_range) {
-        setAvailableDataRange(response.available_data_range);
+      if (response.actual_data_range) {
+        setAvailableDataRange(response.actual_data_range);
       } else if (uniqueBars.length > 0) {
         // Fallback: calculate from actual data if server doesn't provide it
         setAvailableDataRange({
@@ -211,7 +243,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   const getPlotlyData = useCallback(() => {
     if (chartData.length === 0) return [];
 
-    const x = chartData.map((d) => d.time);
+    // Ensure data is sorted by time and convert to proper format for Plotly
+    const sortedData = [...chartData].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    const x = sortedData.map((_, index) => index); // Use indices for x-axis to eliminate gaps
 
     switch (chartType) {
       case 'candlestick':
@@ -219,10 +253,10 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           {
             type: 'candlestick' as const,
             x: x,
-            open: chartData.map((d) => d.open),
-            high: chartData.map((d) => d.high),
-            low: chartData.map((d) => d.low),
-            close: chartData.map((d) => d.close),
+            open: sortedData.map((d) => d.open),
+            high: sortedData.map((d) => d.high),
+            low: sortedData.map((d) => d.low),
+            close: sortedData.map((d) => d.close),
             increasing: {
               line: { color: '#26a69a', width: 1 },
               fillcolor: '#26a69a',
@@ -235,6 +269,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             line: { width: 1 },
             whiskerwidth: 0.8,
             showlegend: false,
+            hovertemplate: '<b>%{fullData.name}</b><br>' +
+              'Time: %{customdata}<br>' +
+              'Open: $%{open}<br>' +
+              'High: $%{high}<br>' +
+              'Low: $%{low}<br>' +
+              'Close: $%{close}<extra></extra>',
+            customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
 
@@ -244,9 +285,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             type: 'scatter' as const,
             mode: 'lines' as const,
             x: x,
-            y: chartData.map((d) => d.close),
+            y: sortedData.map((d) => d.close),
             line: { color: '#26a69a', width: 2 },
             name: symbol,
+            hovertemplate: '<b>%{fullData.name}</b><br>' +
+              'Time: %{customdata}<br>' +
+              'Price: $%{y}<extra></extra>',
+            customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
 
@@ -255,9 +300,13 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
           {
             type: 'bar' as const,
             x: x,
-            y: chartData.map((d) => d.close),
+            y: sortedData.map((d) => d.close),
             marker: { color: '#26a69a' },
             name: symbol,
+            hovertemplate: '<b>%{fullData.name}</b><br>' +
+              'Time: %{customdata}<br>' +
+              'Price: $%{y}<extra></extra>',
+            customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
 
@@ -267,11 +316,15 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             type: 'scatter' as const,
             mode: 'lines' as const,
             x: x,
-            y: chartData.map((d) => d.close),
+            y: sortedData.map((d) => d.close),
             fill: 'tonexty' as const,
             line: { color: '#26a69a', width: 2 },
             fillcolor: 'rgba(38, 166, 154, 0.2)',
             name: symbol,
+            hovertemplate: '<b>%{fullData.name}</b><br>' +
+              'Time: %{customdata}<br>' +
+              'Price: $%{y}<extra></extra>',
+            customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
 
@@ -287,11 +340,15 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         font: { color: '#d1d5db', size: 16 },
       },
       xaxis: {
-        type: 'date' as const,
+        type: 'linear' as const,
         gridcolor: '#374151',
         color: '#d1d5db',
-        title: { text: 'Time', font: { color: '#d1d5db' } },
+        title: { text: 'Data Points', font: { color: '#d1d5db' } },
         rangeslider: { visible: false },
+        showgrid: true,
+        tickmode: 'array',
+        tickvals: [],
+        ticktext: [],
       },
       yaxis: {
         gridcolor: '#374151',
@@ -306,42 +363,22 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       hovermode: 'x unified' as const,
     };
 
-    // Set the x-axis range to the full selected timeframe only if we have dense data
-    // For sparse data, let Plotly auto-scale to show the actual data points
-    if (dataRange && chartData.length > 0) {
-      const expectedDataPoints =
-        timeframe === '1H'
-          ? 60
-          : timeframe === '4H'
-          ? 240
-          : timeframe === '1D'
-          ? 288
-          : timeframe === '1W'
-          ? 168
-          : timeframe === '1M'
-          ? 720
-          : 100;
-
-      // Only force the range if we have at least 80% of expected data points
-      if (chartData.length >= expectedDataPoints * 0.8) {
-        layout.xaxis.range = [dataRange.earliest, dataRange.latest];
-      }
-    }
+    // Let Plotly auto-scale to show the actual data points with natural gaps
+    // No need to force ranges since we want to show the true time distribution
 
     return layout;
   }, [symbol, timeframe, dataRange]);
 
-  const timeframes: { value: ChartTimeframe; label: string }[] = [
-    { value: '1H', label: '1H' },
-    { value: '4H', label: '4H' },
-    { value: '1D', label: '1D' },
-    { value: '1W', label: '1W' },
-    { value: '1M', label: '1M' },
-    { value: '6M', label: '6M' },
-    { value: '1Y', label: '1Y' },
-    { value: '3Y', label: '3Y' },
-    { value: '5Y', label: '5Y' },
-    { value: 'ALL', label: 'ALL' },
+  const timeframes: { value: ChartTimeframe; label: string; dataPoints: number }[] = [
+    { value: '1m', label: '1m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 1-minute data
+    { value: '5m', label: '5m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 5-minute intervals
+    { value: '30m', label: '30m', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 30-minute intervals
+    { value: '1h', label: '1h', dataPoints: DEFAULT_CHART_DATA_POINTS }, // hourly data
+    { value: '2h', label: '2h', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 2-hour intervals
+    { value: '4h', label: '4h', dataPoints: DEFAULT_CHART_DATA_POINTS }, // 4-hour intervals
+    { value: '1d', label: '1d', dataPoints: DEFAULT_CHART_DATA_POINTS }, // daily data
+    { value: '1w', label: '1w', dataPoints: DEFAULT_CHART_DATA_POINTS }, // weekly data
+    { value: '1M', label: '1M', dataPoints: DEFAULT_CHART_DATA_POINTS }, // monthly data
   ];
 
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
@@ -371,7 +408,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                 {isLive ? 'Live' : 'Paused'}
               </button>
               <button
-                onClick={() => loadChartData(symbol, timeframe)}
+                onClick={() => timeframe && loadChartData(symbol, timeframe)}
                 className="p-1 text-muted-foreground hover:text-foreground"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -437,7 +474,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
             <div className="text-center">
               <p className="text-destructive mb-4">{error}</p>
               <button
-                onClick={() => loadChartData(symbol, timeframe)}
+                onClick={() => timeframe && loadChartData(symbol, timeframe)}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               >
                 Retry
@@ -467,7 +504,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
             <span>Data points: {chartData.length}</span>
-            <span>Timeframe: {timeframe || 'Loading...'}</span>
+            <span>Interval: {timeframe || 'Loading...'}</span>
             {dataRange && (
               <div className="text-amber-500 text-xs">
                 <div className="font-medium">Chart Time Range:</div>

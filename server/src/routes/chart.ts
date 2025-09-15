@@ -5,93 +5,62 @@ import { QuestDBQueryParams, QuestDBStockAggregate } from '../types/questdb';
 const router = Router();
 
 /**
- * Timeframe configuration with proper time ranges and aggregation intervals
+ * Supported aggregation intervals in minutes
  */
-interface TimeframeConfig {
-  timeRangeHours: number;
-  aggregationIntervalMinutes: number;
-  maxDataPoints: number;
-}
+export const AGGREGATION_INTERVALS = {
+  '1m': 1,
+  '5m': 5,
+  '30m': 30,
+  '1h': 60,
+  '2h': 120,
+  '4h': 240,
+  '1d': 1440,
+  '1w': 10080,
+  '1M': 43200, // 30 days
+} as const;
 
-function getTimeframeConfig(timeframe: string): TimeframeConfig {
-  switch (timeframe) {
-    case '1H':
-      return { timeRangeHours: 1, aggregationIntervalMinutes: 1, maxDataPoints: 120 };
-    case '4H':
-      return { timeRangeHours: 4, aggregationIntervalMinutes: 4, maxDataPoints: 4 * 60 };
-    case '1D':
-      return { timeRangeHours: 24, aggregationIntervalMinutes: 24, maxDataPoints: 24 * 60 };
-    case '1W':
-      return {
-        timeRangeHours: 24 * 7,
-        aggregationIntervalMinutes: 24 * 7,
-        maxDataPoints: 24 * 7 * 60,
-      };
-    case '1M':
-      return { timeRangeHours: 720, aggregationIntervalMinutes: 720, maxDataPoints: 720 * 60 };
-    case '6M':
-      return {
-        timeRangeHours: 24 * 30 * 6,
-        aggregationIntervalMinutes: 24 * 60,
-        maxDataPoints: 180,
-      };
-    case '1Y':
-      return {
-        timeRangeHours: 24 * 365,
-        aggregationIntervalMinutes: 24 * 60 * 7,
-        maxDataPoints: 52,
-      };
-    case '3Y':
-      return {
-        timeRangeHours: 24 * 365 * 3,
-        aggregationIntervalMinutes: 24 * 60 * 30,
-        maxDataPoints: 36,
-      };
-    case '5Y':
-      return {
-        timeRangeHours: 24 * 365 * 5,
-        aggregationIntervalMinutes: 24 * 60 * 30,
-        maxDataPoints: 60,
-      };
-    case 'ALL':
-      return {
-        timeRangeHours: 24 * 365 * 20,
-        aggregationIntervalMinutes: 24 * 60 * 30,
-        maxDataPoints: 240,
-      };
-    default:
-      return { timeRangeHours: 24, aggregationIntervalMinutes: 1, maxDataPoints: 1440 };
-  }
+export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
+
+/**
+ * Chart query parameters for the new system
+ */
+interface ChartQueryParams {
+  endTime: string; // ISO timestamp
+  interval: AggregationInterval;
+  dataPoints: number; // Number of data points to return
 }
 
 /**
- * Aggregate stock data based on timeframe configuration
+ * Get the interval in minutes for a given aggregation interval
  */
-function aggregateDataByTimeframe(
+function getIntervalMinutes(interval: AggregationInterval): number {
+  return AGGREGATION_INTERVALS[interval];
+}
+
+/**
+ * Aggregate stock data with the new system that skips intervals without data
+ */
+function aggregateDataWithIntervals(
   data: QuestDBStockAggregate[],
-  timeframe: string
+  params: ChartQueryParams
 ): QuestDBStockAggregate[] {
   if (data.length === 0) return data;
 
-  const config = getTimeframeConfig(timeframe);
-
-  // For timeframes that don't need aggregation, return as-is
-  if (timeframe === 'ALL') {
-    return data; // Return all data, no limits
-  }
+  const intervalMinutes = getIntervalMinutes(params.interval);
+  const intervalMs = intervalMinutes * 60 * 1000;
+  const endTime = new Date(params.endTime).getTime();
 
   // Sort data by timestamp to ensure proper aggregation
   const sortedData = [...data].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
-  // For 1-minute intervals (1H, 4H, 1D), no aggregation needed
-  if (config.aggregationIntervalMinutes === 1) {
-    return sortedData; // Return all data, no limits
+  // For 1-minute intervals, no aggregation needed - just return the data
+  if (intervalMinutes === 1) {
+    return sortedData.slice(-params.dataPoints);
   }
 
   // Use time-based bucketing for proper aggregation
-  const intervalMs = config.aggregationIntervalMinutes * 60 * 1000;
   const buckets = new Map<number, QuestDBStockAggregate[]>();
 
   for (const item of sortedData) {
@@ -105,20 +74,25 @@ function aggregateDataByTimeframe(
     buckets.get(bucketTime)!.push(item);
   }
 
-  // Convert buckets to aggregated data
+  // Convert buckets to aggregated data, working backwards from end time
   const aggregatedData: QuestDBStockAggregate[] = [];
-  const sortedBuckets = Array.from(buckets.entries()).sort(([a], [b]) => a - b);
+  const sortedBuckets = Array.from(buckets.entries())
+    .sort(([a], [b]) => b - a) // Sort descending to work backwards from end time
+    .filter(([bucketTime]) => bucketTime <= endTime); // Only include buckets up to end time
 
+  let dataPointsCollected = 0;
   for (const [bucketTime, bucketData] of sortedBuckets) {
+    if (dataPointsCollected >= params.dataPoints) break;
+
     if (bucketData.length > 0) {
       const aggregated = aggregateGroup(bucketData);
       // Use the bucket time as the timestamp for consistency
       aggregated.timestamp = new Date(bucketTime).toISOString();
-      aggregatedData.push(aggregated);
+      aggregatedData.unshift(aggregated); // Add to beginning to maintain chronological order
+      dataPointsCollected++;
     }
   }
 
-  // Return all aggregated data - no artificial limits
   return aggregatedData;
 }
 
@@ -153,59 +127,74 @@ function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
   };
 }
 
-// Get chart data for a symbol from QuestDB
+// Get chart data for a symbol from QuestDB with new parameters
 router.get('/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { timeframe = '1D', start_time, end_time } = req.query;
+    const {
+      end_time,
+      interval = '1h',
+      data_points = process.env.DEFAULT_CHART_DATA_POINTS || '80',
+    } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
     }
 
-    // Remove limit restrictions - we want all available data
-    // The limit parameter is ignored to ensure we get complete datasets
-
-    // Calculate time range based on timeframe if not provided
-    let calculatedStartTime = start_time as string | undefined;
-    let calculatedEndTime = end_time as string | undefined;
-
-    if (!start_time && !end_time) {
-      const now = new Date();
-      const config = getTimeframeConfig(timeframe as string);
-      const startDate = new Date(now.getTime() - config.timeRangeHours * 60 * 60 * 1000);
-
-      calculatedStartTime = startDate.toISOString();
-      calculatedEndTime = now.toISOString();
+    // Validate parameters
+    if (!end_time) {
+      return res.status(400).json({ error: 'end_time parameter is required' });
     }
 
-    // Get aggregates from QuestDB
-    // const config = getTimeframeConfig(timeframe as string); // Not needed since we removed limits
+    const intervalKey = interval as AggregationInterval;
+    if (!AGGREGATION_INTERVALS[intervalKey]) {
+      return res.status(400).json({
+        error: `Invalid interval. Supported intervals: ${Object.keys(AGGREGATION_INTERVALS).join(
+          ', '
+        )}`,
+      });
+    }
+
+    const dataPoints = parseInt(data_points as string, 10);
+    if (isNaN(dataPoints) || dataPoints <= 0) {
+      return res.status(400).json({ error: 'data_points must be a positive integer' });
+    }
+
+    // Validate end_time format
+    const endTime = new Date(end_time as string);
+    if (isNaN(endTime.getTime())) {
+      return res.status(400).json({ error: 'end_time must be a valid ISO timestamp' });
+    }
+
+    const chartParams: ChartQueryParams = {
+      endTime: endTime.toISOString(),
+      interval: intervalKey,
+      dataPoints: dataPoints,
+    };
+
+    console.log(
+      `🔍 DEBUG: Querying ${symbol} up to ${endTime.toISOString()} with ${intervalKey} intervals, requesting ${dataPoints} data points`
+    );
+
+    // Get aggregates from QuestDB - only specify end_time, let QuestDB return all available data up to that point
     const params: QuestDBQueryParams = {
-      start_time: calculatedStartTime,
-      end_time: calculatedEndTime,
-      // No limit - get all available data in the time range
+      end_time: endTime.toISOString(),
       order_by: 'timestamp',
-      order_direction: 'ASC',
+      order_direction: 'DESC', // Get most recent data first
     };
 
     let aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
-    console.log(
-      `🔍 DEBUG: Retrieved ${aggregates.length} aggregates for ${symbol} in timeframe ${timeframe}`
-    );
+    console.log(`🔍 DEBUG: Retrieved ${aggregates.length} raw aggregates for ${symbol}`);
 
-    // If no data found in the requested time range, try to get the most recent available data
-    // to understand what time range actually has data
+    // If no data found, try to get the most recent available data
     if (aggregates.length === 0) {
-      console.log(
-        `No data found for ${symbol} in time range ${calculatedStartTime} to ${calculatedEndTime}`
-      );
+      console.log(`No data found for ${symbol} up to ${endTime.toISOString()}`);
 
-      // Query for the most recent available data to understand the data range
+      // Query for the most recent available data without time restrictions
       const fallbackParams: QuestDBQueryParams = {
-        // No limit - get the most recent data
         order_by: 'timestamp',
         order_direction: 'DESC',
+        limit: 1000, // Get some recent data to work with
       };
 
       const recentData = await questdbService.getStockAggregates(
@@ -217,30 +206,22 @@ router.get('/:symbol', async (req: Request, res: Response) => {
         const latestTimestamp = recentData[0].timestamp;
         console.log(`Found most recent data for ${symbol} at: ${latestTimestamp}`);
 
-        // Calculate the actual time range based on the most recent data
-        const latestDate = new Date(latestTimestamp);
-        const config = getTimeframeConfig(timeframe as string);
-        const actualStartDate = new Date(
-          latestDate.getTime() - config.timeRangeHours * 60 * 60 * 1000
-        );
+        // Use the most recent data as the end time
+        const actualEndTime = new Date(latestTimestamp);
+        console.log(`Using actual end time: ${actualEndTime.toISOString()}`);
 
-        // Update the calculated times to be based on the actual data
-        calculatedStartTime = actualStartDate.toISOString();
-        calculatedEndTime = latestDate.toISOString();
+        // Update chart params with actual end time
+        chartParams.endTime = actualEndTime.toISOString();
 
-        console.log(`Adjusted time range to: ${calculatedStartTime} to ${calculatedEndTime}`);
-
-        // Query again with the adjusted time range
+        // Query again with just the end time
         const adjustedParams: QuestDBQueryParams = {
-          start_time: calculatedStartTime,
-          end_time: calculatedEndTime,
-          // No limit - get all available data in the time range
+          end_time: actualEndTime.toISOString(),
           order_by: 'timestamp',
-          order_direction: 'ASC',
+          order_direction: 'DESC',
         };
 
         aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), adjustedParams);
-        console.log(`Found ${aggregates.length} records with adjusted time range`);
+        console.log(`Found ${aggregates.length} records with actual end time`);
       }
     }
 
@@ -265,8 +246,10 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return acc;
     }, [] as typeof aggregates);
 
-    // Aggregate data based on the requested timeframe
-    const aggregatedData = aggregateDataByTimeframe(uniqueAggregates, timeframe as string);
+    // Aggregate data using the new system that skips intervals without data
+    const aggregatedData = aggregateDataWithIntervals(uniqueAggregates, chartParams);
+
+    console.log(`🔍 DEBUG: Aggregated to ${aggregatedData.length} data points for ${symbol}`);
 
     // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
     const bars = aggregatedData.map((agg) => ({
@@ -282,15 +265,17 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     return res.json({
       symbol: symbol.toUpperCase(),
-      timeframe,
+      interval: intervalKey,
+      data_points: dataPoints,
       bars,
       data_source: 'questdb',
       success: true,
-      data_range: {
-        earliest: calculatedStartTime,
-        latest: calculatedEndTime,
+      query_params: {
+        end_time: chartParams.endTime,
+        interval: chartParams.interval,
+        requested_data_points: chartParams.dataPoints,
       },
-      available_data_range:
+      actual_data_range:
         aggregatedData.length > 0
           ? {
               earliest: aggregatedData[0]?.timestamp,

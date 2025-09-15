@@ -194,8 +194,14 @@ export interface ChartQuoteMessage extends WebSocketMessage {
 }
 
 // Chart Types
-export type ChartTimeframe = '1H' | '4H' | '1D' | '1W' | '1M' | '6M' | '1Y' | '3Y' | '5Y' | 'ALL';
+export type ChartTimeframe = '1m' | '5m' | '30m' | '1h' | '2h' | '4h' | '1d' | '1w' | '1M';
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
+
+// Chart Constants
+export const DEFAULT_CHART_DATA_POINTS = parseInt(
+  import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '80',
+  10
+);
 
 // Technical Indicators
 export interface MovingAverage {
@@ -292,15 +298,17 @@ export interface ApiResponse<T> {
 // Chart API Response Types
 export interface ChartDataResponse {
   symbol: string;
-  timeframe: string;
+  interval: string;
+  data_points: number;
   bars: AlpacaBar[];
   data_source: string;
   success: boolean;
-  data_range: {
-    earliest: string;
-    latest: string;
+  query_params: {
+    end_time: string;
+    interval: string;
+    requested_data_points: number;
   };
-  available_data_range?: {
+  actual_data_range?: {
     earliest: string;
     latest: string;
   } | null;

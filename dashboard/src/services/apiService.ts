@@ -8,6 +8,7 @@ import {
   AlpacaOptionsContract,
   CreateOrderRequest,
   ChartDataResponse,
+  DEFAULT_CHART_DATA_POINTS,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -66,12 +67,23 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     // Chart endpoints
     async getChartData(
       symbol: string,
-      timeframe: string = '1D',
-      limit: number = 1000
+      interval: string = '1h',
+      dataPoints: number = DEFAULT_CHART_DATA_POINTS,
+      endTime?: string
     ): Promise<ChartDataResponse> {
-      const response = await api.get(`/api/chart/${symbol}`, {
-        params: { timeframe, limit },
-      });
+      const params: Record<string, string> = {
+        interval,
+        data_points: dataPoints.toString(),
+      };
+
+      if (endTime) {
+        params.end_time = endTime;
+      } else {
+        // Use current time as default end time
+        params.end_time = new Date().toISOString();
+      }
+
+      const response = await api.get(`/api/chart/${symbol}`, { params });
       return response.data;
     },
 
@@ -137,12 +149,23 @@ export const apiService = {
   // Chart endpoints
   async getChartData(
     symbol: string,
-    timeframe: string = '1D',
-    limit: number = 1000
+    interval: string = '1h',
+    dataPoints: number = DEFAULT_CHART_DATA_POINTS,
+    endTime?: string
   ): Promise<ChartDataResponse> {
-    const response = await api.get(`/api/chart/${symbol}`, {
-      params: { timeframe, limit },
-    });
+    const params: Record<string, string> = {
+      interval,
+      data_points: dataPoints.toString(),
+    };
+
+    if (endTime) {
+      params.end_time = endTime;
+    } else {
+      // Use current time as default end time
+      params.end_time = new Date().toISOString();
+    }
+
+    const response = await api.get(`/api/chart/${symbol}`, { params });
     return response.data;
   },
 
