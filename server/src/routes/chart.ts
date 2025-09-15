@@ -16,15 +16,19 @@ interface TimeframeConfig {
 function getTimeframeConfig(timeframe: string): TimeframeConfig {
   switch (timeframe) {
     case '1H':
-      return { timeRangeHours: 1, aggregationIntervalMinutes: 1, maxDataPoints: 60 };
+      return { timeRangeHours: 1, aggregationIntervalMinutes: 1, maxDataPoints: 120 };
     case '4H':
-      return { timeRangeHours: 4, aggregationIntervalMinutes: 5, maxDataPoints: 240 };
+      return { timeRangeHours: 4, aggregationIntervalMinutes: 4, maxDataPoints: 4 * 60 };
     case '1D':
-      return { timeRangeHours: 24, aggregationIntervalMinutes: 5, maxDataPoints: 288 };
+      return { timeRangeHours: 24, aggregationIntervalMinutes: 24, maxDataPoints: 24 * 60 };
     case '1W':
-      return { timeRangeHours: 24 * 7, aggregationIntervalMinutes: 60, maxDataPoints: 168 };
+      return {
+        timeRangeHours: 24 * 7,
+        aggregationIntervalMinutes: 24 * 7,
+        maxDataPoints: 24 * 7 * 60,
+      };
     case '1M':
-      return { timeRangeHours: 24 * 30, aggregationIntervalMinutes: 60 * 12, maxDataPoints: 720 };
+      return { timeRangeHours: 720, aggregationIntervalMinutes: 720, maxDataPoints: 720 * 60 };
     case '6M':
       return {
         timeRangeHours: 24 * 30 * 6,
