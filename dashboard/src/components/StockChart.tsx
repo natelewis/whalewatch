@@ -84,6 +84,18 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     close: number;
   } | null>(null);
 
+  // Chart interaction state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [currentRange, setCurrentRange] = useState<[number, number] | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  // Reset zoom and pan
+  const resetZoomAndPan = useCallback(() => {
+    setCurrentRange(null);
+    setZoomLevel(1);
+  }, []);
+
   // Define timeframes array early - memoized to prevent unnecessary re-renders
   const timeframes: TimeframeConfig[] = useMemo(
     () => [
@@ -311,6 +323,122 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     };
   }, [chartRef]);
 
+  // Mouse wheel zoom and drag pan handlers
+  useEffect(() => {
+    if (!chartRef) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+
+      if (chartDataHook.chartData.length === 0) return;
+
+      const sortedData = [...chartDataHook.chartData].sort(
+        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+      const totalPoints = sortedData.length;
+
+      if (totalPoints === 0) return;
+
+      // Get current range or use full range
+      const currentXRange = currentRange || [0, totalPoints - 1];
+      const rangeSize = currentXRange[1] - currentXRange[0];
+
+      // Calculate zoom factor (positive delta = zoom out, negative = zoom in)
+      const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
+      const newZoomLevel = Math.max(0.1, Math.min(10, zoomLevel * zoomFactor));
+
+      // Calculate new range size
+      const newRangeSize = Math.max(1, Math.min(totalPoints, rangeSize * zoomFactor));
+
+      // Calculate center point for zoom
+      const centerPoint = currentXRange[0] + rangeSize / 2;
+      const newStart = Math.max(0, centerPoint - newRangeSize / 2);
+      const newEnd = Math.min(totalPoints - 1, newStart + newRangeSize);
+
+      // Adjust if we hit boundaries
+      const finalStart =
+        newEnd >= totalPoints - 1 ? Math.max(0, totalPoints - 1 - newRangeSize) : newStart;
+      const finalEnd = finalStart + newRangeSize;
+
+      setCurrentRange([finalStart, finalEnd]);
+      setZoomLevel(newZoomLevel);
+    };
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (event.button === 0) {
+        // Left mouse button
+        setIsDragging(true);
+        setDragStartX(event.clientX);
+      }
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!isDragging || dragStartX === null || chartDataHook.chartData.length === 0) return;
+
+      const sortedData = [...chartDataHook.chartData].sort(
+        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+      const totalPoints = sortedData.length;
+
+      if (totalPoints === 0) return;
+
+      const deltaX = event.clientX - dragStartX;
+      const plotArea = chartRef.querySelector('.nsewdrag.drag');
+
+      if (!plotArea) return;
+
+      const rect = plotArea.getBoundingClientRect();
+      const chartWidth = rect.width;
+
+      // Convert pixel movement to data point movement
+      const dataPointDelta = (deltaX / chartWidth) * totalPoints;
+
+      // Get current range or use full range
+      const currentXRange = currentRange || [0, totalPoints - 1];
+      const rangeSize = currentXRange[1] - currentXRange[0];
+
+      // Calculate new range
+      let newStart = currentXRange[0] - dataPointDelta;
+      let newEnd = currentXRange[1] - dataPointDelta;
+
+      // Clamp to valid range
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = Math.min(totalPoints - 1, rangeSize);
+      } else if (newEnd >= totalPoints) {
+        newEnd = totalPoints - 1;
+        newStart = Math.max(0, newEnd - rangeSize);
+      }
+
+      setCurrentRange([newStart, newEnd]);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setDragStartX(null);
+    };
+
+    const handleMouseLeave = () => {
+      setIsDragging(false);
+      setDragStartX(null);
+    };
+
+    // Add event listeners
+    chartRef.addEventListener('wheel', handleWheel, { passive: false });
+    chartRef.addEventListener('mousedown', handleMouseDown);
+    chartRef.addEventListener('mousemove', handleMouseMove);
+    chartRef.addEventListener('mouseup', handleMouseUp);
+    chartRef.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      chartRef.removeEventListener('wheel', handleWheel);
+      chartRef.removeEventListener('mousedown', handleMouseDown);
+      chartRef.removeEventListener('mousemove', handleMouseMove);
+      chartRef.removeEventListener('mouseup', handleMouseUp);
+      chartRef.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [chartRef, isDragging, dragStartX, currentRange, zoomLevel, chartDataHook.chartData]);
+
   // Calculate chart area bounds for spike line positioning
   const [chartBounds, setChartBounds] = useState<{
     left: number;
@@ -411,7 +539,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             line: { width: 1 },
             whiskerwidth: 0.8,
             showlegend: false,
-            hoverinfo: 'none',
+            hoverinfo: 'none' as const,
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
           // Add invisible scatter overlay for hover detection on candlestick charts
@@ -430,7 +558,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             showlegend: false,
             // Enable hover detection but don't show tooltip for this trace
             hoveron: 'points' as const,
-            hoverinfo: 'none',
+            hoverinfo: 'none' as const,
             connectgaps: true, // Connect gaps to ensure continuous hover detection
             // This invisible line enables hover detection across the entire chart
             name: `${symbol}_hover_overlay`,
@@ -446,7 +574,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             y: sortedData.map((d) => d.close),
             line: { color: '#26a69a', width: 2 },
             name: symbol,
-            hoverinfo: 'none',
+            hoverinfo: 'none' as const,
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -459,7 +587,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             y: sortedData.map((d) => d.close),
             marker: { color: '#26a69a' },
             name: symbol,
-            hoverinfo: 'none',
+            hoverinfo: 'none' as const,
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -475,7 +603,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
             line: { color: '#26a69a', width: 2 },
             fillcolor: 'rgba(38, 166, 154, 0.2)',
             name: symbol,
-            hoverinfo: 'none',
+            hoverinfo: 'none' as const,
             customdata: sortedData.map((d) => new Date(d.time).toLocaleString()),
           },
         ];
@@ -588,6 +716,11 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         tickcolor: '#6b7280',
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
+        // Apply current range if available
+        ...(currentRange && {
+          range: currentRange,
+          fixedrange: false, // Allow zoom and pan
+        }),
       },
       yaxis: {
         color: '#d1d5db',
@@ -674,7 +807,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, chartDataHook.dataRange, hoveredDate, mouseX]);
+  }, [symbol, timeframe, chartDataHook.dataRange, hoveredDate, mouseX, currentRange]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
     { value: 'line', label: 'Line', icon: <LineChart className="h-4 w-4" /> },
@@ -704,8 +837,16 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
               <button
                 onClick={() => timeframe && chartDataHook.loadChartData(symbol, timeframe)}
                 className="p-1 text-muted-foreground hover:text-foreground"
+                title="Refresh data"
               >
                 <RotateCcw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={resetZoomAndPan}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="Reset zoom and pan"
+              >
+                <Square className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -789,37 +930,25 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                       <div className="flex gap-3 text-sm">
                         <span className="text-muted-foreground">
                           O:{' '}
-                          <span
-                            style={{ color: titleData.ohlc.open.color }}
-                            className="inline-block w-16 text-right font-mono"
-                          >
+                          <span style={{ color: titleData.ohlc.open.color }} className="font-mono">
                             {titleData.ohlc.open.value}
                           </span>
                         </span>
                         <span className="text-muted-foreground">
                           H:{' '}
-                          <span
-                            style={{ color: titleData.ohlc.high.color }}
-                            className="inline-block w-16 text-right font-mono"
-                          >
+                          <span style={{ color: titleData.ohlc.high.color }} className="font-mono">
                             {titleData.ohlc.high.value}
                           </span>
                         </span>
                         <span className="text-muted-foreground">
                           L:{' '}
-                          <span
-                            style={{ color: titleData.ohlc.low.color }}
-                            className="inline-block w-16 text-right font-mono"
-                          >
+                          <span style={{ color: titleData.ohlc.low.color }} className="font-mono">
                             {titleData.ohlc.low.value}
                           </span>
                         </span>
                         <span className="text-muted-foreground">
                           C:{' '}
-                          <span
-                            style={{ color: titleData.ohlc.close.color }}
-                            className="inline-block w-16 text-right font-mono"
-                          >
+                          <span style={{ color: titleData.ohlc.close.color }} className="font-mono">
                             {titleData.ohlc.close.value}
                           </span>
                         </span>
@@ -827,31 +956,35 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                     </div>
                   );
                 } else {
-                  // Show symbol and timeframe when not hovering
+                  // Show symbol only when not hovering
                   return (
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-foreground text-lg">{titleData.symbol}</span>
-                      <span className="text-muted-foreground">{titleData.timeframe}</span>
                     </div>
                   );
                 }
               })()}
             </div>
 
-            <div ref={setChartRef} className="w-full h-full relative">
+            <div
+              ref={setChartRef}
+              className={`w-full h-full relative ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            >
               <Plot
                 data={plotlyData}
                 layout={plotlyLayout}
                 config={{
                   displayModeBar: true,
                   displaylogo: false,
-                  modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
+                  modeBarButtonsToRemove: ['lasso2d', 'select2d'],
                   responsive: true,
                   // Enable hover behavior
                   showTips: false,
                   showLink: false,
                   // Ensure hover mode works properly
                   doubleClick: 'reset+autosize',
+                  // Enable zoom and pan
+                  scrollZoom: false, // We handle this manually
                   toImageButtonOptions: {
                     format: 'png',
                     filename: 'chart',
