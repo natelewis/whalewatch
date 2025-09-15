@@ -86,7 +86,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
 
   // Chart interaction state
   const [currentRange, setCurrentRange] = useState<[number, number] | null>(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Continuous data loading state
   const [lastScrollTime, setLastScrollTime] = useState<number>(0);
@@ -95,10 +94,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   const BUFFER_THRESHOLD = 0.1; // 10% from the edge triggers loading
   const SCROLL_DEBOUNCE_MS = 100; // Debounce scroll events
 
-  // Reset zoom and pan
+  // Reset pan
   const resetZoomAndPan = useCallback(() => {
     setCurrentRange(null);
-    setZoomLevel(1);
   }, []);
 
   // Define timeframes array early - memoized to prevent unnecessary re-renders
@@ -323,7 +321,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         }
       }
 
-      // Handle mouse positioning for tooltips
+      // Handle mouse positioning for tooltips using Plotly's controlled events
       if (chartRef && event.event) {
         const plotArea = chartRef.querySelector('.nsewdrag.drag');
         if (plotArea) {
@@ -396,48 +394,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       }
     },
     [chartDataHook.chartData, currentRange]
-  );
-
-  // Custom zoom and pan handlers using Plotly events
-  const handlePlotlyWheel = useCallback(
-    (event: any) => {
-      if (chartDataHook.chartData.length === 0) return;
-
-      const sortedData = [...chartDataHook.chartData].sort(
-        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-      );
-      const totalPoints = sortedData.length;
-
-      if (totalPoints === 0) return;
-
-      // Get current range or use full range
-      const currentXRange = currentRange || [0, totalPoints - 1];
-      const rangeSize = currentXRange[1] - currentXRange[0];
-
-      // Calculate zoom factor (positive delta = zoom out, negative = zoom in)
-      const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
-      const newZoomLevel = Math.max(0.1, Math.min(10, zoomLevel * zoomFactor));
-
-      // Calculate new range size
-      const newRangeSize = Math.max(1, Math.min(totalPoints, rangeSize * zoomFactor));
-
-      // Calculate center point for zoom
-      const centerPoint = currentXRange[0] + rangeSize / 2;
-      const newStart = Math.max(0, centerPoint - newRangeSize / 2);
-      const newEnd = Math.min(totalPoints - 1, newStart + newRangeSize);
-
-      // Adjust if we hit boundaries
-      const finalStart =
-        newEnd >= totalPoints - 1 ? Math.max(0, totalPoints - 1 - newRangeSize) : newStart;
-      const finalEnd = finalStart + newRangeSize;
-
-      setCurrentRange([finalStart, finalEnd]);
-      setZoomLevel(newZoomLevel);
-
-      // Update scroll time for debouncing
-      setLastScrollTime(Date.now());
-    },
-    [chartDataHook.chartData, currentRange, zoomLevel]
   );
 
   // Calculate chart area bounds for spike line positioning
@@ -753,7 +709,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
               Math.max(0, Math.min(currentRange[1], chartDataHook.chartData.length - 1)),
             ],
           }),
-        fixedrange: false, // Allow pan
+        fixedrange: false, // Allow pan but disable zoom
         // Disable any selection or trim zoom behavior
         selectdirection: false,
       },
@@ -770,6 +726,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
         tickformat: '.4f', // Format y-axis labels to show 4 decimal places
+        fixedrange: true, // Disable vertical zoom
       },
       plot_bgcolor: 'transparent',
       paper_bgcolor: 'transparent',
@@ -777,6 +734,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
       hovermode: 'x unified' as const,
+      dragmode: 'pan' as const, // Enable pan mode only
       // Configure hover line and spike appearance
       shapes: [
         // Bottom border line
@@ -879,7 +837,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
               <button
                 onClick={resetZoomAndPan}
                 className="p-1 text-muted-foreground hover:text-foreground"
-                title="Reset zoom and pan"
+                title="Reset pan"
               >
                 <Square className="h-4 w-4" />
               </button>
@@ -1006,28 +964,32 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                 data={plotlyData}
                 layout={plotlyLayout}
                 config={{
-                  displayModeBar: true,
+                  displayModeBar: false, // Hide the entire mode bar to remove all zoom controls
                   displaylogo: false,
-                  modeBarButtonsToRemove: [
-                    'lasso2d',
-                    'select2d',
-                    'zoom2d',
-                    'select2d',
-                    'lasso2d',
-                    'autoScale2d',
-                    'resetScale2d',
-                    'zoomIn2d',
-                    'zoomOut2d',
-                  ],
                   responsive: true,
                   // Enable hover behavior
                   showTips: false,
                   showLink: false,
-                  // Enable pan but disable zoom
+                  // Disable all zoom features
                   scrollZoom: false,
                   doubleClick: false,
                   // Disable any trim zoom or selection behavior
                   editable: false,
+                  // Additional zoom disabling options
+                  staticPlot: false, // Keep interactive but disable zoom
+                  // Disable specific zoom interactions
+                  modeBarButtonsToRemove: [
+                    'zoom2d',
+                    'pan2d',
+                    'select2d',
+                    'lasso2d',
+                    'zoomIn2d',
+                    'zoomOut2d',
+                    'autoScale2d',
+                    'resetScale2d',
+                    'hoverClosestCartesian',
+                    'hoverCompareCartesian',
+                  ],
                   toImageButtonOptions: {
                     format: 'png',
                     filename: 'chart',
