@@ -10,6 +10,7 @@ declare global {
 import { ChartTimeframe, ChartType, DEFAULT_CHART_DATA_POINTS } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { usePriceTooltip } from '../hooks/usePriceTooltip';
+import { useDateTooltip } from '../hooks/useDateTooltip';
 import { useMouseHover } from '../hooks/useMouseHover';
 import { useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
@@ -79,8 +80,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   const [effectiveWidth, setEffectiveWidth] = useState<number | null>(null);
   const [chartRef, setChartRef] = useState<HTMLDivElement | null>(null);
 
-  // Hover state for time tooltip at bottom
-  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  // Hover state for spike lines and data point tracking
   const [mouseX, setMouseX] = useState<number | null>(null);
   const [mouseY, setMouseY] = useState<number | null>(null);
   const [dataPointIndex, setDataPointIndex] = useState<number | null>(null);
@@ -414,6 +414,14 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     enabled: true,
   });
 
+  // Use the date tooltip hook
+  const dateTooltip = useDateTooltip({
+    chartRef,
+    effectiveHeight,
+    effectiveWidth,
+    enabled: true,
+  });
+
   const mouseHover = useMouseHover({
     chartRef,
     enabled: true,
@@ -445,7 +453,15 @@ const StockChartComponent: React.FC<StockChartProps> = ({
             const minutes = String(date.getMinutes()).padStart(2, '0');
             const formattedDate = `${month}-${day}-${year} ${hours}:${minutes}`;
 
-            setHoveredDate(formattedDate);
+            // Show the date tooltip using the hook
+            if (chartRef && event.event) {
+              const plotArea = chartRef.querySelector('.nsewdrag.drag');
+              if (plotArea) {
+                const rect = plotArea.getBoundingClientRect();
+                const mouseXPos = event.event.clientX - rect.left;
+                dateTooltip.showTooltip(formattedDate, rect.left + mouseXPos, rect.bottom);
+              }
+            }
 
             // Capture OHLC data for the hovered bar
             const hoveredCandle = sortedData[xIndex];
@@ -497,16 +513,76 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         }
       }
     },
-    [chartRef, chartDataHook.chartData, timeframe]
+    [chartRef, chartDataHook.chartData, timeframe, dateTooltip]
   );
 
   const handlePlotlyUnhover = useCallback(() => {
-    setHoveredDate(null);
     setMouseX(null);
     setMouseY(null);
     setDataPointIndex(null);
     setHoveredOHLC(null);
-  }, []);
+    dateTooltip.hideTooltip();
+  }, [dateTooltip]);
+
+  // Handle mouse move on chart container to keep tooltip visible
+  const handleChartMouseMove = useCallback(
+    (event: MouseEvent) => {
+      if (!chartRef || !chartDataHook.chartData.length) return;
+
+      const plotArea = chartRef.querySelector('.nsewdrag.drag');
+      if (!plotArea) return;
+
+      const rect = plotArea.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+
+      // Check if mouse is within chart bounds
+      if (mouseX >= 0 && mouseX <= rect.width && mouseY >= 0 && mouseY <= rect.height) {
+        // Calculate which data point we're hovering over
+        const sortedData = [...chartDataHook.chartData].sort(
+          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+        );
+
+        // Convert mouse X position to data point index
+        const relativeX = mouseX / rect.width;
+        const dataIndex = Math.floor(relativeX * (sortedData.length - 1));
+
+        if (dataIndex >= 0 && dataIndex < sortedData.length) {
+          const hoveredTime = sortedData[dataIndex].time;
+          const date = new Date(hoveredTime);
+
+          // Format date to show full date and time like "01-02-2003 10:11"
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const year = date.getFullYear();
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const formattedDate = `${month}-${day}-${year} ${hours}:${minutes}`;
+
+          // Show the date tooltip
+          dateTooltip.showTooltip(formattedDate, rect.left + mouseX, rect.bottom);
+        }
+      }
+    },
+    [chartRef, chartDataHook.chartData, dateTooltip]
+  );
+
+  const handleChartMouseLeave = useCallback(() => {
+    dateTooltip.hideTooltip();
+  }, [dateTooltip]);
+
+  // Add mouse event listeners to chart container for persistent tooltip
+  useEffect(() => {
+    if (!chartRef) return;
+
+    chartRef.addEventListener('mousemove', handleChartMouseMove);
+    chartRef.addEventListener('mouseleave', handleChartMouseLeave);
+
+    return () => {
+      chartRef.removeEventListener('mousemove', handleChartMouseMove);
+      chartRef.removeEventListener('mouseleave', handleChartMouseLeave);
+    };
+  }, [chartRef, handleChartMouseMove, handleChartMouseLeave]);
 
   // Handle Plotly relayout events - keep it simple
   const handlePlotlyRelayout = useCallback(
@@ -522,7 +598,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
       if (newRange) {
         initialRangeSet.current = true;
-        setCurrentRange(previousRange => {
+        setCurrentRange((previousRange) => {
           console.log('Range change detected:', {
             previousRange,
             newRange,
@@ -557,14 +633,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         console.log('No xaxis.range in event, ignoring');
       }
     },
-    [
-      loadMoreDataAfterPan,
-      onPanLeft,
-      onPanRight,
-      chartDataHook.chartData.length,
-      timeframe,
-      symbol,
-    ]
+    [loadMoreDataAfterPan, onPanLeft, onPanRight, chartDataHook.chartData.length, timeframe, symbol]
   );
 
   // Calculate chart area bounds for spike line positioning
@@ -663,19 +732,26 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     const newChartData = chartDataHook.chartData;
     const oldChartData = prevChartData.current;
 
-    console.log('[DEBUG] Data changed:', { oldLength: oldChartData.length, newLength: newChartData.length });
+    console.log('[DEBUG] Data changed:', {
+      oldLength: oldChartData.length,
+      newLength: newChartData.length,
+    });
 
     if (oldChartData.length > 0 && newChartData.length > oldChartData.length) {
       const diff = newChartData.length - oldChartData.length;
       console.log('[DEBUG] Data added:', { diff });
-      
+
       // Check if the new data was added to the left
-      if (newChartData[diff] && oldChartData[0] && newChartData[diff].time === oldChartData[0].time) {
+      if (
+        newChartData[diff] &&
+        oldChartData[0] &&
+        newChartData[diff].time === oldChartData[0].time
+      ) {
         console.log('[DEBUG] Data added to the left. Shifting range.');
         // Data was added to the left
-        setCurrentRange(prevRange => {
+        setCurrentRange((prevRange) => {
           if (prevRange) {
-            const newRange = [prevRange[0] + diff, prevRange[1] + diff];
+            const newRange: [number, number] = [prevRange[0] + diff, prevRange[1] + diff];
             console.log('[DEBUG] New range:', newRange);
             return newRange;
           }
@@ -830,8 +906,20 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     );
     const totalPoints = sortedData.length;
 
-    // Show 5-8 ticks depending on data length
-    const numTicks = Math.min(8, Math.max(5, Math.floor(totalPoints / 10)));
+    // Calculate number of ticks based on timeframe and data length
+    let numTicks: number;
+
+    if (timeframe && ['1m', '5m'].includes(timeframe)) {
+      // For smaller intervals, show more ticks (8-12) to provide better time reference
+      numTicks = Math.min(12, Math.max(8, Math.floor(totalPoints / 5)));
+    } else if (timeframe && ['30m', '1h', '2h', '4h'].includes(timeframe)) {
+      // For medium intervals, show moderate number of ticks (6-10)
+      numTicks = Math.min(10, Math.max(6, Math.floor(totalPoints / 8)));
+    } else {
+      // For daily and longer intervals, show fewer ticks (5-8)
+      numTicks = Math.min(8, Math.max(5, Math.floor(totalPoints / 10)));
+    }
+
     const step = Math.max(1, Math.floor(totalPoints / (numTicks - 1)));
 
     const ticks: number[] = [];
@@ -841,7 +929,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     }
 
     return ticks;
-  }, [chartDataHook.chartData]);
+  }, [chartDataHook.chartData, timeframe]);
 
   const timeAxisLabels = useMemo(() => {
     if (chartDataHook.chartData.length === 0) return [];
