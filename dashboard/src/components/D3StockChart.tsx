@@ -390,7 +390,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     // Create scales - use linear scale to remove gaps
     const xScale = d3
       .scaleLinear()
-      .domain([0, visibleData.length - 1])
+      .domain([0, sortedData.length - 1])
       .range([0, innerWidth]);
 
     const yScale = d3
@@ -405,6 +405,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     // Create main group
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
+    let chartContent: d3.Selection<SVGGElement, unknown, null, undefined>;
+
     // Add a clip-path to prevent drawing outside the chart area
     svg
       .append('defs')
@@ -413,6 +415,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       .append('rect')
       .attr('width', innerWidth)
       .attr('height', innerHeight);
+
+    chartContent = g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
+
+    // Create chart elements - draw ALL data
+    updateChartElements(chartContent, sortedData, xScale, yScale);
 
     const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
@@ -423,20 +430,26 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
     const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
       const { transform } = event;
+
+      // Transform the chart content
+      chartContent.attr('transform', transform.toString());
+
+      // Rescale the scales for the axes
       const newXScale = transform.rescaleX(xScale);
       const newYScale = transform.rescaleY(yScale);
+
+      // Update axes
       g.select<SVGGElement>('.x-axis').call(
         d3.axisBottom(newXScale).tickFormat((d) => {
           const index = Math.round(d as number);
-          if (index >= 0 && index < visibleData.length) {
-            const date = new Date(visibleData[index].time);
+          if (index >= 0 && index < sortedData.length) {
+            const date = new Date(sortedData[index].time);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
           return '';
         })
       );
       g.select<SVGGElement>('.y-axis').call(d3.axisRight(newYScale).tickFormat(d3.format('.2f')));
-      updateChartElements(g, visibleData, newXScale, newYScale);
     };
 
     const handleZoomEnd = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
@@ -444,44 +457,27 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setIsPanning(false);
 
       const { transform } = event;
-      const bandWidth =
-        (dimensions.width - dimensions.margin.left - dimensions.margin.right) / CHART_DATA_POINTS;
-      const panInDataPoints = transform.x / bandWidth;
+      const bandWidth = innerWidth / CHART_DATA_POINTS;
+      const panInDataPoints = -transform.x / bandWidth;
 
-      setDataPanOffset((prevOffset) => {
-        const newOffset = prevOffset + panInDataPoints;
-        const totalDataLength = chartDataHook.chartData.length;
-        const maxOffset =
-          totalDataLength > CHART_DATA_POINTS ? totalDataLength - CHART_DATA_POINTS : 0;
-        const clampedOffset = Math.max(0, Math.min(newOffset, maxOffset));
-        const finalOffset = Math.round(clampedOffset);
+      const newOffset = panInDataPoints;
+      const totalDataLength = chartDataHook.chartData.length;
+      const maxOffset =
+        totalDataLength > CHART_DATA_POINTS ? totalDataLength - CHART_DATA_POINTS : 0;
+      const clampedOffset = Math.max(0, Math.min(newOffset, maxOffset));
+      setDataPanOffset(Math.round(clampedOffset));
 
-        console.log('Pan End Debug:', {
-          prevOffset,
-          panX: transform.x,
-          panInDataPoints,
-          newOffset,
-          clampedOffset,
-          finalOffset,
-        });
-
-        return finalOffset;
-      });
-
-      // Temporarily remove listeners, reset transform, then re-attach listeners
-      zoom.on('start', null).on('zoom', null).on('end', null);
-      d3.select(svgRef.current as any)
-        .call(zoom.transform, d3.zoomIdentity)
-        .on('end', () => {
-          // Re-attach listeners after the programmatic zoom ends
-          zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
-        });
-
+      // Do not reset transform here, as it holds the persistent pan state
       debouncedDataLoad();
     };
 
     zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
     svg.call(zoom);
+
+    // Apply initial transform to show the most recent data
+    const startOfViewIndex = sortedData.length - CHART_DATA_POINTS;
+    const initialTranslateX = startOfViewIndex > 0 ? -xScale(startOfViewIndex) : 0;
+    svg.call(zoom.transform, d3.zoomIdentity.translate(initialTranslateX, 0));
 
     // Add axes
     g.append('g')
@@ -525,13 +521,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
           .tickFormat(() => '')
       )
       .style('opacity', 0.3);
-
-    // Create chart elements
-    const chartContent = g
-      .append('g')
-      .attr('class', 'chart-content')
-      .attr('clip-path', 'url(#clip)');
-    updateChartElements(g, visibleData, xScale, yScale);
 
     // Add crosshair
     const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
@@ -618,21 +607,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     xScale: d3.ScaleLinear<number, number>,
     yScale: d3.ScaleLinear<number, number>
   ) => {
-    // Select the chart content group
-    const chartGroup = g.select('.chart-content');
-    if (chartGroup.empty()) {
-      console.error('Chart content group not found');
-      return;
-    }
     // Clear previous chart elements
-    chartGroup.selectAll('*').remove();
+    g.selectAll('*').remove();
 
-    createCandlestickChart(
-      chartGroup as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
-      data,
-      xScale,
-      yScale
-    );
+    createCandlestickChart(g, data, xScale, yScale);
   };
 
   // Create candlestick chart
