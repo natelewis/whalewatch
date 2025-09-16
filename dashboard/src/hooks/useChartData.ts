@@ -43,6 +43,7 @@ interface UseChartDataReturn {
   canPanLeft: boolean;
   canPanRight: boolean;
   viewState: ViewState | null;
+  updateViewState: (newViewState: ViewState) => void;
 }
 
 export const useChartData = ({
@@ -649,5 +650,6 @@ export const useChartData = ({
     canPanLeft,
     canPanRight,
     viewState,
+    updateViewState,
   };
 };

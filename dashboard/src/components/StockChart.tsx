@@ -421,9 +421,78 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     (event: any) => {
       console.log('Plotly relayout event:', event);
 
-      // Skip range updates when using view-based loading
-      if (chartDataHook.viewState) {
-        console.log('Skipping range update - using view-based loading');
+      // Handle view-based loading panning
+      if (chartDataHook.viewState && event['xaxis.range']) {
+        const newRange = event['xaxis.range'];
+        const dataLength = chartDataHook.chartData.length;
+
+        console.log('View-based panning detected:', {
+          newRange,
+          dataLength,
+          viewState: chartDataHook.viewState,
+        });
+
+        // For view-based loading, we need to detect pan direction differently
+        // The range should always be [0, dataLength-1], so we need to detect
+        // if the user is trying to pan beyond the current view boundaries
+
+        const currentViewStart = chartDataHook.viewState.currentViewStart;
+        const currentViewEnd = chartDataHook.viewState.currentViewEnd;
+        const viewSize = chartDataHook.viewState.viewSize;
+
+        // Detect pan direction based on range position
+        // If range[0] < 0, user is trying to pan left
+        // If range[1] > dataLength-1, user is trying to pan right
+        let panDirection = 0;
+
+        if (newRange[0] < 0 && chartDataHook.canPanLeft) {
+          panDirection = -1; // Pan left
+        } else if (newRange[1] > dataLength - 1 && chartDataHook.canPanRight) {
+          panDirection = 1; // Pan right
+        }
+
+        if (panDirection !== 0) {
+          // Calculate pan step (half the view size for smooth panning)
+          const panStep = Math.max(1, Math.floor(viewSize / 2));
+
+          let newViewStart = currentViewStart;
+          let newViewEnd = currentViewEnd;
+
+          if (panDirection === -1) {
+            // Pan left
+            newViewStart = Math.max(0, currentViewStart - panStep);
+            newViewEnd = newViewStart + viewSize - 1;
+          } else if (panDirection === 1) {
+            // Pan right
+            newViewStart = Math.min(
+              chartDataHook.viewState.totalDataPoints - viewSize,
+              currentViewStart + panStep
+            );
+            newViewEnd = newViewStart + viewSize - 1;
+          }
+
+          console.log('Updating view state from panning:', {
+            panDirection,
+            panStep,
+            newViewStart,
+            newViewEnd,
+            canPanLeft: chartDataHook.canPanLeft,
+            canPanRight: chartDataHook.canPanRight,
+          });
+
+          // Update the view state
+          const newViewState = {
+            ...chartDataHook.viewState,
+            currentViewStart: newViewStart,
+            currentViewEnd: newViewEnd,
+            hasDataBefore: newViewStart > 0,
+            hasDataAfter: newViewEnd < chartDataHook.viewState.totalDataPoints - 1,
+          };
+
+          // Update the view state in the hook
+          chartDataHook.updateViewState?.(newViewState);
+        }
+
         return;
       }
 
@@ -746,6 +815,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         text: '', // Remove Plotly title - we'll use custom title above
         font: { color: '#d1d5db', size: 16 },
       },
+      // Disable all zooming globally
+      zoom: false,
+      // Completely disable selection and zoom interactions
+      select2d: false,
+      lasso2d: false,
+      // Force pan mode when using view-based loading
+      dragmode: chartDataHook.viewState ? 'pan' : false,
       xaxis: {
         type: 'linear' as const,
         color: '#d1d5db',
@@ -780,6 +856,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         fixedrange: false, // Allow pan but disable zoom
         // Disable any selection or trim zoom behavior
         selectdirection: false,
+        // Disable zooming completely
+        autorange: false,
+        // Disable all zoom interactions
+        zoom: false,
+        // Disable selection and lasso interactions
+        select2d: false,
+        lasso2d: false,
       },
       yaxis: {
         color: '#d1d5db',
@@ -802,7 +885,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
       hovermode: 'x unified' as const,
-      dragmode: chartDataHook.viewState ? ('zoom' as const) : ('pan' as const), // Disable pan when using view-based loading
       // Configure hover line and spike appearance
       shapes: [
         // Bottom border line
@@ -1081,7 +1163,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
                   // Enable hover behavior
                   showTips: false,
                   showLink: false,
-                  // Disable all zoom features
+                  // Disable ALL zooming features to prevent interference with panning
                   scrollZoom: false,
                   doubleClick: false,
                   // Disable any trim zoom or selection behavior
