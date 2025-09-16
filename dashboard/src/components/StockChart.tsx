@@ -1010,7 +1010,17 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       select2d: false,
       lasso2d: false,
       // Enable native panning for smooth user experience
-      dragmode: 'pan',
+      dragmode: 'zoom',
+      modeBarButtonsToRemove: [
+        'pan2d',
+        'lasso2d',
+        'select2d',
+        'zoom2d',
+        'zoomIn2d',
+        'zoomOut2d',
+        'autoScale2d',
+        'resetScale2d',
+      ],
       xaxis: {
         type: 'linear' as const,
         color: '#d1d5db',
@@ -1030,6 +1040,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         mirror: false, // Don't mirror ticks on opposite side
         // Set range from currentRange state
         range: currentRange,
+        fixedrange: false, // Disable horizontal zoom
       },
       yaxis: {
         color: '#d1d5db',
@@ -1051,7 +1062,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       font: { color: '#d1d5db' },
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
-      hovermode: 'x unified' as const,
+      hovermode: 'x' as const,
       // Configure hover line and spike appearance
       shapes: [
         // Bottom border line
@@ -1260,10 +1271,11 @@ const StockChartComponent: React.FC<StockChartProps> = ({
                 data={plotlyData}
                 layout={plotlyLayout}
                 config={{
-                  displayModeBar: false, // Hide the entire mode bar to remove all zoom controls
+                  displayModeBar: false, // Hide the entire mode bar to remove alcursor: 'none', l zoom controls
                   displaylogo: false,
                   responsive: true,
                   // Enable hover behavior
+                  showAxisDragHandles: true,
                   showTips: false,
                   showLink: false,
                   // Disable ALL zooming features to prevent interference with panning
