@@ -543,9 +543,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         );
 
-        // Convert mouse X position to data point index
-        const relativeX = mouseX / rect.width;
-        const dataIndex = Math.floor(relativeX * (sortedData.length - 1));
+        // Convert mouse X position to data point index with better precision
+        const relativeX = Math.max(0, Math.min(1, mouseX / rect.width));
+        const dataIndex = Math.round(relativeX * (sortedData.length - 1));
 
         if (dataIndex >= 0 && dataIndex < sortedData.length) {
           const hoveredTime = sortedData[dataIndex].time;
@@ -559,8 +559,8 @@ const StockChartComponent: React.FC<StockChartProps> = ({
           const minutes = String(date.getMinutes()).padStart(2, '0');
           const formattedDate = `${month}-${day}-${year} ${hours}:${minutes}`;
 
-          // Show the date tooltip
-          dateTooltip.showTooltip(formattedDate, rect.left + mouseX, rect.bottom);
+          // Show the date tooltip with smooth positioning
+          dateTooltip.showTooltip(formattedDate, event.clientX, rect.bottom);
         }
       }
     },

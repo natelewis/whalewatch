@@ -23,6 +23,7 @@ export const useDateTooltip = ({
   enabled = true,
 }: UseDateTooltipProps): UseDateTooltipReturn => {
   const tooltipRef = useRef<HTMLElement | null>(null);
+  const lastUpdateRef = useRef<number>(0);
 
   // Create tooltip element
   const createTooltip = useCallback((): HTMLElement => {
@@ -31,9 +32,9 @@ export const useDateTooltip = ({
     tooltip.style.position = 'fixed';
     tooltip.style.backgroundColor = '#000000';
     tooltip.style.border = '1px solid #6b7280';
-    tooltip.style.marginTop = '0px';
-    tooltip.style.padding = '4px 8px';
-    tooltip.style.borderRadius = '4px';
+    tooltip.style.marginTop = '-14px';
+    // tooltip.style.padding = '1px';
+    tooltip.style.borderRadius = '2px';
     tooltip.style.width = '120px';
     tooltip.style.fontSize = '12px';
     tooltip.style.setProperty('color', 'white', 'important');
@@ -68,17 +69,29 @@ export const useDateTooltip = ({
     (date: string, x: number, y: number) => {
       if (!tooltipRef.current || !enabled) return;
 
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastUpdateRef.current;
+
+      // Throttle updates to reduce jitter (max 60fps)
+      if (timeSinceLastUpdate < 16) return;
+
+      lastUpdateRef.current = now;
       const tooltip = tooltipRef.current;
-      tooltip.textContent = date;
+
+      // Only update if the date has changed to reduce jitter
+      if (tooltip.textContent !== date) {
+        tooltip.textContent = date;
+      }
+
       tooltip.style.display = 'block';
 
       // Center the tooltip horizontally under the spike line
       const tooltipWidth = 120; // Same as width in createTooltip
       const centeredX = x - tooltipWidth / 2;
 
-      // Position 5 pixels higher than the bottom of the chart
-      tooltip.style.left = `${centeredX}px`;
-      tooltip.style.top = `${y - 5}px`;
+      // Position 15 pixels below the bottom of the chart
+      tooltip.style.left = `${Math.round(centeredX)}px`;
+      tooltip.style.top = `${Math.round(y + 15)}px`;
     },
     [enabled]
   );
