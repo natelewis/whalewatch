@@ -663,18 +663,26 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     const newChartData = chartDataHook.chartData;
     const oldChartData = prevChartData.current;
 
+    console.log('[DEBUG] Data changed:', { oldLength: oldChartData.length, newLength: newChartData.length });
+
     if (oldChartData.length > 0 && newChartData.length > oldChartData.length) {
       const diff = newChartData.length - oldChartData.length;
+      console.log('[DEBUG] Data added:', { diff });
       
       // Check if the new data was added to the left
       if (newChartData[diff] && oldChartData[0] && newChartData[diff].time === oldChartData[0].time) {
+        console.log('[DEBUG] Data added to the left. Shifting range.');
         // Data was added to the left
         setCurrentRange(prevRange => {
           if (prevRange) {
-            return [prevRange[0] + diff, prevRange[1] + diff];
+            const newRange = [prevRange[0] + diff, prevRange[1] + diff];
+            console.log('[DEBUG] New range:', newRange);
+            return newRange;
           }
           return prevRange;
         });
+      } else {
+        console.log('[DEBUG] Data added to the right or in the middle.');
       }
     }
 
@@ -994,7 +1002,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     timeframe,
     chartDataHook.dataRange,
     chartDataHook.viewState,
-    JSON.stringify(chartDataHook.chartData),
+    chartDataHook.chartData,
     currentRange,
   ]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
@@ -1110,13 +1118,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         ) : (
           <div className="w-full h-full relative" style={{ minHeight: '400px' }}>
             {/* Custom Title Component */}
-            <div className="mb-4 px-2">
+            <div className="mb-4 px-2 h-12 flex items-center">
               {(() => {
                 const titleData = getTitleData();
                 if ('ohlc' in titleData) {
                   // Show OHLC data when hovering
                   return (
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center w-full">
                       <span className="font-bold text-foreground text-lg">{titleData.symbol}</span>
                       <div className="flex gap-3 text-sm">
                         <span className="text-muted-foreground">
@@ -1157,7 +1165,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
               })()}
             </div>
 
-            <div ref={setChartRef} className="w-full h-full relative">
+            <div ref={setChartRef} className="w-full relative" style={{ height: '500px' }}>
               <Plot
                 data={plotlyData}
                 layout={plotlyLayout}
