@@ -974,7 +974,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     currentRange,
     hasSetInitialRange,
     chartDataHook.viewState,
-    chartDataHook.chartData,
+    JSON.stringify(chartDataHook.chartData),
   ]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
