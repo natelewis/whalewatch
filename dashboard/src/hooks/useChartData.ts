@@ -317,12 +317,13 @@ export const useChartData = ({
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         );
         const earliestTime = sortedData[0].time;
+        const endTime = new Date(new Date(earliestTime).getTime() - 24 * 60 * 60 * 1000).toISOString(); // Subtract 1 day
 
         console.log('Making API call for left data:', {
           symbol,
           timeframe,
           dataPoints,
-          earliestTime,
+          endTime,
           bufferPoints,
           enableViewBasedLoading,
         });
@@ -335,7 +336,7 @@ export const useChartData = ({
             symbol,
             timeframe,
             dataPoints,
-            earliestTime,
+            endTime,
             undefined, // bufferPoints - not used in view-based mode
             true, // viewBasedLoading
             dataPoints // viewSize
@@ -346,7 +347,7 @@ export const useChartData = ({
             symbol,
             timeframe,
             dataPoints,
-            earliestTime,
+            endTime,
             bufferPoints
           );
         }
@@ -384,29 +385,25 @@ export const useChartData = ({
         } else {
           // Traditional mode - merge with existing data
           setChartData((prevData) => {
-            const existingTimes = new Set(prevData.map((d) => d.time));
-            const newData = formattedData.filter((d) => !existingTimes.has(d.time));
+            const combined = [...prevData, ...formattedData];
+            const uniqueData = Array.from(new Map(combined.map(item => [item.time, item])).values());
+            const sorted = uniqueData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+            const newDataLength = sorted.length - prevData.length;
 
             console.log('Left data merge:', {
               prevDataLength: prevData.length,
-              newDataLength: newData.length,
-              existingTimesCount: existingTimes.size,
+              newDataLength: newDataLength,
             });
 
-            // Combine and sort by time
-            const combined = [...prevData, ...newData].sort(
-              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-            );
-
-            // If we got new data, increment count
-            if (newData.length > 0) {
+            if (newDataLength > 0) {
               setLeftLoadCount((prev) => prev + 1);
-              console.log('Left data loaded successfully, new count:', newData.length);
+              console.log('Left data loaded successfully, new count:', newDataLength);
             } else {
               console.log('No new left data found');
             }
 
-            return combined;
+            return sorted;
           });
         }
       } catch (err: any) {
@@ -514,20 +511,17 @@ export const useChartData = ({
         } else {
           // Traditional mode - merge with existing data
           setChartData((prevData) => {
-            const existingTimes = new Set(prevData.map((d) => d.time));
-            const newData = formattedData.filter((d) => !existingTimes.has(d.time));
+            const combined = [...prevData, ...formattedData];
+            const uniqueData = Array.from(new Map(combined.map(item => [item.time, item])).values());
+            const sorted = uniqueData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
-            // Combine and sort by time
-            const combined = [...prevData, ...newData].sort(
-              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-            );
+            const newDataLength = sorted.length - prevData.length;
 
-            // If we got new data, increment count
-            if (newData.length > 0) {
+            if (newDataLength > 0) {
               setRightLoadCount((prev) => prev + 1);
             }
 
-            return combined;
+            return sorted;
           });
         }
       } catch (err: any) {

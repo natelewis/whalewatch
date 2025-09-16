@@ -95,7 +95,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
   // Chart interaction state
   const [currentRange, setCurrentRange] = useState<[number, number] | null>(null);
-  const [hasSetInitialRange, setHasSetInitialRange] = useState(false);
+  const initialRangeSet = useRef(false);
 
   // Continuous data loading state
   const [lastScrollTime, setLastScrollTime] = useState<number>(0);
@@ -109,6 +109,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   // Reset pan
   const resetZoomAndPan = useCallback(() => {
     setCurrentRange(null);
+    initialRangeSet.current = false;
   }, []);
 
   // Define timeframes array early - memoized to prevent unnecessary re-renders
@@ -520,9 +521,14 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     (event: any) => {
       console.log('handlePlotlyRelayout called with event:', event);
 
-      // Only handle zoom/pan events, let Plotly handle the rest natively
+      let newRange;
       if (event['xaxis.range']) {
-        const newRange = event['xaxis.range'];
+        newRange = event['xaxis.range'];
+      } else if (event['xaxis.range[0]'] !== undefined && event['xaxis.range[1]'] !== undefined) {
+        newRange = [event['xaxis.range[0]'], event['xaxis.range[1]']];
+      }
+
+      if (newRange) {
         const previousRange = currentRange;
 
         console.log('Range change detected:', {
@@ -534,7 +540,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         });
 
         setCurrentRange([newRange[0], newRange[1]]);
-        setHasSetInitialRange(true); // Mark that we've set a range
+        initialRangeSet.current = true;
 
         // Detect pan direction if we have a previous range
         if (previousRange) {
@@ -894,9 +900,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
         // Set initial range only once to prevent resetting during hover
-        ...(chartDataHook.chartData.length > 0 &&
-          !hasSetInitialRange &&
-          !currentRange && {
+        ...(!initialRangeSet.current && chartDataHook.chartData.length > 0 && {
             range: [
               Math.max(0, chartDataHook.chartData.length - 80), // Show last 80 data points
               chartDataHook.chartData.length - 1, // Up to the most recent data
@@ -970,9 +974,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     symbol,
     timeframe,
     chartDataHook.dataRange,
-    // Removed hoveredDate and mouseX to prevent layout re-renders
-    currentRange,
-    hasSetInitialRange,
     chartDataHook.viewState,
     JSON.stringify(chartDataHook.chartData),
   ]);
