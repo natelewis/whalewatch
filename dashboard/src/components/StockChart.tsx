@@ -181,7 +181,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         leftThreshold,
         totalPoints,
       });
-      chartDataHook.loadMoreDataLeft(symbol, timeframe);
+      chartDataHook.loadMoreDataLeft(symbol, timeframe!);
       setLastScrollTime(now);
     }
 
@@ -191,7 +191,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         rightThreshold,
         totalPoints,
       });
-      chartDataHook.loadMoreDataRight(symbol, timeframe);
+      chartDataHook.loadMoreDataRight(symbol, timeframe!);
       setLastScrollTime(now);
     }
   }, [chartDataHook, timeframe, symbol, lastScrollTime, currentRange]);
@@ -297,12 +297,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
         if (shouldLoadLeft) {
           console.log('Calling loadMoreDataLeft...');
-          chartDataHook.loadMoreDataLeft(symbol, timeframe);
+          chartDataHook.loadMoreDataLeft(symbol, timeframe!);
         }
 
         if (shouldLoadRight) {
           console.log('Calling loadMoreDataRight...');
-          chartDataHook.loadMoreDataRight(symbol, timeframe);
+          chartDataHook.loadMoreDataRight(symbol, timeframe!);
         }
       } else {
         console.log('No data loading needed - both sides have sufficient buffer');

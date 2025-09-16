@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { Layout } from './components/Layout';
 import { AccountPage } from './pages/AccountPage';
 import { AnalysisPage } from './pages/AnalysisPage';
+import { ExperimentalAnalysisPage } from './pages/ExperimentalAnalysisPage';
 import { WhaleFinderPage } from './pages/WhaleFinderPage';
 import { LoginPage } from './pages/LoginPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
@@ -34,6 +35,16 @@ function App() {
                   <ProtectedRoute>
                     <Layout>
                       <AnalysisPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/experimental-analysis"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ExperimentalAnalysisPage />
                     </Layout>
                   </ProtectedRoute>
                 }
