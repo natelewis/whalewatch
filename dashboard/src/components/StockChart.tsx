@@ -609,11 +609,19 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     };
   }, [chartRef, handleChartMouseMove, handleChartMouseLeave]);
 
-  // Handle Plotly relayout events - keep it simple
+  useEffect(() => {
+    if (chartDataHook.chartData.length > 0 && !initialRangeSet.current) {
+      setCurrentRange([
+        Math.max(0, chartDataHook.chartData.length - 80),
+        chartDataHook.chartData.length - 1,
+      ]);
+      initialRangeSet.current = true;
+    }
+  }, [chartDataHook.chartData]);
+
+  // Handle Plotly relayout events - only for range slider changes
   const handlePlotlyRelayout = useCallback(
     (event: any) => {
-      console.log('handlePlotlyRelayout called with event:', event);
-
       let newRange;
       if (event['xaxis.range']) {
         newRange = event['xaxis.range'];
@@ -624,41 +632,49 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       if (newRange) {
         initialRangeSet.current = true;
         setCurrentRange((previousRange) => {
-          console.log('Range change detected:', {
-            previousRange,
-            newRange,
-            chartDataLength: chartDataHook.chartData.length,
-            timeframe,
-            symbol,
-          });
+          if (!previousRange) {
+            return [newRange[0], newRange[1]];
+          }
+
+          const viewportWidth = previousRange[1] - previousRange[0];
+          const totalPoints = chartDataHook.chartData.length;
+
+          let newStart = newRange[0];
+
+          // Clamp newStart to prevent viewport from going out of bounds
+          if (newStart + viewportWidth >= totalPoints) {
+            newStart = totalPoints - 1 - viewportWidth;
+          }
+          if (newStart < 0) {
+            newStart = 0;
+          }
+
+          const finalRange: [number, number] = [newStart, newStart + viewportWidth];
 
           // Detect pan direction if we have a previous range
-          if (previousRange) {
-            const rangeDiff = newRange[0] - previousRange[0];
+          const rangeDiff = finalRange[0] - previousRange[0];
+
+          if (Math.abs(rangeDiff) > 0.001) {
+            // Threshold to prevent firing on minor adjustments
             if (rangeDiff > 0) {
-              // Panned left (moved to earlier data)
-              console.log('Panned LEFT - moved to earlier data', { rangeDiff });
-              onPanLeft?.(newRange, previousRange);
-            } else if (rangeDiff < 0) {
               // Panned right (moved to later data)
-              console.log('Panned RIGHT - moved to later data', { rangeDiff });
-              onPanRight?.(newRange, previousRange);
+              onPanRight?.(finalRange, previousRange);
+            } else {
+              // Panned left (moved to earlier data)
+              onPanLeft?.(finalRange, previousRange);
             }
           }
-          return [newRange[0], newRange[1]];
+
+          return finalRange;
         });
 
-        // Trigger data loading after panning ends to ensure we always have 2x data available
-        console.log('Setting timeout to call loadMoreDataAfterPan in 500ms...');
+        // Trigger data loading after panning ends
         setTimeout(() => {
-          console.log('Timeout fired, calling loadMoreDataAfterPan...');
           loadMoreDataAfterPan();
         }, 500);
-      } else {
-        console.log('No xaxis.range in event, ignoring');
       }
     },
-    [loadMoreDataAfterPan, onPanLeft, onPanRight, chartDataHook.chartData.length, timeframe, symbol]
+    [loadMoreDataAfterPan, onPanLeft, onPanRight, chartDataHook.chartData.length]
   );
 
   // Calculate chart area bounds for spike line positioning
@@ -741,53 +757,10 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     return undefined;
   }, [currentRange, checkBoundariesAndLoadData, SCROLL_DEBOUNCE_MS]);
 
-  useEffect(() => {
-    if (chartDataHook.chartData.length > 0 && !initialRangeSet.current) {
-      setCurrentRange([
-        Math.max(0, chartDataHook.chartData.length - 80),
-        chartDataHook.chartData.length - 1,
-      ]);
-      initialRangeSet.current = true;
-    }
-  }, [chartDataHook.chartData]);
-
   const prevChartData = useRef(chartDataHook.chartData);
 
   useEffect(() => {
-    const newChartData = chartDataHook.chartData;
-    const oldChartData = prevChartData.current;
-
-    console.log('[DEBUG] Data changed:', {
-      oldLength: oldChartData.length,
-      newLength: newChartData.length,
-    });
-
-    if (oldChartData.length > 0 && newChartData.length > oldChartData.length) {
-      const diff = newChartData.length - oldChartData.length;
-      console.log('[DEBUG] Data added:', { diff });
-
-      // Check if the new data was added to the left
-      if (
-        newChartData[diff] &&
-        oldChartData[0] &&
-        newChartData[diff].time === oldChartData[0].time
-      ) {
-        console.log('[DEBUG] Data added to the left. Shifting range.');
-        // Data was added to the left
-        setCurrentRange((prevRange) => {
-          if (prevRange) {
-            const newRange: [number, number] = [prevRange[0] + diff, prevRange[1] + diff];
-            console.log('[DEBUG] New range:', newRange);
-            return newRange;
-          }
-          return prevRange;
-        });
-      } else {
-        console.log('[DEBUG] Data added to the right or in the middle.');
-      }
-    }
-
-    prevChartData.current = newChartData;
+    prevChartData.current = chartDataHook.chartData;
   }, [chartDataHook.chartData]);
 
   // Skip view-based boundary checking for now
@@ -1020,8 +993,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         text: '', // Remove Plotly title - we'll use custom title above
         font: { color: '#d1d5db', size: 16 },
       },
-      // Disable all zooming globally
-      zoom: false,
       // Completely disable selection and zoom interactions
       select2d: false,
       lasso2d: false,
@@ -1044,7 +1015,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         tickcolor: '#6b7280',
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
-        // Set initial range only once to prevent resetting during hover
+        // Set range from currentRange state
         range: currentRange,
       },
       yaxis: {
@@ -1357,6 +1328,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
                     top: (chartBounds?.top || 0) - VIRTUAL_BOX_EXPAND_Y,
                     width: (chartBounds?.width || 0) + VIRTUAL_BOX_EXPAND_X * 2,
                     height: (chartBounds?.height || 0) + VIRTUAL_BOX_EXPAND_Y * 2,
+                    cursor: 'none',
                   }}
                 >
                   {/* Vertical spike line - follows mouse X position */}
