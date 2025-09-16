@@ -68,7 +68,14 @@ export const useChartData = ({
   const [maxDataPoints, setMaxDataPoints] = useState<number>(0);
 
   // View-based loading state
-  const [viewState, setViewState] = useState<ViewState | null>(null);
+  const [viewState, setViewState] = useState<ViewState>({
+    currentViewStart: 0,
+    currentViewEnd: 0,
+    viewSize: 80,
+    totalDataPoints: 0,
+    hasDataBefore: false,
+    hasDataAfter: false,
+  });
   const [allData, setAllData] = useState<CandlestickData[]>([]); // Store all loaded data
   const [currentViewData, setCurrentViewData] = useState<CandlestickData[]>([]); // Current view data
   const viewStateRef = useRef<ViewState | null>(null);
@@ -509,8 +516,12 @@ export const useChartData = ({
           // Traditional mode - merge with existing data
           setChartData((prevData) => {
             const combined = [...prevData, ...formattedData];
-            const uniqueData = Array.from(new Map(combined.map(item => [item.time, item])).values());
-            const sorted = uniqueData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+            const uniqueData = Array.from(
+              new Map(combined.map((item) => [item.time, item])).values()
+            );
+            const sorted = uniqueData.sort(
+              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+            );
 
             const newDataLength = sorted.length - prevData.length;
 

@@ -28,6 +28,8 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
+const VIEWPORT_SIZE = 80;
+
 interface StockChartProps {
   symbol: string;
   onSymbolChange: (symbol: string) => void;
@@ -108,7 +110,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
   // Reset pan
   const resetZoomAndPan = useCallback(() => {
-    setCurrentRange(null);
+    // setCurrentRange(null); // Removed as Plotly manages its own range
     initialRangeSet.current = false;
   }, []);
 
@@ -143,7 +145,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
   // Check if we're near boundaries and trigger data loading
   const checkBoundariesAndLoadData = useCallback(() => {
-    if (!chartDataHook.chartData.length || !timeframe || !symbol) return;
+    if (!chartDataHook.chartData.length || !chartDataHook.viewState) return;
 
     // Don't check if already loading
     if (chartDataHook.isLeftLoading || chartDataHook.isRightLoading) return;
@@ -152,9 +154,10 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     const totalPoints = chartDataHook.chartData.length;
     if (totalPoints === 0) return;
 
-    const currentXRange = currentRange || [0, totalPoints - 1];
-    const leftPosition = Math.max(0, currentXRange[0]);
-    const rightPosition = Math.min(totalPoints - 1, currentXRange[1]);
+    if (!currentRange) return;
+
+    const leftPosition = Math.max(0, currentRange[0]);
+    const rightPosition = Math.min(totalPoints - 1, currentRange[1]);
 
     // Check if we're near the left boundary (need more historical data)
     const leftThreshold = totalPoints * 0.1; // 10% threshold
@@ -191,13 +194,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       chartDataHook.loadMoreDataRight(symbol, timeframe);
       setLastScrollTime(now);
     }
-  }, [chartDataHook, timeframe, symbol, currentRange, lastScrollTime]);
+  }, [chartDataHook, timeframe, symbol, lastScrollTime, currentRange]);
 
   // Load more data after panning to ensure we always have 2x data available
   const loadMoreDataAfterPan = useCallback(() => {
     console.log('loadMoreDataAfterPan called');
 
-    if (!chartDataHook.chartData.length || !timeframe || !symbol) {
+    if (!chartDataHook.chartData.length || !chartDataHook.viewState) {
       console.log('loadMoreDataAfterPan: Missing requirements', {
         hasData: !!chartDataHook.chartData.length,
         timeframe,
@@ -226,12 +229,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     }
 
     const totalPoints = chartDataHook.chartData.length;
-    const currentXRange = currentRange || [0, totalPoints - 1];
-    const viewportSize = currentXRange[1] - currentXRange[0] + 1;
+    if (!currentRange) return;
+    const viewportSize = currentRange[1] - currentRange[0] + 1;
 
     // Calculate how much data we have on each side of the current view
-    const leftDataPoints = currentXRange[0];
-    const rightDataPoints = totalPoints - currentXRange[1] - 1;
+    const leftDataPoints = currentRange[0];
+    const rightDataPoints = totalPoints - currentRange[1] - 1;
 
     // Target: have at least 2x the current data amount, with buffer on both sides
     const targetTotalPoints = Math.max(totalPoints * 2, totalPoints + viewportSize * 2);
@@ -242,7 +245,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
     console.log('loadMoreDataAfterPan:', {
       totalPoints,
-      currentRange: currentXRange,
+      currentRange,
       viewportSize,
       leftDataPoints,
       rightDataPoints,
@@ -315,9 +318,10 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     chartDataHook,
     timeframe,
     symbol,
-    currentRange,
+    // currentRange, // Removed as Plotly manages its own range
     lastPanDataLoadTime,
     PAN_DATA_LOAD_COOLDOWN_MS,
+    currentRange,
   ]);
 
   // Load saved timeframe from localStorage on component mount
@@ -612,7 +616,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   useEffect(() => {
     if (chartDataHook.chartData.length > 0 && !initialRangeSet.current) {
       setCurrentRange([
-        Math.max(0, chartDataHook.chartData.length - 80),
+        Math.max(0, chartDataHook.chartData.length - VIEWPORT_SIZE),
         chartDataHook.chartData.length - 1,
       ]);
       initialRangeSet.current = true;
@@ -659,7 +663,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       }
 
       if (newRange) {
-        initialRangeSet.current = true;
         setCurrentRange((previousRange) => {
           if (!previousRange) {
             return [newRange[0], newRange[1]];
@@ -667,12 +670,11 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
           const viewportWidth = previousRange[1] - previousRange[0];
           const totalPoints = chartDataHook.chartData.length;
-
           let newStart = newRange[0];
 
           // Clamp newStart to prevent viewport from going out of bounds
           if (newStart + viewportWidth >= totalPoints) {
-            newStart = totalPoints - 1 - viewportWidth;
+            newStart = totalPoints - viewportWidth;
           }
           if (newStart < 0) {
             newStart = 0;
@@ -680,16 +682,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
           const finalRange: [number, number] = [newStart, newStart + viewportWidth];
 
-          // Detect pan direction if we have a previous range
+          // Detect pan direction
           const rangeDiff = finalRange[0] - previousRange[0];
 
           if (Math.abs(rangeDiff) > 0.001) {
-            // Threshold to prevent firing on minor adjustments
             if (rangeDiff > 0) {
-              // Panned right (moved to later data)
               onPanRight?.(finalRange, previousRange);
             } else {
-              // Panned left (moved to earlier data)
               onPanLeft?.(finalRange, previousRange);
             }
           }
@@ -796,7 +795,8 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
       // If current range is outside the new data bounds, reset it
       if (currentRange[0] >= totalPoints || currentRange[1] >= totalPoints) {
-        setCurrentRange(null); // Reset to show full data
+        // This can happen if the symbol or timeframe changes, resetting the data
+        setCurrentRange(null); // Reset to allow initial range to be set again
       }
     }
   }, [chartDataHook.chartData, currentRange]);
@@ -1094,14 +1094,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [
-    symbol,
-    timeframe,
-    chartDataHook.dataRange,
-    chartDataHook.viewState,
-    chartDataHook.chartData,
-    currentRange,
-  ]);
+  }, [symbol, timeframe, chartDataHook.chartData, currentRange]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
     { value: 'line', label: 'Line', icon: <LineChart className="h-4 w-4" /> },
@@ -1381,12 +1374,11 @@ const StockChartComponent: React.FC<StockChartProps> = ({
           <div className="flex items-center space-x-4">
             <span>Data points: {chartDataHook.chartData.length}</span>
             <span>Interval: {timeframe || 'Loading...'}</span>
-            {chartDataHook.viewState && (
+            {currentRange && (
               <span>
-                View: {chartDataHook.viewState.currentViewStart + 1}-
-                {chartDataHook.viewState.currentViewEnd + 1} of{' '}
-                {chartDataHook.viewState.totalDataPoints} | Pan: L
-                {chartDataHook.canPanLeft ? '✓' : '✗'} R{chartDataHook.canPanRight ? '✓' : '✗'}
+                View: {currentRange[0] + 1}-{currentRange[1] + 1} of{' '}
+                {chartDataHook.chartData.length} | Pan: L{chartDataHook.canPanLeft ? '✓' : '✗'} R
+                {chartDataHook.canPanRight ? '✓' : '✗'}
               </span>
             )}
             {(chartDataHook.isLeftLoading || chartDataHook.isRightLoading) && (
