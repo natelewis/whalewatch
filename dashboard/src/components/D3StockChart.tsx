@@ -58,13 +58,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   const [isPanning, setIsPanning] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
 
   // Panning and predictive loading state
   const [currentViewStart, setCurrentViewStart] = useState(0);
   const [currentViewEnd, setCurrentViewEnd] = useState(0);
   const [isLoadingMoreData, setIsLoadingMoreData] = useState(false);
   const [lastPanTime, setLastPanTime] = useState(0);
-  const [dataPanOffset, setDataPanOffset] = useState(0); // Offset within the 80-point window
   const panTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const chartRecreateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoad = useRef(true);
@@ -103,7 +103,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         return;
       }
       if (pointsAdded.length > 0) {
-        setDataPanOffset((prevOffset) => prevOffset + pointsAdded.length);
+        // Adjust the transform to account for new data on the left
+        const { width, margin } = dimensions;
+        const innerWidth = width - margin.left - margin.right;
+        const bandWidth = innerWidth / CHART_DATA_POINTS;
+        const dx = pointsAdded.length * bandWidth;
+        transformRef.current = transformRef.current.translate(dx / transformRef.current.k, 0);
+        // Re-apply the adjusted transform
+        if (svgRef.current) {
+          d3.select(svgRef.current).call(
+            d3.zoom<SVGSVGElement, unknown>().transform,
+            transformRef.current
+          );
+        }
       }
     },
     onError: () => {},
@@ -181,7 +193,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const viewSize = Math.min(CHART_DATA_POINTS, dataLength);
 
       // Always start from the most recent data (rightmost)
-      const newViewStart = Math.max(0, dataLength - viewSize - dataPanOffset);
+      const newViewStart = Math.max(0, dataLength - viewSize);
       const newViewEnd = Math.min(dataLength - 1, newViewStart + viewSize - 1);
 
       // console.log('Updating view bounds:', {
@@ -196,7 +208,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setCurrentViewStart(newViewStart);
       setCurrentViewEnd(newViewEnd);
     }
-  }, [chartDataHook.chartData.length, dataPanOffset]);
+  }, [chartDataHook.chartData.length]);
 
   // Predictive data loading based on pan position
   const checkAndLoadData = useCallback(async () => {
@@ -374,7 +386,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     // Get only the visible data points (80 points or all if less)
     // Show 80 points starting from the pan offset
     const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
-    const startIndex = Math.max(0, sortedData.length - viewSize - dataPanOffset);
+    const startIndex = Math.max(0, sortedData.length - viewSize);
     const endIndex = Math.min(sortedData.length - 1, startIndex + viewSize - 1);
     const visibleData = sortedData.slice(startIndex, endIndex + 1);
 
@@ -382,7 +394,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       totalData: sortedData.length,
       visibleData: visibleData.length,
       viewSize,
-      dataPanOffset,
       startIndex,
       endIndex,
     });
@@ -396,8 +407,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const yScale = d3
       .scaleLinear()
       .domain([
-        d3.min(visibleData, (d) => d.low) as number,
-        d3.max(visibleData, (d) => d.high) as number,
+        d3.min(sortedData, (d) => d.low) as number,
+        d3.max(sortedData, (d) => d.high) as number,
       ])
       .nice()
       .range([innerHeight, 0]);
@@ -430,6 +441,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
     const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
       const { transform } = event;
+      transformRef.current = transform;
 
       // Transform the chart content
       chartContent.attr('transform', transform.toString());
@@ -455,29 +467,30 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const handleZoomEnd = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
       setIsZooming(false);
       setIsPanning(false);
+      transformRef.current = event.transform;
 
-      const { transform } = event;
-      const bandWidth = innerWidth / CHART_DATA_POINTS;
-      const panInDataPoints = -transform.x / bandWidth;
+      // Update view bounds for predictive loading
+      const newXScale = transformRef.current.rescaleX(xScale);
+      const visibleDomain = newXScale.domain();
+      setCurrentViewStart(Math.floor(visibleDomain[0]));
+      setCurrentViewEnd(Math.ceil(visibleDomain[1]));
 
-      const newOffset = panInDataPoints;
-      const totalDataLength = chartDataHook.chartData.length;
-      const maxOffset =
-        totalDataLength > CHART_DATA_POINTS ? totalDataLength - CHART_DATA_POINTS : 0;
-      const clampedOffset = Math.max(0, Math.min(newOffset, maxOffset));
-      setDataPanOffset(Math.round(clampedOffset));
-
-      // Do not reset transform here, as it holds the persistent pan state
       debouncedDataLoad();
     };
 
     zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
     svg.call(zoom);
 
-    // Apply initial transform to show the most recent data
-    const startOfViewIndex = sortedData.length - CHART_DATA_POINTS;
-    const initialTranslateX = startOfViewIndex > 0 ? -xScale(startOfViewIndex) : 0;
-    svg.call(zoom.transform, d3.zoomIdentity.translate(initialTranslateX, 0));
+    // Apply initial or stored transform
+    if (isInitialLoad.current) {
+      const startOfViewIndex = sortedData.length - CHART_DATA_POINTS;
+      const initialTranslateX = startOfViewIndex > 0 ? -xScale(startOfViewIndex) : 0;
+      const initialTransform = d3.zoomIdentity.translate(initialTranslateX, 0);
+      transformRef.current = initialTransform;
+      svg.call(zoom.transform, initialTransform);
+    } else {
+      svg.call(zoom.transform, transformRef.current);
+    }
 
     // Add axes
     g.append('g')
@@ -598,7 +611,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
           });
         }
       });
-  }, [chartDataHook.chartData, dimensions, chartType, dataPanOffset]);
+  }, [chartDataHook.chartData, dimensions, chartType]);
 
   // Update chart elements - always candlestick
   const updateChartElements = (
@@ -657,7 +670,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
 
     // Get current transform from the SVG element and calculate pan offset
-    let currentPanOffset = dataPanOffset; // fallback to state
+    let currentPanOffset = 0; // fallback to state
     if (svgRef.current) {
       const currentTransform = d3.zoomTransform(svgRef.current);
       const panOffsetPixels = Math.max(0, currentTransform.x);
@@ -670,7 +683,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const visibleData = sortedData.slice(startIndex, endIndex + 1);
 
     return visibleData;
-  }, [chartDataHook.chartData, dataPanOffset]);
+  }, [chartDataHook.chartData]);
 
   // Only candlestick chart is supported - other chart types removed
 
