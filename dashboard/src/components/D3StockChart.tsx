@@ -508,7 +508,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       .append('g')
       .attr('class', 'chart-content')
       .attr('clip-path', 'url(#clip)');
-    updateChartElements(chartContent, visibleData, xScale, yScale);
+    updateChartElements(g, visibleData, xScale, yScale);
 
     // Add crosshair
     const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
