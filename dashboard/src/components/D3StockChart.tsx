@@ -403,14 +403,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         // Use a smaller divisor to make panning feel more natural and less sensitive
         const newDataPanOffset = Math.max(0, Math.floor(transform.x / 8));
 
-        // Update immediately for smooth scrollbar-like behavior
-        if (newDataPanOffset !== dataPanOffset) {
-          // Only log occasionally to reduce spam
-          if (newDataPanOffset % 5 === 0) {
-            console.log('Pan update:', { newDataPanOffset, transformX: transform.x });
-          }
-          setDataPanOffset(newDataPanOffset);
-        }
+        // Don't update state during panning - only update the visual elements directly
+        // This prevents the throttled feeling and makes panning completely smooth
 
         // Update view bounds for predictive loading
         const viewStartIndex = Math.max(0, Math.floor(transform.x / 8));
@@ -474,6 +468,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       .on('end', () => {
         setIsZooming(false);
         setIsPanning(false);
+
+        // Update the dataPanOffset state only when panning ends
+        // This ensures smooth panning without state updates during drag
+        const finalTransform = d3.zoomTransform(svg.node() as Element);
+        const finalDataPanOffset = Math.max(0, Math.floor(finalTransform.x / 8));
+        setDataPanOffset(finalDataPanOffset);
       });
 
     svg.call(zoom);
@@ -565,12 +565,20 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
         // Find closest data point by index
         const index = Math.round(mouseIndex);
-        // Calculate visible data directly to avoid state updates
+        // Calculate visible data directly using current transform
         const sortedData = [...chartDataHook.chartData].sort(
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         );
         const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
-        const hoverStartIndex = Math.max(0, sortedData.length - viewSize - dataPanOffset);
+
+        // Get current pan offset from transform
+        let currentPanOffset = dataPanOffset; // fallback to state
+        if (svgRef.current) {
+          const currentTransform = d3.zoomTransform(svgRef.current);
+          currentPanOffset = Math.max(0, Math.floor(currentTransform.x / 8));
+        }
+
+        const hoverStartIndex = Math.max(0, sortedData.length - viewSize - currentPanOffset);
         const hoverEndIndex = Math.min(sortedData.length - 1, hoverStartIndex + viewSize - 1);
         const currentVisibleData = sortedData.slice(hoverStartIndex, hoverEndIndex + 1);
         const clampedIndex = Math.max(0, Math.min(index, currentVisibleData.length - 1));
@@ -657,28 +665,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     });
   };
 
-  // Get current visible data based on pan offset
+  // Get current visible data based on current transform (not state)
   const getCurrentVisibleData = useCallback(() => {
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
     const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
-    const startIndex = Math.max(0, sortedData.length - viewSize - dataPanOffset);
+
+    // Get current transform from the SVG element
+    let currentPanOffset = dataPanOffset; // fallback to state
+    if (svgRef.current) {
+      const currentTransform = d3.zoomTransform(svgRef.current);
+      currentPanOffset = Math.max(0, Math.floor(currentTransform.x / 8));
+    }
+
+    const startIndex = Math.max(0, sortedData.length - viewSize - currentPanOffset);
     const endIndex = Math.min(sortedData.length - 1, startIndex + viewSize - 1);
 
     const visibleData = sortedData.slice(startIndex, endIndex + 1);
-
-    // Only log when dataPanOffset changes to reduce spam
-    if (dataPanOffset > 0) {
-      console.log('getCurrentVisibleData:', {
-        totalData: sortedData.length,
-        dataPanOffset,
-        startIndex,
-        endIndex,
-        visibleDataLength: visibleData.length,
-      });
-    }
 
     return visibleData;
   }, [chartDataHook.chartData, dataPanOffset]);
