@@ -521,32 +521,31 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       }
 
       if (newRange) {
-        const previousRange = currentRange;
-
-        console.log('Range change detected:', {
-          previousRange,
-          newRange,
-          chartDataLength: chartDataHook.chartData.length,
-          timeframe,
-          symbol,
-        });
-
-        setCurrentRange([newRange[0], newRange[1]]);
         initialRangeSet.current = true;
+        setCurrentRange(previousRange => {
+          console.log('Range change detected:', {
+            previousRange,
+            newRange,
+            chartDataLength: chartDataHook.chartData.length,
+            timeframe,
+            symbol,
+          });
 
-        // Detect pan direction if we have a previous range
-        if (previousRange) {
-          const rangeDiff = newRange[0] - previousRange[0];
-          if (rangeDiff > 0) {
-            // Panned left (moved to earlier data)
-            console.log('Panned LEFT - moved to earlier data', { rangeDiff });
-            onPanLeft?.(newRange, previousRange);
-          } else if (rangeDiff < 0) {
-            // Panned right (moved to later data)
-            console.log('Panned RIGHT - moved to later data', { rangeDiff });
-            onPanRight?.(newRange, previousRange);
+          // Detect pan direction if we have a previous range
+          if (previousRange) {
+            const rangeDiff = newRange[0] - previousRange[0];
+            if (rangeDiff > 0) {
+              // Panned left (moved to earlier data)
+              console.log('Panned LEFT - moved to earlier data', { rangeDiff });
+              onPanLeft?.(newRange, previousRange);
+            } else if (rangeDiff < 0) {
+              // Panned right (moved to later data)
+              console.log('Panned RIGHT - moved to later data', { rangeDiff });
+              onPanRight?.(newRange, previousRange);
+            }
           }
-        }
+          return [newRange[0], newRange[1]];
+        });
 
         // Trigger data loading after panning ends to ensure we always have 2x data available
         console.log('Setting timeout to call loadMoreDataAfterPan in 500ms...');
@@ -560,7 +559,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     },
     [
       loadMoreDataAfterPan,
-      currentRange,
       onPanLeft,
       onPanRight,
       chartDataHook.chartData.length,
@@ -648,6 +646,40 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     }
     return undefined;
   }, [currentRange, checkBoundariesAndLoadData, SCROLL_DEBOUNCE_MS]);
+
+  useEffect(() => {
+    if (chartDataHook.chartData.length > 0 && !initialRangeSet.current) {
+      setCurrentRange([
+        Math.max(0, chartDataHook.chartData.length - 80),
+        chartDataHook.chartData.length - 1,
+      ]);
+      initialRangeSet.current = true;
+    }
+  }, [chartDataHook.chartData]);
+
+  const prevChartData = useRef(chartDataHook.chartData);
+
+  useEffect(() => {
+    const newChartData = chartDataHook.chartData;
+    const oldChartData = prevChartData.current;
+
+    if (oldChartData.length > 0 && newChartData.length > oldChartData.length) {
+      const diff = newChartData.length - oldChartData.length;
+      
+      // Check if the new data was added to the left
+      if (newChartData[diff] && oldChartData[0] && newChartData[diff].time === oldChartData[0].time) {
+        // Data was added to the left
+        setCurrentRange(prevRange => {
+          if (prevRange) {
+            return [prevRange[0] + diff, prevRange[1] + diff];
+          }
+          return prevRange;
+        });
+      }
+    }
+
+    prevChartData.current = newChartData;
+  }, [chartDataHook.chartData]);
 
   // Skip view-based boundary checking for now
 
@@ -892,12 +924,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
         // Set initial range only once to prevent resetting during hover
-        ...(!initialRangeSet.current && chartDataHook.chartData.length > 0 && {
-            range: [
-              Math.max(0, chartDataHook.chartData.length - 80), // Show last 80 data points
-              chartDataHook.chartData.length - 1, // Up to the most recent data
-            ],
-          }),
+        range: currentRange,
       },
       yaxis: {
         color: '#d1d5db',
@@ -968,6 +995,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     chartDataHook.dataRange,
     chartDataHook.viewState,
     JSON.stringify(chartDataHook.chartData),
+    currentRange,
   ]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
