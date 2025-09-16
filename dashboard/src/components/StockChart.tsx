@@ -524,7 +524,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     dateTooltip.hideTooltip();
   }, [dateTooltip]);
 
-  // Handle mouse move on chart container to keep tooltip visible
+  // Handle mouse move on chart container to keep tooltip visible and update spike lines
   const handleChartMouseMove = useCallback(
     (event: MouseEvent) => {
       if (!chartRef || !chartDataHook.chartData.length) return;
@@ -533,19 +533,42 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       if (!plotArea) return;
 
       const rect = plotArea.getBoundingClientRect();
+      const containerRect = chartRef.getBoundingClientRect();
       const mouseX = event.clientX - rect.left;
       const mouseY = event.clientY - rect.top;
 
       // Check if mouse is within chart bounds
       if (mouseX >= 0 && mouseX <= rect.width && mouseY >= 0 && mouseY <= rect.height) {
+        // Update spike line positions for smooth vertical tracking
+        const plotAreaLeft = rect.left - containerRect.left;
+        const plotAreaTop = rect.top - containerRect.top;
+
+        // Create virtual bounding box for calculations (expanded from actual plot area)
+        const virtualBoxLeft = plotAreaLeft - VIRTUAL_BOX_EXPAND_X;
+        const virtualBoxTop = plotAreaTop - VIRTUAL_BOX_EXPAND_Y;
+        const virtualBoxWidth = rect.width + VIRTUAL_BOX_EXPAND_X * 2;
+        const virtualBoxHeight = rect.height + VIRTUAL_BOX_EXPAND_Y * 2;
+
+        // Convert to relative coordinates (0-1) within the virtual box
+        const relativeX = (plotAreaLeft + mouseX - virtualBoxLeft) / virtualBoxWidth;
+        const relativeY = (plotAreaTop + mouseY - virtualBoxTop) / virtualBoxHeight;
+
+        // Update spike line positions
+        if (isFinite(relativeX) && isFinite(relativeY)) {
+          const clampedX = Math.max(0, Math.min(1, relativeX));
+          const clampedY = Math.max(0, Math.min(1, relativeY));
+          setMouseX(clampedX);
+          setMouseY(clampedY);
+        }
+
         // Calculate which data point we're hovering over
         const sortedData = [...chartDataHook.chartData].sort(
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         );
 
         // Convert mouse X position to data point index with better precision
-        const relativeX = Math.max(0, Math.min(1, mouseX / rect.width));
-        const dataIndex = Math.round(relativeX * (sortedData.length - 1));
+        const relativeXForData = Math.max(0, Math.min(1, mouseX / rect.width));
+        const dataIndex = Math.round(relativeXForData * (sortedData.length - 1));
 
         if (dataIndex >= 0 && dataIndex < sortedData.length) {
           const hoveredTime = sortedData[dataIndex].time;
@@ -568,6 +591,8 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   );
 
   const handleChartMouseLeave = useCallback(() => {
+    setMouseX(null);
+    setMouseY(null);
     dateTooltip.hideTooltip();
   }, [dateTooltip]);
 

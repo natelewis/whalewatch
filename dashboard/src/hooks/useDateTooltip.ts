@@ -23,7 +23,6 @@ export const useDateTooltip = ({
   enabled = true,
 }: UseDateTooltipProps): UseDateTooltipReturn => {
   const tooltipRef = useRef<HTMLElement | null>(null);
-  const lastUpdateRef = useRef<number>(0);
 
   // Create tooltip element
   const createTooltip = useCallback((): HTMLElement => {
@@ -69,13 +68,6 @@ export const useDateTooltip = ({
     (date: string, x: number, y: number) => {
       if (!tooltipRef.current || !enabled) return;
 
-      const now = Date.now();
-      const timeSinceLastUpdate = now - lastUpdateRef.current;
-
-      // Throttle updates to reduce jitter (max 60fps)
-      if (timeSinceLastUpdate < 16) return;
-
-      lastUpdateRef.current = now;
       const tooltip = tooltipRef.current;
 
       // Only update if the date has changed to reduce jitter

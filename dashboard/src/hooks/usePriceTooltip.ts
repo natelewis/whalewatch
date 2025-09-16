@@ -80,12 +80,8 @@ export const usePriceTooltip = ({
   const hideTooltip = useCallback(() => {
     if (!tooltipRef.current) return;
 
-    // Add a small delay before hiding to prevent flickering
-    setTimeout(() => {
-      if (tooltipRef.current) {
-        tooltipRef.current.style.display = 'none';
-      }
-    }, 100);
+    // Hide immediately
+    tooltipRef.current.style.display = 'none';
   }, []);
 
   // Calculate price from mouse Y position
