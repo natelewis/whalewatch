@@ -406,32 +406,16 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         // Don't update state during panning - only update the visual elements directly
         // This prevents the throttled feeling and makes panning completely smooth
 
-        // Update view bounds for predictive loading
-        const viewStartIndex = Math.max(0, Math.floor(transform.x / 8));
-        const viewEndIndex = Math.min(
-          totalDataLength - 1,
-          Math.ceil(transform.x / 8 + visibleWidth / 8)
-        );
-        setCurrentViewStart(viewStartIndex);
-        setCurrentViewEnd(viewEndIndex);
+        // Don't update view bounds during panning to avoid React re-renders
+        // This ensures smooth real-time panning without state interference
 
-        // Update axes in real-time
-        g.select('.x-axis').call(d3.axisBottom(newXScale) as any);
-        g.select('.y-axis').call(d3.axisRight(newYScale) as any);
-
-        // Update grid lines in real-time
-        g.select('.grid-x').call(
-          d3
-            .axisBottom(newXScale)
-            .tickSize(-innerHeight)
-            .tickFormat(() => '') as any
-        );
-        g.select('.grid-y').call(
-          d3
-            .axisRight(newYScale)
-            .tickSize(-innerWidth)
-            .tickFormat(() => '') as any
-        );
+        // Debug: Log panning activity
+        console.log('Panning:', {
+          transformX: transform.x,
+          newDataPanOffset,
+          isPanning: true,
+          timestamp: Date.now(),
+        });
 
         // Update chart elements in real-time without triggering state changes
         // Calculate visible data directly here to avoid state updates during panning
@@ -443,7 +427,44 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         const dataEndIndex = Math.min(sortedData.length - 1, dataStartIndex + viewSize - 1);
         const currentVisibleData = sortedData.slice(dataStartIndex, dataEndIndex + 1);
 
-        updateChartElements(g, currentVisibleData, newXScale, newYScale);
+        // Create new scales specifically for the visible data
+        const visibleXScale = d3
+          .scaleLinear()
+          .domain([0, currentVisibleData.length - 1])
+          .range([0, innerWidth]);
+
+        const visibleYScale = d3
+          .scaleLinear()
+          .domain([
+            d3.min(currentVisibleData, (d) => d.low) as number,
+            d3.max(currentVisibleData, (d) => d.high) as number,
+          ])
+          .nice()
+          .range([innerHeight, 0]);
+
+        // Apply the zoom transform to the visible scales
+        const transformedXScale = transform.rescaleX(visibleXScale);
+        const transformedYScale = transform.rescaleY(visibleYScale);
+
+        // Update axes in real-time with visible data scales
+        g.select('.x-axis').call(d3.axisBottom(transformedXScale) as any);
+        g.select('.y-axis').call(d3.axisRight(transformedYScale) as any);
+
+        // Update grid lines in real-time
+        g.select('.grid-x').call(
+          d3
+            .axisBottom(transformedXScale)
+            .tickSize(-innerHeight)
+            .tickFormat(() => '') as any
+        );
+        g.select('.grid-y').call(
+          d3
+            .axisRight(transformedYScale)
+            .tickSize(-innerWidth)
+            .tickFormat(() => '') as any
+        );
+
+        updateChartElements(g, currentVisibleData, transformedXScale, transformedYScale);
 
         // Update crosshair position if hovering
         const crosshair = g.select('.crosshair');
@@ -454,14 +475,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         if (!crosshairX.empty() && !crosshairY.empty() && crosshairX.style('opacity') !== '0') {
           // Update crosshair with new scales
           const mouseX = d3.pointer(event.sourceEvent, svg.node())[0] - margin.left;
-          const mouseIndex = newXScale.invert(mouseX);
+          const mouseIndex = transformedXScale.invert(mouseX);
           const index = Math.round(mouseIndex);
           const clampedIndex = Math.max(0, Math.min(index, currentVisibleData.length - 1));
           const d = currentVisibleData[clampedIndex];
 
           if (d) {
-            crosshairX.attr('x1', newXScale(clampedIndex)).attr('x2', newXScale(clampedIndex));
-            crosshairY.attr('y1', newYScale(d.close)).attr('y2', newYScale(d.close));
+            crosshairX
+              .attr('x1', transformedXScale(clampedIndex))
+              .attr('x2', transformedXScale(clampedIndex));
+            crosshairY
+              .attr('y1', transformedYScale(d.close))
+              .attr('y2', transformedYScale(d.close));
           }
         }
       })
@@ -474,6 +499,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         const finalTransform = d3.zoomTransform(svg.node() as Element);
         const finalDataPanOffset = Math.max(0, Math.floor(finalTransform.x / 8));
         setDataPanOffset(finalDataPanOffset);
+
+        // Update view bounds when panning ends
+        const totalDataLength = chartDataHook.chartData.length;
+        const innerWidth = dimensions.width - dimensions.margin.left - dimensions.margin.right;
+        const visibleWidth = innerWidth / finalTransform.k;
+        const viewStartIndex = Math.max(0, Math.floor(finalTransform.x / 8));
+        const viewEndIndex = Math.min(
+          totalDataLength - 1,
+          Math.ceil(finalTransform.x / 8 + visibleWidth / 8)
+        );
+        setCurrentViewStart(viewStartIndex);
+        setCurrentViewEnd(viewEndIndex);
       });
 
     svg.call(zoom);
@@ -690,24 +727,26 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Only candlestick chart is supported - other chart types removed
 
-  // Recreate chart when data or dimensions change (not on pan offset changes)
+  // Only recreate chart when data or dimensions change (not during panning)
   useEffect(() => {
     // Clear any pending chart recreation
     if (chartRecreateTimeoutRef.current) {
       clearTimeout(chartRecreateTimeoutRef.current);
     }
 
-    // Debounce chart recreation to prevent excessive updates
-    chartRecreateTimeoutRef.current = setTimeout(() => {
-      createChart();
-    }, 100); // 100ms debounce
+    // Only recreate if not currently panning to avoid interference
+    if (!isPanning) {
+      chartRecreateTimeoutRef.current = setTimeout(() => {
+        createChart();
+      }, 100); // 100ms debounce
+    }
 
     return () => {
       if (chartRecreateTimeoutRef.current) {
         clearTimeout(chartRecreateTimeoutRef.current);
       }
     };
-  }, [createChart]);
+  }, [createChart, isPanning]);
 
   // Chart type is always candlestick - no selection needed
 
