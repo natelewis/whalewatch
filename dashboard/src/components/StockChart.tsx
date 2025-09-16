@@ -619,6 +619,35 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     }
   }, [chartDataHook.chartData]);
 
+  const prevChartData = useRef(chartDataHook.chartData);
+
+  useEffect(() => {
+    const newChartData = chartDataHook.chartData;
+    const oldChartData = prevChartData.current;
+
+    if (oldChartData.length > 0 && newChartData.length > oldChartData.length) {
+      const diff = newChartData.length - oldChartData.length;
+
+      // Check if the new data was added to the left (historical data)
+      if (
+        newChartData[diff] &&
+        oldChartData[0] &&
+        newChartData[diff].time === oldChartData[0].time
+      ) {
+        // Data was added to the left, so we need to shift the range
+        setCurrentRange((prevRange) => {
+          if (prevRange) {
+            const newRange: [number, number] = [prevRange[0] + diff, prevRange[1] + diff];
+            return newRange;
+          }
+          return prevRange;
+        });
+      }
+    }
+
+    prevChartData.current = newChartData;
+  }, [chartDataHook.chartData]);
+
   // Handle Plotly relayout events - only for range slider changes
   const handlePlotlyRelayout = useCallback(
     (event: any) => {
@@ -757,14 +786,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     return undefined;
   }, [currentRange, checkBoundariesAndLoadData, SCROLL_DEBOUNCE_MS]);
 
-  const prevChartData = useRef(chartDataHook.chartData);
-
-  useEffect(() => {
-    prevChartData.current = chartDataHook.chartData;
-  }, [chartDataHook.chartData]);
-
-  // Skip view-based boundary checking for now
-
   // Handle data changes and update range accordingly
   useEffect(() => {
     if (chartDataHook.chartData.length > 0 && currentRange) {
@@ -790,14 +811,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
     const x = sortedData.map((_, index) => index); // Use indices for x-axis to eliminate gaps
-
-    console.log('plotlyData generation:', {
-      chartDataLength: chartDataHook.chartData.length,
-      sortedDataLength: sortedData.length,
-      xLength: x.length,
-      firstTime: sortedData[0]?.time,
-      lastTime: sortedData[sortedData.length - 1]?.time,
-    });
 
     switch (chartType) {
       case 'candlestick':

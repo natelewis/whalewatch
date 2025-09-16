@@ -245,6 +245,7 @@ export const useChartData = ({
           });
 
           setCurrentViewData(viewData);
+          // Set the main chartData to the initial view
           setChartData(viewData);
         } else {
           // Traditional mode - use all data
@@ -385,22 +386,18 @@ export const useChartData = ({
         } else {
           // Traditional mode - merge with existing data
           setChartData((prevData) => {
-            const combined = [...prevData, ...formattedData];
-            const uniqueData = Array.from(new Map(combined.map(item => [item.time, item])).values());
-            const sorted = uniqueData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+            const combined = [...formattedData, ...prevData];
+            const uniqueData = Array.from(
+              new Map(combined.map((item) => [item.time, item])).values()
+            );
+            const sorted = uniqueData.sort(
+              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+            );
 
             const newDataLength = sorted.length - prevData.length;
 
-            console.log('Left data merge:', {
-              prevDataLength: prevData.length,
-              newDataLength: newDataLength,
-            });
-
             if (newDataLength > 0) {
               setLeftLoadCount((prev) => prev + 1);
-              console.log('Left data loaded successfully, new count:', newDataLength);
-            } else {
-              console.log('No new left data found');
             }
 
             return sorted;
