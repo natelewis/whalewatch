@@ -67,6 +67,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   const [dataPanOffset, setDataPanOffset] = useState(0); // Offset within the 80-point window
   const panTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const chartRecreateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoad = useRef(true);
 
   // Chart dimensions
   const [dimensions, setDimensions] = useState<ChartDimensions>({
@@ -96,7 +97,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     timeframes,
     bufferPoints: 100,
     enableViewBasedLoading: false,
-    onDataLoaded: () => {},
+    onDataLoaded: (pointsAdded) => {
+      if (isInitialLoad.current) {
+        isInitialLoad.current = false;
+        return;
+      }
+      if (pointsAdded.length > 0) {
+        setDataPanOffset((prevOffset) => prevOffset + pointsAdded.length);
+      }
+    },
     onError: () => {},
   });
 
@@ -131,6 +140,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   // Load chart data when symbol or timeframe changes
   useEffect(() => {
     if (timeframe !== null) {
+      isInitialLoad.current = true; // Reset for new symbol/timeframe
       chartDataHook.loadChartData(symbol, timeframe);
     }
   }, [symbol, timeframe]);
@@ -174,14 +184,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const newViewStart = Math.max(0, dataLength - viewSize - dataPanOffset);
       const newViewEnd = Math.min(dataLength - 1, newViewStart + viewSize - 1);
 
-      console.log('Updating view bounds:', {
-        dataLength,
-        viewSize,
-        newViewStart,
-        newViewEnd,
-        currentViewStart,
-        currentViewEnd,
-      });
+      // console.log('Updating view bounds:', {
+      //   dataLength,
+      //   viewSize,
+      //   newViewStart,
+      //   newViewEnd,
+      //   currentViewStart,
+      //   currentViewEnd,
+      // });
 
       setCurrentViewStart(newViewStart);
       setCurrentViewEnd(newViewEnd);
@@ -404,60 +414,73 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       .attr('width', innerWidth)
       .attr('height', innerHeight);
 
-    // Add zoom behavior
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 10])
-      .on('start', () => {
-        setIsZooming(true);
-        setIsPanning(true);
-      })
-      .on('zoom', (event) => {
-        const { transform } = event;
+    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
-        // Rescale the scales
-        const newXScale = transform.rescaleX(xScale);
-        const newYScale = transform.rescaleY(yScale);
+    const handleZoomStart = () => {
+      setIsZooming(true);
+      setIsPanning(true);
+    };
 
-        // Update axes
-        const xAxis = d3.axisBottom(newXScale).tickFormat((d) => {
+    const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+      const { transform } = event;
+      const newXScale = transform.rescaleX(xScale);
+      const newYScale = transform.rescaleY(yScale);
+      g.select<SVGGElement>('.x-axis').call(
+        d3.axisBottom(newXScale).tickFormat((d) => {
           const index = Math.round(d as number);
           if (index >= 0 && index < visibleData.length) {
             const date = new Date(visibleData[index].time);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
           return '';
-        });
-        g.select<SVGGElement>('.x-axis').call(xAxis);
-        const yAxis = d3.axisRight(newYScale).tickFormat(d3.format('.2f') as any);
-        g.select<SVGGElement>('.y-axis').call(yAxis);
+        })
+      );
+      g.select<SVGGElement>('.y-axis').call(d3.axisRight(newYScale).tickFormat(d3.format('.2f')));
+      updateChartElements(g, visibleData, newXScale, newYScale);
+    };
 
-        // Update chart elements
-        updateChartElements(g, visibleData, newXScale, newYScale);
-      })
-      .on('end', (event) => {
-        setIsZooming(false);
-        setIsPanning(false);
+    const handleZoomEnd = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+      setIsZooming(false);
+      setIsPanning(false);
 
-        const { transform } = event;
+      const { transform } = event;
+      const bandWidth =
+        (dimensions.width - dimensions.margin.left - dimensions.margin.right) / CHART_DATA_POINTS;
+      const panInDataPoints = transform.x / bandWidth;
+
+      setDataPanOffset((prevOffset) => {
+        const newOffset = prevOffset + panInDataPoints;
         const totalDataLength = chartDataHook.chartData.length;
-        const bandWidth =
-          (dimensions.width - dimensions.margin.left - dimensions.margin.right) / CHART_DATA_POINTS;
-        const panInDataPoints = -transform.x / bandWidth;
-        const newOffset = dataPanOffset + panInDataPoints;
-
-        // Clamp the offset to valid bounds
-        const maxOffset = totalDataLength - CHART_DATA_POINTS;
+        const maxOffset =
+          totalDataLength > CHART_DATA_POINTS ? totalDataLength - CHART_DATA_POINTS : 0;
         const clampedOffset = Math.max(0, Math.min(newOffset, maxOffset));
-        setDataPanOffset(Math.round(clampedOffset));
+        const finalOffset = Math.round(clampedOffset);
 
-        // Reset the transform on the SVG element to prevent cumulative panning
-        d3.select(svgRef.current as any).call(zoom.transform, d3.zoomIdentity);
+        console.log('Pan End Debug:', {
+          prevOffset,
+          panX: transform.x,
+          panInDataPoints,
+          newOffset,
+          clampedOffset,
+          finalOffset,
+        });
 
-        // Trigger data loading after panning ends
-        debouncedDataLoad();
+        return finalOffset;
       });
 
+      // Temporarily remove listeners, reset transform, then re-attach listeners
+      zoom.on('start', null).on('zoom', null).on('end', null);
+      d3.select(svgRef.current as any)
+        .call(zoom.transform, d3.zoomIdentity)
+        .on('end', () => {
+          // Re-attach listeners after the programmatic zoom ends
+          zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
+        });
+
+      debouncedDataLoad();
+    };
+
+    zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
     svg.call(zoom);
 
     // Add axes
