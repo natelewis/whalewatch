@@ -317,7 +317,7 @@ export const useChartData = ({
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         );
         const earliestTime = sortedData[0].time;
-        const endTime = new Date(new Date(earliestTime).getTime() - 24 * 60 * 60 * 1000).toISOString(); // Subtract 1 day
+        const endTime = new Date(new Date(earliestTime).getTime() - 60000).toISOString(); // Subtract 1 minute
 
         console.log('Making API call for left data:', {
           symbol,
@@ -617,11 +617,6 @@ export const useChartData = ({
     const sortedData = [...chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
-
-    // If we have more data than maxDataPoints, show only the most recent data
-    if (sortedData.length > maxDataPoints) {
-      return sortedData.slice(-maxDataPoints);
-    }
 
     return sortedData;
   }, [chartData, maxDataPoints, enableViewBasedLoading, currentViewData]);

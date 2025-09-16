@@ -131,7 +131,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   // Chart data management
   const chartDataHook = useChartData({
     timeframes,
-    bufferPoints: 20, // Load 20 buffer points on each side
+    bufferPoints: 100, // Load 100 buffer points on each side
     enableViewBasedLoading: false, // Disable view-based loading for now
     onDataLoaded: (data, range) => {
       // Data loaded callback - could be used for additional processing
@@ -240,9 +240,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     // Ensure we have at least 1 viewport worth of data on each side
     const minBufferSize = Math.max(viewportSize, 50); // At least 50 points or 1 viewport
 
-    // DEBUG: More aggressive loading for testing
-    const debugMinBufferSize = Math.max(10, Math.floor(viewportSize * 0.5)); // Much smaller buffer for testing
-
     console.log('loadMoreDataAfterPan:', {
       totalPoints,
       currentRange: currentXRange,
@@ -252,7 +249,6 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       targetTotalPoints,
       additionalPointsNeeded,
       minBufferSize,
-      debugMinBufferSize,
     });
 
     // Load more data if we need it
@@ -262,36 +258,32 @@ const StockChartComponent: React.FC<StockChartProps> = ({
       let shouldLoadRight = false;
 
       // Load more historical data (left side) if we don't have enough buffer
-      if (leftDataPoints < debugMinBufferSize) {
+      if (leftDataPoints < minBufferSize) {
         console.log('Loading more historical data after pan...', {
           leftDataPoints,
           minBufferSize,
-          debugMinBufferSize,
-          needed: debugMinBufferSize - leftDataPoints,
+          needed: minBufferSize - leftDataPoints,
         });
         shouldLoadLeft = true;
       } else {
         console.log('Left side has enough buffer, skipping left load', {
           leftDataPoints,
           minBufferSize,
-          debugMinBufferSize,
         });
       }
 
       // Load more recent data (right side) if we don't have enough buffer
-      if (rightDataPoints < debugMinBufferSize) {
+      if (rightDataPoints < minBufferSize) {
         console.log('Loading more recent data after pan...', {
           rightDataPoints,
           minBufferSize,
-          debugMinBufferSize,
-          needed: debugMinBufferSize - rightDataPoints,
+          needed: minBufferSize - rightDataPoints,
         });
         shouldLoadRight = true;
       } else {
         console.log('Right side has enough buffer, skipping right load', {
           rightDataPoints,
           minBufferSize,
-          debugMinBufferSize,
         });
       }
 
