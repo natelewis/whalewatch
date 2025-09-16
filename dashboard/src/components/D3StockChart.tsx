@@ -195,9 +195,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const dataLength = chartDataHook.chartData.length;
     const bufferSize = PAN_BUFFER_SIZE; // Load more data when within buffer size of edge
 
+    console.log('Checking data loading:', {
+      currentViewStart,
+      currentViewEnd,
+      bufferSize,
+      dataLength,
+      isLoadingMoreData,
+      isLeftLoading: chartDataHook.isLeftLoading,
+    });
+
     // Only load historical data to the left - use WebSocket for new data on the right
     // Add additional checks to prevent infinite loading
-    if (currentViewStart <= bufferSize && dataLength < 500 && !chartDataHook.isLeftLoading) {
+    // Don't load if we're already at the very beginning of the data
+    const isAtDataStart = currentViewStart === 0;
+    if (
+      currentViewStart <= bufferSize &&
+      dataLength < 500 &&
+      !chartDataHook.isLeftLoading &&
+      !isAtDataStart
+    ) {
       console.log('Loading more historical data on the left...', {
         currentViewStart,
         bufferSize,
@@ -230,17 +246,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     }, 300); // 300ms debounce
   }, [checkAndLoadData]);
 
-  // Check for data loading when view bounds change
-  // Temporarily disabled to focus on panning
-  // useEffect(() => {
-  //   debouncedDataLoad();
-  //
-  //   return () => {
-  //     if (panTimeoutRef.current) {
-  //       clearTimeout(panTimeoutRef.current);
-  //     }
-  //   };
-  // }, [currentViewStart, currentViewEnd, debouncedDataLoad]);
+  // Check for data loading when view bounds change (but not during panning)
+  useEffect(() => {
+    // Don't load data during panning to prevent infinite loops and chart resets
+    if (!isPanning && !isZooming) {
+      debouncedDataLoad();
+    }
+
+    return () => {
+      if (panTimeoutRef.current) {
+        clearTimeout(panTimeoutRef.current);
+      }
+    };
+  }, [currentViewStart, currentViewEnd, debouncedDataLoad, isPanning, isZooming]);
 
   // Auto-enable live mode when user pans to the rightmost edge
   const [isAtRightEdge, setIsAtRightEdge] = useState(false);
@@ -311,7 +329,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
             const svg = d3.select(svgRef.current);
             const dataLength = chartDataHook.chartData.length;
             const endTransform = d3.zoomIdentity.translate(
-              -(dataLength - CHART_DATA_POINTS) * 8,
+              -(dataLength - CHART_DATA_POINTS) * 12,
               0
             );
             svg
@@ -398,34 +416,31 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         const totalDataLength = chartDataHook.chartData.length;
         const visibleWidth = innerWidth / transform.k;
 
-        // Direct calculation: when dragging right (panning left), transform.x is positive
-        // We want to show older data (higher offset) when panning left
-        // Use a smaller divisor to make panning feel more natural and less sensitive
-        const newDataPanOffset = Math.max(0, Math.floor(transform.x / 8));
+        // Use transform directly to calculate visible data range
+        // This gives us smooth, predictable panning without jumps
+        // When dragging right (transform.x positive), we want to show older data (higher offset)
+        const panOffsetPixels = Math.max(0, transform.x); // Positive transform.x means panning left to show older data
+        const newDataPanOffset = Math.floor(panOffsetPixels / 20); // Slower, more natural movement
 
         // Don't update state during panning - only update the visual elements directly
         // This prevents the throttled feeling and makes panning completely smooth
 
-        // Don't update view bounds during panning to avoid React re-renders
-        // This ensures smooth real-time panning without state interference
+        // Don't update view bounds during panning to prevent chart recreation
+        // This prevents the chart from resetting and snapping back during panning
 
         // Debug: Log panning activity
         console.log('Panning:', {
           transformX: transform.x,
+          panOffsetPixels,
+          currentDataPanOffset: dataPanOffset,
           newDataPanOffset,
           isPanning: true,
           timestamp: Date.now(),
         });
 
         // Update chart elements in real-time without triggering state changes
-        // Calculate visible data directly here to avoid state updates during panning
-        const sortedData = [...chartDataHook.chartData].sort(
-          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-        );
-        const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
-        const dataStartIndex = Math.max(0, sortedData.length - viewSize - newDataPanOffset);
-        const dataEndIndex = Math.min(sortedData.length - 1, dataStartIndex + viewSize - 1);
-        const currentVisibleData = sortedData.slice(dataStartIndex, dataEndIndex + 1);
+        // Use the getCurrentVisibleData function to ensure consistency
+        const currentVisibleData = getCurrentVisibleData();
 
         // Create new scales specifically for the visible data
         const visibleXScale = d3
@@ -497,20 +512,24 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         // Update the dataPanOffset state only when panning ends
         // This ensures smooth panning without state updates during drag
         const finalTransform = d3.zoomTransform(svg.node() as Element);
-        const finalDataPanOffset = Math.max(0, Math.floor(finalTransform.x / 8));
+        const finalPanOffsetPixels = Math.max(0, finalTransform.x);
+        const finalDataPanOffset = Math.floor(finalPanOffsetPixels / 20);
         setDataPanOffset(finalDataPanOffset);
 
         // Update view bounds when panning ends
         const totalDataLength = chartDataHook.chartData.length;
         const innerWidth = dimensions.width - dimensions.margin.left - dimensions.margin.right;
         const visibleWidth = innerWidth / finalTransform.k;
-        const viewStartIndex = Math.max(0, Math.floor(finalTransform.x / 8));
+        const viewStartIndex = Math.max(0, Math.floor(finalPanOffsetPixels / 20));
         const viewEndIndex = Math.min(
           totalDataLength - 1,
-          Math.ceil(finalTransform.x / 8 + visibleWidth / 8)
+          Math.ceil(finalPanOffsetPixels / 20 + visibleWidth / 20)
         );
         setCurrentViewStart(viewStartIndex);
         setCurrentViewEnd(viewEndIndex);
+
+        // Trigger data loading after panning ends
+        debouncedDataLoad();
       });
 
     svg.call(zoom);
@@ -602,22 +621,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
         // Find closest data point by index
         const index = Math.round(mouseIndex);
-        // Calculate visible data directly using current transform
-        const sortedData = [...chartDataHook.chartData].sort(
-          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-        );
-        const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
-
-        // Get current pan offset from transform
-        let currentPanOffset = dataPanOffset; // fallback to state
-        if (svgRef.current) {
-          const currentTransform = d3.zoomTransform(svgRef.current);
-          currentPanOffset = Math.max(0, Math.floor(currentTransform.x / 8));
-        }
-
-        const hoverStartIndex = Math.max(0, sortedData.length - viewSize - currentPanOffset);
-        const hoverEndIndex = Math.min(sortedData.length - 1, hoverStartIndex + viewSize - 1);
-        const currentVisibleData = sortedData.slice(hoverStartIndex, hoverEndIndex + 1);
+        // Use the consistent getCurrentVisibleData function
+        const currentVisibleData = getCurrentVisibleData();
         const clampedIndex = Math.max(0, Math.min(index, currentVisibleData.length - 1));
         const d = currentVisibleData[clampedIndex];
 
@@ -710,11 +715,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
     const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
 
-    // Get current transform from the SVG element
+    // Get current transform from the SVG element and calculate pan offset
     let currentPanOffset = dataPanOffset; // fallback to state
     if (svgRef.current) {
       const currentTransform = d3.zoomTransform(svgRef.current);
-      currentPanOffset = Math.max(0, Math.floor(currentTransform.x / 8));
+      const panOffsetPixels = Math.max(0, currentTransform.x);
+      currentPanOffset = Math.floor(panOffsetPixels / 20);
     }
 
     const startIndex = Math.max(0, sortedData.length - viewSize - currentPanOffset);
@@ -735,7 +741,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     }
 
     // Only recreate if not currently panning to avoid interference
-    if (!isPanning) {
+    if (!isPanning && !isZooming) {
       chartRecreateTimeoutRef.current = setTimeout(() => {
         createChart();
       }, 100); // 100ms debounce
@@ -746,7 +752,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         clearTimeout(chartRecreateTimeoutRef.current);
       }
     };
-  }, [createChart, isPanning]);
+  }, [createChart, isPanning, isZooming]);
 
   // Chart type is always candlestick - no selection needed
 
