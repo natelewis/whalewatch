@@ -29,16 +29,22 @@ export const useDateTooltip = ({
     const tooltip = document.createElement('div');
     tooltip.className = 'persistent-date-tooltip';
     tooltip.style.position = 'fixed';
+    tooltip.style.color = '#6b7280';
     tooltip.style.backgroundColor = '#000000';
     tooltip.style.border = '1px solid #6b7280';
-    tooltip.style.marginTop = '-14px';
-    // tooltip.style.padding = '1px';
+    tooltip.style.marginTop = '-8px';
+    tooltip.style.padding = '0';
     tooltip.style.borderRadius = '2px';
-    tooltip.style.width = '120px';
+    tooltip.style.width = 'auto';
+    tooltip.style.minWidth = '100px';
     tooltip.style.fontSize = '12px';
-    tooltip.style.setProperty('color', 'white', 'important');
+    tooltip.style.paddingTop = '1px';
+    tooltip.style.setProperty('color', '#d1d5db', 'important');
     tooltip.style.fontWeight = 'normal';
     tooltip.style.pointerEvents = 'none';
+    tooltip.style.lineHeight = '1';
+    tooltip.style.letterSpacing = '-0.5px';
+    tooltip.style.boxSizing = 'border-box';
     tooltip.style.zIndex = '1000';
     tooltip.style.willChange = 'transform';
     tooltip.style.transform = 'translateZ(0)'; // Force hardware acceleration
@@ -78,7 +84,8 @@ export const useDateTooltip = ({
       tooltip.style.display = 'block';
 
       // Center the tooltip horizontally under the spike line
-      const tooltipWidth = 120; // Same as width in createTooltip
+      // Get the actual width after the text is set
+      const tooltipWidth = tooltip.offsetWidth;
       const centeredX = x - tooltipWidth / 2;
 
       // Position 15 pixels below the bottom of the chart
