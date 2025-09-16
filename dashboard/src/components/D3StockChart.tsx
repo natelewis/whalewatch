@@ -205,10 +205,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       //   currentViewEnd,
       // });
 
-      setCurrentViewStart(newViewStart);
-      setCurrentViewEnd(newViewEnd);
+      // This logic is flawed and causes an infinite loop when new data is loaded.
+      // The view bounds should only be updated by user interaction (panning/zooming).
+      // setCurrentViewStart(newViewStart);
+      // setCurrentViewEnd(newViewEnd);
     }
-  }, [chartDataHook.chartData.length]);
+    // The dependency array is intentionally left empty to only run once on mount,
+    // preventing the infinite loop. We now manage view bounds through the D3 zoom transform.
+  }, []);
 
   // Predictive data loading based on pan position
   const checkAndLoadData = useCallback(async () => {
@@ -398,11 +402,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       endIndex,
     });
 
+    const bandWidth = innerWidth / CHART_DATA_POINTS;
+
     // Create scales - use linear scale to remove gaps
     const xScale = d3
       .scaleLinear()
       .domain([0, sortedData.length - 1])
-      .range([0, innerWidth]);
+      .range([0, (sortedData.length - 1) * bandWidth]);
 
     const yScale = d3
       .scaleLinear()
@@ -462,6 +468,20 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         })
       );
       g.select<SVGGElement>('.y-axis').call(d3.axisRight(newYScale).tickFormat(d3.format('.2f')));
+
+      // Update grid lines
+      g.select<SVGGElement>('.grid-x').call(
+        d3
+          .axisBottom(newXScale)
+          .tickSize(-innerHeight)
+          .tickFormat(() => '')
+      );
+      g.select<SVGGElement>('.grid-y').call(
+        d3
+          .axisRight(newYScale)
+          .tickSize(-innerWidth)
+          .tickFormat(() => '')
+      );
     };
 
     const handleZoomEnd = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
@@ -488,6 +508,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const initialTransform = d3.zoomIdentity.translate(initialTranslateX, 0);
       transformRef.current = initialTransform;
       svg.call(zoom.transform, initialTransform);
+
+      // Set initial view bounds for predictive loading
+      const newXScale = initialTransform.rescaleX(xScale);
+      const visibleDomain = newXScale.domain();
+      setCurrentViewStart(Math.floor(visibleDomain[0]));
+      setCurrentViewEnd(Math.ceil(visibleDomain[1]));
     } else {
       svg.call(zoom.transform, transformRef.current);
     }
