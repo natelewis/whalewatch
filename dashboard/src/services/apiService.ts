@@ -70,7 +70,9 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       interval: string = '1h',
       dataPoints: number = DEFAULT_CHART_DATA_POINTS,
       endTime?: string,
-      bufferPoints?: number
+      bufferPoints?: number,
+      viewBasedLoading?: boolean,
+      viewSize?: number
     ): Promise<ChartDataResponse> {
       const params: Record<string, string> = {
         interval,
@@ -86,6 +88,14 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
 
       if (bufferPoints && bufferPoints > 0) {
         params.buffer_points = bufferPoints.toString();
+      }
+
+      if (viewBasedLoading !== undefined) {
+        params.view_based_loading = viewBasedLoading.toString();
+      }
+
+      if (viewSize && viewSize > 0) {
+        params.view_size = viewSize.toString();
       }
 
       const response = await api.get(`/api/chart/${symbol}`, { params });
@@ -157,7 +167,9 @@ export const apiService = {
     interval: string = '1h',
     dataPoints: number = DEFAULT_CHART_DATA_POINTS,
     endTime?: string,
-    bufferPoints?: number
+    bufferPoints?: number,
+    viewBasedLoading?: boolean,
+    viewSize?: number
   ): Promise<ChartDataResponse> {
     const params: Record<string, string> = {
       interval,
@@ -173,6 +185,14 @@ export const apiService = {
 
     if (bufferPoints && bufferPoints > 0) {
       params.buffer_points = bufferPoints.toString();
+    }
+
+    if (viewBasedLoading !== undefined) {
+      params.view_based_loading = viewBasedLoading.toString();
+    }
+
+    if (viewSize && viewSize > 0) {
+      params.view_size = viewSize.toString();
     }
 
     const response = await api.get(`/api/chart/${symbol}`, { params });

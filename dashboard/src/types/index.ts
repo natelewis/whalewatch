@@ -301,6 +301,8 @@ export interface ChartDataResponse {
   interval: string;
   data_points: number;
   buffer_points?: number;
+  view_based_loading?: boolean;
+  view_size?: number;
   bars: AlpacaBar[];
   data_source: string;
   success: boolean;
@@ -309,6 +311,8 @@ export interface ChartDataResponse {
     interval: string;
     requested_data_points: number;
     buffer_points?: number;
+    view_based_loading?: boolean;
+    view_size?: number;
   };
   actual_data_range?: {
     earliest: string;

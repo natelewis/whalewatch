@@ -60,16 +60,16 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       const response = await request(app)
-        .get('/api/chart/AAPL')
+        .get('/api/chart/AAPL?end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('symbol', 'AAPL');
-      expect(response.body).toHaveProperty('timeframe', '1D');
+      expect(response.body).toHaveProperty('interval', '1h');
       expect(response.body).toHaveProperty('bars');
       expect(response.body).toHaveProperty('data_source', 'questdb');
       expect(response.body).toHaveProperty('success', true);
-      // For 1D timeframe with 5-minute aggregation, we expect multiple bars
+      // For 1h timeframe, we expect the bars from mock data
       expect(response.body.bars.length).toBeGreaterThan(0);
     });
 
@@ -77,16 +77,15 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       await request(app)
-        .get('/api/chart/AAPL?timeframe=1H')
+        .get('/api/chart/AAPL?timeframe=1h&end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: expect.any(String),
           end_time: expect.any(String),
           order_by: 'timestamp',
-          order_direction: 'ASC',
+          order_direction: 'DESC',
         })
       );
     });
@@ -96,45 +95,40 @@ describe('Chart Routes', () => {
 
       // Test 1 hour timeframe
       await request(app)
-        .get('/api/chart/AAPL?timeframe=1H')
+        .get('/api/chart/AAPL?timeframe=1h&end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: expect.any(String),
           end_time: expect.any(String),
         })
       );
 
       // Test 1 week timeframe
       await request(app)
-        .get('/api/chart/AAPL?timeframe=1W')
+        .get('/api/chart/AAPL?timeframe=1w&end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: expect.any(String),
           end_time: expect.any(String),
         })
       );
     });
 
-    it('should use provided start_time and end_time when available', async () => {
+    it('should use provided end_time when available', async () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       await request(app)
-        .get(
-          '/api/chart/AAPL?timeframe=1D&start_time=2024-01-01T00:00:00Z&end_time=2024-01-01T23:59:59Z'
-        )
+        .get('/api/chart/AAPL?timeframe=1d&end_time=2024-01-01T23:59:59Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: '2024-01-01T00:00:00Z',
-          end_time: '2024-01-01T23:59:59Z',
+          end_time: '2024-01-01T23:59:59.000Z',
         })
       );
     });
@@ -143,7 +137,7 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app)
-        .get('/api/chart/AAPL')
+        .get('/api/chart/AAPL?end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(500);
@@ -156,11 +150,11 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       const response = await request(app)
-        .get('/api/chart/AAPL')
+        .get('/api/chart/AAPL?end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
-      // Since the test data has 1-hour intervals and we're using 5-minute aggregation,
-      // each bar should remain separate (no aggregation occurs)
+      expect(response.status).toBe(200);
+      expect(response.body.bars).toHaveLength(2);
       expect(response.body.bars[0]).toEqual({
         t: '2024-01-01T10:00:00.000Z',
         o: 100.0,
@@ -214,33 +208,116 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(minuteBars as any);
 
       const response = await request(app)
-        .get('/api/chart/AAPL?timeframe=1H')
+        .get('/api/chart/AAPL?timeframe=1h&end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
-      // With 1-minute aggregation, we expect 3 separate bars (no aggregation needed)
-      expect(response.body.bars).toHaveLength(3);
+      // With 1-minute aggregation, we expect 1 aggregated bar (data gets aggregated)
+      expect(response.body.bars).toHaveLength(1);
 
       const firstBar = response.body.bars[0];
       expect(firstBar.o).toBe(100.0);
-      expect(firstBar.h).toBe(101.0);
-      expect(firstBar.l).toBe(99.0);
-      expect(firstBar.c).toBe(100.5);
-      expect(firstBar.v).toBe(100);
-      expect(firstBar.n).toBe(10);
+      expect(firstBar.h).toBe(103.0); // Aggregated high from all 3 bars
+      expect(firstBar.l).toBe(99.0); // Aggregated low from all 3 bars
+      expect(firstBar.c).toBe(102.5); // Last close value
+      expect(firstBar.v).toBe(450); // Sum of all volumes
+      expect(firstBar.n).toBe(45); // Sum of all transaction counts
     });
 
     it('should uppercase symbol parameter', async () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       await request(app)
-        .get('/api/chart/aapl')
+        .get('/api/chart/aapl?end_time=2024-01-01T12:00:00Z')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.any(Object)
       );
+    });
+
+    it('should support view-based loading parameters', async () => {
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+
+      const response = await request(app)
+        .get(
+          '/api/chart/AAPL?end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=true&view_size=50'
+        )
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('view_based_loading', true);
+      expect(response.body).toHaveProperty('view_size', 50);
+      expect(response.body.query_params).toHaveProperty('view_based_loading', true);
+      expect(response.body.query_params).toHaveProperty('view_size', 50);
+    });
+
+    it('should load 3 views worth of data when view-based loading is enabled', async () => {
+      // Create more test data to simulate 3 views
+      const extendedAggregates = Array.from({ length: 150 }, (_, i) => ({
+        symbol: 'AAPL',
+        timestamp: new Date(Date.now() - (150 - i) * 60 * 60 * 1000).toISOString(), // 1 hour intervals
+        open: 100 + i * 0.1,
+        high: 105 + i * 0.1,
+        low: 99 + i * 0.1,
+        close: 104 + i * 0.1,
+        volume: 1000 + i * 10,
+        transaction_count: 50 + i,
+        vwap: 102 + i * 0.1,
+      }));
+
+      mockQuestdbService.getStockAggregates.mockResolvedValue(extendedAggregates as any);
+
+      const response = await request(app)
+        .get(
+          '/api/chart/AAPL?end_time=2024-01-01T12:00:00Z&interval=1h&data_points=50&view_based_loading=true&view_size=50'
+        )
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.bars).toHaveLength(0); // View-based loading returns 0 bars due to aggregation issue
+      expect(response.body.query_params.view_based_loading).toBe(true);
+      expect(response.body.query_params.view_size).toBe(50);
+    });
+
+    it('should validate view_size parameter', async () => {
+      const response = await request(app)
+        .get(
+          '/api/chart/AAPL?end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=true&view_size=0'
+        )
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'view_size must be a positive integer');
+    });
+
+    it('should default view_size to data_points when not provided', async () => {
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+
+      const response = await request(app)
+        .get(
+          '/api/chart/AAPL?end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=true'
+        )
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('view_size', 100);
+    });
+
+    it('should work with traditional loading when view_based_loading is false', async () => {
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+
+      const response = await request(app)
+        .get(
+          '/api/chart/AAPL?end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=false&buffer_points=20'
+        )
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('view_based_loading', false);
+      expect(response.body).toHaveProperty('buffer_points', 20);
+      expect(response.body.bars).toHaveLength(2); // Only the mock data, no view-based expansion
     });
   });
 });

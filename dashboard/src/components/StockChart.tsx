@@ -23,6 +23,8 @@ import {
   Play,
   Pause,
   RotateCcw,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface StockChartProps {
@@ -119,6 +121,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   const chartDataHook = useChartData({
     timeframes,
     bufferPoints: 20, // Load 20 buffer points on each side
+    enableViewBasedLoading: true, // Enable view-based preloading
     onDataLoaded: (data, range) => {
       // Data loaded callback - could be used for additional processing
     },
@@ -134,6 +137,47 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     // Don't check if already loading
     if (chartDataHook.isLeftLoading || chartDataHook.isRightLoading) return;
 
+    // In view-based mode, check view state instead of scroll position
+    if (chartDataHook.viewState) {
+      const { currentViewStart, currentViewEnd, totalDataPoints, hasDataBefore, hasDataAfter } =
+        chartDataHook.viewState;
+
+      // Check if we need to load more data based on view position
+      const nearLeft = currentViewStart <= 1 && hasDataBefore; // Near left edge and more data available
+      const nearRight = currentViewEnd >= totalDataPoints - 2 && hasDataAfter; // Near right edge and more data available
+
+      // Update boundary states
+      setIsNearLeftBoundary(nearLeft);
+      setIsNearRightBoundary(nearRight);
+
+      console.log('View-based boundary check:', {
+        currentViewStart,
+        currentViewEnd,
+        totalDataPoints,
+        hasDataBefore,
+        hasDataAfter,
+        nearLeft,
+        nearRight,
+      });
+
+      // Only trigger loading if we're near boundaries and haven't loaded recently
+      const now = Date.now();
+      if (nearLeft && now - lastScrollTime > 2000) {
+        console.log('Loading more data to the left...');
+        chartDataHook.loadMoreDataLeft(symbol, timeframe);
+        setLastScrollTime(now);
+      }
+
+      if (nearRight && now - lastScrollTime > 2000) {
+        console.log('Loading more data to the right...');
+        chartDataHook.loadMoreDataRight(symbol, timeframe);
+        setLastScrollTime(now);
+      }
+
+      return;
+    }
+
+    // Traditional mode - check scroll position
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
@@ -158,31 +202,36 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     setIsNearLeftBoundary(nearLeft);
     setIsNearRightBoundary(nearRight);
 
+    // Add debugging
+    console.log('Traditional boundary check:', {
+      totalPoints,
+      currentXRange,
+      leftPosition,
+      rightPosition,
+      leftThreshold,
+      rightThreshold,
+      nearLeft,
+      nearRight,
+      isLeftLoading: chartDataHook.isLeftLoading,
+      isRightLoading: chartDataHook.isRightLoading,
+    });
+
     // Only trigger loading if we're near boundaries and haven't loaded recently
     const now = Date.now();
-    if (nearLeft && now - lastScrollTime > 2000 && !isNearLeftBoundary) {
+    if (nearLeft && now - lastScrollTime > 2000) {
       // 2 second cooldown and not already near left boundary
       console.log('Loading more data to the left...');
       chartDataHook.loadMoreDataLeft(symbol, timeframe);
       setLastScrollTime(now); // Update scroll time to prevent immediate re-trigger
     }
 
-    if (nearRight && now - lastScrollTime > 2000 && !isNearRightBoundary) {
+    if (nearRight && now - lastScrollTime > 2000) {
       // 2 second cooldown and not already near right boundary
       console.log('Loading more data to the right...');
       chartDataHook.loadMoreDataRight(symbol, timeframe);
       setLastScrollTime(now); // Update scroll time to prevent immediate re-trigger
     }
-  }, [
-    chartDataHook,
-    timeframe,
-    symbol,
-    currentRange,
-    BUFFER_THRESHOLD,
-    lastScrollTime,
-    isNearLeftBoundary,
-    isNearRightBoundary,
-  ]);
+  }, [chartDataHook, timeframe, symbol, currentRange, BUFFER_THRESHOLD, lastScrollTime]);
 
   // Load saved timeframe from localStorage on component mount
   useEffect(() => {
@@ -370,9 +419,27 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
   // Handle Plotly relayout events for zoom and pan
   const handlePlotlyRelayout = useCallback(
     (event: any) => {
+      console.log('Plotly relayout event:', event);
+
+      // Skip range updates when using view-based loading
+      if (chartDataHook.viewState) {
+        console.log('Skipping range update - using view-based loading');
+        return;
+      }
+
       if (event['xaxis.range'] && chartDataHook.chartData.length > 0) {
         const newRange = event['xaxis.range'];
         const totalPoints = chartDataHook.chartData.length;
+
+        console.log('Range update check:', {
+          newRange,
+          totalPoints,
+          currentRange,
+          dataLength: chartDataHook.chartData.length,
+          rangeDifferent: newRange[0] !== currentRange?.[0] || newRange[1] !== currentRange?.[1],
+          withinBounds:
+            newRange[0] >= 0 && newRange[1] <= totalPoints - 1 && newRange[0] <= newRange[1],
+        });
 
         // Only update if the range is different and within bounds
         if (
@@ -382,18 +449,13 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
           newRange[1] <= totalPoints - 1 &&
           newRange[0] <= newRange[1] // Ensure valid range
         ) {
-          console.log('Plotly relayout range update:', {
-            newRange,
-            totalPoints,
-            currentRange,
-            dataLength: chartDataHook.chartData.length,
-          });
+          console.log('Updating current range and triggering boundary check');
           setCurrentRange([Math.floor(newRange[0]), Math.floor(newRange[1])]);
           setLastScrollTime(Date.now());
         }
       }
     },
-    [chartDataHook.chartData, currentRange]
+    [chartDataHook.chartData, chartDataHook.viewState, currentRange]
   );
 
   // Calculate chart area bounds for spike line positioning
@@ -702,13 +764,19 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
         zeroline: false,
         mirror: false, // Don't mirror ticks on opposite side
         // Apply current range if available, ensuring it's within bounds
-        ...(currentRange &&
-          chartDataHook.chartData.length > 0 && {
-            range: [
-              Math.max(0, Math.min(currentRange[0], chartDataHook.chartData.length - 1)),
-              Math.max(0, Math.min(currentRange[1], chartDataHook.chartData.length - 1)),
-            ],
-          }),
+        // For view-based loading, always show the full range of current data
+        // For traditional loading, use the currentRange from user interaction
+        ...(chartDataHook.viewState
+          ? chartDataHook.chartData.length > 0 && {
+              range: [0, chartDataHook.chartData.length - 1],
+            }
+          : currentRange &&
+            chartDataHook.chartData.length > 0 && {
+              range: [
+                Math.max(0, Math.min(currentRange[0], chartDataHook.chartData.length - 1)),
+                Math.max(0, Math.min(currentRange[1], chartDataHook.chartData.length - 1)),
+              ],
+            }),
         fixedrange: false, // Allow pan but disable zoom
         // Disable any selection or trim zoom behavior
         selectdirection: false,
@@ -734,7 +802,7 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
       margin: { l: 50, r: 50, t: 50, b: 50 },
       showlegend: false,
       hovermode: 'x unified' as const,
-      dragmode: 'pan' as const, // Enable pan mode only
+      dragmode: chartDataHook.viewState ? ('zoom' as const) : ('pan' as const), // Disable pan when using view-based loading
       // Configure hover line and spike appearance
       shapes: [
         // Bottom border line
@@ -800,7 +868,16 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
     // No need to force ranges since we want to show the true time distribution
 
     return layout;
-  }, [symbol, timeframe, chartDataHook.dataRange, hoveredDate, mouseX, currentRange]);
+  }, [
+    symbol,
+    timeframe,
+    chartDataHook.dataRange,
+    hoveredDate,
+    mouseX,
+    currentRange,
+    chartDataHook.viewState,
+    chartDataHook.chartData,
+  ]);
   const chartTypes: { value: ChartType; label: string; icon: React.ReactNode }[] = [
     { value: 'candlestick', label: 'Candlestick', icon: <BarChart3 className="h-4 w-4" /> },
     { value: 'line', label: 'Line', icon: <LineChart className="h-4 w-4" /> },
@@ -843,9 +920,43 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
               </button>
             </div>
           </div>
-          <button className="p-2 text-muted-foreground hover:text-foreground">
-            <Settings className="h-4 w-4" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {/* Pan Controls */}
+            <div className="flex items-center space-x-1 border border-border rounded-md p-1 bg-blue-100">
+              <div className="text-xs text-muted-foreground mr-2">
+                Pan: L{chartDataHook.canPanLeft ? '✓' : '✗'} R
+                {chartDataHook.canPanRight ? '✓' : '✗'}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  chartDataHook.panLeft();
+                }}
+                disabled={!chartDataHook.canPanLeft}
+                className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Pan left"
+                style={{ pointerEvents: 'auto' }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  chartDataHook.panRight();
+                }}
+                disabled={!chartDataHook.canPanRight}
+                className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Pan right"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <button className="p-2 text-muted-foreground hover:text-foreground">
+              <Settings className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Controls */}
@@ -1099,6 +1210,14 @@ const StockChartComponent: React.FC<StockChartProps> = ({ symbol, onSymbolChange
           <div className="flex items-center space-x-4">
             <span>Data points: {chartDataHook.chartData.length}</span>
             <span>Interval: {timeframe || 'Loading...'}</span>
+            {chartDataHook.viewState && (
+              <span>
+                View: {chartDataHook.viewState.currentViewStart + 1}-
+                {chartDataHook.viewState.currentViewEnd + 1} of{' '}
+                {chartDataHook.viewState.totalDataPoints} | Pan: L
+                {chartDataHook.canPanLeft ? '✓' : '✗'} R{chartDataHook.canPanRight ? '✓' : '✗'}
+              </span>
+            )}
             {(chartDataHook.isLeftLoading || chartDataHook.isRightLoading) && (
               <span className="text-blue-500 text-xs">
                 {chartDataHook.isLeftLoading && 'Loading historical data...'}
