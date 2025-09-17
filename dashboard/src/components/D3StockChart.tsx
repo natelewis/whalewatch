@@ -729,7 +729,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setCurrentViewEnd(newViewEnd);
 
       // Only update chart elements if the visible data has actually changed
-      // This prevents unnecessary DOM manipulation during panning
+      // AND we're not actively panning (to prevent jumping during smooth panning)
       const visibleDataChanged =
         !lastVisibleDataRef.current ||
         lastVisibleDataRef.current.length !== visibleData.length ||
@@ -737,7 +737,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
           visibleData.length > 0 &&
           lastVisibleDataRef.current[0].time !== visibleData[0].time);
 
-      if (visibleData.length > 0 && visibleDataChanged) {
+      // Don't update chart elements during active panning - only transform existing content
+      // This prevents the chart from jumping during smooth panning
+      if (visibleData.length > 0 && visibleDataChanged && !isPanning) {
         // DEBUG: Log before chart update
         const svgElement = svgRef.current;
         const svgRect = svgElement?.getBoundingClientRect();
@@ -820,6 +822,43 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
       // Track when panning ended
       lastPanningEndRef.current = Date.now();
+
+      // Update chart elements now that panning has ended
+      // This ensures the chart shows the correct data for the final position
+      const sortedData = [...chartDataHook.chartData].sort(
+        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+      const { width, height, margin } = dimensions;
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+      const bandWidth = innerWidth / CHART_DATA_POINTS;
+      const xScale = d3
+        .scaleLinear()
+        .domain([0, sortedData.length - 1])
+        .range([0, (sortedData.length - 1) * bandWidth]);
+      const yScale = d3
+        .scaleLinear()
+        .domain([
+          d3.min(sortedData, (d) => d.low) as number,
+          d3.max(sortedData, (d) => d.high) as number,
+        ])
+        .nice()
+        .range([innerHeight, 0]);
+
+      // Get visible data based on current view state
+      const visibleData = getVisibleData(currentViewStart, currentViewEnd);
+
+      // Update chart elements with the final visible data
+      if (visibleData.length > 0) {
+        const chartContent = g.select('.chart-content');
+        updateChartElements(
+          chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
+          visibleData,
+          xScale,
+          yScale
+        );
+        lastVisibleDataRef.current = visibleData;
+      }
     };
 
     zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
