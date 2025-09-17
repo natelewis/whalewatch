@@ -629,7 +629,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
       // Rescale the scales for the axes
       const newXScale = transform.rescaleX(xScale);
-      
+
       // Calculate the visible range first
       const panOffsetPixels = Math.abs(transform.x);
       const bandWidth = innerWidth / CHART_DATA_POINTS;
@@ -638,10 +638,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const clampedPanOffset = Math.min(panOffset, maxPanOffset);
       const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
       const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
-      
+
       // Get visible data for y-scale calculation
       const visibleData = getVisibleData(newViewStart, newViewEnd);
-      
+
       // Create y-scale based on visible data, not rescale the original
       // This prevents the chart from getting taller during panning
       const newYScale = d3
