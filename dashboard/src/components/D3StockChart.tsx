@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
-import { ChartTimeframe, ChartType, DEFAULT_CHART_DATA_POINTS } from '../types';
+import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { ChartData, useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
@@ -115,7 +115,6 @@ const getVisibleDataPoints = (
   const sortedData = [...chartData].sort(
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
-  console.log('getVisibleDataPoints: Sorted data', sortedData);
 
   // If no data, return empty array
   if (sortedData.length === 0) {
@@ -170,7 +169,7 @@ const getVisibleDataPoints = (
 };
 
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
+  const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const chartContentRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
@@ -261,71 +260,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const chartWebSocket = useChartWebSocket({
     symbol,
   });
-
-  // // Get visible data based on provided view indices
-  // const getVisibleData = useCallback(
-  //   (startIndex: number, endIndex: number): ChartData => {
-  //     // Always use the current state data
-  //     const sortedData = [...chartDataHook.chartData].sort(
-  //       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-  //     );
-
-  //     // If no data, return empty array
-  //     if (sortedData.length === 0) {
-  //       console.log('getVisibleData: No data available');
-  //       return [];
-  //     }
-
-  //     // Handle edge cases more gracefully for panning
-  //     // Allow negative start indices for historical data loading
-  //     // Clamp indices to valid ranges instead of falling back
-  //     const actualStartIndex = Math.max(0, Math.min(startIndex, sortedData.length - 1));
-  //     const actualEndIndex = Math.max(actualStartIndex, Math.min(endIndex, sortedData.length - 1));
-
-  //     // If we have a valid range, use it
-  //     if (actualStartIndex <= actualEndIndex && actualEndIndex < sortedData.length) {
-  //       const slicedData = sortedData.slice(actualStartIndex, actualEndIndex + 1);
-  //       return slicedData;
-  //     }
-
-  //     // If we're panning to historical data (negative start), try to get what we can
-  //     if (startIndex < 0) {
-  //       const availableStart = Math.max(0, sortedData.length + startIndex);
-  //       const availableEnd = Math.min(
-  //         sortedData.length - 1,
-  //         availableStart + CHART_DATA_POINTS - 1
-  //       );
-  //       const historicalData = sortedData.slice(availableStart, availableEnd + 1);
-
-  //       if (historicalData.length > 0) {
-  //         console.log('getVisibleData: Using historical data for panning', {
-  //           requestedStart: startIndex,
-  //           actualStart: availableStart,
-  //           actualEnd: availableEnd,
-  //           dataLength: historicalData.length,
-  //         });
-  //         return historicalData;
-  //       }
-  //     }
-
-  //     // Final fallback: return the most recent data
-  //     const fallbackStart = Math.max(0, sortedData.length - CHART_DATA_POINTS);
-  //     const fallbackEnd = sortedData.length - 1;
-  //     const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
-
-  //     console.log('getVisibleData: Using fallback data', {
-  //       requestedIndices: { startIndex, endIndex },
-  //       actualIndices: { actualStartIndex, actualEndIndex },
-  //       totalData: sortedData.length,
-  //       fallbackStart,
-  //       fallbackEnd,
-  //       fallbackDataLength: fallbackData.length,
-  //     });
-
-  //     return fallbackData;
-  //   },
-  //   [chartDataHook.chartData.length, currentViewStart, currentViewEnd]
-  // );
 
   // Update visible data when view changes
   useEffect(() => {
@@ -610,15 +544,20 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const createChart = (): void => {
     if (
       (chartExistsRef.current,
-      !svgRef.current || allChartData.length === 0 || !xScale || !yScale || chartLoaded) ||
+      !svgElement || allChartData.length === 0 || !xScale || !yScale || chartLoaded) ||
       !visibleData ||
       !xScale ||
       !yScale
     ) {
       return;
     }
+
+    if (!svgElement) {
+      return;
+    }
+
     chartExistsRef.current = true;
-    const svg = d3.select(svgRef.current);
+    const svg = d3.select(svgElement);
     svg.selectAll('*').remove(); // Clear previous chart
     gRef.current = null; // Reset the g ref when clearing the chart
     chartContentRef.current = null; // Reset the chart content ref when clearing the chart
@@ -1214,7 +1153,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
             <div ref={containerRef} className="w-full h-full">
               <svg
-                ref={svgRef}
+                ref={setSvgElement}
                 width={dimensions.width}
                 height={dimensions.height}
                 className="w-full h-full"
