@@ -554,15 +554,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Create D3 chart
   const createChart = useCallback((): void => {
-    if (
-      !svgRef.current ||
-      chartDataHook.chartData.length === 0 ||
-      isCreatingChartRef.current ||
-      !xScale ||
-      !yScale
-    ) {
-      return;
-    }
+    // if (
+    //   !svgRef.current ||
+    //   chartDataHook.chartData.length === 0 ||
+    //   isCreatingChartRef.current ||
+    //   !xScale ||
+    //   !yScale
+    // ) {
+    //   return;
+    // }
 
     isCreatingChartRef.current = true;
     const svg = d3.select(svgRef.current);
@@ -983,14 +983,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       // Create chart if it doesn't exist yet, or if there's a significant data change
       // Don't recreate chart after panning - this causes unwanted y-scale recalculation
-      const shouldCreateChart =
-        !chartExistsRef.current ||
-        (timeSinceLastCreation >= CHART_CREATION_DEBOUNCE &&
-          !isHoveringRef.current &&
-          !isDataLoadingRef.current &&
-          !isPanning && // Don't recreate during panning
-          !isZooming && // Don't recreate while actively zooming
-          !hasUserPanned); // Don't recreate after user has panned
+      const shouldCreateChart = !chartExistsRef.current && xScale && yScale;
 
       if (shouldCreateChart) {
         console.log(
@@ -1018,14 +1011,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   }, [
     chartDataHook.chartData.length,
     createChart,
-    isInitialLoad,
-    isDataLoadingRef,
-    isLoadingMoreData,
+    xScale,
+    yScale,
     currentViewStart,
     currentViewEnd,
-    hasUserPanned,
-    isPanning,
-    isZooming,
+    dimensions,
+    getVisibleData,
+    // Note: createChart is intentionally omitted from dependencies to prevent
+    // multiple calls when the function reference changes due to its own dependencies
   ]);
 
   // Update chart data when view state changes (to show historical data)
