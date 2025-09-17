@@ -192,7 +192,6 @@ const getVisibleDataPoints = (
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const [chartContent, setChartContent] = useState<d3.Selection<
     SVGGElement,
     unknown,
@@ -239,15 +238,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Track if chart already exists to avoid unnecessary recreations
   const [chartExists, setChartExists] = useState<boolean>(false);
-
-  // Track when chart was last created to prevent rapid recreations
-  const lastChartCreationRef = useRef<number>(0);
-
-  // Track when data loading was last allowed to prevent immediate loading
-  const DATA_LOAD_DELAY = 2000; // Wait 2 seconds after chart creation before allowing data loading
-
-  // Track if user is hovering to prevent chart recreation during hover
-  const isHoveringRef = useRef<boolean>(false);
 
   // Chart dimensions
   const [dimensions, setDimensions] = useState<ChartDimensions>({
@@ -426,9 +416,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Check if we need to load more data when panning
   const checkAndLoadMoreData = useCallback(async (): Promise<void> => {
-    const now = Date.now();
-    const timeSinceLastChartCreation = now - lastChartCreationRef.current;
-
     if (
       !symbol ||
       !timeframe ||
@@ -437,8 +424,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       !hasUserPanned ||
       isVerticallyPanningRef.current ||
       isDataLoadingRef.current ||
-      !chartExists || // Don't load data if chart doesn't exist yet
-      timeSinceLastChartCreation < DATA_LOAD_DELAY // Wait for delay after chart creation
+      !chartExists
     ) {
       // console.log('checkAndLoadMoreData: Early return');
       return;
@@ -606,7 +592,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     setChartExists(true);
     const svg = d3.select(svgElement);
     svg.selectAll('*').remove(); // Clear previous chart
-    gRef.current = null; // Reset the g ref when clearing the chart
+    // gRef.current = null; // Reset the g ref when clearing the chart
     setChartContent(null); // Reset the chart content when clearing the chart
 
     const { width, height, margin } = dimensions;
@@ -659,11 +645,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     });
 
     // Create main group (store in ref for reuse)
-    if (!gRef.current) {
-      gRef.current = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-    }
+    // if (!gRef.current) {
+    //   gRef.current = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    // }
 
-    const g = gRef.current;
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
 
     // Add a clip-path to prevent drawing outside the chart area
     svg
@@ -868,12 +854,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       .style('fill', 'none')
       .style('pointer-events', 'all')
       .on('mouseover', () => {
-        isHoveringRef.current = true;
         crosshair.select('.crosshair-x').style('opacity', 1);
         crosshair.select('.crosshair-y').style('opacity', 1);
       })
       .on('mouseout', () => {
-        isHoveringRef.current = false;
         crosshair.select('.crosshair-x').style('opacity', 0);
         crosshair.select('.crosshair-y').style('opacity', 0);
         setHoverData(null);
