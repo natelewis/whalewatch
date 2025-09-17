@@ -222,14 +222,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
-        console.log('Initial load - setting view indices:', {
-          totalDataLength,
-          CHART_DATA_POINTS,
-          newStartIndex,
-          newEndIndex,
-          rangeSize: newEndIndex - newStartIndex + 1,
-        });
-
         setCurrentViewStart(newStartIndex);
         setCurrentViewEnd(newEndIndex);
         isInitialLoad.current = false; // Mark initial load as complete
@@ -1012,12 +1004,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   // Create chart when data is available and view is properly set
   useEffect(() => {
     if (chartDataHook.chartData.length > 0 && currentViewEnd > 0) {
-      console.log('Chart creation effect - current view state:', {
-        currentViewStart,
-        currentViewEnd,
-        dataLength: chartDataHook.chartData.length,
-        rangeSize: currentViewEnd - currentViewStart + 1,
-      });
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
       if (currentViewStart > currentViewEnd || currentViewEnd < 0) {
@@ -1030,13 +1016,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         // Reset to valid view indices
         const validViewStart = Math.max(0, chartDataHook.chartData.length - CHART_DATA_POINTS);
         const validViewEnd = chartDataHook.chartData.length - 1;
-
-        console.log('Chart creation effect - resetting view indices:', {
-          validViewStart,
-          validViewEnd,
-          rangeSize: validViewEnd - validViewStart + 1,
-        });
-
         setCurrentViewStart(validViewStart);
         setCurrentViewEnd(validViewEnd);
         return;
