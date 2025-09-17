@@ -518,7 +518,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         d3.min(visibleData, (d) => d.low) as number,
         d3.max(visibleData, (d) => d.high) as number,
       ])
-      .nice()
       .range([innerHeight, 0]);
 
     // Create main group
@@ -621,7 +620,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
           d3.min(visibleData, (d) => d.low) as number,
           d3.max(visibleData, (d) => d.high) as number,
         ])
-        .nice()
         .range([innerHeight, 0]);
 
       // Update axes using the same scale logic as initial rendering
@@ -640,8 +638,24 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         })
       );
 
+      // Style the domain lines to be gray and remove end tick marks (nubs)
+      xAxisGroup.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
       // Keep the axis line (domain path) fixed by overriding its transform
       xAxisGroup.select('.domain').attr('transform', `translate(${-transform.x},0)`);
+
+      // Style tick lines to be gray, keep labels white
+      xAxisGroup.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+      xAxisGroup.selectAll('.tick text').style('font-size', '12px');
+
+      // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
+      xAxisGroup
+        .selectAll('.tick')
+        .filter((d, i, nodes) => {
+          const totalTicks = nodes.length;
+          return i === 0 || i === totalTicks - 1;
+        })
+        .style('display', 'none');
 
       // Update Y-axis with consistent scaling
       const yAxisGroup = g.select<SVGGElement>('.y-axis');
@@ -649,8 +663,24 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         .attr('transform', `translate(${innerWidth},${transform.y})`)
         .call(d3.axisRight(consistentYScale).tickFormat(d3.format('.2f')));
 
+      // Style the domain lines to be gray and remove end tick marks (nubs)
+      yAxisGroup.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
       // Keep the axis line (domain path) fixed by overriding its transform
       yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
+
+      // Style tick lines to be gray, keep labels white
+      yAxisGroup.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+      yAxisGroup.selectAll('.tick text').style('font-size', '12px');
+
+      // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
+      yAxisGroup
+        .selectAll('.tick')
+        .filter((d, i, nodes) => {
+          const totalTicks = nodes.length;
+          return i === 0 || i === totalTicks - 1;
+        })
+        .style('display', 'none');
 
       // Update view state immediately for responsive panning
       setCurrentViewStart(newViewStart);
@@ -918,7 +948,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         d3.min(visibleData, (d) => d.low) as number,
         d3.max(visibleData, (d) => d.high) as number,
       ])
-      .nice()
       .range([innerHeight, 0]);
 
     // Clear previous chart elements (but not axes)
@@ -1006,7 +1035,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         d3.min(visibleData, (d) => d.low) as number,
         d3.max(visibleData, (d) => d.high) as number,
       ])
-      .nice()
       .range([innerHeight, 0]);
 
     // Remove existing axes
@@ -1035,6 +1063,33 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       .attr('class', 'y-axis')
       .attr('transform', `translate(${innerWidth},0)`)
       .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
+
+    // Style the domain lines to be gray and remove end tick marks (nubs)
+    xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+    yAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
+    // Style tick lines to be gray, keep labels white
+    xAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+    yAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+    xAxis.selectAll('.tick text').style('font-size', '12px');
+    yAxis.selectAll('.tick text').style('font-size', '12px');
+
+    // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
+    xAxis
+      .selectAll('.tick')
+      .filter((d, i, nodes) => {
+        const totalTicks = nodes.length;
+        return i === 0 || i === totalTicks - 1;
+      })
+      .style('display', 'none');
+
+    yAxis
+      .selectAll('.tick')
+      .filter((d, i, nodes) => {
+        const totalTicks = nodes.length;
+        return i === 0 || i === totalTicks - 1;
+      })
+      .style('display', 'none');
 
     console.log('🎯 AXES CREATED SUCCESSFULLY:', {
       xAxisElement: xAxis.node(),
