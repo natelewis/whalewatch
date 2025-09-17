@@ -46,7 +46,7 @@ const updateCurrentView = ({
   sortedData: ChartData;
   setCurrentViewStart: (value: number) => void;
   setCurrentViewEnd: (value: number) => void;
-}) => {
+}): { newViewStart: number; newViewEnd: number } => {
   // Calculate the visible range using simple math based on pan offset
   const panOffsetPixels = Math.abs(transform.x);
   const bandWidth = innerWidth / CHART_DATA_POINTS;
@@ -67,24 +67,14 @@ const createCandlestickChart = (
   data: ChartData,
   xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>
-) => {
+): void => {
   const candleWidth = Math.max(1, 4);
 
   data.forEach((d, index) => {
     // Use the simple x scale directly
     const x = xScale(index);
 
-    // Debug logging for first few candlesticks
-    if (index < 3) {
-      console.log('🕯️ CANDLESTICK DEBUG:', {
-        index,
-        xScaleDomain: xScale.domain(),
-        xScaleRange: xScale.range(),
-        x,
-        candleWidth,
-        dataPoint: d,
-      });
-    }
+    // Debug logging for first few candlesticks (removed to prevent spam)
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
 
@@ -114,7 +104,7 @@ const updateChartElements = (
   data: ChartData,
   xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>
-) => {
+): void => {
   // Clear previous chart elements
   g.selectAll('*').remove();
   createCandlestickChart(g, data, xScale, yScale);
@@ -214,9 +204,76 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     symbol,
   });
 
+  // Get visible data based on provided view indices
+  const getVisibleData = useCallback(
+    (startIndex: number, endIndex: number): ChartData => {
+      // Always use the current state data
+      const sortedData = [...chartDataHook.chartData].sort(
+        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+
+      // If no data, return empty array
+      if (sortedData.length === 0) {
+        console.log('getVisibleData: No data available');
+        return [];
+      }
+
+      // Handle edge cases more gracefully for panning
+      // Allow negative start indices for historical data loading
+      // Clamp indices to valid ranges instead of falling back
+      const actualStartIndex = Math.max(0, Math.min(startIndex, sortedData.length - 1));
+      const actualEndIndex = Math.max(actualStartIndex, Math.min(endIndex, sortedData.length - 1));
+
+      // If we have a valid range, use it
+      if (actualStartIndex <= actualEndIndex && actualEndIndex < sortedData.length) {
+        const slicedData = sortedData.slice(actualStartIndex, actualEndIndex + 1);
+        return slicedData;
+      }
+
+      // If we're panning to historical data (negative start), try to get what we can
+      if (startIndex < 0) {
+        const availableStart = Math.max(0, sortedData.length + startIndex);
+        const availableEnd = Math.min(
+          sortedData.length - 1,
+          availableStart + CHART_DATA_POINTS - 1
+        );
+        const historicalData = sortedData.slice(availableStart, availableEnd + 1);
+
+        if (historicalData.length > 0) {
+          console.log('getVisibleData: Using historical data for panning', {
+            requestedStart: startIndex,
+            actualStart: availableStart,
+            actualEnd: availableEnd,
+            dataLength: historicalData.length,
+          });
+          return historicalData;
+        }
+      }
+
+      // Final fallback: return the most recent data
+      const fallbackStart = Math.max(0, sortedData.length - CHART_DATA_POINTS);
+      const fallbackEnd = sortedData.length - 1;
+      const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
+
+      console.log('getVisibleData: Using fallback data', {
+        requestedIndices: { startIndex, endIndex },
+        actualIndices: { actualStartIndex, actualEndIndex },
+        totalData: sortedData.length,
+        fallbackStart,
+        fallbackEnd,
+        fallbackDataLength: fallbackData.length,
+      });
+
+      return fallbackData;
+    },
+    [chartDataHook.chartData.length, currentViewStart, currentViewEnd]
+  );
+
+  // Update visible data when view changes
   useEffect(() => {
-    setVisibleData(getVisibleData(currentViewStart, currentViewEnd));
-  }, [currentViewStart, currentViewEnd]);
+    const newVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    setVisibleData(newVisibleData);
+  }, [currentViewStart, currentViewEnd, getVisibleData]);
 
   // Load saved timeframe from localStorage
   useEffect(() => {
@@ -262,7 +319,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Handle container resize
   useEffect(() => {
-    const handleResize = () => {
+    const handleResize = (): void => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
         setDimensions((prev) => {
@@ -319,10 +376,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         setCurrentViewEnd(newEndIndex);
         isInitialLoad.current = false; // Mark initial load as complete
         chartExistsRef.current = false; // Reset chart existence for new data
-      }
-      // If data length increased (new data loaded), don't adjust view position
-      // The view should only change during user interactions, not data loads
-      else if (totalDataLength > prevDataLength) {
+      } else if (totalDataLength > prevDataLength) {
+        // If data length increased (new data loaded), don't adjust view position
+        // The view should only change during user interactions, not data loads
         console.log('New data loaded, but not adjusting view (user interaction only):', {
           totalDataLength,
           prevDataLength,
@@ -346,7 +402,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   }, [chartDataHook.chartData.length, currentViewStart, currentViewEnd]);
 
   // Check if we need to load more data when panning
-  const checkAndLoadMoreData = useCallback(async () => {
+  const checkAndLoadMoreData = useCallback(async (): Promise<void> => {
     const now = Date.now();
     const timeSinceLastChartCreation = now - lastChartCreationRef.current;
 
@@ -503,7 +559,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   }, [currentViewEnd, chartDataHook.chartData.length, isLive]);
 
   // Create D3 chart
-  const createChart = useCallback(() => {
+  const createChart = useCallback((): void => {
     if (
       !svgRef.current ||
       chartDataHook.chartData.length === 0 ||
@@ -585,11 +641,72 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     // Create chart elements - draw only visible data based on current view state
     const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
 
+    if (!chartVisibleData || chartVisibleData.length === 0) {
+      console.warn('createChart: No visible data available, skipping chart creation');
+      isCreatingChartRef.current = false;
+      return;
+    }
+
     updateChartElements(chartContent, chartVisibleData, xScale, yScale);
+
+    // Create axes in the main chart group
+    const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
+    const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
+    const chartInnerHeight = chartHeight - chartMargin.top - chartMargin.bottom;
+
+    // Create X-axis
+    const xAxis = g
+      .append('g')
+      .attr('class', 'x-axis')
+      .attr('transform', `translate(0,${chartInnerHeight})`)
+      .call(
+        d3.axisBottom(xScale).tickFormat((d) => {
+          const visibleIndex = Math.round(d as number);
+          if (visibleIndex >= 0 && visibleIndex < chartVisibleData.length) {
+            const date = new Date(chartVisibleData[visibleIndex].time);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          }
+          return '';
+        })
+      );
+
+    // Create Y-axis
+    const yAxis = g
+      .append('g')
+      .attr('class', 'y-axis')
+      .attr('transform', `translate(${chartInnerWidth},0)`)
+      .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
+
+    // Style the domain lines to be gray and remove end tick marks (nubs)
+    xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+    yAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
+    // Style tick lines to be gray, keep labels white
+    xAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+    yAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+    xAxis.selectAll('.tick text').style('font-size', '12px');
+    yAxis.selectAll('.tick text').style('font-size', '12px');
+
+    // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
+    xAxis
+      .selectAll('.tick')
+      .filter((d, i, nodes) => {
+        const totalTicks = nodes.length;
+        return i === 0 || i === totalTicks - 1;
+      })
+      .style('display', 'none');
+
+    yAxis
+      .selectAll('.tick')
+      .filter((d, i, nodes) => {
+        const totalTicks = nodes.length;
+        return i === 0 || i === totalTicks - 1;
+      })
+      .style('display', 'none');
 
     const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
-    const handleZoomStart = () => {
+    const handleZoomStart = (): void => {
       setIsZooming(true);
       setIsPanning(true);
       setHasUserPanned(true); // Mark that user has started panning
@@ -598,7 +715,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       chartExistsRef.current = true;
     };
 
-    const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+    const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
       const { transform } = event;
       updateCurrentView({
         transform,
@@ -663,7 +780,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       }
     };
 
-    const handleZoomEnd = () => {
+    const handleZoomEnd = (): void => {
       setIsZooming(false);
       setIsPanning(false);
     };
@@ -756,12 +873,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     // Reset the chart creation flag and mark chart as existing
     isCreatingChartRef.current = false;
     chartExistsRef.current = true;
-
-    // Mark chart as loaded after a brief delay to ensure DOM is ready
-    setTimeout(() => {
-      setChartLoaded(true);
-      console.log('🎯 CHART LOADED - Axes can now be created');
-    }, 100);
+    setChartLoaded(true);
+    console.log('🎯 CHART LOADED - Axes can now be created');
   }, [
     chartDataHook.chartData,
     dimensions,
@@ -772,247 +885,56 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     yScale,
   ]);
 
-  // Get visible data based on provided view indices
-  const getVisibleData = useCallback(
-    (startIndex: number, endIndex: number) => {
-      // Always use the current state data
-      const sortedData = [...chartDataHook.chartData].sort(
-        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-      );
-
-      // If no data, return empty array
-      if (sortedData.length === 0) {
-        console.log('getVisibleData: No data available');
-        return [];
-      }
-
-      // Handle edge cases more gracefully for panning
-      // Allow negative start indices for historical data loading
-      // Clamp indices to valid ranges instead of falling back
-      const actualStartIndex = Math.max(0, Math.min(startIndex, sortedData.length - 1));
-      const actualEndIndex = Math.max(actualStartIndex, Math.min(endIndex, sortedData.length - 1));
-
-      // If we have a valid range, use it
-      if (actualStartIndex <= actualEndIndex && actualEndIndex < sortedData.length) {
-        setVisibleData(sortedData.slice(actualStartIndex, actualEndIndex + 1));
-
-        // Only return empty if we truly have no data
-        if (!visibleData || visibleData.length > 0) {
-          return visibleData;
-        } else {
-          return [];
-        }
-      }
-
-      // If we're panning to historical data (negative start), try to get what we can
-      if (startIndex < 0) {
-        const availableStart = Math.max(0, sortedData.length + startIndex);
-        const availableEnd = Math.min(
-          sortedData.length - 1,
-          availableStart + CHART_DATA_POINTS - 1
-        );
-        const historicalData = sortedData.slice(availableStart, availableEnd + 1);
-
-        if (historicalData.length > 0) {
-          console.log('getVisibleData: Using historical data for panning', {
-            requestedStart: startIndex,
-            actualStart: availableStart,
-            actualEnd: availableEnd,
-            dataLength: historicalData.length,
-          });
-          return historicalData;
-        }
-      }
-
-      // Final fallback: return the most recent data
-      const fallbackStart = Math.max(0, sortedData.length - CHART_DATA_POINTS);
-      const fallbackEnd = sortedData.length - 1;
-      const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
-
-      console.log('getVisibleData: Using fallback data', {
-        requestedIndices: { startIndex, endIndex },
-        actualIndices: { actualStartIndex, actualEndIndex },
-        totalData: sortedData.length,
-        fallbackStart,
-        fallbackEnd,
-        fallbackDataLength: fallbackData.length,
-      });
-
-      return fallbackData;
-    },
-    [chartDataHook.chartData]
-  );
-
   // Centralized chart rendering - automatically re-renders when dependencies change
   useEffect(() => {
-    if (
-      !svgRef.current ||
-      chartDataHook.chartData.length === 0 ||
-      !chartExistsRef.current ||
-      !chartLoaded ||
-      !xScale ||
-      !yScale
-    ) {
-      console.log('🎯 RENDER SKIP:', {
-        hasSvg: !!svgRef.current,
-        dataLength: chartDataHook.chartData.length,
-        chartExists: chartExistsRef.current,
-        chartLoaded,
-        hasXScale: !!xScale,
-        hasYScale: !!yScale,
-      });
-      // return;
-    }
+    // Add a small delay to ensure SVG is mounted
+    const timeoutId = setTimeout(() => {
+      if (
+        !svgRef.current ||
+        chartDataHook.chartData.length === 0 ||
+        !chartLoaded ||
+        !xScale ||
+        !yScale
+      ) {
+        return;
+      }
 
-    const svg = d3.select(svgRef.current);
-    const chartContent = svg.select('.chart-content');
+      const svg = d3.select(svgRef.current);
+      const chartContent = svg.select('.chart-content');
 
-    if (chartContent.empty()) {
-      console.log('🎯 RENDER SKIP - No chart content');
-      return;
-    }
+      if (chartContent.empty()) {
+        // No chart content available
+        return;
+      }
 
-    console.log('🎯 RENDER START:', {
-      dataLength: chartDataHook.chartData.length,
-      currentViewStart,
-      currentViewEnd,
-      chartExists: chartExistsRef.current,
-    });
+      // Render started (debug log removed to prevent spam)
 
-    // Get visible data based on current view state
-    if (!visibleData || visibleData.length === 0) {
-      return;
-    }
+      // Get visible data based on current view state
+      const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+      if (!currentVisibleData || currentVisibleData.length === 0) {
+        return;
+      }
 
-    // Clear previous chart elements (but not axes)
-    chartContent.selectAll('*').remove();
+      // Clear previous chart elements (but not axes)
+      chartContent.selectAll('*').remove();
 
-    // Create axes in the main chart group (not in the clipped chart-content)
-    const g = svg.select<SVGGElement>('g[transform]');
-
-    console.log('🎯 AXIS DEBUG:', {
-      gElement: g.node(),
-      visibleDataLength: visibleData.length,
-      xScaleDomain: xScale.domain(),
-      xScaleRange: xScale.range(),
-      innerHeight,
-      innerWidth,
-      hasGElement: !!g.node(),
-    });
-    // Render candlesticks using the scales
-    createCandlestickChart(
-      chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
-      visibleData as ChartData,
-      xScale,
-      yScale
-    );
-  }, [
-    chartDataHook.chartData,
-    currentViewStart,
-    currentViewEnd,
-    dimensions,
-    getVisibleData,
-    chartLoaded,
-    xScale,
-    yScale,
-  ]);
-
-  // Separate effect for axis creation - only runs after chart is loaded
-  useEffect(() => {
-    if (
-      !chartLoaded ||
-      !svgRef.current ||
-      chartDataHook.chartData.length === 0 ||
-      !xScale ||
-      !yScale
-    ) {
-      return;
-    }
-    const svg = d3.select(svgRef.current);
-    const g = svg.select<SVGGElement>('g[transform]');
-
-    // skip if axis already exist
-    if (g.select('.x-axis').node() && g.select('.y-axis').node()) {
-      console.log('🎯 AXIS CREATION SKIP - Axes already exist');
-      return;
-    }
-
-    if (g.empty()) {
-      console.log('🎯 AXIS CREATION SKIP - No main group found');
-      return;
-    }
-
-    // Get visible data for axis creation
-    if (!visibleData || visibleData.length === 0) {
-      console.log('🎯 AXIS CREATION SKIP - No visible data');
-      return;
-    }
-
-    const { width, height, margin } = dimensions;
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create X-axis
-    const xAxis = g
-      .append('g')
-      .attr('class', 'x-axis')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(
-        d3.axisBottom(xScale).tickFormat((d) => {
-          const visibleIndex = Math.round(d as number);
-          if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
-            const date = new Date(visibleData[visibleIndex].time);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          }
-          return '';
-        })
+      // Axis debug info (removed to prevent spam)
+      // Render candlesticks using the scales
+      createCandlestickChart(
+        chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
+        currentVisibleData as ChartData,
+        xScale,
+        yScale
       );
+    }, 100); // Small delay to ensure SVG is mounted
 
-    // Create Y-axis
-    const yAxis = g
-      .append('g')
-      .attr('class', 'y-axis')
-      .attr('transform', `translate(${innerWidth},0)`)
-      .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
-
-    // Style the domain lines to be gray and remove end tick marks (nubs)
-    xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-    yAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-
-    // Style tick lines to be gray, keep labels white
-    xAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-    yAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-    xAxis.selectAll('.tick text').style('font-size', '12px');
-    yAxis.selectAll('.tick text').style('font-size', '12px');
-
-    // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
-    xAxis
-      .selectAll('.tick')
-      .filter((d, i, nodes) => {
-        const totalTicks = nodes.length;
-        return i === 0 || i === totalTicks - 1;
-      })
-      .style('display', 'none');
-
-    yAxis
-      .selectAll('.tick')
-      .filter((d, i, nodes) => {
-        const totalTicks = nodes.length;
-        return i === 0 || i === totalTicks - 1;
-      })
-      .style('display', 'none');
-
-    console.log('🎯 AXES CREATED SUCCESSFULLY:', {
-      xAxisElement: xAxis.node(),
-      yAxisElement: yAxis.node(),
-      visibleDataLength: visibleData.length,
-    });
+    return () => clearTimeout(timeoutId);
   }, [
-    chartLoaded,
+    chartDataHook.chartData,
     currentViewStart,
     currentViewEnd,
     dimensions,
-    chartDataHook.chartData,
+    chartLoaded,
     xScale,
     yScale,
   ]);
@@ -1144,7 +1066,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Calculate scales
   useEffect(() => {
     if (chartDataHook.chartData.length > 0 && dimensions.width > 0 && currentViewEnd > 0) {
-      if (!visibleData || visibleData.length === 0) {
+      // Get visible data directly instead of relying on state
+      const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+
+      if (!currentVisibleData || currentVisibleData.length === 0) {
         return;
       }
 
@@ -1155,21 +1080,21 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       setXScale((prevXScale: d3.ScaleLinear<number, number> | null) => {
         const newXScale =
           prevXScale?.domain()[0] === 0 &&
-          prevXScale?.domain()[1] === visibleData.length - 1 &&
+          prevXScale?.domain()[1] === currentVisibleData.length - 1 &&
           prevXScale?.range()[0] === 0 &&
           prevXScale?.range()[1] === innerWidth
             ? prevXScale
             : d3
                 .scaleLinear()
-                .domain([0, visibleData.length - 1])
+                .domain([0, currentVisibleData.length - 1])
                 .range([0, innerWidth]);
         return newXScale;
       });
 
       setYScale((prevYScale: d3.ScaleLinear<number, number> | null) => {
         const yDomain = [
-          d3.min(visibleData, (d) => d.low) as number,
-          d3.max(visibleData, (d) => d.high) as number,
+          d3.min(currentVisibleData, (d) => d.low) as number,
+          d3.max(currentVisibleData, (d) => d.high) as number,
         ];
         const newYScale =
           prevYScale?.domain()[0] === yDomain[0] &&
@@ -1181,18 +1106,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         return newYScale;
       });
     }
-  }, [
-    chartDataHook.chartData,
-    currentViewStart,
-    currentViewEnd,
-    dimensions,
-    getVisibleData,
-    // Add deep comparison for scale domains and ranges to prevent unnecessary re-renders
-    xScale?.domain().join(','),
-    xScale?.range().join(','),
-    yScale?.domain().join(','),
-    yScale?.range().join(','),
-  ]);
+  }, [chartDataHook.chartData, currentViewStart, currentViewEnd, dimensions, getVisibleData]);
 
   // Chart type is always candlestick - no selection needed
 
