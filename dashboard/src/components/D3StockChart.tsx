@@ -222,105 +222,30 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
+        console.log('Initial load - setting view indices:', {
+          totalDataLength,
+          CHART_DATA_POINTS,
+          newStartIndex,
+          newEndIndex,
+          rangeSize: newEndIndex - newStartIndex + 1,
+        });
+
         setCurrentViewStart(newStartIndex);
         setCurrentViewEnd(newEndIndex);
         isInitialLoad.current = false; // Mark initial load as complete
         chartExistsRef.current = false; // Reset chart existence for new data
       }
-      // If data length increased (new data loaded), adjust view position
+      // If data length increased (new data loaded), don't adjust view position
+      // The view should only change during user interactions, not data loads
       else if (totalDataLength > prevDataLength) {
-        const dataAdded = totalDataLength - prevDataLength;
-        const currentStart = currentViewStart;
-        const currentEnd = currentViewEnd;
-
-        console.log('New data loaded, adjusting view:', {
+        console.log('New data loaded, but not adjusting view (user interaction only):', {
           totalDataLength,
           prevDataLength,
-          dataAdded,
-          currentStart,
-          currentEnd,
+          dataAdded: totalDataLength - prevDataLength,
+          currentViewStart,
+          currentViewEnd,
           hasUserPanned,
         });
-
-        // When new historical data is loaded, it's prepended to the array
-        // We need to shift the view indices to maintain the same relative position
-        // But only if the user hasn't panned yet (initial load scenario)
-        let newViewStart, newViewEnd;
-
-        if (!hasUserPanned) {
-          // For initial load, keep showing the most recent data
-          newViewStart = Math.max(0, totalDataLength - CHART_DATA_POINTS);
-          newViewEnd = totalDataLength - 1;
-        } else {
-          // For user-panned scenarios, shift indices to maintain relative position
-          // Negative indices are normal when panning to historical data
-          newViewStart = currentStart + dataAdded;
-          newViewEnd = currentEnd + dataAdded;
-
-          // Ensure we maintain a proper range size
-          if (newViewEnd - newViewStart + 1 !== CHART_DATA_POINTS) {
-            // If the range is wrong, adjust to show the most recent data
-            newViewStart = Math.max(0, totalDataLength - CHART_DATA_POINTS);
-            newViewEnd = totalDataLength - 1;
-          }
-        }
-
-        // Only validate that we don't have completely invalid ranges
-        // Negative indices are normal when panning to historical data
-        if (newViewStart > newViewEnd || newViewEnd < 0) {
-          console.warn('Invalid calculated view range, using fallback:', {
-            newViewStart,
-            newViewEnd,
-            totalDataLength,
-            dataAdded,
-            currentStart,
-            currentEnd,
-            hasUserPanned,
-          });
-
-          // Fallback to most recent data
-          const fallbackStart = Math.max(0, totalDataLength - CHART_DATA_POINTS);
-          const fallbackEnd = totalDataLength - 1;
-
-          setCurrentViewStart(fallbackStart);
-          setCurrentViewEnd(fallbackEnd);
-          return;
-        }
-
-        // Clamp to valid bounds - allow negative start for historical data
-        const clampedViewStart = Math.min(newViewStart, totalDataLength - CHART_DATA_POINTS);
-        const clampedViewEnd = Math.min(
-          totalDataLength - 1,
-          Math.max(clampedViewStart + CHART_DATA_POINTS - 1, clampedViewStart)
-        );
-
-        // Final validation to ensure valid range - allow negative start for historical data
-        if (
-          clampedViewEnd < 0 ||
-          clampedViewStart >= totalDataLength ||
-          clampedViewEnd >= totalDataLength ||
-          clampedViewStart > clampedViewEnd
-        ) {
-          console.warn('Invalid clamped view indices detected, using fallback:', {
-            clampedViewStart,
-            clampedViewEnd,
-            totalDataLength,
-            dataAdded,
-            currentStart,
-            currentEnd,
-          });
-
-          // Fallback to most recent data
-          const fallbackStart = Math.max(0, totalDataLength - CHART_DATA_POINTS);
-          const fallbackEnd = totalDataLength - 1;
-
-          setCurrentViewStart(fallbackStart);
-          setCurrentViewEnd(fallbackEnd);
-          return;
-        }
-
-        setCurrentViewStart(clampedViewStart);
-        setCurrentViewEnd(clampedViewEnd);
 
         // Reset loading attempt tracking
         lastLoadAttemptRef.current = null;
@@ -700,6 +625,38 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
           .tickSize(-innerWidth)
           .tickFormat(() => '')
       );
+
+      // Update view bounds in real-time during panning
+      // Calculate pan offset from the transform
+      const panOffsetPixels = Math.abs(transform.x);
+      const bandWidth = innerWidth / CHART_DATA_POINTS;
+      const panOffset = Math.floor(panOffsetPixels / bandWidth);
+
+      // Calculate the visible range based on pan offset
+      // Clamp the pan offset to prevent going beyond available data
+      const maxPanOffset = Math.max(0, sortedData.length - CHART_DATA_POINTS);
+      const clampedPanOffset = Math.min(panOffset, maxPanOffset);
+
+      const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
+      const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
+
+      console.log('Panning - updating view bounds:', {
+        transformX: transform.x,
+        panOffsetPixels,
+        bandWidth,
+        panOffset,
+        maxPanOffset,
+        clampedPanOffset,
+        newViewStart,
+        newViewEnd,
+        rangeSize: newViewEnd - newViewStart + 1,
+        hasUserPanned,
+        isPanning,
+        isZooming,
+      });
+
+      setCurrentViewStart(newViewStart);
+      setCurrentViewEnd(newViewEnd);
     };
 
     const handleZoomEnd = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
@@ -707,13 +664,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setIsPanning(false);
       transformRef.current = event.transform;
 
-      // Only update view bounds if user has actually panned
-      if (hasUserPanned) {
-        const newXScale = transformRef.current.rescaleX(xScale);
-        const visibleDomain = newXScale.domain();
-        setCurrentViewStart(Math.floor(visibleDomain[0]));
-        setCurrentViewEnd(Math.ceil(visibleDomain[1]));
-      }
+      // Don't update view bounds here - they're already updated correctly in handleZoom
+      // The D3 scale domain calculation gives wrong ranges
 
       // Track when panning ended
       lastPanningEndRef.current = Date.now();
@@ -1004,6 +956,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   // Create chart when data is available and view is properly set
   useEffect(() => {
     if (chartDataHook.chartData.length > 0 && currentViewEnd > 0) {
+      console.log('Chart creation effect - current view state:', {
+        currentViewStart,
+        currentViewEnd,
+        dataLength: chartDataHook.chartData.length,
+        rangeSize: currentViewEnd - currentViewStart + 1,
+      });
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
       if (currentViewStart > currentViewEnd || currentViewEnd < 0) {
