@@ -602,41 +602,38 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
       const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
 
-      // Update axes with sliding tick marks during panning
-      const g = svg.select<SVGGElement>('g[transform]');
-
       // Get the visible data range for the new view
       const visibleData = getVisibleData(newViewStart, newViewEnd);
 
       if (visibleData.length === 0) return;
 
-      // Create an extended scale that spans more than the visible area to enable sliding
-      // This allows tick marks to slide in from outside the visible area
-      const extendedDataRange = Math.max(sortedData.length, CHART_DATA_POINTS * 2);
-      const slidingXScale = d3
+      // Use the same scale logic as the initial state for consistent tick spacing
+      // This ensures tick marks maintain the same spacing during panning
+      const consistentXScale = d3
         .scaleLinear()
-        .domain([newViewStart - CHART_DATA_POINTS, newViewStart + CHART_DATA_POINTS * 2])
-        .range([-innerWidth, innerWidth * 2]);
+        .domain([0, visibleData.length - 1])
+        .range([0, innerWidth]);
 
-      // Y-axis: Use the original chart-wide price range for consistent sliding
-      const allDataYScale = d3
+      // Y-axis: Use the visible data price range for consistent scaling
+      const consistentYScale = d3
         .scaleLinear()
         .domain([
-          d3.min(sortedData, (d) => d.low) as number,
-          d3.max(sortedData, (d) => d.high) as number,
+          d3.min(visibleData, (d) => d.low) as number,
+          d3.max(visibleData, (d) => d.high) as number,
         ])
         .nice()
         .range([innerHeight, 0]);
 
-      // Create axis with sliding ticks - the tick marks themselves slide along fixed axis lines
+      // Update axes using the same scale logic as initial rendering
+      const g = svg.select<SVGGElement>('g[transform]');
       const xAxisGroup = g.select<SVGGElement>('.x-axis');
 
-      // Update X-axis with sliding transform applied to the entire group
+      // Update X-axis with consistent scaling and sliding transform
       xAxisGroup.attr('transform', `translate(${transform.x},${innerHeight})`).call(
-        d3.axisBottom(slidingXScale).tickFormat((d) => {
-          const dataIndex = Math.round(d as number);
-          if (dataIndex >= 0 && dataIndex < sortedData.length) {
-            const date = new Date(sortedData[dataIndex].time);
+        d3.axisBottom(consistentXScale).tickFormat((d) => {
+          const visibleIndex = Math.round(d as number);
+          if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
+            const date = new Date(visibleData[visibleIndex].time);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
           return '';
@@ -646,16 +643,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       // Keep the axis line (domain path) fixed by overriding its transform
       xAxisGroup.select('.domain').attr('transform', `translate(${-transform.x},0)`);
 
-      // Update Y-axis with sliding ticks
+      // Update Y-axis with consistent scaling
       const yAxisGroup = g.select<SVGGElement>('.y-axis');
       yAxisGroup
         .attr('transform', `translate(${innerWidth},${transform.y})`)
-        .call(d3.axisRight(allDataYScale).tickFormat(d3.format('.2f')));
+        .call(d3.axisRight(consistentYScale).tickFormat(d3.format('.2f')));
 
       // Keep the axis line (domain path) fixed by overriding its transform
       yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
-
-      // Grid lines removed - no more grid line updates needed!
 
       // Update view state immediately for responsive panning
       setCurrentViewStart(newViewStart);
