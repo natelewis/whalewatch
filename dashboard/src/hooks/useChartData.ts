@@ -59,10 +59,6 @@ export const useChartData = ({
   const [isLeftLoading, setIsLeftLoading] = useState(false);
   const [isRightLoading, setIsRightLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentSymbol, setCurrentSymbol] = useState<string | null>(null);
-  const [currentTimeframe, setCurrentTimeframe] = useState<ChartTimeframe | null>(null);
-  const [hasLoadedLeft, setHasLoadedLeft] = useState(false);
-  const [hasLoadedRight, setHasLoadedRight] = useState(false);
   const [leftLoadCount, setLeftLoadCount] = useState(0);
   const [rightLoadCount, setRightLoadCount] = useState(0);
   const [maxDataPoints, setMaxDataPoints] = useState<number>(0);
@@ -167,8 +163,6 @@ export const useChartData = ({
       try {
         setIsLoading(true);
         setError(null);
-        setCurrentSymbol(symbol);
-        setCurrentTimeframe(timeframe);
 
         // Find the timeframe configuration to get the appropriate data points
         const timeframeConfig = timeframes.find((tf) => tf.value === timeframe);

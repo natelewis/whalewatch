@@ -5,17 +5,7 @@ import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage'
 import { useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { TimeframeConfig } from '../utils/chartDataUtils';
-import {
-  BarChart3,
-  Settings,
-  Play,
-  Pause,
-  RotateCcw,
-  ZoomIn,
-  ZoomOut,
-  Move,
-  Square as SquareIcon,
-} from 'lucide-react';
+import { BarChart3, Settings, Play, Pause, RotateCcw, Square as SquareIcon } from 'lucide-react';
 
 interface D3StockChartProps {
   symbol: string;
@@ -44,7 +34,6 @@ interface HoverData {
 // CONFIGURATION CONSTANTS - Modify these to adjust chart behavior
 // ============================================================================
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
-const PAN_BUFFER_SIZE = 20; // Buffer size for predictive loading (load more data when within this many points of edge)
 // ============================================================================
 
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) => {
@@ -67,9 +56,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   const [currentViewStart, setCurrentViewStart] = useState(0);
   const [currentViewEnd, setCurrentViewEnd] = useState(0);
   const [isLoadingMoreData, setIsLoadingMoreData] = useState(false);
-  const [lastPanTime, setLastPanTime] = useState(0);
-  const panTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const chartRecreateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoad = useRef(true);
 
   // Track loading attempts to prevent infinite loops
@@ -283,16 +269,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   const checkAndLoadMoreData = useCallback(async () => {
     const now = Date.now();
     const timeSinceLastChartCreation = now - lastChartCreationRef.current;
-
-    // console.log('checkAndLoadMoreData called:', {
-    //   currentViewStart,
-    //   bufferSize: 300,
-    //   shouldLoadLeft: currentViewStart <= 300,
-    //   hasUserPanned,
-    //   chartExists: chartExistsRef.current,
-    //   timeSinceLastChartCreation,
-    //   DATA_LOAD_DELAY,
-    // });
 
     if (
       !symbol ||
@@ -911,6 +887,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       !xScale ||
       !yScale
     ) {
+      return;
+    }
+
+    if (isZooming || isPanning) {
       return;
     }
 
