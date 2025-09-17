@@ -195,11 +195,26 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const handleResize = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        setDimensions((prev) => ({
-          ...prev,
-          width: rect.width,
-          height: Math.max(400, rect.height - 100),
-        }));
+        setDimensions((prev) => {
+          const newDims = {
+            ...prev,
+            width: rect.width,
+            height: Math.max(400, rect.height - 100),
+          };
+
+          // DEBUG: Log dimension changes
+          console.log('📐 DIMENSIONS DEBUG - Resize:', {
+            containerRect: { width: rect.width, height: rect.height },
+            previousDimensions: prev,
+            newDimensions: newDims,
+            changed: {
+              widthChanged: Math.abs(prev.width - newDims.width) > 0.1,
+              heightChanged: Math.abs(prev.height - newDims.height) > 0.1,
+            },
+          });
+
+          return newDims;
+        });
       }
     };
 
@@ -265,15 +280,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const now = Date.now();
     const timeSinceLastChartCreation = now - lastChartCreationRef.current;
 
-    console.log('checkAndLoadMoreData called:', {
-      currentViewStart,
-      bufferSize: 300,
-      shouldLoadLeft: currentViewStart <= 300,
-      hasUserPanned,
-      chartExists: chartExistsRef.current,
-      timeSinceLastChartCreation,
-      DATA_LOAD_DELAY,
-    });
+    // console.log('checkAndLoadMoreData called:', {
+    //   currentViewStart,
+    //   bufferSize: 300,
+    //   shouldLoadLeft: currentViewStart <= 300,
+    //   hasUserPanned,
+    //   chartExists: chartExistsRef.current,
+    //   timeSinceLastChartCreation,
+    //   DATA_LOAD_DELAY,
+    // });
 
     if (
       !symbol ||
@@ -286,7 +301,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       !chartExistsRef.current || // Don't load data if chart doesn't exist yet
       timeSinceLastChartCreation < DATA_LOAD_DELAY // Wait for delay after chart creation
     ) {
-      console.log('checkAndLoadMoreData: Early return');
+      // console.log('checkAndLoadMoreData: Early return');
       return;
     }
 
@@ -403,6 +418,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   // Auto-enable live mode when user pans to the rightmost edge
   const [isAtRightEdge, setIsAtRightEdge] = useState(false);
   const lastRightEdgeCheckRef = useRef<number>(0);
+  const lastVisibleDataRef = useRef<typeof chartDataHook.chartData | null>(null);
   const RIGHT_EDGE_CHECK_INTERVAL = 1000; // Check every 1 second to prevent rapid toggling
 
   useEffect(() => {
@@ -622,6 +638,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         return;
       }
 
+      // DEBUG: Log transform changes
+      console.log('🔍 ZOOM DEBUG - Transform changed:', {
+        prevTransform: prevTransform
+          ? { x: prevTransform.x, y: prevTransform.y, k: prevTransform.k }
+          : null,
+        newTransform: { x: transform.x, y: transform.y, k: transform.k },
+        changes: {
+          xChange: prevTransform ? transform.x - prevTransform.x : 0,
+          yChange: prevTransform ? transform.y - prevTransform.y : 0,
+          kChange: prevTransform ? transform.k - prevTransform.k : 0,
+        },
+      });
+
       transformRef.current = transform;
 
       // Transform the chart content
@@ -646,12 +675,34 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       // This ensures consistent chart height regardless of panning
       const newYScale = yScale;
 
-      // Update axes
+      // DEBUG: Log scale information
+      console.log('📏 SCALE DEBUG:', {
+        originalYScale: {
+          domain: yScale.domain(),
+          range: yScale.range(),
+        },
+        newYScale: {
+          domain: newYScale.domain(),
+          range: newYScale.range(),
+        },
+        scalesEqual: yScale === newYScale,
+        visibleDataRange:
+          visibleData.length > 0
+            ? {
+                minLow: Math.min(...visibleData.map((d) => d.low)),
+                maxHigh: Math.max(...visibleData.map((d) => d.high)),
+              }
+            : null,
+      });
+
+      // Update axes - calculate data index based on pan offset
       g.select<SVGGElement>('.x-axis').call(
         d3.axisBottom(newXScale).tickFormat((d) => {
-          const index = Math.round(d as number);
-          if (index >= 0 && index < sortedData.length) {
-            const date = new Date(sortedData[index].time);
+          // Calculate the data index based on the current view start and the tick position
+          const tickPosition = Math.round(d as number);
+          const dataIndex = newViewStart + tickPosition;
+          if (dataIndex >= 0 && dataIndex < sortedData.length) {
+            const date = new Date(sortedData[dataIndex].time);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
           return '';
@@ -677,9 +728,78 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setCurrentViewStart(newViewStart);
       setCurrentViewEnd(newViewEnd);
 
-      // Update chart content immediately with new visible data
-      if (visibleData.length > 0) {
+      // Only update chart elements if the visible data has actually changed
+      // This prevents unnecessary DOM manipulation during panning
+      const visibleDataChanged =
+        !lastVisibleDataRef.current ||
+        lastVisibleDataRef.current.length !== visibleData.length ||
+        (lastVisibleDataRef.current.length > 0 &&
+          visibleData.length > 0 &&
+          lastVisibleDataRef.current[0].time !== visibleData[0].time);
+
+      if (visibleData.length > 0 && visibleDataChanged) {
+        // DEBUG: Log before chart update
+        const svgElement = svgRef.current;
+        const svgRect = svgElement?.getBoundingClientRect();
+        console.log('📊 CHART UPDATE DEBUG - Before:', {
+          svgDimensions: {
+            width: svgElement?.width?.baseVal?.value,
+            height: svgElement?.height?.baseVal?.value,
+            clientWidth: svgElement?.clientWidth,
+            clientHeight: svgElement?.clientHeight,
+            boundingRect: svgRect ? { width: svgRect.width, height: svgRect.height } : null,
+          },
+          chartDimensions: {
+            width: dimensions.width,
+            height: dimensions.height,
+            innerWidth: dimensions.width - dimensions.margin.left - dimensions.margin.right,
+            innerHeight: dimensions.height - dimensions.margin.top - dimensions.margin.bottom,
+          },
+          visibleDataCount: visibleData.length,
+          visibleDataChanged,
+        });
+
         updateChartElements(chartContent, visibleData, newXScale, newYScale);
+        lastVisibleDataRef.current = visibleData;
+
+        // DEBUG: Log after chart update
+        const svgRectAfter = svgElement?.getBoundingClientRect();
+        const widthChanged =
+          svgRect && svgRectAfter ? Math.abs(svgRect.width - svgRectAfter.width) > 0.1 : false;
+        const heightChanged =
+          svgRect && svgRectAfter ? Math.abs(svgRect.height - svgRectAfter.height) > 0.1 : false;
+
+        console.log('📊 CHART UPDATE DEBUG - After:', {
+          svgDimensions: {
+            width: svgElement?.width?.baseVal?.value,
+            height: svgElement?.height?.baseVal?.value,
+            clientWidth: svgElement?.clientWidth,
+            clientHeight: svgElement?.clientHeight,
+            boundingRect: svgRectAfter
+              ? { width: svgRectAfter.width, height: svgRectAfter.height }
+              : null,
+          },
+          sizeChanged: {
+            widthChanged,
+            heightChanged,
+          },
+          actualChanges: {
+            widthChange:
+              svgRect && svgRectAfter
+                ? `${svgRect.width.toFixed(2)} → ${svgRectAfter.width.toFixed(2)}`
+                : 'no change',
+            heightChange:
+              svgRect && svgRectAfter
+                ? `${svgRect.height.toFixed(2)} → ${svgRectAfter.height.toFixed(2)}`
+                : 'no change',
+          },
+        });
+      } else {
+        console.log('📊 CHART UPDATE DEBUG - Skipped (no data change):', {
+          visibleDataLength: visibleData.length,
+          visibleDataChanged,
+          lastVisibleDataLength: lastVisibleDataRef.current?.length || 0,
+        });
       }
 
       // Check if we need to load more data (throttled)
@@ -867,6 +987,26 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     xScale: d3.ScaleLinear<number, number>,
     yScale: d3.ScaleLinear<number, number>
   ) => {
+    // DEBUG: Log chart element update
+    console.log('🎨 UPDATE CHART ELEMENTS DEBUG:', {
+      dataLength: data.length,
+      xScale: {
+        domain: xScale.domain(),
+        range: xScale.range(),
+      },
+      yScale: {
+        domain: yScale.domain(),
+        range: yScale.range(),
+      },
+      dataRange:
+        data.length > 0
+          ? {
+              minLow: Math.min(...data.map((d) => d.low)),
+              maxHigh: Math.max(...data.map((d) => d.high)),
+            }
+          : null,
+    });
+
     // Clear previous chart elements
     g.selectAll('*').remove();
 
@@ -1003,17 +1143,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const timeSinceLastCreation = now - lastChartCreationRef.current;
 
       // Create chart if it doesn't exist yet, or if there's a significant data change
-      // Allow chart recreation during panning for better user experience
-      const timeSincePanningEnd = now - lastPanningEndRef.current;
+      // Don't recreate chart after panning - this causes unwanted y-scale recalculation
       const shouldCreateChart =
         !chartExistsRef.current ||
         (timeSinceLastCreation >= CHART_CREATION_DEBOUNCE &&
           !isHoveringRef.current &&
           !isDataLoadingRef.current &&
-          // Allow recreation during panning if we have new data or significant view changes
-          (!isPanning || (hasUserPanned && timeSincePanningEnd >= 200)) && // Reduced debounce for panning
+          !isPanning && // Don't recreate during panning
           !isZooming && // Don't recreate while actively zooming
-          hasUserPanned); // Only recreate if user has panned
+          !hasUserPanned); // Don't recreate after user has panned
 
       if (shouldCreateChart) {
         console.log(
@@ -1021,8 +1159,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
           chartExistsRef.current,
           'timeSinceLast:',
           timeSinceLastCreation,
-          'timeSincePanningEnd:',
-          timeSincePanningEnd,
           'dataLength:',
           chartDataHook.chartData.length,
           'hasUserPanned:',
