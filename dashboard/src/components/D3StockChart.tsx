@@ -169,7 +169,7 @@ const getVisibleDataPoints = (
 };
 
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
-  const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const [chartContent, setChartContent] = useState<d3.Selection<
@@ -546,10 +546,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   }, [currentViewEnd, allChartData.length, isLive]);
 
   // Create D3 chart
-  const createChart = (): void => {
+  const createChart = ({ svgElement }: { svgElement: SVGSVGElement }): void => {
     if (
       chartExists ||
-      !svgElement ||
       allChartData.length === 0 ||
       !xScale ||
       !yScale ||
@@ -587,20 +586,20 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     //   return;
     // }
 
-    // Validate that we have valid data points
-    const hasValidData = visibleData.every(
-      (d) =>
-        d &&
-        typeof d.time === 'string' &&
-        typeof d.open === 'number' &&
-        typeof d.high === 'number' &&
-        typeof d.low === 'number' &&
-        typeof d.close === 'number' &&
-        !isNaN(d.open) &&
-        !isNaN(d.high) &&
-        !isNaN(d.low) &&
-        !isNaN(d.close)
-    );
+    // // Validate that we have valid data points
+    // const hasValidData = visibleData.every(
+    //   (d) =>
+    //     d &&
+    //     typeof d.time === 'string' &&
+    //     typeof d.open === 'number' &&
+    //     typeof d.high === 'number' &&
+    //     typeof d.low === 'number' &&
+    //     typeof d.close === 'number' &&
+    //     !isNaN(d.open) &&
+    //     !isNaN(d.high) &&
+    //     !isNaN(d.low) &&
+    //     !isNaN(d.close)
+    // );
 
     // if (!hasValidData) {
     //   console.warn('createChart: Invalid data points detected, skipping chart creation', {
@@ -891,6 +890,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     console.log('🎯 CHART LOADED - Axes can now be created');
   };
 
+  useEffect(() => {
+    // svgRef.current now points to the <svg> element in the DOM
+    console.log('SVG element is ready:', svgRef.current);
+  }, []); // Empty array means this effect runs only once
+
   // Centralized chart rendering - automatically re-renders when dependencies change
   useEffect(() => {
     if (!chartContent || chartContent.empty()) {
@@ -959,7 +963,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           'viewIndices:',
           { currentViewStart, currentViewEnd }
         );
-        createChart();
+        createChart({ svgElement: svgRef.current as SVGSVGElement });
       }
     }
 
@@ -1165,7 +1169,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
             <div ref={containerRef} className="w-full h-full">
               <svg
-                ref={setSvgElement}
+                ref={svgRef}
                 width={dimensions.width}
                 height={dimensions.height}
                 className="w-full h-full"
