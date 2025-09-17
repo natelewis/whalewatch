@@ -115,6 +115,7 @@ const getVisibleDataPoints = (
   const sortedData = [...chartData].sort(
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
+  console.log('getVisibleDataPoints: Sorted data', sortedData);
 
   // If no data, return empty array
   if (sortedData.length === 0) {
@@ -183,7 +184,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const [chartLoaded, setChartLoaded] = useState(false);
   const [xScale, setXScale] = useState<d3.ScaleLinear<number, number> | null>(null);
   const [yScale, setYScale] = useState<d3.ScaleLinear<number, number> | null>(null);
-  const [visibleData, setVisibleData] = useState<typeof chartDataHook.chartData | null>(null);
+  const [visibleData, setVisibleData] = useState<ChartData | null>(null);
+  const [allChartData, setAllChartData] = useState<ChartData>([]);
 
   // Panning and predictive loading state
   const [currentViewStart, setCurrentViewStart] = useState(0);
@@ -249,8 +251,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const chartDataHook = useChartData({
     timeframes,
     bufferPoints: 100, // Increased buffer for more data preloading
-    onDataLoaded: () => {
-      // Data loaded callback
+    onDataLoaded: (data: ChartData) => {
+      // Update all chart data whenever new data is loaded
+      setAllChartData(data);
     },
   });
 
@@ -326,13 +329,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Update visible data when view changes
   useEffect(() => {
-    const newVisibleData = getVisibleDataPoints(
-      currentViewStart,
-      currentViewEnd,
-      chartDataHook.chartData
-    );
+    const newVisibleData = getVisibleDataPoints(currentViewStart, currentViewEnd, allChartData);
     setVisibleData(newVisibleData);
-  }, [currentViewStart, currentViewEnd, chartDataHook.chartData]);
+  }, [currentViewStart, currentViewEnd, allChartData]);
 
   // Load saved timeframe from localStorage
   useEffect(() => {
@@ -414,8 +413,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Set initial view to show newest data when data loads
   useEffect(() => {
-    if (chartDataHook.chartData.length > 0) {
-      const totalDataLength = chartDataHook.chartData.length;
+    if (allChartData.length > 0) {
+      const totalDataLength = allChartData.length;
       const prevDataLength = prevDataLengthRef.current;
 
       // If this is the first load, show newest data
@@ -453,7 +452,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       prevDataLengthRef.current = totalDataLength;
     }
-  }, [chartDataHook.chartData.length, currentViewStart, currentViewEnd]);
+  }, [allChartData.length, currentViewStart, currentViewEnd]);
 
   // Check if we need to load more data when panning
   const checkAndLoadMoreData = useCallback(async (): Promise<void> => {
@@ -478,7 +477,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     // Set data loading flag immediately to prevent concurrent calls
     isDataLoadingRef.current = true;
 
-    const totalDataLength = chartDataHook.chartData.length;
+    const totalDataLength = allChartData.length;
     const bufferSize = 300; // Load more data when within 300 points of edge - very aggressive preloading
 
     let shouldLoadLeft = false;
@@ -542,12 +541,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Check for data loading when view changes (with throttling)
   useEffect(() => {
-    if (
-      chartDataHook.chartData.length > 0 &&
-      !isLoadingMoreData &&
-      !isInitialLoad.current &&
-      hasUserPanned
-    ) {
+    if (allChartData.length > 0 && !isLoadingMoreData && !isInitialLoad.current && hasUserPanned) {
       const now = Date.now();
       const timeSinceLastCheck = now - lastDataLoadCheckRef.current;
       const lastViewIndices = lastViewIndicesRef.current;
@@ -592,7 +586,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const RIGHT_EDGE_CHECK_INTERVAL = 1000; // Check every 1 second to prevent rapid toggling
 
   useEffect(() => {
-    const dataLength = chartDataHook.chartData.length;
+    const dataLength = allChartData.length;
     const atRightEdge = currentViewEnd >= dataLength - 5; // Within 5 points of the end
     const now = Date.now();
     const timeSinceLastCheck = now - lastRightEdgeCheckRef.current;
@@ -610,17 +604,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         setIsLive(false);
       }
     }
-  }, [currentViewEnd, chartDataHook.chartData.length, isLive]);
+  }, [currentViewEnd, allChartData.length, isLive]);
 
   // Create D3 chart
   const createChart = (): void => {
     if (
       (chartExistsRef.current,
-      !svgRef.current ||
-        chartDataHook.chartData.length === 0 ||
-        !xScale ||
-        !yScale ||
-        chartLoaded) ||
+      !svgRef.current || allChartData.length === 0 || !xScale || !yScale || chartLoaded) ||
       !visibleData ||
       !xScale ||
       !yScale
@@ -638,7 +628,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const innerHeight = height - margin.top - margin.bottom;
 
     // Sort data by time - always use current state
-    const sortedData = [...chartDataHook.chartData].sort(
+    const sortedData = [...allChartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
@@ -970,7 +960,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     renderCandlestickChart(chartContentRef.current, currentVisibleData, xScale, yScale);
   }, [
-    chartDataHook.chartData,
+    allChartData.length,
     currentViewStart,
     currentViewEnd,
     dimensions,
@@ -981,19 +971,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
-    if (chartDataHook.chartData.length > 0 && currentViewEnd > 0) {
+    if (allChartData.length > 0 && currentViewEnd > 0) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
       if (currentViewStart > currentViewEnd || currentViewEnd < 0) {
         console.warn('Invalid view range in chart creation effect, resetting to valid values:', {
           currentViewStart,
           currentViewEnd,
-          dataLength: chartDataHook.chartData.length,
+          dataLength: allChartData.length,
         });
 
         // Reset to valid view indices
-        const validViewStart = Math.max(0, chartDataHook.chartData.length - CHART_DATA_POINTS);
-        const validViewEnd = chartDataHook.chartData.length - 1;
+        const validViewStart = Math.max(0, allChartData.length - CHART_DATA_POINTS);
+        const validViewEnd = allChartData.length - 1;
         setCurrentViewStart(validViewStart);
         setCurrentViewEnd(validViewEnd);
         return;
@@ -1008,7 +998,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           'Creating chart - chartExists:',
           chartExistsRef.current,
           'dataLength:',
-          chartDataHook.chartData.length,
+          allChartData.length,
           'hasUserPanned:',
           hasUserPanned,
           'isPanning:',
@@ -1024,7 +1014,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     return undefined; // Explicit return for linter
   }, [
-    chartDataHook.chartData.length,
+    allChartData.length,
     xScale,
     yScale,
     currentViewStart,
@@ -1037,7 +1027,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Calculate scales
   useEffect(() => {
-    if (chartDataHook.chartData.length > 0 && dimensions.width > 0 && currentViewEnd > 0) {
+    if (allChartData.length > 0 && dimensions.width > 0 && currentViewEnd > 0) {
       // Get visible data directly instead of relying on state
       // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
       const currentVisibleData = visibleData;
@@ -1079,7 +1069,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         return newYScale;
       });
     }
-  }, [chartDataHook.chartData, currentViewStart, currentViewEnd, dimensions]);
+  }, [allChartData.length, currentViewStart, currentViewEnd, dimensions]);
 
   // Chart type is always candlestick - no selection needed
 
@@ -1216,7 +1206,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-foreground text-lg">{symbol}</span>
                   <span className="text-sm text-muted-foreground">
-                    {timeframe || 'Loading...'} • {chartDataHook.chartData.length} points
+                    {timeframe || 'Loading...'} • {allChartData.length} points
                   </span>
                 </div>
               )}
@@ -1260,13 +1250,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       <div className="p-4 border-t border-border">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
-            <span>Total data: {chartDataHook.chartData.length}</span>
+            <span>Total data: {allChartData.length}</span>
             <span>Displaying: {CHART_DATA_POINTS} points</span>
             <span>
               View:{' '}
               {(() => {
                 const actualStart = Math.max(0, currentViewStart);
-                const actualEnd = Math.min(chartDataHook.chartData.length - 1, currentViewEnd);
+                const actualEnd = Math.min(allChartData.length - 1, currentViewEnd);
                 const actualPoints = actualEnd - actualStart + 1;
                 return `${actualStart}-${actualEnd} (${actualPoints} points)`;
               })()}
