@@ -539,16 +539,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       transformRef.current = transform;
 
       // Transform the chart content
-      chartContent.attr('transform', transform.toString());
+      // chartContent.attr('transform', transform.toString());
 
       // Calculate the visible range using simple math based on pan offset
       const panOffsetPixels = Math.abs(transform.x);
       const bandWidth = innerWidth / CHART_DATA_POINTS;
-      const panOffset = Math.round(panOffsetPixels / bandWidth);
+      const panOffset = Math.floor(panOffsetPixels / bandWidth);
       const maxPanOffset = Math.max(0, sortedData.length - CHART_DATA_POINTS);
       const clampedPanOffset = Math.min(panOffset, maxPanOffset);
       const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
       const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
+
+      setCurrentViewStart(newViewStart);
+      setCurrentViewEnd(newViewEnd);
 
       // Get the visible data range for the new view
       const visibleData = getVisibleData(newViewStart, newViewEnd);
@@ -600,8 +603,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
       // Update view state immediately for responsive panning
       // This will trigger re-render and axis updates via useEffect
-      setCurrentViewStart(newViewStart);
-      setCurrentViewEnd(newViewEnd);
+      // setCurrentViewStart(newViewStart);
+      // setCurrentViewEnd(newViewEnd);
 
       // Check if we need to load more data (throttled)
       const now = Date.now();
@@ -616,8 +619,74 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setIsPanning(false);
       transformRef.current = event.transform;
 
-      // Don't update view bounds here - they're already updated correctly in handleZoom
-      // The D3 scale domain calculation gives wrong ranges
+      // Reset transform on zoom/pan end to prepare for the next event
+      transformRef.current = d3.zoomIdentity;
+
+      // Calculate the visible range based on the final pan offset
+      const { transform } = event;
+      const panOffsetPixels = Math.abs(transform.x);
+      const bandWidth = innerWidth / CHART_DATA_POINTS;
+      const panOffset = Math.floor(panOffsetPixels / bandWidth);
+      const maxPanOffset = Math.max(0, sortedData.length - CHART_DATA_POINTS);
+      const clampedPanOffset = Math.min(panOffset, maxPanOffset);
+      const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
+      const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
+
+      setCurrentViewStart(newViewStart);
+      setCurrentViewEnd(newViewEnd);
+
+      // Get the visible data range for the new view
+      const visibleData = getVisibleData(newViewStart, newViewEnd);
+
+      if (visibleData.length === 0) return;
+
+      // Use the same scale logic as the initial state for consistent tick spacing
+      // This ensures tick marks maintain the same spacing during panning
+      const consistentXScale = d3
+        .scaleLinear()
+        .domain([0, visibleData.length - 1])
+        .range([0, innerWidth]);
+
+      // Y-axis: Use the visible data price range for consistent scaling
+      const consistentYScale = d3
+        .scaleLinear()
+        .domain([
+          d3.min(visibleData, (d) => d.low) as number,
+          d3.max(visibleData, (d) => d.high) as number,
+        ])
+        .range([innerHeight, 0]);
+
+      // Update axes using the same scale logic as initial rendering
+      const xAxisGroup = g.select<SVGGElement>('.x-axis');
+      if (!xAxisGroup.empty()) {
+        // Update X-axis with consistent scaling and sliding transform
+        xAxisGroup.attr('transform', `translate(${transform.x},${innerHeight})`).call(
+          d3.axisBottom(consistentXScale).tickFormat((d) => {
+            const visibleIndex = Math.round(d as number);
+            if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
+              const date = new Date(visibleData[visibleIndex].time);
+              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }
+            return '';
+          })
+        );
+        // Keep the axis line (domain path) fixed by overriding its transform
+        xAxisGroup.select('.domain').attr('transform', `translate(${-transform.x},0)`);
+      }
+
+      const yAxisGroup = g.select<SVGGElement>('.y-axis');
+      if (!yAxisGroup.empty()) {
+        yAxisGroup
+          .attr('transform', `translate(${innerWidth},${transform.y})`)
+          .call(d3.axisRight(consistentYScale).tickFormat(d3.format('.2f')));
+        // Keep the axis line (domain path) fixed by overriding its transform
+        yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
+      }
+
+      // Update view state immediately for responsive panning
+      // This will trigger re-render and axis updates via useEffect
+      // setCurrentViewStart(newViewStart);
+      // setCurrentViewEnd(newViewEnd);
 
       // Track when panning ended
       lastPanningEndRef.current = Date.now();
@@ -1128,7 +1197,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const innerWidth = width - margin.left - margin.right;
       const innerHeight = height - margin.top - margin.bottom;
 
-      setXScale((prevXScale) => {
+      setXScale((prevXScale: d3.ScaleLinear<number, number> | null) => {
         const newXScale =
           prevXScale?.domain()[0] === 0 &&
           prevXScale?.domain()[1] === visibleData.length - 1 &&
@@ -1142,7 +1211,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         return newXScale;
       });
 
-      setYScale((prevYScale) => {
+      setYScale((prevYScale: d3.ScaleLinear<number, number> | null) => {
         const yDomain = [
           d3.min(visibleData, (d) => d.low) as number,
           d3.max(visibleData, (d) => d.high) as number,
