@@ -101,6 +101,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   const lastChartCreationRef = useRef<number>(0);
   const CHART_CREATION_DEBOUNCE = 1000; // Minimum 1 second between chart creations
 
+  // Track when data loading was last allowed to prevent immediate loading
+  const lastDataLoadAllowedRef = useRef<number>(0);
+  const DATA_LOAD_DELAY = 2000; // Wait 2 seconds after chart creation before allowing data loading
+
   // Track if user is hovering to prevent chart recreation during hover
   const isHoveringRef = useRef<boolean>(false);
 
@@ -225,10 +229,29 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         const currentStart = currentViewStart;
         const currentEnd = currentViewEnd;
 
-        // Shift view indices to account for new data that was prepended
-        // (historical data is added to the beginning of the array)
-        const newViewStart = currentStart + dataAdded;
-        const newViewEnd = currentEnd + dataAdded;
+        console.log('New data loaded, adjusting view:', {
+          totalDataLength,
+          prevDataLength,
+          dataAdded,
+          currentStart,
+          currentEnd,
+          hasUserPanned,
+        });
+
+        // When new historical data is loaded, it's prepended to the array
+        // We need to shift the view indices to maintain the same relative position
+        // But only if the user hasn't panned yet (initial load scenario)
+        let newViewStart, newViewEnd;
+
+        if (!hasUserPanned) {
+          // For initial load, keep showing the most recent data
+          newViewStart = Math.max(0, totalDataLength - CHART_DATA_POINTS);
+          newViewEnd = totalDataLength - 1;
+        } else {
+          // For user-panned scenarios, shift indices to maintain relative position
+          newViewStart = currentStart + dataAdded;
+          newViewEnd = currentEnd + dataAdded;
+        }
 
         // Clamp to valid bounds
         const clampedViewStart = Math.max(
@@ -245,6 +268,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
         // Reset loading attempt tracking
         lastLoadAttemptRef.current = null;
+
+        // Only force chart recreation if user has panned (not during initial load)
+        if (hasUserPanned) {
+          chartExistsRef.current = false;
+        }
       }
 
       prevDataLengthRef.current = totalDataLength;
@@ -253,6 +281,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Check if we need to load more data when panning
   const checkAndLoadMoreData = useCallback(async () => {
+    const now = Date.now();
+    const timeSinceLastChartCreation = now - lastChartCreationRef.current;
+
     if (
       !symbol ||
       !timeframe ||
@@ -260,7 +291,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       isInitialLoad.current ||
       !hasUserPanned ||
       isVerticallyPanningRef.current ||
-      isDataLoadingRef.current
+      isDataLoadingRef.current ||
+      !chartExistsRef.current || // Don't load data if chart doesn't exist yet
+      timeSinceLastChartCreation < DATA_LOAD_DELAY // Wait for delay after chart creation
     ) {
       return;
     }
@@ -480,24 +513,26 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    // Sort data by time
+    // Sort data by time - always use current state
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
-    // Get only the visible data points (80 points or all if less)
-    // Show 80 points starting from the pan offset
-    const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
-    const startIndex = Math.max(0, sortedData.length - viewSize);
-    const endIndex = Math.min(sortedData.length - 1, startIndex + viewSize - 1);
-    const visibleData = sortedData.slice(startIndex, endIndex + 1);
+    // Get visible data based on current pan position
+    const visibleData = getCurrentVisibleData();
+
+    // Ensure we have valid data before proceeding
+    if (visibleData.length === 0) {
+      console.warn('createChart: No visible data available, skipping chart creation');
+      isCreatingChartRef.current = false;
+      return;
+    }
 
     console.log('Creating chart with visible data:', {
       totalData: sortedData.length,
       visibleData: visibleData.length,
-      viewSize,
-      startIndex,
-      endIndex,
+      visibleDataStart: visibleData[0]?.time,
+      visibleDataEnd: visibleData[visibleData.length - 1]?.time,
     });
 
     const bandWidth = innerWidth / CHART_DATA_POINTS;
@@ -542,6 +577,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setIsZooming(true);
       setIsPanning(true);
       setHasUserPanned(true); // Mark that user has started panning
+
+      // Prevent chart recreation during panning
+      chartExistsRef.current = true;
     };
 
     const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
@@ -593,6 +631,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const visibleDomain = newXScale.domain();
       setCurrentViewStart(Math.floor(visibleDomain[0]));
       setCurrentViewEnd(Math.ceil(visibleDomain[1]));
+
+      // Add a small delay before allowing chart recreation
+      setTimeout(() => {
+        // Allow chart recreation after panning is complete
+      }, 100);
     };
 
     zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -612,7 +655,17 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       setCurrentViewStart(Math.floor(visibleDomain[0]));
       setCurrentViewEnd(Math.ceil(visibleDomain[1]));
     } else {
-      svg.call(zoom.transform, transformRef.current);
+      // For existing charts, ensure we have a valid transform
+      if (transformRef.current) {
+        svg.call(zoom.transform, transformRef.current);
+      } else {
+        // Fallback: show most recent data
+        const startOfViewIndex = sortedData.length - CHART_DATA_POINTS;
+        const initialTranslateX = startOfViewIndex > 0 ? -xScale(startOfViewIndex) : 0;
+        const fallbackTransform = d3.zoomIdentity.translate(initialTranslateX, 0);
+        transformRef.current = fallbackTransform;
+        svg.call(zoom.transform, fallbackTransform);
+      }
     }
 
     // Add axes
@@ -792,27 +845,67 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Get current visible data based on current transform (not state)
   const getCurrentVisibleData = useCallback(() => {
+    // Always use the current state data
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
+    // If no data, return empty array
+    if (sortedData.length === 0) {
+      console.log('getCurrentVisibleData: No data available');
+      return [];
+    }
+
     const viewSize = Math.min(CHART_DATA_POINTS, sortedData.length);
 
     // Get current transform from the SVG element and calculate pan offset
-    let currentPanOffset = 0; // fallback to state
+    let currentPanOffset = 0;
     if (svgRef.current) {
       const currentTransform = d3.zoomTransform(svgRef.current);
-      const panOffsetPixels = Math.max(0, currentTransform.x);
-      currentPanOffset = Math.floor(panOffsetPixels / 20);
+      // When panning left, transform.x is negative, so we need to convert it to a positive offset
+      // The bandWidth is used to convert pixels to data point offset
+      const bandWidth =
+        (dimensions.width - dimensions.margin.left - dimensions.margin.right) / CHART_DATA_POINTS;
+      const panOffsetPixels = Math.abs(currentTransform.x);
+      currentPanOffset = Math.floor(panOffsetPixels / bandWidth);
     }
 
+    // Calculate start index based on pan offset
+    // When panning left (showing older data), we move the start index further back
     const startIndex = Math.max(0, sortedData.length - viewSize - currentPanOffset);
     const endIndex = Math.min(sortedData.length - 1, startIndex + viewSize - 1);
 
     const visibleData = sortedData.slice(startIndex, endIndex + 1);
 
+    // Ensure we always return valid data
+    if (visibleData.length === 0 && sortedData.length > 0) {
+      // Fallback: return the most recent data
+      const fallbackStart = Math.max(0, sortedData.length - viewSize);
+      const fallbackEnd = sortedData.length - 1;
+      const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
+
+      console.log('getCurrentVisibleData: Using fallback data', {
+        totalData: sortedData.length,
+        fallbackStart,
+        fallbackEnd,
+        fallbackDataLength: fallbackData.length,
+      });
+
+      return fallbackData;
+    }
+
+    console.log('getCurrentVisibleData:', {
+      totalData: sortedData.length,
+      viewSize,
+      currentPanOffset,
+      startIndex,
+      endIndex,
+      visibleDataLength: visibleData.length,
+      transformX: svgRef.current ? d3.zoomTransform(svgRef.current).x : 0,
+    });
+
     return visibleData;
-  }, [chartDataHook.chartData]);
+  }, [chartDataHook.chartData, dimensions]);
 
   // Only candlestick chart is supported - other chart types removed
 
@@ -822,16 +915,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const now = Date.now();
       const timeSinceLastCreation = now - lastChartCreationRef.current;
 
-      // Only create chart if it doesn't exist yet
-      // For existing charts, only recreate if there's a significant data change
-      const shouldCreateChart = !chartExistsRef.current;
+      // Create chart if it doesn't exist yet, or if there's a significant data change
+      // But be more conservative about recreating existing charts
+      const shouldCreateChart =
+        !chartExistsRef.current ||
+        (timeSinceLastCreation >= CHART_CREATION_DEBOUNCE &&
+          !isHoveringRef.current &&
+          !isDataLoadingRef.current &&
+          hasUserPanned); // Only recreate if user has panned
 
       if (shouldCreateChart) {
         console.log(
           'Creating chart - chartExists:',
           chartExistsRef.current,
           'timeSinceLast:',
-          timeSinceLastCreation
+          timeSinceLastCreation,
+          'dataLength:',
+          chartDataHook.chartData.length,
+          'hasUserPanned:',
+          hasUserPanned
         );
         lastChartCreationRef.current = now;
         createChart();
@@ -845,6 +947,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     isInitialLoad,
     isDataLoadingRef,
     isLoadingMoreData,
+    currentViewStart,
+    currentViewEnd,
+    hasUserPanned,
   ]);
 
   // Update chart data when new data comes in (without recreating the chart)
