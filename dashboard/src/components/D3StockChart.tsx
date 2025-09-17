@@ -574,8 +574,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
     chartContent = g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
 
-    // Create chart elements - draw ALL data
-    updateChartElements(chartContent, sortedData, xScale, yScale);
+    // Create chart elements - draw only visible data based on current view state
+    const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    updateChartElements(chartContent, chartVisibleData, xScale, yScale);
 
     const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
@@ -1033,25 +1034,58 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     isZooming,
   ]);
 
-  // Update chart data when new data comes in (without recreating the chart)
-  // Disabled to prevent chart recreation issues - chart will stay stable
-  // useEffect(() => {
-  //   if (
-  //     chartDataHook.chartData.length > 0 &&
-  //     chartExistsRef.current &&
-  //     !isDataLoadingRef.current &&
-  //     !isLoadingMoreData
-  //   ) {
-  //     // Small delay to ensure data processing is complete
-  //     const timeoutId = setTimeout(() => {
-  //       updateChartData();
-  //     }, 100);
+  // Update chart data when view state changes (to show historical data)
+  useEffect(() => {
+    if (
+      chartExistsRef.current &&
+      !isCreatingChartRef.current &&
+      !isPanning &&
+      !isZooming &&
+      chartDataHook.chartData.length > 0 &&
+      svgRef.current
+    ) {
+      const svg = d3.select(svgRef.current);
+      const chartContent = svg.select('.chart-content');
+      if (!chartContent.empty()) {
+        const sortedData = [...chartDataHook.chartData].sort(
+          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+        );
+        const { width, height, margin } = dimensions;
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+        const bandWidth = innerWidth / CHART_DATA_POINTS;
+        const xScale = d3
+          .scaleLinear()
+          .domain([0, sortedData.length - 1])
+          .range([0, (sortedData.length - 1) * bandWidth]);
+        const yScale = d3
+          .scaleLinear()
+          .domain([
+            d3.min(sortedData, (d) => d.low) as number,
+            d3.max(sortedData, (d) => d.high) as number,
+          ])
+          .nice()
+          .range([innerHeight, 0]);
 
-  //     return () => clearTimeout(timeoutId);
-  //   }
-
-  //   return undefined; // Explicit return for linter
-  // }, [chartDataHook.chartData.length, updateChartData, isDataLoadingRef, isLoadingMoreData]);
+        // Get visible data based on current view state
+        const visibleData = getVisibleData(currentViewStart, currentViewEnd);
+        updateChartElements(
+          chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
+          visibleData,
+          xScale,
+          yScale
+        );
+      }
+    }
+  }, [
+    currentViewStart,
+    currentViewEnd,
+    chartDataHook.chartData,
+    dimensions,
+    getVisibleData,
+    isPanning,
+    isZooming,
+  ]);
 
   // Chart type is always candlestick - no selection needed
 
