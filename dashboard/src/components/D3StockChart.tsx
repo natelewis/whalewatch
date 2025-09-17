@@ -5,7 +5,7 @@ import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage'
 import { ChartData, useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { TimeframeConfig } from '../utils/chartDataUtils';
-import { BarChart3, Settings, Play, Pause, RotateCcw, Square as SquareIcon } from 'lucide-react';
+import { BarChart3, Settings, Play, Pause, RotateCcw } from 'lucide-react';
 
 interface D3StockChartProps {
   symbol: string;
@@ -161,15 +161,6 @@ const createChart = ({
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
-  console.log('Creating chart with visible data:', {
-    totalData: sortedData.length,
-    visibleData: visibleData.length,
-    visibleDataStart: visibleData[0]?.time,
-    visibleDataEnd: visibleData[visibleData.length - 1]?.time,
-    currentViewStart,
-    currentViewEnd,
-  });
-
   const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
 
   // Add a clip-path to prevent drawing outside the chart area
@@ -314,10 +305,6 @@ const createChart = ({
       setChartContent(newChartContent);
     }
 
-    // Check if we need to load more data (throttled)
-    // const now = Date.now();
-    // if (now - lastDataLoadCheckRef.current >= 100) {
-    // Reduced throttling for panning
     checkAndLoadMoreData();
     // }
   };
@@ -374,14 +361,11 @@ const createChart = ({
 
       // Find closest data point by index
       const index = Math.round(mouseIndex);
-      // Use the current view state to get visible data
-      // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-      const currentVisibleData = visibleData;
-      if (!currentVisibleData) {
+      if (!visibleData) {
         return;
       }
-      const clampedIndex = Math.max(0, Math.min(index, currentVisibleData.length - 1));
-      const d = currentVisibleData[clampedIndex];
+      const clampedIndex = Math.max(0, Math.min(index, visibleData.length - 1));
+      const d = visibleData[clampedIndex];
 
       if (d) {
         // Update crosshair
@@ -585,11 +569,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const [hoverData, setHoverData] = useState<HoverData | null>(null);
   const [isZooming, setIsZooming] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [chartLoaded, setChartLoaded] = useState(false);
-  // const [xScale, setXScale] = useState<d3.ScaleLinear<number, number> | null>(null);
-  // const [yScale, setYScale] = useState<d3.ScaleLinear<number, number> | null>(null);
   const [visibleData, setVisibleData] = useState<ChartData>([]);
   const [allChartData, setAllChartData] = useState<ChartData>([]);
 
@@ -958,27 +938,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    // Render started (debug log removed to prevent spam)
-
-    // Get visible data based on current view state
-    // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-    const currentVisibleData = visibleData;
-    if (!currentVisibleData || currentVisibleData.length === 0) {
+    if (!visibleData || visibleData.length === 0) {
       return;
     }
 
     if (chartContent) {
-      renderCandlestickChart(chartContent, currentVisibleData, xScale, yScale);
+      renderCandlestickChart(chartContent, visibleData, xScale, yScale);
     }
-  }, [
-    allChartData.length,
-    currentViewStart,
-    currentViewEnd,
-    dimensions,
-    chartLoaded,
-    xScale,
-    yScale,
-  ]);
+  }, [allChartData.length, visibleData, dimensions, chartLoaded, xScale, yScale]);
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
