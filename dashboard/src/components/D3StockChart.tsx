@@ -122,6 +122,22 @@ const getVisibleDataPoints = (
     return [];
   }
 
+  // If indices are not properly initialized (both 0), return the most recent data
+  if (startIndex === 0 && endIndex === 0) {
+    const fallbackStart = Math.max(0, sortedData.length - CHART_DATA_POINTS);
+    const fallbackEnd = sortedData.length - 1;
+    const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
+
+    console.log('getVisibleData: Indices not initialized, using most recent data', {
+      totalData: sortedData.length,
+      fallbackStart,
+      fallbackEnd,
+      fallbackDataLength: fallbackData.length,
+    });
+
+    return fallbackData;
+  }
+
   // Handle edge cases more gracefully for panning
   // Allow negative start indices for historical data loading
   // Clamp indices to valid ranges instead of falling back
@@ -131,6 +147,11 @@ const getVisibleDataPoints = (
   // If we have a valid range, use it
   if (actualStartIndex <= actualEndIndex && actualEndIndex < sortedData.length) {
     const slicedData = sortedData.slice(actualStartIndex, actualEndIndex + 1);
+    console.log('getVisibleData: Using requested range', {
+      requestedIndices: { startIndex, endIndex },
+      actualIndices: { actualStartIndex, actualEndIndex },
+      slicedDataLength: slicedData.length,
+    });
     return slicedData;
   }
 
@@ -268,8 +289,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Update visible data when view changes
   useEffect(() => {
-    const newVisibleData = getVisibleDataPoints(currentViewStart, currentViewEnd, allChartData);
-    setVisibleData(newVisibleData);
+    if (allChartData.length > 0) {
+      const newVisibleData = getVisibleDataPoints(currentViewStart, currentViewEnd, allChartData);
+      console.log('Updating visible data:', {
+        currentViewStart,
+        currentViewEnd,
+        allChartDataLength: allChartData.length,
+        newVisibleDataLength: newVisibleData.length,
+        newVisibleDataStart: newVisibleData[0]?.time,
+        newVisibleDataEnd: newVisibleData[newVisibleData.length - 1]?.time,
+      });
+      setVisibleData(newVisibleData);
+    }
   }, [currentViewStart, currentViewEnd, allChartData]);
 
   // Load saved timeframe from localStorage
@@ -391,7 +422,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       prevDataLengthRef.current = totalDataLength;
     }
-  }, [allChartData.length, currentViewStart, currentViewEnd]);
+  }, [allChartData.length]);
 
   // Check if we need to load more data when panning
   const checkAndLoadMoreData = useCallback(async (): Promise<void> => {
@@ -554,9 +585,17 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       !yScale ||
       chartLoaded ||
       !visibleData ||
-      !xScale ||
-      !yScale
+      visibleData.length === 0
     ) {
+      console.log('createChart: Early return conditions:', {
+        chartExists,
+        allChartDataLength: allChartData.length,
+        hasXScale: !!xScale,
+        hasYScale: !!yScale,
+        chartLoaded,
+        hasVisibleData: !!visibleData,
+        visibleDataLength: visibleData?.length || 0,
+      });
       return;
     }
 
@@ -615,6 +654,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       visibleData: visibleData.length,
       visibleDataStart: visibleData[0]?.time,
       visibleDataEnd: visibleData[visibleData.length - 1]?.time,
+      currentViewStart,
+      currentViewEnd,
     });
 
     // Create main group (store in ref for reuse)
@@ -926,7 +967,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
-    if (allChartData.length > 0 && currentViewEnd > 0) {
+    if (allChartData.length > 0 && currentViewEnd > 0 && visibleData && visibleData.length > 0) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
       if (currentViewStart > currentViewEnd || currentViewEnd < 0) {
@@ -954,6 +995,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           chartExists,
           'dataLength:',
           allChartData.length,
+          'visibleDataLength:',
+          visibleData.length,
           'hasUserPanned:',
           hasUserPanned,
           'isPanning:',
@@ -1058,7 +1101,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                 onClick={() => {
                   setZoomLevel(1);
                   setPanOffset({ x: 0, y: 0 });
-                  createChart();
+                  createChart({ svgElement: svgRef.current as SVGSVGElement });
                 }}
                 className="p-1 text-muted-foreground hover:text-foreground"
                 title="Reset zoom"
