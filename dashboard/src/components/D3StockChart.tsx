@@ -153,7 +153,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Track when chart was last created to prevent rapid recreations
   const lastChartCreationRef = useRef<number>(0);
-  const CHART_CREATION_DEBOUNCE = 1000; // Minimum 1 second between chart creations
 
   // Track when data loading was last allowed to prevent immediate loading
   const DATA_LOAD_DELAY = 2000; // Wait 2 seconds after chart creation before allowing data loading
@@ -554,15 +553,16 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Create D3 chart
   const createChart = useCallback((): void => {
-    // if (
-    //   !svgRef.current ||
-    //   chartDataHook.chartData.length === 0 ||
-    //   isCreatingChartRef.current ||
-    //   !xScale ||
-    //   !yScale
-    // ) {
-    //   return;
-    // }
+    if (
+      !svgRef.current ||
+      chartDataHook.chartData.length === 0 ||
+      isCreatingChartRef.current ||
+      !xScale ||
+      !yScale ||
+      chartLoaded
+    ) {
+      return;
+    }
 
     isCreatingChartRef.current = true;
     const svg = d3.select(svgRef.current);
@@ -642,8 +642,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         .attr('clip-path', 'url(#clip)');
     }
 
-    const chartContent = chartContentRef.current;
-
     // Create chart elements - draw only visible data based on current view state
     const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
 
@@ -653,7 +651,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    renderCandlestickChart(chartContent, chartVisibleData, xScale, yScale);
+    renderCandlestickChart(chartContentRef.current, chartVisibleData, xScale, yScale);
 
     // Create axes in the main chart group
     const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
@@ -904,50 +902,23 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Centralized chart rendering - automatically re-renders when dependencies change
   useEffect(() => {
-    // Add a small delay to ensure SVG is mounted
-    const timeoutId = setTimeout(() => {
-      if (
-        !svgRef.current ||
-        chartDataHook.chartData.length === 0 ||
-        !chartLoaded ||
-        !xScale ||
-        !yScale
-      ) {
-        return;
-      }
+    const svg = d3.select(svgRef.current);
+    const chartContent = svg.select('.chart-content');
 
-      const svg = d3.select(svgRef.current);
-      const chartContent = svg.select('.chart-content');
+    if (chartContent.empty()) {
+      // No chart content available
+      return;
+    }
 
-      if (chartContent.empty()) {
-        // No chart content available
-        return;
-      }
+    // Render started (debug log removed to prevent spam)
 
-      // Render started (debug log removed to prevent spam)
+    // Get visible data based on current view state
+    const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    if (!currentVisibleData || currentVisibleData.length === 0) {
+      return;
+    }
 
-      // Get visible data based on current view state
-      const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-      if (!currentVisibleData || currentVisibleData.length === 0) {
-        return;
-      }
-
-      renderCandlestickChart(chartContentRef.current!, currentVisibleData, xScale, yScale);
-
-      // // Clear previous chart elements (but not axes)
-      // chartContent.selectAll('*').remove();
-
-      // // Axis debug info (removed to prevent spam)
-      // // Render candlesticks using the scales
-      // renderCandlestickChart(
-      //   chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
-      //   currentVisibleData as ChartData,
-      //   xScale,
-      //   yScale
-      // );
-    }, 100); // Small delay to ensure SVG is mounted
-
-    return () => clearTimeout(timeoutId);
+    renderCandlestickChart(chartContentRef.current, currentVisibleData, xScale, yScale);
   }, [
     chartDataHook.chartData,
     currentViewStart,
@@ -978,19 +949,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         return;
       }
 
-      const now = Date.now();
-      const timeSinceLastCreation = now - lastChartCreationRef.current;
-
       // Create chart if it doesn't exist yet, or if there's a significant data change
       // Don't recreate chart after panning - this causes unwanted y-scale recalculation
-      const shouldCreateChart = !chartExistsRef.current && xScale && yScale;
+      const shouldCreateChart = !chartExistsRef.current;
 
       if (shouldCreateChart) {
         console.log(
           'Creating chart - chartExists:',
           chartExistsRef.current,
-          'timeSinceLast:',
-          timeSinceLastCreation,
           'dataLength:',
           chartDataHook.chartData.length,
           'hasUserPanned:',
@@ -1002,7 +968,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           'viewIndices:',
           { currentViewStart, currentViewEnd }
         );
-        lastChartCreationRef.current = now;
         createChart();
       }
     }
@@ -1010,15 +975,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     return undefined; // Explicit return for linter
   }, [
     chartDataHook.chartData.length,
-    createChart,
     xScale,
     yScale,
     currentViewStart,
     currentViewEnd,
     dimensions,
     getVisibleData,
-    // Note: createChart is intentionally omitted from dependencies to prevent
-    // multiple calls when the function reference changes due to its own dependencies
   ]);
 
   // Update chart data when view state changes (to show historical data)
