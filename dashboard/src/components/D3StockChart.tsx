@@ -639,19 +639,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
       const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
 
-      // Get visible data for y-scale calculation
+      // Get visible data for chart rendering
       const visibleData = getVisibleData(newViewStart, newViewEnd);
 
-      // Create y-scale based on visible data, not rescale the original
-      // This prevents the chart from getting taller during panning
-      const newYScale = d3
-        .scaleLinear()
-        .domain([
-          d3.min(visibleData, (d) => d.low) as number,
-          d3.max(visibleData, (d) => d.high) as number,
-        ])
-        .nice()
-        .range([innerHeight, 0]);
+      // Use the original y-scale for all panning operations - never recalculate
+      // This ensures consistent chart height regardless of panning
+      const newYScale = yScale;
 
       // Update axes
       g.select<SVGGElement>('.x-axis').call(
