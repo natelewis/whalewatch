@@ -24,8 +24,8 @@ const mockAccount = {
     portfolio_value: '50000.00',
     cash: '5000.00',
     daytrade_count: 0,
-    pattern_day_trader: false
-  }
+    pattern_day_trader: false,
+  },
 };
 
 const mockPositions = {
@@ -38,9 +38,9 @@ const mockPositions = {
       market_value: '1500.00',
       unrealized_pl: '100.00',
       unrealized_plpc: '0.0714',
-      current_price: '150.00'
-    }
-  ]
+      current_price: '150.00',
+    },
+  ],
 };
 
 const mockActivities = {
@@ -52,9 +52,9 @@ const mockActivities = {
       symbol: 'AAPL',
       side: 'buy',
       qty: '10',
-      price: '140.00'
-    }
-  ]
+      price: '140.00',
+    },
+  ],
 };
 
 const mockWebSocket = {
@@ -62,7 +62,7 @@ const mockWebSocket = {
   sendMessage: jest.fn(),
   isConnected: true,
   connect: jest.fn(),
-  disconnect: jest.fn()
+  disconnect: jest.fn(),
 };
 
 const renderWithRouter = (component: React.ReactElement) => {
@@ -148,7 +148,7 @@ describe('AccountPage', () => {
     await waitFor(() => {
       expect(mockWebSocket.sendMessage).toHaveBeenCalledWith({
         type: 'subscribe',
-        data: { channel: 'account_quote', symbols: ['AAPL'] }
+        data: { channel: 'account_quote', symbols: ['AAPL'] },
       });
     });
   });

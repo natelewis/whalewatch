@@ -30,7 +30,7 @@ export const AccountPage: React.FC = () => {
             return {
               ...position,
               current_price: lastMessage.data.price.toString(),
-              market_value: (parseFloat(position.qty) * lastMessage.data.price).toString()
+              market_value: (parseFloat(position.qty) * lastMessage.data.price).toString(),
             };
           }
           return position;
@@ -47,7 +47,7 @@ export const AccountPage: React.FC = () => {
       const [accountResponse, positionsResponse, activitiesResponse] = await Promise.all([
         apiService.getAccount(),
         apiService.getPositions(),
-        apiService.getActivities()
+        apiService.getActivities(),
       ]);
 
       setAccount(accountResponse.account);
@@ -59,7 +59,7 @@ export const AccountPage: React.FC = () => {
         const symbols = positionsResponse.positions.map(p => p.symbol);
         sendMessage({
           type: 'subscribe',
-          data: { channel: 'account_quote', symbols }
+          data: { channel: 'account_quote', symbols },
         });
       }
     } catch (err: any) {

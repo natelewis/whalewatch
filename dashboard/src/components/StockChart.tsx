@@ -145,16 +145,24 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
   // Check if we're near boundaries and trigger data loading
   const checkBoundariesAndLoadData = useCallback(() => {
-    if (!chartDataHook.chartData.length || !chartDataHook.viewState) return;
+    if (!chartDataHook.chartData.length || !chartDataHook.viewState) {
+return;
+}
 
     // Don't check if already loading
-    if (chartDataHook.isLeftLoading || chartDataHook.isRightLoading) return;
+    if (chartDataHook.isLeftLoading || chartDataHook.isRightLoading) {
+return;
+}
 
     // Get current range from Plotly or use full range
     const totalPoints = chartDataHook.chartData.length;
-    if (totalPoints === 0) return;
+    if (totalPoints === 0) {
+return;
+}
 
-    if (!currentRange) return;
+    if (!currentRange) {
+return;
+}
 
     const leftPosition = Math.max(0, currentRange[0]);
     const rightPosition = Math.min(totalPoints - 1, currentRange[1]);
@@ -229,7 +237,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({
     }
 
     const totalPoints = chartDataHook.chartData.length;
-    if (!currentRange) return;
+    if (!currentRange) {
+return;
+}
     const viewportSize = currentRange[1] - currentRange[0] + 1;
 
     // Calculate how much data we have on each side of the current view
@@ -360,8 +370,12 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
     chartDataHook.chartData.forEach((candle) => {
       // Check high and low values for each candle
-      if (candle.high > highest) highest = candle.high;
-      if (candle.low < lowest) lowest = candle.low;
+      if (candle.high > highest) {
+highest = candle.high;
+}
+      if (candle.low < lowest) {
+lowest = candle.low;
+}
     });
 
     // Only update if we found valid values
@@ -531,10 +545,14 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   // Handle mouse move on chart container to keep tooltip visible and update spike lines
   const handleChartMouseMove = useCallback(
     (event: MouseEvent) => {
-      if (!chartRef || !chartDataHook.chartData.length) return;
+      if (!chartRef || !chartDataHook.chartData.length) {
+return;
+}
 
       const plotArea = chartRef.querySelector('.nsewdrag.drag');
-      if (!plotArea) return;
+      if (!plotArea) {
+return;
+}
 
       const rect = plotArea.getBoundingClientRect();
       const containerRect = chartRef.getBoundingClientRect();
@@ -602,7 +620,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
   // Add mouse event listeners to chart container for persistent tooltip
   useEffect(() => {
-    if (!chartRef) return;
+    if (!chartRef) {
+return;
+}
 
     chartRef.addEventListener('mousemove', handleChartMouseMove);
     chartRef.addEventListener('mouseleave', handleChartMouseLeave);
@@ -714,7 +734,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    if (!chartRef) return;
+    if (!chartRef) {
+return;
+}
 
     const calculateBounds = () => {
       // Try multiple selectors to find the plot area
@@ -910,7 +932,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({
 
   // Memoized time axis calculations
   const timeAxisTicks = useMemo(() => {
-    if (chartDataHook.chartData.length === 0) return [];
+    if (chartDataHook.chartData.length === 0) {
+return [];
+}
 
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
@@ -943,7 +967,9 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   }, [chartDataHook.chartData, timeframe]);
 
   const timeAxisLabels = useMemo(() => {
-    if (chartDataHook.chartData.length === 0) return [];
+    if (chartDataHook.chartData.length === 0) {
+return [];
+}
 
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()

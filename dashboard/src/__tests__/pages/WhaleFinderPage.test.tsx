@@ -24,7 +24,7 @@ jest.mock('../../components/WhaleWatchFeed', () => ({
     selectedSymbol, 
     onSymbolChange, 
     isLoading, 
-    error 
+    error, 
   }: { 
     trades: any[]; 
     selectedSymbol: string; 
@@ -101,7 +101,7 @@ describe('WhaleFinderPage', () => {
     await waitFor(() => {
       expect(mockSendMessage).toHaveBeenCalledWith({
         type: 'subscribe',
-        data: { channel: 'options_whale', symbol: 'TSLA' }
+        data: { channel: 'options_whale', symbol: 'TSLA' },
       });
     });
   });

@@ -8,6 +8,8 @@ import {
   TimeframeConfig,
 } from '../utils/chartDataUtils';
 
+export type ChartData = CandlestickData[];
+
 interface UseChartDataProps {
   timeframes: TimeframeConfig[];
   onDataLoaded?: (data: CandlestickData[], range: DataRange | null) => void;
@@ -140,7 +142,9 @@ export const useChartData = ({
 
   // Pan right - move view one position to the right
   const panRight = useCallback(() => {
-    if (!viewState || !canPanRight) return;
+    if (!viewState || !canPanRight) {
+      return;
+    }
 
     // Move by half the view size for more noticeable panning
     const panStep = Math.max(1, Math.floor(viewState.viewSize / 2));

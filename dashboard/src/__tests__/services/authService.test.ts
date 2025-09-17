@@ -13,7 +13,7 @@ const localStorageMock = {
   clear: jest.fn(),
 };
 Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
+  value: localStorageMock,
 });
 
 // Mock window.location
@@ -44,9 +44,9 @@ describe('AuthService', () => {
             auth0Id: 'auth0|123456789',
             email: 'test@example.com',
             name: 'Test User',
-            picture: 'https://example.com/photo.jpg'
-          }
-        }
+            picture: 'https://example.com/photo.jpg',
+          },
+        },
       };
 
       mockedAxios.post.mockResolvedValue(mockResponse);
@@ -62,8 +62,8 @@ describe('AuthService', () => {
           auth0Id: 'auth0|123456789',
           email: 'test@example.com',
           name: 'Test User',
-          picture: 'https://example.com/photo.jpg'
-        }
+          picture: 'https://example.com/photo.jpg',
+        },
       });
     });
 
@@ -79,17 +79,17 @@ describe('AuthService', () => {
       const mockUser = {
         id: 'user-1',
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
       };
 
       mockedAxios.get.mockResolvedValue({
-        data: { user: mockUser }
+        data: { user: mockUser },
       });
 
       const result = await authService.verifyToken('test-token');
 
       expect(mockedAxios.get).toHaveBeenCalledWith('/api/auth/verify', {
-        headers: { Authorization: 'Bearer test-token' }
+        headers: { Authorization: 'Bearer test-token' },
       });
       expect(result).toEqual(mockUser);
     });

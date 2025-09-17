@@ -178,7 +178,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   // Update visible data based on current view bounds
   const updateVisibleData = useCallback(() => {
     setChartState(prev => {
-      if (prev.rawData.length === 0) return prev;
+      if (prev.rawData.length === 0) {
+return prev;
+}
       
       const sortedData = [...prev.rawData].sort(
         (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
@@ -196,7 +198,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Load initial data
   const loadInitialData = useCallback(async () => {
-    if (!timeframe) return;
+    if (!timeframe) {
+return;
+}
     
     updateChartState({ isLoading: true, isDataLoading: true });
     
@@ -209,7 +213,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Load more data when needed
   const loadMoreData = useCallback(async () => {
-    if (!timeframe || chartState.isDataLoading || chartState.isLoadingMoreData) return;
+    if (!timeframe || chartState.isDataLoading || chartState.isLoadingMoreData) {
+return;
+}
     
     updateChartState({ isLoadingMoreData: true, isDataLoading: true });
     
@@ -328,7 +334,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         updateChartState({
           transform,
           zoomLevel: transform.k,
-          panOffset: { x: transform.x, y: transform.y }
+          panOffset: { x: transform.x, y: transform.y },
         });
       })
       .on('end', (event) => {
@@ -338,7 +344,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
           isPanning: false,
           transform,
           zoomLevel: transform.k,
-          panOffset: { x: transform.x, y: transform.y }
+          panOffset: { x: transform.x, y: transform.y },
         });
       });
 
@@ -348,7 +354,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     updateChartState({ 
       chartExists: true, 
       isCreatingChart: false,
-      hasUserPanned: false 
+      hasUserPanned: false, 
     });
     
     lastChartCreationRef.current = Date.now();
@@ -457,4 +463,3 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 };
 
 export default D3StockChart;
-

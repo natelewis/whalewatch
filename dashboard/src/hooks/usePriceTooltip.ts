@@ -67,7 +67,9 @@ export const usePriceTooltip = ({
 
   // Show tooltip with price and position
   const showTooltip = useCallback((price: number, x: number, y: number) => {
-    if (!tooltipRef.current || !enabled) return;
+    if (!tooltipRef.current || !enabled) {
+return;
+}
 
     const tooltip = tooltipRef.current;
     tooltip.textContent = `${price.toFixed(2)}`;
@@ -78,7 +80,9 @@ export const usePriceTooltip = ({
 
   // Hide tooltip
   const hideTooltip = useCallback(() => {
-    if (!tooltipRef.current) return;
+    if (!tooltipRef.current) {
+return;
+}
 
     // Hide immediately
     tooltipRef.current.style.display = 'none';
@@ -105,7 +109,9 @@ export const usePriceTooltip = ({
 
   // Check if mouse is within chart bounds
   const isMouseInChart = useCallback((mouseX: number, mouseY: number): boolean => {
-    if (effectiveWidth === null || effectiveHeight === null) return false;
+    if (effectiveWidth === null || effectiveHeight === null) {
+return false;
+}
 
     // Adjust Y position to account for Plotly's internal padding
     const adjustedY = Math.max(0, mouseY - PLOTLY_INTERNAL_PADDING / 2);
@@ -120,11 +126,15 @@ export const usePriceTooltip = ({
 
   // Handle mouse move events
   useEffect(() => {
-    if (!chartRef || !enabled) return;
+    if (!chartRef || !enabled) {
+return;
+}
 
     const handleMouseMove = (event: MouseEvent) => {
       const plotArea = chartRef.querySelector('.nsewdrag.drag');
-      if (!plotArea) return;
+      if (!plotArea) {
+return;
+}
 
       const rect = plotArea.getBoundingClientRect();
       const mouseX = event.clientX - rect.left;

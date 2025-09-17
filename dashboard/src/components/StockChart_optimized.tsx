@@ -132,7 +132,7 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
       return;
     }
 
-    let lastY: number | null = null;
+    const lastY: number | null = null;
 
     // Get y-axis range from Plotly's actual layout for perfect precision
 
@@ -341,14 +341,18 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
                     chartRef.querySelector('.js-plotly-plot');
         }
 
-        if (!plotArea) return;
+        if (!plotArea) {
+return;
+}
 
         const rect = plotArea.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
         // Skip if mouse Y hasn't changed much (reduce unnecessary updates)
-        if (Math.abs(y - lastMouseY) < 1) return;
+        if (Math.abs(y - lastMouseY) < 1) {
+return;
+}
         lastMouseY = y;
 
         // If rect height is 0, try to get dimensions from the parent or use chart ref dimensions
@@ -455,10 +459,14 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
     data: CandlestickData[],
     timeframe: ChartTimeframe
   ): CandlestickData[] => {
-    if (data.length === 0) return data;
+    if (data.length === 0) {
+return data;
+}
 
     // Only fill for 1m timeframe to avoid over-filling
-    if (timeframe !== '1m') return data;
+    if (timeframe !== '1m') {
+return data;
+}
 
     const filledData: CandlestickData[] = [];
     const intervalMs = 60 * 1000; // 1 minute in milliseconds
@@ -592,7 +600,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
   };
 
   const getPlotlyData = useCallback(() => {
-    if (chartData.length === 0) return [];
+    if (chartData.length === 0) {
+return [];
+}
 
     // Ensure data is sorted by time and convert to proper format for Plotly
     const sortedData = [...chartData].sort(
@@ -712,7 +722,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
   // Helper function to generate time axis ticks (indices)
   const getTimeAxisTicks = (data: CandlestickData[]): number[] => {
-    if (data.length === 0) return [];
+    if (data.length === 0) {
+return [];
+}
 
     const sortedData = [...data].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
@@ -734,7 +746,9 @@ export const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }
 
   // Helper function to generate time axis labels
   const getTimeAxisLabels = (data: CandlestickData[]): string[] => {
-    if (data.length === 0) return [];
+    if (data.length === 0) {
+return [];
+}
 
     const sortedData = [...data].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()

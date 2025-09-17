@@ -13,7 +13,7 @@ const mockNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
   useNavigate: () => mockNavigate,
-  useSearchParams: () => [new URLSearchParams('?token=test-token')]
+  useSearchParams: () => [new URLSearchParams('?token=test-token')],
 }));
 
 const renderWithRouter = (component: React.ReactElement) => {
@@ -36,7 +36,7 @@ describe('OAuthCallbackPage', () => {
       isLoading: false,
       loginWithGoogle: jest.fn(),
       handleOAuthCallback: mockHandleOAuthCallback,
-      logout: jest.fn()
+      logout: jest.fn(),
     });
   });
 
@@ -72,7 +72,7 @@ describe('OAuthCallbackPage', () => {
     jest.doMock('react-router-dom', () => ({
       ...jest.requireActual('react-router-dom'),
       useNavigate: () => mockNavigate,
-      useSearchParams: () => [new URLSearchParams('')]
+      useSearchParams: () => [new URLSearchParams('')],
     }));
 
     renderWithRouter(<OAuthCallbackPage />);
@@ -99,7 +99,7 @@ describe('OAuthCallbackPage', () => {
     jest.doMock('react-router-dom', () => ({
       ...jest.requireActual('react-router-dom'),
       useNavigate: () => mockNavigate,
-      useSearchParams: () => [new URLSearchParams('?error=access_denied')]
+      useSearchParams: () => [new URLSearchParams('?error=access_denied')],
     }));
 
     renderWithRouter(<OAuthCallbackPage />);

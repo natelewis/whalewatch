@@ -72,7 +72,9 @@ export const useDateTooltip = ({
   // Show tooltip with date and position
   const showTooltip = useCallback(
     (date: string, x: number, y: number) => {
-      if (!tooltipRef.current || !enabled) return;
+      if (!tooltipRef.current || !enabled) {
+return;
+}
 
       const tooltip = tooltipRef.current;
 
@@ -97,7 +99,9 @@ export const useDateTooltip = ({
 
   // Hide tooltip
   const hideTooltip = useCallback(() => {
-    if (!tooltipRef.current) return;
+    if (!tooltipRef.current) {
+return;
+}
 
     // Hide immediately without delay to prevent flashing
     tooltipRef.current.style.display = 'none';
@@ -106,7 +110,9 @@ export const useDateTooltip = ({
   // Check if mouse is within chart bounds
   const isMouseInChart = useCallback(
     (mouseX: number, mouseY: number): boolean => {
-      if (effectiveWidth === null || effectiveHeight === null) return false;
+      if (effectiveWidth === null || effectiveHeight === null) {
+return false;
+}
 
       // Adjust Y position to account for Plotly's internal padding
       const adjustedY = Math.max(0, mouseY - PLOTLY_INTERNAL_PADDING / 2);

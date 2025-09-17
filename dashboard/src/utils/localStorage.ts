@@ -86,4 +86,3 @@ export function isLocalStorageAvailable(): boolean {
     return false;
   }
 }
-

@@ -51,7 +51,9 @@ export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[
  * Calculate data range from processed bars
  */
 export const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
-  if (bars.length === 0) return null;
+  if (bars.length === 0) {
+return null;
+}
 
   return {
     earliest: bars[0].t,
@@ -94,7 +96,9 @@ export const fillMissingMinutes = (
   data: CandlestickData[],
   timeframe: ChartTimeframe
 ): CandlestickData[] => {
-  if (data.length === 0) return data;
+  if (data.length === 0) {
+return data;
+}
 
   const filledData: CandlestickData[] = [];
   

@@ -10,7 +10,7 @@ export const AccountSummary: React.FC<AccountSummaryProps> = ({ account }) => {
   const formatCurrency = (value: string): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
     }).format(parseFloat(value));
   };
 
@@ -23,26 +23,26 @@ export const AccountSummary: React.FC<AccountSummaryProps> = ({ account }) => {
       change: account.equity !== account.last_equity ? 
         formatCurrency((parseFloat(account.equity) - parseFloat(account.last_equity)).toString()) : 
         null,
-      changeType: parseFloat(account.equity) >= parseFloat(account.last_equity) ? 'positive' : 'negative'
+      changeType: parseFloat(account.equity) >= parseFloat(account.last_equity) ? 'positive' : 'negative',
     },
     {
       title: 'Buying Power',
       value: formatCurrency(account.buying_power),
       icon: CreditCard,
-      subtitle: `Reg T: ${formatCurrency(account.regt_buying_power)}`
+      subtitle: `Reg T: ${formatCurrency(account.regt_buying_power)}`,
     },
     {
       title: 'Cash',
       value: formatCurrency(account.cash),
       icon: DollarSign,
-      subtitle: `SMA: ${formatCurrency(account.sma)}`
+      subtitle: `SMA: ${formatCurrency(account.sma)}`,
     },
     {
       title: 'Day Trades',
       value: account.daytrade_count.toString(),
       icon: Activity,
-      subtitle: account.pattern_day_trader ? 'Pattern Day Trader' : 'Regular Account'
-    }
+      subtitle: account.pattern_day_trader ? 'Pattern Day Trader' : 'Regular Account',
+    },
   ];
 
   return (

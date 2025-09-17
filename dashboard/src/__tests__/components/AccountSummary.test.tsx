@@ -33,7 +33,7 @@ const mockAccount: AlpacaAccount = {
   maintenance_margin: '0.00',
   last_maintenance_margin: '0.00',
   sma: '0.00',
-  daytrade_count: 0
+  daytrade_count: 0,
 };
 
 describe('AccountSummary', () => {

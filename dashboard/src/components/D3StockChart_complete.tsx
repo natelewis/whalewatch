@@ -286,7 +286,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Create D3 chart - now purely reactive based on state
   const createChart = useCallback(() => {
-    if (!svgRef.current || state.sortedData.length === 0) return;
+    if (!svgRef.current || state.sortedData.length === 0) {
+return;
+}
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove(); // Clear previous chart

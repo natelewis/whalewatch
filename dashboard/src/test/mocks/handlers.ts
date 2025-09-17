@@ -32,7 +32,7 @@ const mockAccount: AlpacaAccount = {
   maintenance_margin: '0.00',
   last_maintenance_margin: '0.00',
   sma: '0.00',
-  daytrade_count: 0
+  daytrade_count: 0,
 };
 
 const mockPositions: AlpacaPosition[] = [
@@ -51,8 +51,8 @@ const mockPositions: AlpacaPosition[] = [
     unrealized_intraday_plpc: '0.0333',
     current_price: '150.00',
     lastday_price: '145.00',
-    change_today: '5.00'
-  }
+    change_today: '5.00',
+  },
 ];
 
 const mockActivities: AlpacaActivity[] = [
@@ -68,8 +68,8 @@ const mockActivities: AlpacaActivity[] = [
     symbol: 'AAPL',
     asset_class: 'us_equity',
     notional: '1400.00',
-    net_amount: '-1400.00'
-  }
+    net_amount: '-1400.00',
+  },
 ];
 
 const mockBars: AlpacaBar[] = [
@@ -81,8 +81,8 @@ const mockBars: AlpacaBar[] = [
     c: 102,
     v: 1000000,
     n: 5000,
-    vw: 101
-  }
+    vw: 101,
+  },
 ];
 
 const mockOptionsTrades: AlpacaOptionsTrade[] = [
@@ -102,9 +102,9 @@ const mockOptionsTrades: AlpacaOptionsTrade[] = [
       exercise_style: 'american',
       expiration_date: '2024-03-15',
       strike_price: 150,
-      option_type: 'call'
-    }
-  }
+      option_type: 'call',
+    },
+  },
 ];
 
 export const handlers = [
@@ -115,8 +115,8 @@ export const handlers = [
       user: {
         id: '1',
         email: 'demo@whalewatch.com',
-        name: 'Demo User'
-      }
+        name: 'Demo User',
+      },
     });
   }),
 
@@ -126,8 +126,8 @@ export const handlers = [
       user: {
         id: '2',
         email: 'newuser@whalewatch.com',
-        name: 'New User'
-      }
+        name: 'New User',
+      },
     }, { status: 201 });
   }),
 
@@ -136,8 +136,8 @@ export const handlers = [
       valid: true,
       user: {
         id: '1',
-        email: 'demo@whalewatch.com'
-      }
+        email: 'demo@whalewatch.com',
+      },
     });
   }),
 
@@ -159,7 +159,7 @@ export const handlers = [
     return HttpResponse.json({
       symbol: 'AAPL',
       timeframe: '1D',
-      bars: mockBars
+      bars: mockBars,
     });
   }),
 
@@ -168,7 +168,7 @@ export const handlers = [
     return HttpResponse.json({
       symbol: 'TSLA',
       trades: mockOptionsTrades,
-      hours: 1
+      hours: 1,
     });
   }),
 
@@ -182,8 +182,8 @@ export const handlers = [
         qty: '10',
         side: 'sell',
         type: 'limit',
-        status: 'new'
-      }
+        status: 'new',
+      },
     }, { status: 201 });
   }),
 
@@ -196,8 +196,8 @@ export const handlers = [
         qty: '10',
         side: 'buy',
         type: 'market',
-        status: 'new'
-      }
+        status: 'new',
+      },
     }, { status: 201 });
   }),
 
@@ -206,7 +206,7 @@ export const handlers = [
     return HttpResponse.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      uptime: 123.45
+      uptime: 123.45,
     });
-  })
+  }),
 ];

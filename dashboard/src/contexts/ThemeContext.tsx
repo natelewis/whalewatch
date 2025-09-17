@@ -34,7 +34,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const value: ThemeContextType = {
     isDark,
-    toggleTheme
+    toggleTheme,
   };
 
   return (

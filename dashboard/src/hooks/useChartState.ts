@@ -171,7 +171,9 @@ export const useChartState = (initialSymbol: string, initialTimeframe: ChartTime
 
   // Update viewport when data or transform changes
   useEffect(() => {
-    if (state.sortedData.length === 0) return;
+    if (state.sortedData.length === 0) {
+return;
+}
 
     const { width, height, margin } = state.dimensions;
     const innerWidth = width - margin.left - margin.right;
@@ -299,7 +301,9 @@ export const useChartState = (initialSymbol: string, initialTimeframe: ChartTime
   }, []);
 
   const panToIndex = useCallback((index: number) => {
-    if (state.sortedData.length === 0) return;
+    if (state.sortedData.length === 0) {
+return;
+}
 
     const { width, margin } = state.dimensions;
     const innerWidth = width - margin.left - margin.right;

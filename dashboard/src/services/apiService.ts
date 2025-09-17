@@ -57,8 +57,12 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       endDate?: string
     ): Promise<{ activities: AlpacaActivity[] }> {
       const params = new URLSearchParams();
-      if (startDate) params.append('start_date', startDate);
-      if (endDate) params.append('end_date', endDate);
+      if (startDate) {
+params.append('start_date', startDate);
+}
+      if (endDate) {
+params.append('end_date', endDate);
+}
 
       const response = await api.get(`/api/account/activity?${params.toString()}`);
       return response.data;
@@ -154,8 +158,12 @@ export const apiService = {
     endDate?: string
   ): Promise<{ activities: AlpacaActivity[] }> {
     const params = new URLSearchParams();
-    if (startDate) params.append('start_date', startDate);
-    if (endDate) params.append('end_date', endDate);
+    if (startDate) {
+params.append('start_date', startDate);
+}
+    if (endDate) {
+params.append('end_date', endDate);
+}
 
     const response = await api.get(`/api/account/activity?${params.toString()}`);
     return response.data;

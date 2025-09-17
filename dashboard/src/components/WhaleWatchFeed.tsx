@@ -60,13 +60,19 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   };
 
   const getContractColor = (contractType: string): string => {
-    if (contractType === 'call') return 'text-green-500';
-    if (contractType === 'put') return 'text-red-500';
+    if (contractType === 'call') {
+return 'text-green-500';
+}
+    if (contractType === 'put') {
+return 'text-red-500';
+}
     return 'text-gray-500';
   };
 
   const isNearMoney = (contract: AlpacaOptionsContract, currentPrice?: number): boolean => {
-    if (!currentPrice || !contract.strike_price) return false;
+    if (!currentPrice || !contract.strike_price) {
+return false;
+}
     const strike = contract.strike_price;
     const diff = Math.abs(strike - currentPrice) / currentPrice;
     return diff <= 0.05; // Within 5% of current price
@@ -74,17 +80,27 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
 
   const filteredContracts = contracts
     .filter((contract) => {
-      if (filter === 'all') return true;
-      if (filter === 'calls') return (contract.contract_type || '') === 'call';
-      if (filter === 'puts') return (contract.contract_type || '') === 'put';
-      if (filter === 'near_money') return isNearMoney(contract);
+      if (filter === 'all') {
+return true;
+}
+      if (filter === 'calls') {
+return (contract.contract_type || '') === 'call';
+}
+      if (filter === 'puts') {
+return (contract.contract_type || '') === 'put';
+}
+      if (filter === 'near_money') {
+return isNearMoney(contract);
+}
       return true;
     })
     .sort((a, b) => {
       // Sort by expiration date, then by strike price
       const dateA = a.expiration_date ? new Date(a.expiration_date).getTime() : 0;
       const dateB = b.expiration_date ? new Date(b.expiration_date).getTime() : 0;
-      if (dateA !== dateB) return dateA - dateB;
+      if (dateA !== dateB) {
+return dateA - dateB;
+}
       return (a.strike_price || 0) - (b.strike_price || 0);
     });
 

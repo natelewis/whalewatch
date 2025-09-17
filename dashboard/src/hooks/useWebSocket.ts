@@ -18,7 +18,9 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
   const connect = () => {
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+return;
+}
 
     const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:3001'}/ws?token=${token}`;
     const ws = new WebSocket(wsUrl);
@@ -97,6 +99,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     isConnected,
     sendMessage,
     connect,
-    disconnect
+    disconnect,
   };
 };

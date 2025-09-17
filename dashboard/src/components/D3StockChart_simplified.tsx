@@ -207,7 +207,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Load initial data
   const loadInitialData = useCallback(async () => {
-    if (!timeframe) return;
+    if (!timeframe) {
+return;
+}
 
     console.log('Loading initial data for symbol:', symbol, 'timeframe:', timeframe);
     updateChartState({ isLoading: true, isDataLoading: true });
@@ -221,7 +223,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Load more data when needed
   const loadMoreData = useCallback(async () => {
-    if (!timeframe || chartState.isDataLoading || chartState.isLoadingMoreData) return;
+    if (!timeframe || chartState.isDataLoading || chartState.isLoadingMoreData) {
+return;
+}
 
     console.log('Loading more data for symbol:', symbol, 'timeframe:', timeframe);
     updateChartState({ isLoadingMoreData: true, isDataLoading: true });
@@ -418,7 +422,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       viewEnd: chartState.viewEnd,
     });
 
-    if (chartState.rawData.length === 0) return;
+    if (chartState.rawData.length === 0) {
+return;
+}
 
     const sortedData = [...chartState.rawData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()

@@ -31,10 +31,14 @@ export const useMouseHover = ({
 
   // Get relative position within the chart area
   const getRelativePosition = useCallback((event: MouseEvent): MousePosition | null => {
-    if (!chartRef) return null;
+    if (!chartRef) {
+return null;
+}
 
     const plotArea = chartRef.querySelector('.nsewdrag.drag');
-    if (!plotArea) return null;
+    if (!plotArea) {
+return null;
+}
 
     const rect = plotArea.getBoundingClientRect();
     return {
@@ -55,14 +59,20 @@ export const useMouseHover = ({
 
   // Handle mouse move events
   useEffect(() => {
-    if (!chartRef || !enabled) return;
+    if (!chartRef || !enabled) {
+return;
+}
 
     const handleMouseMove = (event: MouseEvent) => {
       const position = getRelativePosition(event);
-      if (!position) return;
+      if (!position) {
+return;
+}
 
       const plotArea = chartRef.querySelector('.nsewdrag.drag');
-      if (!plotArea) return;
+      if (!plotArea) {
+return;
+}
 
       const rect = plotArea.getBoundingClientRect();
       const isWithinBounds = isWithinChartBounds(position, rect.width, rect.height);

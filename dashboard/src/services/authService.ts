@@ -5,8 +5,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Add token to requests
@@ -29,5 +29,5 @@ export const authService = {
   async logout() {
     const response = await api.post('/api/auth/logout');
     return response.data;
-  }
+  },
 };

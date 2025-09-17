@@ -122,4 +122,3 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
     </div>
   );
 };
-

@@ -469,8 +469,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
   // Create D3 chart
   const createChart = useCallback(() => {
-    if (!svgRef.current || chartDataHook.chartData.length === 0 || isCreatingChartRef.current)
-      return;
+    if (!svgRef.current || chartDataHook.chartData.length === 0 || isCreatingChartRef.current) {
+return;
+}
 
     isCreatingChartRef.current = true;
     const svg = d3.select(svgRef.current);

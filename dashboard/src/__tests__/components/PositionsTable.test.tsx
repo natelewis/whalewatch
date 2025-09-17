@@ -19,7 +19,7 @@ const mockPositions: AlpacaPosition[] = [
     unrealized_intraday_plpc: '0.0333',
     current_price: '150.00',
     lastday_price: '145.00',
-    change_today: '5.00'
+    change_today: '5.00',
   },
   {
     asset_id: 'asset-2',
@@ -36,8 +36,8 @@ const mockPositions: AlpacaPosition[] = [
     unrealized_intraday_plpc: '-0.05',
     current_price: '200.00',
     lastday_price: '210.00',
-    change_today: '-10.00'
-  }
+    change_today: '-10.00',
+  },
 ];
 
 describe('PositionsTable', () => {

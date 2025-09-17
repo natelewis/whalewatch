@@ -12,7 +12,7 @@ export const ActivityHistory: React.FC<ActivityHistoryProps> = ({ activities }) 
   const formatCurrency = (value: string): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
     }).format(parseFloat(value));
   };
 
@@ -21,7 +21,7 @@ export const ActivityHistory: React.FC<ActivityHistoryProps> = ({ activities }) 
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -71,7 +71,9 @@ export const ActivityHistory: React.FC<ActivityHistoryProps> = ({ activities }) 
   };
 
   const filteredActivities = activities.filter(activity => {
-    if (filter === 'all') return true;
+    if (filter === 'all') {
+return true;
+}
     return activity.activity_type === filter;
   });
 
@@ -80,7 +82,7 @@ export const ActivityHistory: React.FC<ActivityHistoryProps> = ({ activities }) 
     { value: 'FILL', label: 'Trades' },
     { value: 'DIV', label: 'Dividends' },
     { value: 'DEP', label: 'Deposits' },
-    { value: 'WIT', label: 'Withdrawals' }
+    { value: 'WIT', label: 'Withdrawals' },
   ];
 
   if (activities.length === 0) {

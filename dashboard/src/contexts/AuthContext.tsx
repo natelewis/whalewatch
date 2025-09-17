@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     loginWithGoogle,
     handleOAuthCallback,
-    logout
+    logout,
   };
 
   return (

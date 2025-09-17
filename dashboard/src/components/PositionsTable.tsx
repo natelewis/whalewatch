@@ -12,7 +12,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
   const formatCurrency = (value: string): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
     }).format(parseFloat(value));
   };
 
@@ -22,15 +22,23 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
 
   const getPLColor = (pl: string): string => {
     const plValue = parseFloat(pl);
-    if (plValue > 0) return 'text-green-500';
-    if (plValue < 0) return 'text-red-500';
+    if (plValue > 0) {
+return 'text-green-500';
+}
+    if (plValue < 0) {
+return 'text-red-500';
+}
     return 'text-muted-foreground';
   };
 
   const getPLIcon = (pl: string) => {
     const plValue = parseFloat(pl);
-    if (plValue > 0) return <TrendingUp className="h-4 w-4 text-green-500" />;
-    if (plValue < 0) return <TrendingDown className="h-4 w-4 text-red-500" />;
+    if (plValue > 0) {
+return <TrendingUp className="h-4 w-4 text-green-500" />;
+}
+    if (plValue < 0) {
+return <TrendingDown className="h-4 w-4 text-red-500" />;
+}
     return null;
   };
 
