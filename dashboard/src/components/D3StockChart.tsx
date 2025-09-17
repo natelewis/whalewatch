@@ -62,12 +62,15 @@ const updateCurrentView = ({
   return { newViewStart, newViewEnd };
 };
 
-const createCandlestickChart = (
+const renderCandlestickChart = (
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   data: ChartData,
   xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>
 ): void => {
+  // Clear previous chart elements
+  g.selectAll('*').remove();
+
   const candleWidth = Math.max(1, 4);
 
   data.forEach((d, index) => {
@@ -99,20 +102,11 @@ const createCandlestickChart = (
   });
 };
 
-const updateChartElements = (
-  g: d3.Selection<SVGGElement, unknown, null, undefined>,
-  data: ChartData,
-  xScale: d3.ScaleLinear<number, number>,
-  yScale: d3.ScaleLinear<number, number>
-): void => {
-  // Clear previous chart elements
-  g.selectAll('*').remove();
-  createCandlestickChart(g, data, xScale, yScale);
-};
-
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const chartContentRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
   const chartType: ChartType = 'candlestick'; // Always use candlestick
   const [isLive, setIsLive] = useState(false);
@@ -573,6 +567,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     isCreatingChartRef.current = true;
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove(); // Clear previous chart
+    gRef.current = null; // Reset the g ref when clearing the chart
+    chartContentRef.current = null; // Reset the chart content ref when clearing the chart
 
     const { width, height, margin } = dimensions;
     const innerWidth = width - margin.left - margin.right;
@@ -622,10 +618,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       visibleDataEnd: visibleData[visibleData.length - 1]?.time,
     });
 
-    // Create main group
-    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    // Create main group (store in ref for reuse)
+    if (!gRef.current) {
+      gRef.current = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    }
 
-    let chartContent: d3.Selection<SVGGElement, unknown, null, undefined>;
+    const g = gRef.current;
 
     // Add a clip-path to prevent drawing outside the chart area
     svg
@@ -636,7 +634,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       .attr('width', innerWidth)
       .attr('height', innerHeight);
 
-    chartContent = g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
+    // Create chart content group (store in ref for reuse)
+    if (!chartContentRef.current) {
+      chartContentRef.current = g
+        .append('g')
+        .attr('class', 'chart-content')
+        .attr('clip-path', 'url(#clip)');
+    }
+
+    const chartContent = chartContentRef.current;
 
     // Create chart elements - draw only visible data based on current view state
     const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
@@ -647,7 +653,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    updateChartElements(chartContent, chartVisibleData, xScale, yScale);
+    renderCandlestickChart(chartContent, chartVisibleData, xScale, yScale);
 
     // Create axes in the main chart group
     const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
@@ -767,10 +773,21 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
       }
 
-      chartContent = g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
+      // Use existing chart content ref or create new one
+      if (!chartContentRef.current) {
+        chartContentRef.current = g
+          .append('g')
+          .attr('class', 'chart-content')
+          .attr('clip-path', 'url(#clip)');
+      }
 
       // Create chart elements - draw only visible data based on current view state
-      updateChartElements(chartContent, visibleData, consistentXScale, consistentYScale);
+      renderCandlestickChart(
+        chartContentRef.current,
+        visibleData,
+        consistentXScale,
+        consistentYScale
+      );
 
       // Check if we need to load more data (throttled)
       const now = Date.now();
@@ -915,17 +932,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         return;
       }
 
-      // Clear previous chart elements (but not axes)
-      chartContent.selectAll('*').remove();
+      renderCandlestickChart(chartContentRef.current!, currentVisibleData, xScale, yScale);
 
-      // Axis debug info (removed to prevent spam)
-      // Render candlesticks using the scales
-      createCandlestickChart(
-        chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
-        currentVisibleData as ChartData,
-        xScale,
-        yScale
-      );
+      // // Clear previous chart elements (but not axes)
+      // chartContent.selectAll('*').remove();
+
+      // // Axis debug info (removed to prevent spam)
+      // // Render candlesticks using the scales
+      // renderCandlestickChart(
+      //   chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
+      //   currentVisibleData as ChartData,
+      //   xScale,
+      //   yScale
+      // );
     }, 100); // Small delay to ensure SVG is mounted
 
     return () => clearTimeout(timeoutId);
@@ -938,58 +957,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     xScale,
     yScale,
   ]);
-
-  // Create candlestick chart
-  //  const createCandlestickChart = (
-  //    g: d3.Selection<SVGGElement, unknown, null, undefined>,
-  //    data: typeof chartDataHook.chartData,
-  //    xScale: d3.ScaleLinear<number, number>,
-  //    yScale: d3.ScaleLinear<number, number>
-  //  ) => {
-  //    const candleWidth = Math.max(1, 4);
-
-  //    data.forEach((d, index) => {
-  //      // Use the simple x scale directly
-  //      const x = xScale(index);
-
-  //      // Debug logging for first few candlesticks
-  //      if (index < 3) {
-  //        console.log('🕯️ CANDLESTICK DEBUG:', {
-  //          index,
-  //          xScaleDomain: xScale.domain(),
-  //          xScaleRange: xScale.range(),
-  //          x,
-  //          candleWidth,
-  //          dataPoint: d,
-  //        });
-  //      }
-  //      const isUp = d.close >= d.open;
-  //      const color = isUp ? '#26a69a' : '#ef5350';
-
-  //      // High-Low line
-  //      g.append('line')
-  //        .attr('x1', x)
-  //        .attr('x2', x)
-  //        .attr('y1', yScale(d.high))
-  //        .attr('y2', yScale(d.low))
-  //        .attr('stroke', color)
-  //        .attr('stroke-width', 1);
-
-  //      // Open-Close rectangle
-  //      g.append('rect')
-  //        .attr('x', x - candleWidth / 2)
-  //        .attr('y', yScale(Math.max(d.open, d.close)))
-  //        .attr('width', candleWidth)
-  //        .attr('height', Math.abs(yScale(d.close) - yScale(d.open)) || 1)
-  //        .attr('fill', isUp ? color : 'none')
-  //        .attr('stroke', color)
-  //        .attr('stroke-width', 1);
-  //    });
-  //  };
-
-  // Update chart elements - always candlestick
-
-  // Only candlestick chart is supported - other chart types removed
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
