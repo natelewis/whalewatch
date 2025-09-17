@@ -584,9 +584,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       // Transform the chart content
       chartContent.attr('transform', transform.toString());
 
-      // Use the same fixed scale for all operations - simple math approach
-      const newXScale = xScale;
-
       // Calculate the visible range using simple math based on pan offset
       const panOffsetPixels = Math.abs(transform.x);
       const bandWidth = innerWidth / CHART_DATA_POINTS;
@@ -599,43 +596,30 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       // Get visible data for chart rendering
       const visibleData = getVisibleData(newViewStart, newViewEnd);
 
-      // Use the original y-scale for all panning operations - never recalculate
-      // This ensures consistent chart height regardless of panning
-      const newYScale = yScale;
-
-      // DEBUG: Log scale information
-      console.log('📏 SCALE DEBUG:', {
-        originalYScale: {
-          domain: yScale.domain(),
-          range: yScale.range(),
-        },
-        newYScale: {
-          domain: newYScale.domain(),
-          range: newYScale.range(),
-        },
-        scalesEqual: yScale === newYScale,
-        visibleDataRange:
-          visibleData.length > 0
-            ? {
-                minLow: Math.min(...visibleData.map((d) => d.low)),
-                maxHigh: Math.max(...visibleData.map((d) => d.high)),
-              }
-            : null,
-      });
-
       // Update axes immediately during panning for smooth sliding effect
       const g = svg.select<SVGGElement>('g[transform]');
 
-      // Create a scale that maps data indices to screen positions for sliding
-      // The scale should map the full data range to the visible area
-      const panningXScale = d3
+      // Create a consistent Y-scale based on all available data for sliding behavior
+      // This ensures Y-axis labels maintain consistent positions while sliding
+      const allDataYScale = d3
+        .scaleLinear()
+        .domain([
+          d3.min(sortedData, (d) => d.low) as number,
+          d3.max(sortedData, (d) => d.high) as number,
+        ])
+        .nice()
+        .range([innerHeight, 0]);
+
+      // Create sliding scales that maintain fixed domains and slide labels relative to content
+      // X-axis sliding scale - maps current view range to full width for sliding effect
+      const slidingXScale = d3
         .scaleLinear()
         .domain([newViewStart, newViewEnd])
-        .range([0, innerWidth - innerWidth / visibleData.length]);
+        .range([transform.x, innerWidth + transform.x]);
 
-      // Update X-axis (timeline) with sliding labels
+      // Update X-axis with sliding labels that move with the data
       g.select<SVGGElement>('.x-axis').call(
-        d3.axisBottom(panningXScale).tickFormat((d) => {
+        d3.axisBottom(slidingXScale).tickFormat((d) => {
           const dataIndex = Math.round(d as number);
           if (dataIndex >= 0 && dataIndex < sortedData.length) {
             const date = new Date(sortedData[dataIndex].time);
@@ -645,22 +629,29 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         })
       );
 
-      // Update Y-axis (price)
-      g.select<SVGGElement>('.y-axis').call(d3.axisRight(newYScale).tickFormat(d3.format('.2f')));
+      // Update Y-axis with sliding labels - apply vertical transform to slide with data
+      const yAxisGroup = g.select<SVGGElement>('.y-axis');
+      yAxisGroup
+        .attr('transform', `translate(${innerWidth},${transform.y})`) // Apply vertical transform for sliding
+        .call(d3.axisRight(allDataYScale).tickFormat(d3.format('.2f')));
 
-      // Update grid lines
+      // Update grid lines with sliding behavior
       g.select<SVGGElement>('.grid-x').call(
         d3
-          .axisBottom(panningXScale)
+          .axisBottom(slidingXScale)
           .tickSize(-innerHeight)
           .tickFormat(() => '')
       );
-      g.select<SVGGElement>('.grid-y').call(
-        d3
-          .axisRight(newYScale)
-          .tickSize(-innerWidth)
-          .tickFormat(() => '')
-      );
+
+      const yGridGroup = g.select<SVGGElement>('.grid-y');
+      yGridGroup
+        .attr('transform', `translate(${innerWidth},${transform.y})`) // Apply vertical transform for sliding
+        .call(
+          d3
+            .axisRight(allDataYScale)
+            .tickSize(-innerWidth)
+            .tickFormat(() => '')
+        );
 
       // Update view state immediately for responsive panning
       setCurrentViewStart(newViewStart);
@@ -938,12 +929,26 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       hasGElement: !!g.node(),
     });
 
+    // Create a consistent Y-scale based on all available data for sliding behavior
+    // This ensures the Y-axis labels maintain consistent positions while sliding
+    const sortedData = [...chartDataHook.chartData].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+    const allDataYScale = d3
+      .scaleLinear()
+      .domain([
+        d3.min(sortedData, (d) => d.low) as number,
+        d3.max(sortedData, (d) => d.high) as number,
+      ])
+      .nice()
+      .range([innerHeight, 0]);
+
     // X-axis (timeline) - use sliding scale for consistency
     g.select('.x-axis').remove();
     const slidingXScale = d3
       .scaleLinear()
       .domain([currentViewStart, currentViewEnd])
-      .range([0, innerWidth - innerWidth / visibleData.length]);
+      .range([0, innerWidth]);
 
     const xAxis = g
       .append('g')
@@ -952,10 +957,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       .call(
         d3.axisBottom(slidingXScale).tickFormat((d) => {
           const dataIndex = Math.round(d as number);
-          if (dataIndex >= 0 && dataIndex < chartDataHook.chartData.length) {
-            const sortedData = [...chartDataHook.chartData].sort(
-              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-            );
+          if (dataIndex >= 0 && dataIndex < sortedData.length) {
             const date = new Date(sortedData[dataIndex].time);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
@@ -968,12 +970,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       hasXAxis: !!xAxis.node(),
     });
 
-    // Y-axis (price)
+    // Y-axis (price) - use consistent scale for sliding behavior
     g.select('.y-axis').remove();
     g.append('g')
       .attr('class', 'y-axis')
       .attr('transform', `translate(${innerWidth},0)`)
-      .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
+      .call(d3.axisRight(allDataYScale).tickFormat(d3.format('.2f')));
 
     // Grid lines
     g.select('.grid-x').remove();
@@ -994,7 +996,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       .attr('transform', `translate(${innerWidth},0)`)
       .call(
         d3
-          .axisRight(yScale)
+          .axisRight(allDataYScale)
           .tickSize(-innerWidth)
           .tickFormat(() => '')
       )
