@@ -170,11 +170,6 @@ const createChart = ({
     currentViewEnd,
   });
 
-  // Create main group (store in ref for reuse)
-  // if (!gRef.current) {
-  //   gRef.current = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-  // }
-
   const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
 
   // Add a clip-path to prevent drawing outside the chart area
@@ -195,19 +190,6 @@ const createChart = ({
     setChartContent(newChartContent);
   }
 
-  // Create chart elements - draw only visible data based on current view state
-  // const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-  const chartVisibleData = visibleData;
-
-  // if (!chartVisibleData || chartVisibleData.length === 0) {
-  //   console.warn('createChart: No visible data available, skipping chart creation');
-  //   return;
-  // // }
-
-  // if (chartContent) {
-  //   renderCandlestickChart(chartContent, chartVisibleData, xScale, yScale);
-  // }
-
   // Create axes in the main chart group
   const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
   const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
@@ -221,8 +203,8 @@ const createChart = ({
     .call(
       d3.axisBottom(xScale).tickFormat((d) => {
         const visibleIndex = Math.round(d as number);
-        if (visibleIndex >= 0 && visibleIndex < chartVisibleData.length) {
-          const date = new Date(chartVisibleData[visibleIndex].time);
+        if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
+          const date = new Date(visibleData[visibleIndex].time);
           return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
         return '';
@@ -331,11 +313,6 @@ const createChart = ({
         .attr('clip-path', 'url(#clip)');
       setChartContent(newChartContent);
     }
-
-    // Create chart elements - draw only visible data based on current view state
-    // if (chartContent) {
-    //   renderCandlestickChart(chartContent, visibleData, consistentXScale, consistentYScale);
-    // }
 
     // Check if we need to load more data (throttled)
     // const now = Date.now();
@@ -1027,7 +1004,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Don't recreate chart after panning - this causes unwanted y-scale recalculation
       const shouldCreateChart = !chartExists;
 
-      if (shouldCreateChart) {
+      if (shouldCreateChart && xScale && yScale) {
         console.log(
           'Creating chart - chartExists:',
           chartExists,
@@ -1080,56 +1057,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     dimensions,
     visibleData,
   ]);
-
-  // Update chart data when view state changes (to show historical data)
-
-  // // Calculate scales
-  // useEffect(() => {
-  //   if (allChartData.length > 0 && dimensions.width > 0 && currentViewEnd > 0) {
-  //     // Get visible data directly instead of relying on state
-  //     // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-  //     const currentVisibleData = visibleData;
-
-  //     if (!currentVisibleData || currentVisibleData.length === 0) {
-  //       return;
-  //     }
-
-  //     const { width, height, margin } = dimensions;
-  //     const innerWidth = width - margin.left - margin.right;
-  //     const innerHeight = height - margin.top - margin.bottom;
-
-  //     // setXScale((prevXScale: d3.ScaleLinear<number, number> | null) => {
-  //     //   const newXScale =
-  //     //     prevXScale?.domain()[0] === 0 &&
-  //     //     prevXScale?.domain()[1] === currentVisibleData.length - 1 &&
-  //     //     prevXScale?.range()[0] === 0 &&
-  //     //     prevXScale?.range()[1] === innerWidth
-  //     //       ? prevXScale
-  //     //       : d3
-  //     //           .scaleLinear()
-  //     //           .domain([0, currentVisibleData.length - 1])
-  //     //           .range([0, innerWidth]);
-  //     //   return newXScale;
-  //     // });
-
-  //     // setYScale((prevYScale: d3.ScaleLinear<number, number> | null) => {
-  //     //   const yDomain = [
-  //     //     d3.min(currentVisibleData, (d) => d.low) as number,
-  //     //     d3.max(currentVisibleData, (d) => d.high) as number,
-  //     //   ];
-  //     //   const newYScale =
-  //     //     prevYScale?.domain()[0] === yDomain[0] &&
-  //     //     prevYScale?.domain()[1] === yDomain[1] &&
-  //     //     prevYScale?.range()[0] === innerHeight &&
-  //     //     prevYScale?.range()[1] === 0
-  //     //       ? prevYScale
-  //     //       : d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
-  //     //   return newYScale;
-  //     // });
-  //   }
-  // }, [allChartData.length, currentViewStart, currentViewEnd, dimensions]);
-
-  // Chart type is always candlestick - no selection needed
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -1309,10 +1236,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               })()}
             </span>
             <span>Interval: {timeframe || 'Loading...'}</span>
-            <span>Zoom: {zoomLevel.toFixed(2)}x</span>
-            <span>
-              Pan: {panOffset.x.toFixed(0)}, {panOffset.y.toFixed(0)}
-            </span>
           </div>
           <div className="flex items-center space-x-2">
             <div
