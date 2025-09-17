@@ -58,6 +58,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
   const [isPanning, setIsPanning] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [chartLoaded, setChartLoaded] = useState(false);
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
 
   // Panning and predictive loading state
@@ -177,6 +178,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       isInitialLoad.current = true; // Reset for new symbol/timeframe
       chartExistsRef.current = false; // Reset chart existence for new symbol/timeframe
       setHasUserPanned(false); // Reset user panning state
+      setChartLoaded(false); // Reset chart loaded state
       chartDataHook.loadChartData(symbol, timeframe);
     }
   }, [symbol, timeframe]);
@@ -537,7 +539,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
 
     // Create chart elements - draw only visible data based on current view state
     const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-    updateChartElements(chartContent, chartVisibleData, xScale, yScale, currentViewStart);
+
+    // Create simple scale for initial chart rendering
+    const simpleChartXScale = d3
+      .scaleLinear()
+      .domain([0, chartVisibleData.length - 1])
+      .range([0, innerWidth]);
+
+    updateChartElements(chartContent, chartVisibleData, simpleChartXScale, yScale);
 
     const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
@@ -593,14 +602,23 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
       const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
 
-      // Get visible data for chart rendering
-      const visibleData = getVisibleData(newViewStart, newViewEnd);
-
-      // Update axes immediately during panning for smooth sliding effect
+      // Update axes with sliding tick marks during panning
       const g = svg.select<SVGGElement>('g[transform]');
 
-      // Create a consistent Y-scale based on all available data for sliding behavior
-      // This ensures Y-axis labels maintain consistent positions while sliding
+      // Get the visible data range for the new view
+      const visibleData = getVisibleData(newViewStart, newViewEnd);
+
+      if (visibleData.length === 0) return;
+
+      // Create an extended scale that spans more than the visible area to enable sliding
+      // This allows tick marks to slide in from outside the visible area
+      const extendedDataRange = Math.max(sortedData.length, CHART_DATA_POINTS * 2);
+      const slidingXScale = d3
+        .scaleLinear()
+        .domain([newViewStart - CHART_DATA_POINTS, newViewStart + CHART_DATA_POINTS * 2])
+        .range([-innerWidth, innerWidth * 2]);
+
+      // Y-axis: Use the original chart-wide price range for consistent sliding
       const allDataYScale = d3
         .scaleLinear()
         .domain([
@@ -610,15 +628,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         .nice()
         .range([innerHeight, 0]);
 
-      // Create sliding scales that maintain fixed domains and slide labels relative to content
-      // X-axis sliding scale - maps current view range to full width for sliding effect
-      const slidingXScale = d3
-        .scaleLinear()
-        .domain([newViewStart, newViewEnd])
-        .range([transform.x, innerWidth + transform.x]);
+      // Create axis with sliding ticks - the tick marks themselves slide along fixed axis lines
+      const xAxisGroup = g.select<SVGGElement>('.x-axis');
 
-      // Update X-axis with sliding labels that move with the data
-      g.select<SVGGElement>('.x-axis').call(
+      // Update X-axis with sliding transform applied to the entire group
+      xAxisGroup.attr('transform', `translate(${transform.x},${innerHeight})`).call(
         d3.axisBottom(slidingXScale).tickFormat((d) => {
           const dataIndex = Math.round(d as number);
           if (dataIndex >= 0 && dataIndex < sortedData.length) {
@@ -629,29 +643,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
         })
       );
 
-      // Update Y-axis with sliding labels - apply vertical transform to slide with data
+      // Keep the axis line (domain path) fixed by overriding its transform
+      xAxisGroup.select('.domain').attr('transform', `translate(${-transform.x},0)`);
+
+      // Update Y-axis with sliding ticks
       const yAxisGroup = g.select<SVGGElement>('.y-axis');
       yAxisGroup
-        .attr('transform', `translate(${innerWidth},${transform.y})`) // Apply vertical transform for sliding
+        .attr('transform', `translate(${innerWidth},${transform.y})`)
         .call(d3.axisRight(allDataYScale).tickFormat(d3.format('.2f')));
 
-      // Update grid lines with sliding behavior
-      g.select<SVGGElement>('.grid-x').call(
-        d3
-          .axisBottom(slidingXScale)
-          .tickSize(-innerHeight)
-          .tickFormat(() => '')
-      );
+      // Keep the axis line (domain path) fixed by overriding its transform
+      yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
 
-      const yGridGroup = g.select<SVGGElement>('.grid-y');
-      yGridGroup
-        .attr('transform', `translate(${innerWidth},${transform.y})`) // Apply vertical transform for sliding
-        .call(
-          d3
-            .axisRight(allDataYScale)
-            .tickSize(-innerWidth)
-            .tickFormat(() => '')
-        );
+      // Grid lines removed - no more grid line updates needed!
 
       // Update view state immediately for responsive panning
       setCurrentViewStart(newViewStart);
@@ -787,6 +791,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     // Reset the chart creation flag and mark chart as existing
     isCreatingChartRef.current = false;
     chartExistsRef.current = true;
+
+    // Mark chart as loaded after a brief delay to ensure DOM is ready
+    setTimeout(() => {
+      setChartLoaded(true);
+      console.log('🎯 CHART LOADED - Axes can now be created');
+    }, 100);
   }, [chartDataHook.chartData, dimensions, chartType, currentViewStart, currentViewEnd]);
 
   // Get visible data based on provided view indices
@@ -868,9 +878,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       return;
     }
 
-    // Only render if chart is fully created
-    if (!chartExistsRef.current) {
-      console.log('🎯 RENDER SKIP - Chart not created yet');
+    // Only render if chart is fully created AND loaded
+    if (!chartExistsRef.current || !chartLoaded) {
+      console.log('🎯 RENDER SKIP - Chart not ready:', {
+        chartExists: chartExistsRef.current,
+        chartLoaded,
+      });
       return;
     }
 
@@ -929,99 +942,129 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
       hasGElement: !!g.node(),
     });
 
-    // Create a consistent Y-scale based on all available data for sliding behavior
-    // This ensures the Y-axis labels maintain consistent positions while sliding
-    const sortedData = [...chartDataHook.chartData].sort(
-      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-    );
-    const allDataYScale = d3
-      .scaleLinear()
-      .domain([
-        d3.min(sortedData, (d) => d.low) as number,
-        d3.max(sortedData, (d) => d.high) as number,
-      ])
-      .nice()
-      .range([innerHeight, 0]);
+    // Axes are now created in a separate useEffect after chart is loaded
 
-    // X-axis (timeline) - use sliding scale for consistency
-    g.select('.x-axis').remove();
+    // Create extended sliding scale for consistency with panning behavior
     const slidingXScale = d3
       .scaleLinear()
-      .domain([currentViewStart, currentViewEnd])
-      .range([0, innerWidth]);
+      .domain([currentViewStart - CHART_DATA_POINTS, currentViewStart + CHART_DATA_POINTS * 2])
+      .range([-innerWidth, innerWidth * 2]);
 
-    const xAxis = g
-      .append('g')
-      .attr('class', 'x-axis')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(
-        d3.axisBottom(slidingXScale).tickFormat((d) => {
-          const dataIndex = Math.round(d as number);
-          if (dataIndex >= 0 && dataIndex < sortedData.length) {
-            const date = new Date(sortedData[dataIndex].time);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          }
-          return '';
-        })
-      );
+    // Create a scale for visible data positioning (maps visible data indices to actual data indices)
+    const visibleDataXScale = d3
+      .scaleLinear()
+      .domain([0, visibleData.length - 1])
+      .range([currentViewStart, currentViewEnd]);
 
-    console.log('🎯 X-AXIS CREATED:', {
-      xAxisElement: xAxis.node(),
-      hasXAxis: !!xAxis.node(),
-    });
-
-    // Y-axis (price) - use consistent scale for sliding behavior
-    g.select('.y-axis').remove();
-    g.append('g')
-      .attr('class', 'y-axis')
-      .attr('transform', `translate(${innerWidth},0)`)
-      .call(d3.axisRight(allDataYScale).tickFormat(d3.format('.2f')));
-
-    // Grid lines
-    g.select('.grid-x').remove();
-    g.append('g')
-      .attr('class', 'grid-x')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(
-        d3
-          .axisBottom(slidingXScale)
-          .tickSize(-innerHeight)
-          .tickFormat(() => '')
-      )
-      .style('opacity', 0.3);
-
-    g.select('.grid-y').remove();
-    g.append('g')
-      .attr('class', 'grid-y')
-      .attr('transform', `translate(${innerWidth},0)`)
-      .call(
-        d3
-          .axisRight(allDataYScale)
-          .tickSize(-innerWidth)
-          .tickFormat(() => '')
-      )
-      .style('opacity', 0.3);
-
-    // Render candlesticks
+    // Render candlesticks using the scales
     createCandlestickChart(
       chartContent as unknown as d3.Selection<SVGGElement, unknown, null, undefined>,
       visibleData,
       xScale,
       yScale
     );
-  }, [chartDataHook.chartData, currentViewStart, currentViewEnd, dimensions, getVisibleData]);
+  }, [
+    chartDataHook.chartData,
+    currentViewStart,
+    currentViewEnd,
+    dimensions,
+    getVisibleData,
+    chartLoaded,
+  ]);
+
+  // Separate effect for axis creation - only runs after chart is loaded
+  useEffect(() => {
+    if (!chartLoaded || !svgRef.current || chartDataHook.chartData.length === 0) {
+      return;
+    }
+
+    console.log('🎯 AXIS CREATION - Chart is loaded, creating axes');
+
+    const svg = d3.select(svgRef.current);
+    const g = svg.select<SVGGElement>('g[transform]');
+
+    if (g.empty()) {
+      console.log('🎯 AXIS CREATION SKIP - No main group found');
+      return;
+    }
+
+    // Get visible data for axis creation
+    const visibleData = getVisibleData(currentViewStart, currentViewEnd);
+    if (visibleData.length === 0) {
+      console.log('🎯 AXIS CREATION SKIP - No visible data');
+      return;
+    }
+
+    const { width, height, margin } = dimensions;
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    // Create scales for axes
+    const xScale = d3
+      .scaleLinear()
+      .domain([0, visibleData.length - 1])
+      .range([0, innerWidth]);
+
+    const yScale = d3
+      .scaleLinear()
+      .domain([
+        d3.min(visibleData, (d) => d.low) as number,
+        d3.max(visibleData, (d) => d.high) as number,
+      ])
+      .nice()
+      .range([innerHeight, 0]);
+
+    // Remove existing axes
+    g.select('.x-axis').remove();
+    g.select('.y-axis').remove();
+
+    // Create X-axis
+    const xAxis = g
+      .append('g')
+      .attr('class', 'x-axis')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(
+        d3.axisBottom(xScale).tickFormat((d) => {
+          const visibleIndex = Math.round(d as number);
+          if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
+            const date = new Date(visibleData[visibleIndex].time);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          }
+          return '';
+        })
+      );
+
+    // Create Y-axis
+    const yAxis = g
+      .append('g')
+      .attr('class', 'y-axis')
+      .attr('transform', `translate(${innerWidth},0)`)
+      .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
+
+    console.log('🎯 AXES CREATED SUCCESSFULLY:', {
+      xAxisElement: xAxis.node(),
+      yAxisElement: yAxis.node(),
+      visibleDataLength: visibleData.length,
+    });
+  }, [
+    chartLoaded,
+    currentViewStart,
+    currentViewEnd,
+    dimensions,
+    getVisibleData,
+    chartDataHook.chartData,
+  ]);
 
   // Update chart elements - always candlestick
   const updateChartElements = (
     g: d3.Selection<SVGGElement, unknown, null, undefined>,
     data: typeof chartDataHook.chartData,
     xScale: d3.ScaleLinear<number, number>,
-    yScale: d3.ScaleLinear<number, number>,
-    viewStart: number = 0
+    yScale: d3.ScaleLinear<number, number>
   ) => {
     // Clear previous chart elements
     g.selectAll('*').remove();
-    createCandlestickChart(g, data, xScale, yScale, viewStart);
+    createCandlestickChart(g, data, xScale, yScale);
   };
 
   // Create candlestick chart
@@ -1029,26 +1072,23 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol, onSymbolChange }) =
     g: d3.Selection<SVGGElement, unknown, null, undefined>,
     data: typeof chartDataHook.chartData,
     xScale: d3.ScaleLinear<number, number>,
-    yScale: d3.ScaleLinear<number, number>,
-    viewStart: number = 0
+    yScale: d3.ScaleLinear<number, number>
   ) => {
     const candleWidth = Math.max(1, 4);
 
     data.forEach((d, index) => {
-      // Use array index directly since scale domain matches visible data array
+      // Use the simple x scale directly
       const x = xScale(index);
 
       // Debug logging for first few candlesticks
       if (index < 3) {
         console.log('🕯️ CANDLESTICK DEBUG:', {
           index,
-          viewStart,
           xScaleDomain: xScale.domain(),
           xScaleRange: xScale.range(),
           x,
           candleWidth,
-          innerWidth,
-          CHART_DATA_POINTS,
+          dataPoint: d,
         });
       }
       const isUp = d.close >= d.open;
