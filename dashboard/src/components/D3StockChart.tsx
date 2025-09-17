@@ -36,6 +36,411 @@ interface HoverData {
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 // ============================================================================
 
+const useChartScales = ({
+  visibleData,
+  dimensions,
+}: {
+  visibleData: ChartData;
+  dimensions: ChartDimensions;
+}): {
+  xScale: d3.ScaleLinear<number, number> | null;
+  yScale: d3.ScaleLinear<number, number> | null;
+} => {
+  return useMemo(() => {
+    if (!visibleData || visibleData.length === 0 || dimensions.width === 0) {
+      return { xScale: null, yScale: null };
+    }
+
+    const { width, height, margin } = dimensions;
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    const xScale = d3
+      .scaleLinear()
+      .domain([0, visibleData.length - 1])
+      .range([0, innerWidth]);
+
+    const yScale = d3
+      .scaleLinear()
+      .domain([
+        d3.min(visibleData, (d) => d.low) as number,
+        d3.max(visibleData, (d) => d.high) as number,
+      ])
+      .range([innerHeight, 0]);
+
+    return { xScale, yScale };
+  }, [visibleData, dimensions]);
+};
+
+// Create D3 chart
+const createChart = ({
+  svgElement,
+  chartExists,
+  allChartData,
+  xScale,
+  yScale,
+  chartLoaded,
+  visibleData,
+  setChartExists,
+  setChartContent,
+  dimensions,
+  currentViewStart,
+  currentViewEnd,
+  chartContent,
+  setIsZooming,
+  setIsPanning,
+  setHasUserPanned,
+  setCurrentViewStart,
+  setCurrentViewEnd,
+  checkAndLoadMoreData,
+  setHoverData,
+  setChartLoaded,
+}: {
+  svgElement: SVGSVGElement;
+  chartExists: boolean;
+  allChartData: ChartData;
+  xScale: d3.ScaleLinear<number, number>;
+  yScale: d3.ScaleLinear<number, number>;
+  chartLoaded: boolean;
+  visibleData: ChartData;
+  setChartExists: (value: boolean) => void;
+  setChartContent: (value: d3.Selection<SVGGElement, unknown, null, undefined> | null) => void;
+  dimensions: ChartDimensions;
+  currentViewStart: number;
+  currentViewEnd: number;
+  chartContent: d3.Selection<SVGGElement, unknown, null, undefined> | null;
+  setIsZooming: (value: boolean) => void;
+  setIsPanning: (value: boolean) => void;
+  setHasUserPanned: (value: boolean) => void;
+  setCurrentViewStart: (value: number) => void;
+  setCurrentViewEnd: (value: number) => void;
+  checkAndLoadMoreData: () => void;
+  setHoverData: (value: HoverData | null) => void;
+  setChartLoaded: (value: boolean) => void;
+}): void => {
+  if (
+    chartExists ||
+    !allChartData ||
+    !Array.isArray(allChartData) ||
+    allChartData.length === 0 ||
+    !xScale ||
+    !yScale ||
+    chartLoaded ||
+    !visibleData ||
+    visibleData.length === 0
+  ) {
+    console.log('createChart: Early return conditions:', {
+      chartExists,
+      allChartDataLength: allChartData?.length || 0,
+      allChartDataIsArray: Array.isArray(allChartData),
+      hasXScale: !!xScale,
+      hasYScale: !!yScale,
+      chartLoaded,
+      hasVisibleData: !!visibleData,
+      visibleDataLength: visibleData?.length || 0,
+    });
+    return;
+  }
+
+  if (!svgElement) {
+    return;
+  }
+
+  setChartExists(true);
+  const svg = d3.select(svgElement);
+  svg.selectAll('*').remove(); // Clear previous chart
+  // gRef.current = null; // Reset the g ref when clearing the chart
+  setChartContent(null); // Reset the chart content when clearing the chart
+
+  const { width, height, margin } = dimensions;
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+
+  // Sort data by time - always use current state
+  const sortedData = [...allChartData].sort(
+    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+  );
+
+  console.log('Creating chart with visible data:', {
+    totalData: sortedData.length,
+    visibleData: visibleData.length,
+    visibleDataStart: visibleData[0]?.time,
+    visibleDataEnd: visibleData[visibleData.length - 1]?.time,
+    currentViewStart,
+    currentViewEnd,
+  });
+
+  // Create main group (store in ref for reuse)
+  // if (!gRef.current) {
+  //   gRef.current = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  // }
+
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
+
+  // Add a clip-path to prevent drawing outside the chart area
+  svg
+    .append('defs')
+    .append('clipPath')
+    .attr('id', 'clip')
+    .append('rect')
+    .attr('width', innerWidth)
+    .attr('height', innerHeight);
+
+  // Create chart content group (store in state for reuse)
+  if (!chartContent) {
+    const newChartContent = g
+      .append('g')
+      .attr('class', 'chart-content')
+      .attr('clip-path', 'url(#clip)');
+    setChartContent(newChartContent);
+  }
+
+  // Create chart elements - draw only visible data based on current view state
+  // const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+  const chartVisibleData = visibleData;
+
+  // if (!chartVisibleData || chartVisibleData.length === 0) {
+  //   console.warn('createChart: No visible data available, skipping chart creation');
+  //   return;
+  // // }
+
+  // if (chartContent) {
+  //   renderCandlestickChart(chartContent, chartVisibleData, xScale, yScale);
+  // }
+
+  // Create axes in the main chart group
+  const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
+  const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
+  const chartInnerHeight = chartHeight - chartMargin.top - chartMargin.bottom;
+
+  // Create X-axis
+  const xAxis = g
+    .append('g')
+    .attr('class', 'x-axis')
+    .attr('transform', `translate(0,${chartInnerHeight})`)
+    .call(
+      d3.axisBottom(xScale).tickFormat((d) => {
+        const visibleIndex = Math.round(d as number);
+        if (visibleIndex >= 0 && visibleIndex < chartVisibleData.length) {
+          const date = new Date(chartVisibleData[visibleIndex].time);
+          return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        return '';
+      })
+    );
+
+  // Create Y-axis
+  const yAxis = g
+    .append('g')
+    .attr('class', 'y-axis')
+    .attr('transform', `translate(${chartInnerWidth},0)`)
+    .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
+
+  // Style the domain lines to be gray and remove end tick marks (nubs)
+  xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+  yAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
+  // Style tick lines to be gray, keep labels white
+  xAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+  yAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+  xAxis.selectAll('.tick text').style('font-size', '12px');
+  yAxis.selectAll('.tick text').style('font-size', '12px');
+
+  // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
+  xAxis
+    .selectAll('.tick')
+    .filter((d, i, nodes) => {
+      const totalTicks = nodes.length;
+      return i === 0 || i === totalTicks - 1;
+    })
+    .style('display', 'none');
+
+  yAxis
+    .selectAll('.tick')
+    .filter((d, i, nodes) => {
+      const totalTicks = nodes.length;
+      return i === 0 || i === totalTicks - 1;
+    })
+    .style('display', 'none');
+
+  const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
+
+  const handleZoomStart = (): void => {
+    setIsZooming(true);
+    setIsPanning(true);
+    setHasUserPanned(true); // Mark that user has started panning
+  };
+
+  const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
+    const { transform } = event;
+    updateCurrentView({
+      transform,
+      sortedData,
+      setCurrentViewStart,
+      setCurrentViewEnd,
+    });
+
+    // Use the same scale logic as the initial state for consistent tick spacing
+    // This ensures tick marks maintain the same spacing during panning
+    const consistentXScale = d3
+      .scaleLinear()
+      .domain([0, visibleData.length - 1])
+      .range([0, innerWidth]);
+
+    // Y-axis: Use the visible data price range for consistent scaling
+    const consistentYScale = d3
+      .scaleLinear()
+      .domain([
+        d3.min(visibleData, (d) => d.low) as number,
+        d3.max(visibleData, (d) => d.high) as number,
+      ])
+      .range([innerHeight, 0]);
+
+    // Update axes using the same scale logic as initial rendering
+    const xAxisGroup = g.select<SVGGElement>('.x-axis');
+    if (!xAxisGroup.empty()) {
+      // Update X-axis with consistent scaling and sliding transform
+      xAxisGroup.attr('transform', `translate(${transform.x},${innerHeight})`).call(
+        d3.axisBottom(consistentXScale).tickFormat((d) => {
+          const visibleIndex = Math.round(d as number);
+          if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
+            const date = new Date(visibleData[visibleIndex].time);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          }
+          return '';
+        })
+      );
+      // Keep the axis line (domain path) fixed by overriding its transform
+      xAxisGroup.select('.domain').attr('transform', `translate(${-transform.x},0)`);
+    }
+
+    const yAxisGroup = g.select<SVGGElement>('.y-axis');
+    if (!yAxisGroup.empty()) {
+      yAxisGroup
+        .attr('transform', `translate(${innerWidth},${transform.y})`)
+        .call(d3.axisRight(consistentYScale).tickFormat(d3.format('.2f')));
+      // Keep the axis line (domain path) fixed by overriding its transform
+      yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
+    }
+
+    // Use existing chart content or create new one
+    if (!chartContent) {
+      const newChartContent = g
+        .append('g')
+        .attr('class', 'chart-content')
+        .attr('clip-path', 'url(#clip)');
+      setChartContent(newChartContent);
+    }
+
+    // Create chart elements - draw only visible data based on current view state
+    // if (chartContent) {
+    //   renderCandlestickChart(chartContent, visibleData, consistentXScale, consistentYScale);
+    // }
+
+    // Check if we need to load more data (throttled)
+    // const now = Date.now();
+    // if (now - lastDataLoadCheckRef.current >= 100) {
+    // Reduced throttling for panning
+    checkAndLoadMoreData();
+    // }
+  };
+
+  const handleZoomEnd = (): void => {
+    setIsZooming(false);
+    setIsPanning(false);
+  };
+
+  zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
+  svg.call(zoom);
+
+  // Add crosshair
+  const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
+
+  crosshair
+    .append('line')
+    .attr('class', 'crosshair-x')
+    .attr('stroke', '#666')
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', '3,3')
+    .style('opacity', 0);
+
+  crosshair
+    .append('line')
+    .attr('class', 'crosshair-y')
+    .attr('stroke', '#666')
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', '3,3')
+    .style('opacity', 0);
+
+  // Add hover behavior
+  g.append('rect')
+    .attr('class', 'overlay')
+    .attr('width', innerWidth)
+    .attr('height', innerHeight)
+    .style('fill', 'none')
+    .style('pointer-events', 'all')
+    .on('mouseover', () => {
+      crosshair.select('.crosshair-x').style('opacity', 1);
+      crosshair.select('.crosshair-y').style('opacity', 1);
+    })
+    .on('mouseout', () => {
+      crosshair.select('.crosshair-x').style('opacity', 0);
+      crosshair.select('.crosshair-y').style('opacity', 0);
+      setHoverData(null);
+    })
+    .on('mousemove', (event) => {
+      if (!xScale || !yScale) {
+        return;
+      }
+      const [mouseX, mouseY] = d3.pointer(event);
+      const mouseIndex = xScale.invert(mouseX);
+
+      // Find closest data point by index
+      const index = Math.round(mouseIndex);
+      // Use the current view state to get visible data
+      // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+      const currentVisibleData = visibleData;
+      if (!currentVisibleData) {
+        return;
+      }
+      const clampedIndex = Math.max(0, Math.min(index, currentVisibleData.length - 1));
+      const d = currentVisibleData[clampedIndex];
+
+      if (d) {
+        // Update crosshair
+        crosshair
+          .select('.crosshair-x')
+          .attr('x1', xScale(clampedIndex))
+          .attr('x2', xScale(clampedIndex))
+          .attr('y1', 0)
+          .attr('y2', innerHeight);
+
+        crosshair
+          .select('.crosshair-y')
+          .attr('x1', 0)
+          .attr('x2', innerWidth)
+          .attr('y1', yScale(d.close))
+          .attr('y2', yScale(d.close));
+
+        // Update hover data
+        setHoverData({
+          x: mouseX + margin.left,
+          y: mouseY + margin.top,
+          data: {
+            time: d.time,
+            open: d.open,
+            high: d.high,
+            low: d.low,
+            close: d.close,
+          },
+        });
+      }
+    });
+
+  setChartLoaded(true);
+  console.log('🎯 CHART LOADED - Axes can now be created');
+};
+
 const updateCurrentView = ({
   transform,
   sortedData,
@@ -206,9 +611,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [chartLoaded, setChartLoaded] = useState(false);
-  const [xScale, setXScale] = useState<d3.ScaleLinear<number, number> | null>(null);
-  const [yScale, setYScale] = useState<d3.ScaleLinear<number, number> | null>(null);
-  const [visibleData, setVisibleData] = useState<ChartData | null>(null);
+  // const [xScale, setXScale] = useState<d3.ScaleLinear<number, number> | null>(null);
+  // const [yScale, setYScale] = useState<d3.ScaleLinear<number, number> | null>(null);
+  const [visibleData, setVisibleData] = useState<ChartData>([]);
   const [allChartData, setAllChartData] = useState<ChartData>([]);
 
   // Panning and predictive loading state
@@ -245,6 +650,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     height: 400,
     margin: { top: 20, right: 30, bottom: 40, left: 60 },
   });
+
+  const { xScale, yScale } = useChartScales({ visibleData, dimensions });
 
   // Define timeframes array
   const timeframes: TimeframeConfig[] = useMemo(
@@ -562,359 +969,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
   }, [currentViewEnd, allChartData.length, isLive]);
 
-  // Create D3 chart
-  const createChart = ({ svgElement }: { svgElement: SVGSVGElement }): void => {
-    if (
-      chartExists ||
-      allChartData.length === 0 ||
-      !xScale ||
-      !yScale ||
-      chartLoaded ||
-      !visibleData ||
-      visibleData.length === 0
-    ) {
-      console.log('createChart: Early return conditions:', {
-        chartExists,
-        allChartDataLength: allChartData.length,
-        hasXScale: !!xScale,
-        hasYScale: !!yScale,
-        chartLoaded,
-        hasVisibleData: !!visibleData,
-        visibleDataLength: visibleData?.length || 0,
-      });
-      return;
-    }
-
-    if (!svgElement) {
-      return;
-    }
-
-    setChartExists(true);
-    const svg = d3.select(svgElement);
-    svg.selectAll('*').remove(); // Clear previous chart
-    // gRef.current = null; // Reset the g ref when clearing the chart
-    setChartContent(null); // Reset the chart content when clearing the chart
-
-    const { width, height, margin } = dimensions;
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Sort data by time - always use current state
-    const sortedData = [...allChartData].sort(
-      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-    );
-
-    // // Ensure we have valid data before proceeding
-    // if (!visibleData || visibleData.length === 0) {
-    //   console.warn('createChart: No visible data available, skipping chart creation');
-
-    //   return;
-    // }
-
-    // // Validate that we have valid data points
-    // const hasValidData = visibleData.every(
-    //   (d) =>
-    //     d &&
-    //     typeof d.time === 'string' &&
-    //     typeof d.open === 'number' &&
-    //     typeof d.high === 'number' &&
-    //     typeof d.low === 'number' &&
-    //     typeof d.close === 'number' &&
-    //     !isNaN(d.open) &&
-    //     !isNaN(d.high) &&
-    //     !isNaN(d.low) &&
-    //     !isNaN(d.close)
-    // );
-
-    // if (!hasValidData) {
-    //   console.warn('createChart: Invalid data points detected, skipping chart creation', {
-    //     visibleDataLength: visibleData.length,
-    //     firstDataPoint: visibleData[0],
-    //     lastDataPoint: visibleData[visibleData.length - 1],
-    //   });
-    //   return;
-    // }
-
-    console.log('Creating chart with visible data:', {
-      totalData: sortedData.length,
-      visibleData: visibleData.length,
-      visibleDataStart: visibleData[0]?.time,
-      visibleDataEnd: visibleData[visibleData.length - 1]?.time,
-      currentViewStart,
-      currentViewEnd,
-    });
-
-    // Create main group (store in ref for reuse)
-    // if (!gRef.current) {
-    //   gRef.current = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-    // }
-
-    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
-
-    // Add a clip-path to prevent drawing outside the chart area
-    svg
-      .append('defs')
-      .append('clipPath')
-      .attr('id', 'clip')
-      .append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight);
-
-    // Create chart content group (store in state for reuse)
-    if (!chartContent) {
-      const newChartContent = g
-        .append('g')
-        .attr('class', 'chart-content')
-        .attr('clip-path', 'url(#clip)');
-      setChartContent(newChartContent);
-    }
-
-    // Create chart elements - draw only visible data based on current view state
-    // const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-    const chartVisibleData = visibleData;
-
-    // if (!chartVisibleData || chartVisibleData.length === 0) {
-    //   console.warn('createChart: No visible data available, skipping chart creation');
-    //   return;
-    // }
-
-    if (chartContent) {
-      renderCandlestickChart(chartContent, chartVisibleData, xScale, yScale);
-    }
-
-    // Create axes in the main chart group
-    const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
-    const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
-    const chartInnerHeight = chartHeight - chartMargin.top - chartMargin.bottom;
-
-    // Create X-axis
-    const xAxis = g
-      .append('g')
-      .attr('class', 'x-axis')
-      .attr('transform', `translate(0,${chartInnerHeight})`)
-      .call(
-        d3.axisBottom(xScale).tickFormat((d) => {
-          const visibleIndex = Math.round(d as number);
-          if (visibleIndex >= 0 && visibleIndex < chartVisibleData.length) {
-            const date = new Date(chartVisibleData[visibleIndex].time);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          }
-          return '';
-        })
-      );
-
-    // Create Y-axis
-    const yAxis = g
-      .append('g')
-      .attr('class', 'y-axis')
-      .attr('transform', `translate(${chartInnerWidth},0)`)
-      .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
-
-    // Style the domain lines to be gray and remove end tick marks (nubs)
-    xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-    yAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-
-    // Style tick lines to be gray, keep labels white
-    xAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-    yAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-    xAxis.selectAll('.tick text').style('font-size', '12px');
-    yAxis.selectAll('.tick text').style('font-size', '12px');
-
-    // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
-    xAxis
-      .selectAll('.tick')
-      .filter((d, i, nodes) => {
-        const totalTicks = nodes.length;
-        return i === 0 || i === totalTicks - 1;
-      })
-      .style('display', 'none');
-
-    yAxis
-      .selectAll('.tick')
-      .filter((d, i, nodes) => {
-        const totalTicks = nodes.length;
-        return i === 0 || i === totalTicks - 1;
-      })
-      .style('display', 'none');
-
-    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
-
-    const handleZoomStart = (): void => {
-      setIsZooming(true);
-      setIsPanning(true);
-      setHasUserPanned(true); // Mark that user has started panning
-    };
-
-    const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
-      const { transform } = event;
-      updateCurrentView({
-        transform,
-        sortedData,
-        setCurrentViewStart,
-        setCurrentViewEnd,
-      });
-
-      // Use the same scale logic as the initial state for consistent tick spacing
-      // This ensures tick marks maintain the same spacing during panning
-      const consistentXScale = d3
-        .scaleLinear()
-        .domain([0, visibleData.length - 1])
-        .range([0, innerWidth]);
-
-      // Y-axis: Use the visible data price range for consistent scaling
-      const consistentYScale = d3
-        .scaleLinear()
-        .domain([
-          d3.min(visibleData, (d) => d.low) as number,
-          d3.max(visibleData, (d) => d.high) as number,
-        ])
-        .range([innerHeight, 0]);
-
-      // Update axes using the same scale logic as initial rendering
-      const xAxisGroup = g.select<SVGGElement>('.x-axis');
-      if (!xAxisGroup.empty()) {
-        // Update X-axis with consistent scaling and sliding transform
-        xAxisGroup.attr('transform', `translate(${transform.x},${innerHeight})`).call(
-          d3.axisBottom(consistentXScale).tickFormat((d) => {
-            const visibleIndex = Math.round(d as number);
-            if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
-              const date = new Date(visibleData[visibleIndex].time);
-              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            }
-            return '';
-          })
-        );
-        // Keep the axis line (domain path) fixed by overriding its transform
-        xAxisGroup.select('.domain').attr('transform', `translate(${-transform.x},0)`);
-      }
-
-      const yAxisGroup = g.select<SVGGElement>('.y-axis');
-      if (!yAxisGroup.empty()) {
-        yAxisGroup
-          .attr('transform', `translate(${innerWidth},${transform.y})`)
-          .call(d3.axisRight(consistentYScale).tickFormat(d3.format('.2f')));
-        // Keep the axis line (domain path) fixed by overriding its transform
-        yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
-      }
-
-      // Use existing chart content or create new one
-      if (!chartContent) {
-        const newChartContent = g
-          .append('g')
-          .attr('class', 'chart-content')
-          .attr('clip-path', 'url(#clip)');
-        setChartContent(newChartContent);
-      }
-
-      // Create chart elements - draw only visible data based on current view state
-      if (chartContent) {
-        renderCandlestickChart(chartContent, visibleData, consistentXScale, consistentYScale);
-      }
-
-      // Check if we need to load more data (throttled)
-      const now = Date.now();
-      if (now - lastDataLoadCheckRef.current >= 100) {
-        // Reduced throttling for panning
-        checkAndLoadMoreData();
-      }
-    };
-
-    const handleZoomEnd = (): void => {
-      setIsZooming(false);
-      setIsPanning(false);
-    };
-
-    zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
-    svg.call(zoom);
-
-    // Add crosshair
-    const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
-
-    crosshair
-      .append('line')
-      .attr('class', 'crosshair-x')
-      .attr('stroke', '#666')
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '3,3')
-      .style('opacity', 0);
-
-    crosshair
-      .append('line')
-      .attr('class', 'crosshair-y')
-      .attr('stroke', '#666')
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '3,3')
-      .style('opacity', 0);
-
-    // Add hover behavior
-    g.append('rect')
-      .attr('class', 'overlay')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .style('fill', 'none')
-      .style('pointer-events', 'all')
-      .on('mouseover', () => {
-        crosshair.select('.crosshair-x').style('opacity', 1);
-        crosshair.select('.crosshair-y').style('opacity', 1);
-      })
-      .on('mouseout', () => {
-        crosshair.select('.crosshair-x').style('opacity', 0);
-        crosshair.select('.crosshair-y').style('opacity', 0);
-        setHoverData(null);
-      })
-      .on('mousemove', (event) => {
-        if (!xScale || !yScale) {
-          return;
-        }
-        const [mouseX, mouseY] = d3.pointer(event);
-        const mouseIndex = xScale.invert(mouseX);
-
-        // Find closest data point by index
-        const index = Math.round(mouseIndex);
-        // Use the current view state to get visible data
-        // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-        const currentVisibleData = visibleData;
-        if (!currentVisibleData) {
-          return;
-        }
-        const clampedIndex = Math.max(0, Math.min(index, currentVisibleData.length - 1));
-        const d = currentVisibleData[clampedIndex];
-
-        if (d) {
-          // Update crosshair
-          crosshair
-            .select('.crosshair-x')
-            .attr('x1', xScale(clampedIndex))
-            .attr('x2', xScale(clampedIndex))
-            .attr('y1', 0)
-            .attr('y2', innerHeight);
-
-          crosshair
-            .select('.crosshair-y')
-            .attr('x1', 0)
-            .attr('x2', innerWidth)
-            .attr('y1', yScale(d.close))
-            .attr('y2', yScale(d.close));
-
-          // Update hover data
-          setHoverData({
-            x: mouseX + margin.left,
-            y: mouseY + margin.top,
-            data: {
-              time: d.time,
-              open: d.open,
-              high: d.high,
-              low: d.low,
-              close: d.close,
-            },
-          });
-        }
-      });
-
-    setChartLoaded(true);
-    console.log('🎯 CHART LOADED - Axes can now be created');
-  };
-
   useEffect(() => {
     // svgRef.current now points to the <svg> element in the DOM
     console.log('SVG element is ready:', svgRef.current);
@@ -990,7 +1044,29 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           'viewIndices:',
           { currentViewStart, currentViewEnd }
         );
-        createChart({ svgElement: svgRef.current as SVGSVGElement });
+        createChart({
+          svgElement: svgRef.current as SVGSVGElement,
+          chartExists,
+          allChartData,
+          xScale,
+          yScale,
+          chartLoaded,
+          visibleData,
+          setChartExists,
+          setChartContent,
+          dimensions,
+          currentViewStart,
+          currentViewEnd,
+          chartContent,
+          setIsZooming,
+          setIsPanning,
+          setHasUserPanned,
+          setCurrentViewStart,
+          setCurrentViewEnd,
+          checkAndLoadMoreData,
+          setHoverData,
+          setChartLoaded,
+        });
       }
     }
 
@@ -1007,51 +1083,51 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Update chart data when view state changes (to show historical data)
 
-  // Calculate scales
-  useEffect(() => {
-    if (allChartData.length > 0 && dimensions.width > 0 && currentViewEnd > 0) {
-      // Get visible data directly instead of relying on state
-      // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
-      const currentVisibleData = visibleData;
+  // // Calculate scales
+  // useEffect(() => {
+  //   if (allChartData.length > 0 && dimensions.width > 0 && currentViewEnd > 0) {
+  //     // Get visible data directly instead of relying on state
+  //     // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+  //     const currentVisibleData = visibleData;
 
-      if (!currentVisibleData || currentVisibleData.length === 0) {
-        return;
-      }
+  //     if (!currentVisibleData || currentVisibleData.length === 0) {
+  //       return;
+  //     }
 
-      const { width, height, margin } = dimensions;
-      const innerWidth = width - margin.left - margin.right;
-      const innerHeight = height - margin.top - margin.bottom;
+  //     const { width, height, margin } = dimensions;
+  //     const innerWidth = width - margin.left - margin.right;
+  //     const innerHeight = height - margin.top - margin.bottom;
 
-      setXScale((prevXScale: d3.ScaleLinear<number, number> | null) => {
-        const newXScale =
-          prevXScale?.domain()[0] === 0 &&
-          prevXScale?.domain()[1] === currentVisibleData.length - 1 &&
-          prevXScale?.range()[0] === 0 &&
-          prevXScale?.range()[1] === innerWidth
-            ? prevXScale
-            : d3
-                .scaleLinear()
-                .domain([0, currentVisibleData.length - 1])
-                .range([0, innerWidth]);
-        return newXScale;
-      });
+  //     // setXScale((prevXScale: d3.ScaleLinear<number, number> | null) => {
+  //     //   const newXScale =
+  //     //     prevXScale?.domain()[0] === 0 &&
+  //     //     prevXScale?.domain()[1] === currentVisibleData.length - 1 &&
+  //     //     prevXScale?.range()[0] === 0 &&
+  //     //     prevXScale?.range()[1] === innerWidth
+  //     //       ? prevXScale
+  //     //       : d3
+  //     //           .scaleLinear()
+  //     //           .domain([0, currentVisibleData.length - 1])
+  //     //           .range([0, innerWidth]);
+  //     //   return newXScale;
+  //     // });
 
-      setYScale((prevYScale: d3.ScaleLinear<number, number> | null) => {
-        const yDomain = [
-          d3.min(currentVisibleData, (d) => d.low) as number,
-          d3.max(currentVisibleData, (d) => d.high) as number,
-        ];
-        const newYScale =
-          prevYScale?.domain()[0] === yDomain[0] &&
-          prevYScale?.domain()[1] === yDomain[1] &&
-          prevYScale?.range()[0] === innerHeight &&
-          prevYScale?.range()[1] === 0
-            ? prevYScale
-            : d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
-        return newYScale;
-      });
-    }
-  }, [allChartData.length, currentViewStart, currentViewEnd, dimensions]);
+  //     // setYScale((prevYScale: d3.ScaleLinear<number, number> | null) => {
+  //     //   const yDomain = [
+  //     //     d3.min(currentVisibleData, (d) => d.low) as number,
+  //     //     d3.max(currentVisibleData, (d) => d.high) as number,
+  //     //   ];
+  //     //   const newYScale =
+  //     //     prevYScale?.domain()[0] === yDomain[0] &&
+  //     //     prevYScale?.domain()[1] === yDomain[1] &&
+  //     //     prevYScale?.range()[0] === innerHeight &&
+  //     //     prevYScale?.range()[1] === 0
+  //     //       ? prevYScale
+  //     //       : d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
+  //     //   return newYScale;
+  //     // });
+  //   }
+  // }, [allChartData.length, currentViewStart, currentViewEnd, dimensions]);
 
   // Chart type is always candlestick - no selection needed
 
@@ -1080,17 +1156,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                 title="Refresh data"
               >
                 <RotateCcw className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => {
-                  setZoomLevel(1);
-                  setPanOffset({ x: 0, y: 0 });
-                  createChart({ svgElement: svgRef.current as SVGSVGElement });
-                }}
-                className="p-1 text-muted-foreground hover:text-foreground"
-                title="Reset zoom"
-              >
-                <SquareIcon className="h-4 w-4" />
               </button>
             </div>
           </div>
