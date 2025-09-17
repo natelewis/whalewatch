@@ -65,9 +65,13 @@ const updateCurrentView = ({
 const renderCandlestickChart = (
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   data: ChartData,
-  xScale: d3.ScaleLinear<number, number>,
-  yScale: d3.ScaleLinear<number, number>
+  xScale: d3.ScaleLinear<number, number> | null,
+  yScale: d3.ScaleLinear<number, number> | null
 ): void => {
+  if (!xScale || !yScale) {
+    return;
+  }
+
   // Clear previous chart elements
   g.selectAll('*').remove();
 
@@ -102,13 +106,74 @@ const renderCandlestickChart = (
   });
 };
 
+const getVisibleDataPoints = (
+  startIndex: number,
+  endIndex: number,
+  chartData: ChartData
+): ChartData => {
+  // Always use the current state data
+  const sortedData = [...chartData].sort(
+    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+  );
+
+  // If no data, return empty array
+  if (sortedData.length === 0) {
+    console.log('getVisibleData: No data available');
+    return [];
+  }
+
+  // Handle edge cases more gracefully for panning
+  // Allow negative start indices for historical data loading
+  // Clamp indices to valid ranges instead of falling back
+  const actualStartIndex = Math.max(0, Math.min(startIndex, sortedData.length - 1));
+  const actualEndIndex = Math.max(actualStartIndex, Math.min(endIndex, sortedData.length - 1));
+
+  // If we have a valid range, use it
+  if (actualStartIndex <= actualEndIndex && actualEndIndex < sortedData.length) {
+    const slicedData = sortedData.slice(actualStartIndex, actualEndIndex + 1);
+    return slicedData;
+  }
+
+  // If we're panning to historical data (negative start), try to get what we can
+  if (startIndex < 0) {
+    const availableStart = Math.max(0, sortedData.length + startIndex);
+    const availableEnd = Math.min(sortedData.length - 1, availableStart + CHART_DATA_POINTS - 1);
+    const historicalData = sortedData.slice(availableStart, availableEnd + 1);
+
+    if (historicalData.length > 0) {
+      console.log('getVisibleData: Using historical data for panning', {
+        requestedStart: startIndex,
+        actualStart: availableStart,
+        actualEnd: availableEnd,
+        dataLength: historicalData.length,
+      });
+      return historicalData;
+    }
+  }
+
+  // Final fallback: return the most recent data
+  const fallbackStart = Math.max(0, sortedData.length - CHART_DATA_POINTS);
+  const fallbackEnd = sortedData.length - 1;
+  const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
+
+  console.log('getVisibleData: Using fallback data', {
+    requestedIndices: { startIndex, endIndex },
+    actualIndices: { actualStartIndex, actualEndIndex },
+    totalData: sortedData.length,
+    fallbackStart,
+    fallbackEnd,
+    fallbackDataLength: fallbackData.length,
+  });
+
+  return fallbackData;
+};
+
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const chartContentRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
-  const chartType: ChartType = 'candlestick'; // Always use candlestick
   const [isLive, setIsLive] = useState(false);
   const [hoverData, setHoverData] = useState<HoverData | null>(null);
   const [isZooming, setIsZooming] = useState(false);
@@ -144,9 +209,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Track last view indices to detect significant changes
   const lastViewIndicesRef = useRef<{ start: number; end: number } | null>(null);
-
-  // Track if we're currently creating a chart to prevent multiple simultaneous creations
-  const isCreatingChartRef = useRef<boolean>(false);
 
   // Track if chart already exists to avoid unnecessary recreations
   const chartExistsRef = useRef<boolean>(false);
@@ -264,9 +326,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Update visible data when view changes
   useEffect(() => {
-    const newVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    const newVisibleData = getVisibleDataPoints(
+      currentViewStart,
+      currentViewEnd,
+      chartDataHook.chartData
+    );
     setVisibleData(newVisibleData);
-  }, [currentViewStart, currentViewEnd, getVisibleData]);
+  }, [currentViewStart, currentViewEnd, chartDataHook.chartData]);
 
   // Load saved timeframe from localStorage
   useEffect(() => {
@@ -294,7 +360,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     if (timeframe !== null) {
       isInitialLoad.current = true; // Reset for new symbol/timeframe
-      chartExistsRef.current = false; // Reset chart existence for new symbol/timeframe
+      // chartExistsRef.current = false; // Reset chart existence for new symbol/timeframe
       setHasUserPanned(false); // Reset user panning state
       setChartLoaded(false); // Reset chart loaded state
       chartDataHook.loadChartData(symbol, timeframe);
@@ -368,7 +434,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         setCurrentViewStart(newStartIndex);
         setCurrentViewEnd(newEndIndex);
         isInitialLoad.current = false; // Mark initial load as complete
-        chartExistsRef.current = false; // Reset chart existence for new data
+        // chartExistsRef.current = false; // Reset chart existence for new data
       } else if (totalDataLength > prevDataLength) {
         // If data length increased (new data loaded), don't adjust view position
         // The view should only change during user interactions, not data loads
@@ -383,11 +449,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
         // Reset loading attempt tracking
         lastLoadAttemptRef.current = null;
-
-        // Only force chart recreation if user has panned (not during initial load)
-        if (hasUserPanned) {
-          chartExistsRef.current = false;
-        }
       }
 
       prevDataLengthRef.current = totalDataLength;
@@ -552,19 +613,21 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   }, [currentViewEnd, chartDataHook.chartData.length, isLive]);
 
   // Create D3 chart
-  const createChart = useCallback((): void => {
+  const createChart = (): void => {
     if (
+      (chartExistsRef.current,
       !svgRef.current ||
-      chartDataHook.chartData.length === 0 ||
-      isCreatingChartRef.current ||
+        chartDataHook.chartData.length === 0 ||
+        !xScale ||
+        !yScale ||
+        chartLoaded) ||
+      !visibleData ||
       !xScale ||
-      !yScale ||
-      chartLoaded
+      !yScale
     ) {
       return;
     }
-
-    isCreatingChartRef.current = true;
+    chartExistsRef.current = true;
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove(); // Clear previous chart
     gRef.current = null; // Reset the g ref when clearing the chart
@@ -579,12 +642,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
-    // Ensure we have valid data before proceeding
-    if (!visibleData || visibleData.length === 0) {
-      console.warn('createChart: No visible data available, skipping chart creation');
-      isCreatingChartRef.current = false;
-      return;
-    }
+    // // Ensure we have valid data before proceeding
+    // if (!visibleData || visibleData.length === 0) {
+    //   console.warn('createChart: No visible data available, skipping chart creation');
+
+    //   return;
+    // }
 
     // Validate that we have valid data points
     const hasValidData = visibleData.every(
@@ -607,7 +670,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         firstDataPoint: visibleData[0],
         lastDataPoint: visibleData[visibleData.length - 1],
       });
-      isCreatingChartRef.current = false;
       return;
     }
 
@@ -643,11 +705,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Create chart elements - draw only visible data based on current view state
-    const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    // const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    const chartVisibleData = visibleData;
 
     if (!chartVisibleData || chartVisibleData.length === 0) {
       console.warn('createChart: No visible data available, skipping chart creation');
-      isCreatingChartRef.current = false;
       return;
     }
 
@@ -714,9 +776,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       setIsZooming(true);
       setIsPanning(true);
       setHasUserPanned(true); // Mark that user has started panning
-
-      // Prevent chart recreation during panning
-      chartExistsRef.current = true;
     };
 
     const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -841,13 +900,17 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         setHoverData(null);
       })
       .on('mousemove', (event) => {
+        if (!xScale || !yScale) {
+          return;
+        }
         const [mouseX, mouseY] = d3.pointer(event);
         const mouseIndex = xScale.invert(mouseX);
 
         // Find closest data point by index
         const index = Math.round(mouseIndex);
         // Use the current view state to get visible data
-        const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+        // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+        const currentVisibleData = visibleData;
         if (!currentVisibleData) {
           return;
         }
@@ -885,27 +948,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         }
       });
 
-    // Reset the chart creation flag and mark chart as existing
-    isCreatingChartRef.current = false;
-    chartExistsRef.current = true;
     setChartLoaded(true);
     console.log('🎯 CHART LOADED - Axes can now be created');
-  }, [
-    chartDataHook.chartData,
-    dimensions,
-    chartType,
-    currentViewStart,
-    currentViewEnd,
-    xScale,
-    yScale,
-  ]);
+  };
 
   // Centralized chart rendering - automatically re-renders when dependencies change
   useEffect(() => {
-    const svg = d3.select(svgRef.current);
-    const chartContent = svg.select('.chart-content');
-
-    if (chartContent.empty()) {
+    if (!chartContentRef.current || chartContentRef.current.empty()) {
       // No chart content available
       return;
     }
@@ -913,7 +962,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     // Render started (debug log removed to prevent spam)
 
     // Get visible data based on current view state
-    const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    // const currentVisibleData = getVisibleData(currentViewStart, currentViewEnd);
+    const currentVisibleData = visibleData;
     if (!currentVisibleData || currentVisibleData.length === 0) {
       return;
     }
@@ -980,7 +1030,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     currentViewStart,
     currentViewEnd,
     dimensions,
-    getVisibleData,
+    visibleData,
   ]);
 
   // Update chart data when view state changes (to show historical data)
