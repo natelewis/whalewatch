@@ -172,7 +172,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
-  const chartContentRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const [chartContent, setChartContent] = useState<d3.Selection<
+    SVGGElement,
+    unknown,
+    null,
+    undefined
+  > | null>(null);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [hoverData, setHoverData] = useState<HoverData | null>(null);
@@ -212,7 +217,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const lastViewIndicesRef = useRef<{ start: number; end: number } | null>(null);
 
   // Track if chart already exists to avoid unnecessary recreations
-  const chartExistsRef = useRef<boolean>(false);
+  const [chartExists, setChartExists] = useState<boolean>(false);
 
   // Track when chart was last created to prevent rapid recreations
   const lastChartCreationRef = useRef<number>(0);
@@ -293,7 +298,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     if (timeframe !== null) {
       isInitialLoad.current = true; // Reset for new symbol/timeframe
-      // chartExistsRef.current = false; // Reset chart existence for new symbol/timeframe
+      // setChartExists(false); // Reset chart existence for new symbol/timeframe
       setHasUserPanned(false); // Reset user panning state
       setChartLoaded(false); // Reset chart loaded state
       chartDataHook.loadChartData(symbol, timeframe);
@@ -367,7 +372,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         setCurrentViewStart(newStartIndex);
         setCurrentViewEnd(newEndIndex);
         isInitialLoad.current = false; // Mark initial load as complete
-        // chartExistsRef.current = false; // Reset chart existence for new data
+        // setChartExists(false); // Reset chart existence for new data
       } else if (totalDataLength > prevDataLength) {
         // If data length increased (new data loaded), don't adjust view position
         // The view should only change during user interactions, not data loads
@@ -401,7 +406,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       !hasUserPanned ||
       isVerticallyPanningRef.current ||
       isDataLoadingRef.current ||
-      !chartExistsRef.current || // Don't load data if chart doesn't exist yet
+      !chartExists || // Don't load data if chart doesn't exist yet
       timeSinceLastChartCreation < DATA_LOAD_DELAY // Wait for delay after chart creation
     ) {
       // console.log('checkAndLoadMoreData: Early return');
@@ -543,8 +548,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Create D3 chart
   const createChart = (): void => {
     if (
-      (chartExistsRef.current,
-      !svgElement || allChartData.length === 0 || !xScale || !yScale || chartLoaded) ||
+      chartExists ||
+      !svgElement ||
+      allChartData.length === 0 ||
+      !xScale ||
+      !yScale ||
+      chartLoaded ||
       !visibleData ||
       !xScale ||
       !yScale
@@ -556,11 +565,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    chartExistsRef.current = true;
+    setChartExists(true);
     const svg = d3.select(svgElement);
     svg.selectAll('*').remove(); // Clear previous chart
     gRef.current = null; // Reset the g ref when clearing the chart
-    chartContentRef.current = null; // Reset the chart content ref when clearing the chart
+    setChartContent(null); // Reset the chart content when clearing the chart
 
     const { width, height, margin } = dimensions;
     const innerWidth = width - margin.left - margin.right;
@@ -593,14 +602,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         !isNaN(d.close)
     );
 
-    if (!hasValidData) {
-      console.warn('createChart: Invalid data points detected, skipping chart creation', {
-        visibleDataLength: visibleData.length,
-        firstDataPoint: visibleData[0],
-        lastDataPoint: visibleData[visibleData.length - 1],
-      });
-      return;
-    }
+    // if (!hasValidData) {
+    //   console.warn('createChart: Invalid data points detected, skipping chart creation', {
+    //     visibleDataLength: visibleData.length,
+    //     firstDataPoint: visibleData[0],
+    //     lastDataPoint: visibleData[visibleData.length - 1],
+    //   });
+    //   return;
+    // }
 
     console.log('Creating chart with visible data:', {
       totalData: sortedData.length,
@@ -625,24 +634,27 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       .attr('width', innerWidth)
       .attr('height', innerHeight);
 
-    // Create chart content group (store in ref for reuse)
-    if (!chartContentRef.current) {
-      chartContentRef.current = g
+    // Create chart content group (store in state for reuse)
+    if (!chartContent) {
+      const newChartContent = g
         .append('g')
         .attr('class', 'chart-content')
         .attr('clip-path', 'url(#clip)');
+      setChartContent(newChartContent);
     }
 
     // Create chart elements - draw only visible data based on current view state
     // const chartVisibleData = getVisibleData(currentViewStart, currentViewEnd);
     const chartVisibleData = visibleData;
 
-    if (!chartVisibleData || chartVisibleData.length === 0) {
-      console.warn('createChart: No visible data available, skipping chart creation');
-      return;
-    }
+    // if (!chartVisibleData || chartVisibleData.length === 0) {
+    //   console.warn('createChart: No visible data available, skipping chart creation');
+    //   return;
+    // }
 
-    renderCandlestickChart(chartContentRef.current, chartVisibleData, xScale, yScale);
+    if (chartContent) {
+      renderCandlestickChart(chartContent, chartVisibleData, xScale, yScale);
+    }
 
     // Create axes in the main chart group
     const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
@@ -759,21 +771,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
       }
 
-      // Use existing chart content ref or create new one
-      if (!chartContentRef.current) {
-        chartContentRef.current = g
+      // Use existing chart content or create new one
+      if (!chartContent) {
+        const newChartContent = g
           .append('g')
           .attr('class', 'chart-content')
           .attr('clip-path', 'url(#clip)');
+        setChartContent(newChartContent);
       }
 
       // Create chart elements - draw only visible data based on current view state
-      renderCandlestickChart(
-        chartContentRef.current,
-        visibleData,
-        consistentXScale,
-        consistentYScale
-      );
+      if (chartContent) {
+        renderCandlestickChart(chartContent, visibleData, consistentXScale, consistentYScale);
+      }
 
       // Check if we need to load more data (throttled)
       const now = Date.now();
@@ -883,7 +893,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Centralized chart rendering - automatically re-renders when dependencies change
   useEffect(() => {
-    if (!chartContentRef.current || chartContentRef.current.empty()) {
+    if (!chartContent || chartContent.empty()) {
       // No chart content available
       return;
     }
@@ -897,7 +907,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    renderCandlestickChart(chartContentRef.current, currentVisibleData, xScale, yScale);
+    if (chartContent) {
+      renderCandlestickChart(chartContent, currentVisibleData, xScale, yScale);
+    }
   }, [
     allChartData.length,
     currentViewStart,
@@ -930,12 +942,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       // Create chart if it doesn't exist yet, or if there's a significant data change
       // Don't recreate chart after panning - this causes unwanted y-scale recalculation
-      const shouldCreateChart = !chartExistsRef.current;
+      const shouldCreateChart = !chartExists;
 
       if (shouldCreateChart) {
         console.log(
           'Creating chart - chartExists:',
-          chartExistsRef.current,
+          chartExists,
           'dataLength:',
           allChartData.length,
           'hasUserPanned:',
