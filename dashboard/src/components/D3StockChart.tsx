@@ -124,7 +124,6 @@ const calculateChartState = ({
       high: lastDataPoint.close + 0.01, // Make it slightly visible for debugging
       low: lastDataPoint.close - 0.01,
       close: lastDataPoint.close,
-      volume: 0,
     };
     const dataWithFake = [...sortedData, fakeFuturePoint];
 
@@ -229,7 +228,6 @@ const calculateChartState = ({
       high: lastDataPoint.close + 0.01,
       low: lastDataPoint.close - 0.01,
       close: lastDataPoint.close,
-      volume: 0,
     };
     dataWithFake = [...sortedData, fakeFuturePoint];
 
@@ -477,6 +475,10 @@ const createChart = ({
     setIsZooming(true);
     setIsPanning(true);
     setHasUserPanned(true); // Mark that user has started panning
+
+    // Hide crosshair during panning
+    crosshair.select('.crosshair-x').style('opacity', 0);
+    crosshair.select('.crosshair-y').style('opacity', 0);
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -495,9 +497,9 @@ const createChart = ({
     setCurrentViewEnd(calculations.viewEnd);
 
     // Apply transform to the main chart content group (includes candlesticks)
-    const chartContentGroup = g.select<SVGGElement>('.chart-content');
-    if (!chartContentGroup.empty()) {
-      chartContentGroup.attr('transform', calculations.transformString);
+    const chartContentGroupElement = g.select<SVGGElement>('.chart-content');
+    if (!chartContentGroupElement.empty()) {
+      chartContentGroupElement.attr('transform', calculations.transformString);
     }
 
     // Update X-axis using the same transformed scale as candlesticks
@@ -550,12 +552,15 @@ const createChart = ({
   const handleZoomEnd = (): void => {
     setIsZooming(false);
     setIsPanning(false);
+
+    // Don't show crosshair immediately - wait for mouse movement
+    // The crosshair will be shown by the mousemove event on the overlay
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
   svg.call(zoom);
 
-  // Add crosshair
+  // Add crosshair outside the chart content group so it follows cursor directly
   const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
 
   crosshair
@@ -582,6 +587,7 @@ const createChart = ({
     .style('fill', 'none')
     .style('pointer-events', 'all')
     .on('mouseover', () => {
+      // Show crosshairs when mouse enters chart area
       crosshair.select('.crosshair-x').style('opacity', 1);
       crosshair.select('.crosshair-y').style('opacity', 1);
     })
@@ -594,6 +600,11 @@ const createChart = ({
       if (!xScale || !yScale) {
         return;
       }
+
+      // Ensure crosshairs are visible when mouse moves
+      crosshair.select('.crosshair-x').style('opacity', 1);
+      crosshair.select('.crosshair-y').style('opacity', 1);
+
       const [mouseX, mouseY] = d3.pointer(event);
 
       // Get the current transform from the zoom behavior
@@ -628,7 +639,8 @@ const createChart = ({
       });
 
       if (d) {
-        // Update crosshair to follow cursor position exactly
+        // Update crosshair to follow the mouse cursor directly
+        // Use raw mouse coordinates so crosshair follows cursor during panning
         crosshair
           .select('.crosshair-x')
           .attr('x1', mouseX)
@@ -706,10 +718,11 @@ const renderCandlestickChart = (
     const x = calculations.baseXScale(globalIndex);
 
     // Check if this is the fake candle (it will be the last one in the buffered data)
+    // Fake candles are identified by being the last item and having a very small price range
     const isFakeCandle =
       bufferedIndex === calculations.bufferedData.length - 1 &&
       calculations.bufferedData.length > 0 &&
-      calculations.bufferedData[calculations.bufferedData.length - 1].volume === 0;
+      Math.abs(d.high - d.low) < 0.02; // Fake candles have very small price range
 
     console.log(
       `Rendering candle ${bufferedIndex}: globalIndex=${globalIndex}, x=${x}, isFake=${isFakeCandle}`
