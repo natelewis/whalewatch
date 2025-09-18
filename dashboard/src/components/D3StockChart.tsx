@@ -90,27 +90,6 @@ const calculateChartState = ({
   const idealBufferSize = TOTAL_BUFFERED_POINTS;
   const actualBufferSize = Math.min(idealBufferSize, availableDataLength);
 
-  // Calculate base scales for visible data positioning
-  // The scale maps visible data positions to screen coordinates
-  const baseXScale = d3
-    .scaleLinear()
-    .domain([0, CHART_DATA_POINTS - 1])
-    .range([0, innerWidth]);
-
-  const baseYScale = d3
-    .scaleLinear()
-    .domain(
-      fixedYScaleDomain || [
-        d3.min(visibleData, (d) => d.low) as number,
-        d3.max(visibleData, (d) => d.high) as number,
-      ]
-    )
-    .range([innerHeight, 0]);
-
-  // Calculate transformed scales (single source)
-  const transformedXScale = transform.rescaleX(baseXScale);
-  const transformedYScale = transform.rescaleY(baseYScale);
-
   // Calculate view indices with buffer system (single source)
   const panOffsetPixels = transform.x;
   const bandWidth = innerWidth / CHART_DATA_POINTS;
@@ -140,6 +119,24 @@ const calculateChartState = ({
     availableDataLength - 1,
     Math.max(viewStart + CHART_DATA_POINTS - 1, idealVisibleEnd)
   );
+
+  // Calculate base scales for full buffer positioning
+  // Maps global data indices to screen coordinates, with visible area at [0, innerWidth]
+  const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
+
+  const baseYScale = d3
+    .scaleLinear()
+    .domain(
+      fixedYScaleDomain || [
+        d3.min(visibleData, (d) => d.low) as number,
+        d3.max(visibleData, (d) => d.high) as number,
+      ]
+    )
+    .range([innerHeight, 0]);
+
+  // Calculate transformed scales (single source)
+  const transformedXScale = transform.rescaleX(baseXScale);
+  const transformedYScale = transform.rescaleY(baseYScale);
 
   // Get sorted data (single source)
   const sortedData = [...allChartData].sort(
@@ -177,6 +174,12 @@ const calculateChartState = ({
     scale: {
       domain: baseXScale.domain(),
       range: baseXScale.range(),
+      samplePositions: {
+        leftBuffer: `index ${bufferedViewStart} → x=${baseXScale(bufferedViewStart)}`,
+        firstVisible: `index ${viewStart} → x=${baseXScale(viewStart)}`,
+        lastVisible: `index ${viewEnd} → x=${baseXScale(viewEnd)}`,
+        rightBuffer: `index ${bufferedViewEnd} → x=${baseXScale(bufferedViewEnd)}`,
+      },
     },
   });
 
@@ -289,17 +292,20 @@ const createChart = ({
 
   const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
 
-  // Add a clip-path to prevent drawing outside the chart area
+  // Add a clip-path that's large enough for all buffered content
+  // Allow plenty of space for off-screen candlesticks to be rendered
+  const bufferSpace = innerWidth * 2; // Large buffer for off-screen rendering
   svg
     .append('defs')
     .append('clipPath')
     .attr('id', 'clip')
     .append('rect')
-    .attr('width', innerWidth)
-    .attr('height', innerHeight);
+    .attr('x', -bufferSpace)
+    .attr('y', -bufferSpace)
+    .attr('width', innerWidth + bufferSpace * 2)
+    .attr('height', innerHeight + bufferSpace * 2);
 
   // Create chart content group for transforms
-  // No initial offset - we'll handle positioning through the scale and transforms
   g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
 
   // Create axes in the main chart group
@@ -307,21 +313,17 @@ const createChart = ({
   const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
   const chartInnerHeight = chartHeight - chartMargin.top - chartMargin.bottom;
 
-  // Create X-axis for visible area only
-  const visibleXScale = d3
-    .scaleLinear()
-    .domain([0, CHART_DATA_POINTS - 1])
-    .range([0, chartInnerWidth]);
-
+  // Create X-axis using global indices (will be updated dynamically in handleZoom)
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
     .call(
-      d3.axisBottom(visibleXScale).tickFormat((d) => {
-        const visibleIndex = Math.round(d as number);
-        if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
-          const date = new Date(visibleData[visibleIndex].time);
+      d3.axisBottom(xScale).tickFormat((d) => {
+        const globalIndex = Math.round(d as number);
+        // Find the data point at this global index
+        if (globalIndex >= 0 && globalIndex < sortedData.length) {
+          const date = new Date(sortedData[globalIndex].time);
           return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
         return '';
@@ -392,19 +394,18 @@ const createChart = ({
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
-    // Update X-axis using visible area scale (not the buffered scale)
-    const visibleXScale = d3
-      .scaleLinear()
-      .domain([0, CHART_DATA_POINTS - 1])
-      .range([0, calculations.innerWidth]);
-
+    // Update X-axis using the same transformed scale as candlesticks
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       xAxisGroup.call(
-        d3.axisBottom(visibleXScale).tickFormat((d) => {
-          const visibleIndex = Math.floor(d as number);
-          if (visibleIndex >= 0 && visibleIndex < calculations.visibleData.length) {
-            const date = new Date(calculations.visibleData[visibleIndex].time);
+        d3.axisBottom(calculations.transformedXScale).tickFormat((d) => {
+          const globalIndex = Math.floor(d as number);
+          // Find the data point at this global index
+          const sortedData = [...allChartData].sort(
+            (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+          );
+          if (globalIndex >= 0 && globalIndex < sortedData.length) {
+            const date = new Date(sortedData[globalIndex].time);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
           return '';
@@ -542,50 +543,41 @@ const renderCandlestickChart = (
 
   const candleWidth = Math.max(1, 4);
 
-  // Render buffered data positioned relative to visible area
+  // Render ALL buffered data - let clipping handle what's visible
+  // Pre-render everything so it's available during smooth panning
   calculations.bufferedData.forEach((d, bufferedIndex) => {
-    // Calculate position relative to the visible data range
+    // Use global index directly with the scale
     const globalIndex = calculations.bufferedViewStart + bufferedIndex;
-    const relativeToVisible = globalIndex - calculations.viewStart;
+    const x = calculations.baseXScale(globalIndex);
 
-    // Only render if within reasonable range (visible + buffer zones)
-    if (
-      relativeToVisible >= -OUTSIDE_BUFFER &&
-      relativeToVisible < CHART_DATA_POINTS + OUTSIDE_BUFFER
-    ) {
-      const x = calculations.baseXScale(relativeToVisible);
+    console.log(`Rendering candle ${bufferedIndex}: globalIndex=${globalIndex}, x=${x}`);
 
-      console.log(
-        `Rendering candle ${bufferedIndex}: globalIndex=${globalIndex}, relativePos=${relativeToVisible}, x=${x}`
-      );
+    const isUp = d.close >= d.open;
+    const color = isUp ? '#26a69a' : '#ef5350';
 
-      const isUp = d.close >= d.open;
-      const color = isUp ? '#26a69a' : '#ef5350';
+    // High-Low line
+    candleSticks
+      .append('line')
+      .attr('x1', x)
+      .attr('x2', x)
+      .attr('y1', calculations.baseYScale(d.high))
+      .attr('y2', calculations.baseYScale(d.low))
+      .attr('stroke', color)
+      .attr('stroke-width', 1);
 
-      // High-Low line
-      candleSticks
-        .append('line')
-        .attr('x1', x)
-        .attr('x2', x)
-        .attr('y1', calculations.baseYScale(d.high))
-        .attr('y2', calculations.baseYScale(d.low))
-        .attr('stroke', color)
-        .attr('stroke-width', 1);
-
-      // Open-Close rectangle
-      candleSticks
-        .append('rect')
-        .attr('x', x - candleWidth / 2)
-        .attr('y', calculations.baseYScale(Math.max(d.open, d.close)))
-        .attr('width', candleWidth)
-        .attr(
-          'height',
-          Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1
-        )
-        .attr('fill', isUp ? color : 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1);
-    }
+    // Open-Close rectangle
+    candleSticks
+      .append('rect')
+      .attr('x', x - candleWidth / 2)
+      .attr('y', calculations.baseYScale(Math.max(d.open, d.close)))
+      .attr('width', candleWidth)
+      .attr(
+        'height',
+        Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1
+      )
+      .attr('fill', isUp ? color : 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 1);
   });
 
   console.log('🎨 Rendered candles (FULL BUFFER):', {
