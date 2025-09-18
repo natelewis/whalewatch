@@ -436,11 +436,28 @@ const createChart = ({
       );
     });
 
+  // const handleZoomStart = (): void => {
+  //   setIsZooming(true);
+  //   setIsPanning(true);
+  //   setHasUserPanned(true); // Mark that user has started panning
+  //   panStartYTranslate = currentYTranslate;
+
+  //   // Hide crosshair during panning
+  //   crosshair.select('.crosshair-x').style('opacity', 0);
+  //   crosshair.select('.crosshair-y').style('opacity', 0);
+  // };
+
   const handleZoomStart = (): void => {
     setIsZooming(true);
     setIsPanning(true);
     setHasUserPanned(true); // Mark that user has started panning
-    panStartYTranslate = currentYTranslate;
+
+    // Separate the component of y-translation that comes from wheel-zoom
+    // from the component that comes from d3's panning. This prevents a "snap"
+    // when starting a new pan after a previous one.
+    const lastTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+    const lastPanY = lastTransform.y;
+    panStartYTranslate = currentYTranslate - lastPanY;
 
     // Hide crosshair during panning
     crosshair.select('.crosshair-x').style('opacity', 0);
