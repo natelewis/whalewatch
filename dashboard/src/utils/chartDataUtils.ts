@@ -154,6 +154,13 @@ export const createYAxis = (
 };
 
 /**
+ * Format price values consistently (2 decimal places)
+ */
+export const formatPrice = (price: number): string => {
+  return price.toFixed(2);
+};
+
+/**
  * Fill missing intervals for any timeframe data
  */
 export const fillMissingMinutes = (

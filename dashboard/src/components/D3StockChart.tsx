@@ -10,6 +10,7 @@ import {
   applyAxisStyling,
   createXAxis,
   createYAxis,
+  formatPrice,
 } from '../utils/chartDataUtils';
 import { BarChart3, Settings, Play, Pause, RotateCcw } from 'lucide-react';
 
@@ -338,6 +339,9 @@ const createChart = ({
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       xAxisGroup.call(createXAxis(calculations.transformedXScale, allChartData));
+
+      // Apply consistent styling to maintain consistency with initial load
+      applyAxisStyling(xAxisGroup);
     }
 
     // Update Y-axis using centralized calculations
@@ -1262,25 +1266,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                     <span className="text-muted-foreground">
                       O:{' '}
                       <span className="font-mono text-foreground">
-                        {hoverData.data.open.toFixed(2)}
+                        {formatPrice(hoverData.data.open)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       H:{' '}
                       <span className="font-mono text-foreground">
-                        {hoverData.data.high.toFixed(2)}
+                        {formatPrice(hoverData.data.high)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       L:{' '}
                       <span className="font-mono text-foreground">
-                        {hoverData.data.low.toFixed(2)}
+                        {formatPrice(hoverData.data.low)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       C:{' '}
                       <span className="font-mono text-foreground">
-                        {hoverData.data.close.toFixed(2)}
+                        {formatPrice(hoverData.data.close)}
                       </span>
                     </span>
                   </div>
