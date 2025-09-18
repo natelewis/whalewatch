@@ -91,7 +91,12 @@ const calculateChartState = ({
   // Calculate view indices with buffer system (single source)
   const panOffsetPixels = transform.x;
   const bandWidth = innerWidth / CHART_DATA_POINTS;
-  const panOffset = panOffsetPixels / bandWidth;
+  let panOffset = panOffsetPixels / bandWidth;
+
+  // Constrain panning to prevent going beyond the fake future data point
+  // Allow panning up to 1 data point to the right (to show the fake future point at right edge)
+  const maxPanOffset = 1; // Maximum pan offset in data points
+  panOffset = Math.min(panOffset, maxPanOffset);
 
   // Base view shows most recent data, adjusted for available data
   const baseViewStart = Math.max(0, availableDataLength - actualBufferSize);
@@ -482,7 +487,17 @@ const createChart = ({
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
-    const { transform } = event;
+    let { transform } = event;
+
+    // Apply panning constraint to prevent going beyond the fake future data point
+    const bandWidth = innerWidth / CHART_DATA_POINTS;
+    const maxPanOffsetPixels = bandWidth * 1; // Allow panning by 1 data point to show fake point at right edge
+    const constrainedX = Math.min(transform.x, maxPanOffsetPixels);
+
+    // Create a new transform with the constrained x value
+    if (constrainedX !== transform.x) {
+      transform = d3.zoomIdentity.translate(constrainedX, transform.y).scale(transform.k);
+    }
 
     // Single source of truth for all calculations
     const calculations = calculateChartState({
@@ -626,17 +641,6 @@ const createChart = ({
 
       const clampedIndex = Math.max(0, Math.min(index, sortedChartData.length - 1));
       const d = sortedChartData[clampedIndex];
-
-      // Debug logging to verify hover data is updating
-      console.log('Hover debug:', {
-        mouseX,
-        mouseIndex,
-        index,
-        clampedIndex,
-        dataPoint: d
-          ? { time: d.time, open: d.open, high: d.high, low: d.low, close: d.close }
-          : null,
-      });
 
       if (d) {
         // Update crosshair to follow the mouse cursor directly
