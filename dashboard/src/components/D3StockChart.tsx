@@ -34,6 +34,9 @@ interface HoverData {
 // CONFIGURATION CONSTANTS - Modify these to adjust chart behavior
 // ============================================================================
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
+const OUTSIDE_BUFFER = 100; // Read datapoints to the left and right of visible area (off-screen buffer)
+const DATA_FETCH_THRESHOLD = 75; // Fetch more data when only this many points remain on either side
+const TOTAL_BUFFERED_POINTS = CHART_DATA_POINTS + OUTSIDE_BUFFER * 2; // Total points including buffers
 // ============================================================================
 
 // ============================================================================
@@ -52,10 +55,13 @@ interface ChartCalculations {
   transformedXScale: d3.ScaleLinear<number, number>;
   transformedYScale: d3.ScaleLinear<number, number>;
 
-  // View calculations
+  // View calculations with buffer system
   viewStart: number;
   viewEnd: number;
+  bufferedViewStart: number;
+  bufferedViewEnd: number;
   visibleData: ChartData;
+  bufferedData: ChartData; // Includes off-screen buffer data for pre-rendering
 
   // Transform string for rendering
   transformString: string;
@@ -79,10 +85,16 @@ const calculateChartState = ({
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
-  // Calculate base scales (single source)
+  // Handle cases where we have less data than the ideal buffer size
+  const availableDataLength = allChartData.length;
+  const idealBufferSize = TOTAL_BUFFERED_POINTS;
+  const actualBufferSize = Math.min(idealBufferSize, availableDataLength);
+
+  // Calculate base scales for visible data positioning
+  // The scale maps visible data positions to screen coordinates
   const baseXScale = d3
     .scaleLinear()
-    .domain([0, visibleData.length - 1])
+    .domain([0, CHART_DATA_POINTS - 1])
     .range([0, innerWidth]);
 
   const baseYScale = d3
@@ -99,19 +111,74 @@ const calculateChartState = ({
   const transformedXScale = transform.rescaleX(baseXScale);
   const transformedYScale = transform.rescaleY(baseYScale);
 
-  // Calculate view indices (single source)
+  // Calculate view indices with buffer system (single source)
   const panOffsetPixels = transform.x;
   const bandWidth = innerWidth / CHART_DATA_POINTS;
   const panOffset = panOffsetPixels / bandWidth;
-  const baseViewStart = allChartData.length - CHART_DATA_POINTS;
-  const viewStart = Math.max(0, baseViewStart - panOffset);
-  const viewEnd = Math.min(allChartData.length - 1, viewStart + CHART_DATA_POINTS - 1);
 
-  // Get visible data (single source)
+  // Base view shows most recent data, adjusted for available data
+  const baseViewStart = Math.max(0, availableDataLength - actualBufferSize);
+  const bufferedViewStart = Math.max(
+    0,
+    Math.min(availableDataLength - actualBufferSize, baseViewStart - panOffset)
+  );
+  const bufferedViewEnd = Math.min(
+    availableDataLength - 1,
+    bufferedViewStart + actualBufferSize - 1
+  );
+
+  // Actual visible area is the center portion, or what we can fit
+  const idealVisibleStart = bufferedViewStart + OUTSIDE_BUFFER;
+  const idealVisibleEnd = idealVisibleStart + CHART_DATA_POINTS - 1;
+
+  // Ensure we don't go out of bounds
+  const viewStart = Math.max(
+    0,
+    Math.min(idealVisibleStart, availableDataLength - CHART_DATA_POINTS)
+  );
+  const viewEnd = Math.min(
+    availableDataLength - 1,
+    Math.max(viewStart + CHART_DATA_POINTS - 1, idealVisibleEnd)
+  );
+
+  // Get sorted data (single source)
   const sortedData = [...allChartData].sort(
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
+
+  // Get visible data (center portion)
   const calculatedVisibleData = sortedData.slice(viewStart, viewEnd + 1);
+
+  // Get buffered data (includes off-screen candles for smooth panning)
+  const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
+
+  // Ensure we have reasonable data lengths
+  const actualVisibleData = calculatedVisibleData.length > 0 ? calculatedVisibleData : [];
+  const actualBufferedData =
+    calculatedBufferedData.length > 0 ? calculatedBufferedData : actualVisibleData;
+
+  // Debug logging for view calculations
+  console.log('🔢 View Calculations:', {
+    availableDataLength,
+    idealBufferSize,
+    actualBufferSize,
+    panOffset: Math.round(panOffset * 100) / 100,
+    indices: {
+      baseViewStart,
+      bufferedViewStart,
+      bufferedViewEnd,
+      viewStart,
+      viewEnd,
+    },
+    dataLengths: {
+      actualVisibleData: actualVisibleData.length,
+      actualBufferedData: actualBufferedData.length,
+    },
+    scale: {
+      domain: baseXScale.domain(),
+      range: baseXScale.range(),
+    },
+  });
 
   return {
     innerWidth,
@@ -122,7 +189,10 @@ const calculateChartState = ({
     transformedYScale,
     viewStart,
     viewEnd,
-    visibleData: calculatedVisibleData,
+    bufferedViewStart,
+    bufferedViewEnd,
+    visibleData: actualVisibleData,
+    bufferedData: actualBufferedData,
     transformString: transform.toString(),
   };
 };
@@ -229,6 +299,7 @@ const createChart = ({
     .attr('height', innerHeight);
 
   // Create chart content group for transforms
+  // No initial offset - we'll handle positioning through the scale and transforms
   g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
 
   // Create axes in the main chart group
@@ -236,13 +307,18 @@ const createChart = ({
   const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
   const chartInnerHeight = chartHeight - chartMargin.top - chartMargin.bottom;
 
-  // Create X-axis
+  // Create X-axis for visible area only
+  const visibleXScale = d3
+    .scaleLinear()
+    .domain([0, CHART_DATA_POINTS - 1])
+    .range([0, chartInnerWidth]);
+
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
     .call(
-      d3.axisBottom(xScale).tickFormat((d) => {
+      d3.axisBottom(visibleXScale).tickFormat((d) => {
         const visibleIndex = Math.round(d as number);
         if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
           const date = new Date(visibleData[visibleIndex].time);
@@ -316,11 +392,16 @@ const createChart = ({
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
-    // Update X-axis using centralized calculations
+    // Update X-axis using visible area scale (not the buffered scale)
+    const visibleXScale = d3
+      .scaleLinear()
+      .domain([0, CHART_DATA_POINTS - 1])
+      .range([0, calculations.innerWidth]);
+
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       xAxisGroup.call(
-        d3.axisBottom(calculations.transformedXScale).tickFormat((d) => {
+        d3.axisBottom(visibleXScale).tickFormat((d) => {
           const visibleIndex = Math.floor(d as number);
           if (visibleIndex >= 0 && visibleIndex < calculations.visibleData.length) {
             const date = new Date(calculations.visibleData[visibleIndex].time);
@@ -461,36 +542,78 @@ const renderCandlestickChart = (
 
   const candleWidth = Math.max(1, 4);
 
-  calculations.visibleData.forEach((d, index) => {
-    // Use the base x scale directly (not transformed - transform is applied to group)
-    const x = calculations.baseXScale(index);
+  // Render buffered data positioned relative to visible area
+  calculations.bufferedData.forEach((d, bufferedIndex) => {
+    // Calculate position relative to the visible data range
+    const globalIndex = calculations.bufferedViewStart + bufferedIndex;
+    const relativeToVisible = globalIndex - calculations.viewStart;
 
-    const isUp = d.close >= d.open;
-    const color = isUp ? '#26a69a' : '#ef5350';
+    // Only render if within reasonable range (visible + buffer zones)
+    if (
+      relativeToVisible >= -OUTSIDE_BUFFER &&
+      relativeToVisible < CHART_DATA_POINTS + OUTSIDE_BUFFER
+    ) {
+      const x = calculations.baseXScale(relativeToVisible);
 
-    // High-Low line
-    candleSticks
-      .append('line')
-      .attr('x1', x)
-      .attr('x2', x)
-      .attr('y1', calculations.baseYScale(d.high))
-      .attr('y2', calculations.baseYScale(d.low))
-      .attr('stroke', color)
-      .attr('stroke-width', 1);
+      console.log(
+        `Rendering candle ${bufferedIndex}: globalIndex=${globalIndex}, relativePos=${relativeToVisible}, x=${x}`
+      );
 
-    // Open-Close rectangle
-    candleSticks
-      .append('rect')
-      .attr('x', x - candleWidth / 2)
-      .attr('y', calculations.baseYScale(Math.max(d.open, d.close)))
-      .attr('width', candleWidth)
-      .attr(
-        'height',
-        Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1
-      )
-      .attr('fill', isUp ? color : 'none')
-      .attr('stroke', color)
-      .attr('stroke-width', 1);
+      const isUp = d.close >= d.open;
+      const color = isUp ? '#26a69a' : '#ef5350';
+
+      // High-Low line
+      candleSticks
+        .append('line')
+        .attr('x1', x)
+        .attr('x2', x)
+        .attr('y1', calculations.baseYScale(d.high))
+        .attr('y2', calculations.baseYScale(d.low))
+        .attr('stroke', color)
+        .attr('stroke-width', 1);
+
+      // Open-Close rectangle
+      candleSticks
+        .append('rect')
+        .attr('x', x - candleWidth / 2)
+        .attr('y', calculations.baseYScale(Math.max(d.open, d.close)))
+        .attr('width', candleWidth)
+        .attr(
+          'height',
+          Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1
+        )
+        .attr('fill', isUp ? color : 'none')
+        .attr('stroke', color)
+        .attr('stroke-width', 1);
+    }
+  });
+
+  console.log('🎨 Rendered candles (FULL BUFFER):', {
+    bufferedDataLength: calculations.bufferedData.length,
+    visibleDataLength: calculations.visibleData.length,
+    bufferedRange: `${calculations.bufferedViewStart}-${calculations.bufferedViewEnd}`,
+    visibleRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+    bufferAvailable: `L:${calculations.viewStart - calculations.bufferedViewStart}, R:${
+      calculations.bufferedViewEnd - calculations.viewEnd
+    }`,
+    scaleInfo: {
+      domain: calculations.baseXScale.domain(),
+      range: calculations.baseXScale.range(),
+      totalWidth: calculations.baseXScale.range()[1] - calculations.baseXScale.range()[0],
+      bufferWidth: OUTSIDE_BUFFER * (calculations.innerWidth / CHART_DATA_POINTS),
+    },
+    positioning: {
+      firstBufferedX: calculations.baseXScale(0),
+      firstVisibleX: calculations.baseXScale(OUTSIDE_BUFFER),
+      lastVisibleX: calculations.baseXScale(OUTSIDE_BUFFER + CHART_DATA_POINTS - 1),
+      lastBufferedX: calculations.baseXScale(TOTAL_BUFFERED_POINTS - 1),
+    },
+    dataInfo: {
+      firstBufferedTime: calculations.bufferedData[0]?.time,
+      firstVisibleTime: calculations.bufferedData[OUTSIDE_BUFFER]?.time,
+      lastVisibleTime: calculations.bufferedData[OUTSIDE_BUFFER + CHART_DATA_POINTS - 1]?.time,
+      lastBufferedTime: calculations.bufferedData[calculations.bufferedData.length - 1]?.time,
+    },
   });
 };
 
@@ -597,6 +720,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Track loading attempts to prevent infinite loops
   const lastLoadAttemptRef = useRef<{ type: 'left' | 'right'; dataLength: number } | null>(null);
+
+  // Track when we've reached the limits of available data
+  const dataLimitsRef = useRef<{ hasReachedLeftLimit: boolean; hasReachedRightLimit: boolean }>({
+    hasReachedLeftLimit: false,
+    hasReachedRightLimit: false,
+  });
 
   // Track if we're currently loading data to preserve price range
   const isDataLoadingRef = useRef<boolean>(false);
@@ -708,6 +837,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       setHasUserPanned(false); // Reset user panning state
       setChartLoaded(false); // Reset chart loaded state
       setFixedYScaleDomain(null); // Reset fixed y-scale domain for new data
+
+      // Reset data limits for new symbol/timeframe
+      dataLimitsRef.current = {
+        hasReachedLeftLimit: false,
+        hasReachedRightLimit: false,
+      };
+      lastLoadAttemptRef.current = null; // Reset load attempt tracking
+
+      console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
       chartDataHook.loadChartData(symbol, timeframe);
     }
   }, [symbol, timeframe]);
@@ -763,17 +901,22 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       const totalDataLength = allChartData.length;
       const prevDataLength = prevDataLengthRef.current;
 
-      // If this is the first load, show newest data
+      // If this is the first load, show newest data with proper buffer setup
       if (prevDataLength === 0) {
+        // Set up initial view to show most recent data with full buffer available
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
-        console.log('Initial load - setting view indices:', {
+        console.log('Initial load - setting view indices with buffer system:', {
           totalDataLength,
           CHART_DATA_POINTS,
+          OUTSIDE_BUFFER,
+          TOTAL_BUFFERED_POINTS,
           newStartIndex,
           newEndIndex,
           rangeSize: newEndIndex - newStartIndex + 1,
+          availableLeftBuffer: newStartIndex,
+          availableRightBuffer: totalDataLength - newEndIndex - 1,
         });
 
         setCurrentViewStart(newStartIndex);
@@ -819,28 +962,52 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     isDataLoadingRef.current = true;
 
     const totalDataLength = allChartData.length;
-    const bufferSize = 300; // Load more data when within 300 points of edge - very aggressive preloading
+
+    // Calculate actual buffer positions based on current view
+    const leftBufferRemaining = currentViewStart; // How much data is available to the left
+    const rightBufferRemaining = totalDataLength - currentViewEnd - 1; // How much data is available to the right
 
     let shouldLoadLeft = false;
     let shouldLoadRight = false;
 
-    // Check if we need more historical data (panning left)
-    if (currentViewStart <= bufferSize && !chartDataHook.isLeftLoading && totalDataLength > 0) {
+    // Check if we need more historical data (approaching left edge of buffer)
+    if (
+      leftBufferRemaining <= DATA_FETCH_THRESHOLD &&
+      !chartDataHook.isLeftLoading &&
+      !dataLimitsRef.current.hasReachedLeftLimit &&
+      totalDataLength > 0
+    ) {
       const lastAttempt = lastLoadAttemptRef.current;
       if (!(lastAttempt?.type === 'left' && lastAttempt.dataLength === totalDataLength)) {
         shouldLoadLeft = true;
+        console.log('🔄 Need more historical data:', {
+          leftBufferRemaining,
+          threshold: DATA_FETCH_THRESHOLD,
+          currentViewStart,
+          totalDataLength,
+          hasReachedLeftLimit: dataLimitsRef.current.hasReachedLeftLimit,
+        });
       }
     }
 
-    // Check if we need more recent data (panning right)
+    // Check if we need more recent data (approaching right edge of buffer)
+    // Note: For future data, we're more restrictive as there might not be any data available
     if (
-      currentViewEnd >= totalDataLength - bufferSize &&
+      rightBufferRemaining <= DATA_FETCH_THRESHOLD &&
       !chartDataHook.isRightLoading &&
+      !dataLimitsRef.current.hasReachedRightLimit &&
       totalDataLength > 0
     ) {
       const lastAttempt = lastLoadAttemptRef.current;
       if (!(lastAttempt?.type === 'right' && lastAttempt.dataLength === totalDataLength)) {
         shouldLoadRight = true;
+        console.log('🔄 Need more recent data:', {
+          rightBufferRemaining,
+          threshold: DATA_FETCH_THRESHOLD,
+          currentViewEnd,
+          totalDataLength,
+          hasReachedRightLimit: dataLimitsRef.current.hasReachedRightLimit,
+        });
       }
     }
 
@@ -855,16 +1022,43 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       if (shouldLoadLeft) {
         lastLoadAttemptRef.current = { type: 'left', dataLength: totalDataLength };
         setIsLoadingMoreData(true);
+        const prevDataLength = allChartData.length;
         await chartDataHook.loadMoreDataLeft(symbol, timeframe);
+
+        // Check if we've reached the left limit (no more historical data available)
+        // Wait a bit for the data to be processed, then check if data length increased
+        setTimeout(() => {
+          if (allChartData.length === prevDataLength) {
+            dataLimitsRef.current.hasReachedLeftLimit = true;
+            console.log('📍 Reached left data limit - no more historical data available');
+          }
+        }, 100);
       }
 
       if (shouldLoadRight) {
         lastLoadAttemptRef.current = { type: 'right', dataLength: totalDataLength };
         setIsLoadingMoreData(true);
+        const prevDataLength = allChartData.length;
         await chartDataHook.loadMoreDataRight(symbol, timeframe);
+
+        // Check if we've reached the right limit (no more future data available)
+        // Wait a bit for the data to be processed, then check if data length increased
+        setTimeout(() => {
+          if (allChartData.length === prevDataLength) {
+            dataLimitsRef.current.hasReachedRightLimit = true;
+            console.log('📍 Reached right data limit - no more future data available');
+          }
+        }, 100);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
+      // On error, mark limits as reached to prevent infinite retries
+      if (shouldLoadLeft) {
+        dataLimitsRef.current.hasReachedLeftLimit = true;
+      }
+      if (shouldLoadRight) {
+        dataLimitsRef.current.hasReachedRightLimit = true;
+      }
     } finally {
       setIsLoadingMoreData(false);
       isDataLoadingRef.current = false; // Reset data loading flag
