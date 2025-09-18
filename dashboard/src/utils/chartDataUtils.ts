@@ -1,3 +1,4 @@
+import * as d3 from 'd3';
 import { AlpacaBar, ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
 
 export interface CandlestickData {
@@ -89,6 +90,67 @@ export const processChartData = (
     formattedData,
     dataRange,
   };
+};
+
+/**
+ * Calculate inner dimensions from chart dimensions (width/height minus margins)
+ */
+export const calculateInnerDimensions = (dimensions: {
+  width: number;
+  height: number;
+  margin: { top: number; right: number; bottom: number; left: number };
+}): { innerWidth: number; innerHeight: number } => {
+  return {
+    innerWidth: dimensions.width - dimensions.margin.left - dimensions.margin.right,
+    innerHeight: dimensions.height - dimensions.margin.top - dimensions.margin.bottom,
+  };
+};
+
+/**
+ * Apply consistent styling to axis elements
+ */
+export const applyAxisStyling = (
+  axis: d3.Selection<SVGGElement, unknown, null, undefined>
+): void => {
+  // Style the domain lines to be gray and remove end tick marks (nubs)
+  axis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
+  // Style tick lines to be gray, keep labels white
+  axis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+  axis.selectAll('.tick text').style('font-size', '12px');
+};
+
+/**
+ * Create X-axis with consistent configuration
+ */
+export const createXAxis = (
+  scale: d3.ScaleLinear<number, number>,
+  allChartData: { time: string }[],
+  tickCount: number = 8
+): d3.Axis<d3.NumberValue> => {
+  return d3
+    .axisBottom(scale)
+    .tickSizeOuter(0)
+    .ticks(tickCount)
+    .tickFormat((d) => {
+      const globalIndex = Math.round(d as number);
+      // Find the data point at this global index
+      if (globalIndex >= 0 && globalIndex < allChartData.length) {
+        const date = new Date(allChartData[globalIndex].time);
+        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+      return '';
+    });
+};
+
+/**
+ * Create Y-axis with consistent configuration
+ */
+export const createYAxis = (
+  scale: d3.ScaleLinear<number, number>,
+  tickCount: number = 10
+): d3.Axis<d3.NumberValue> => {
+  return d3.axisRight(scale).tickSizeOuter(0).ticks(tickCount).tickFormat(d3.format('.2f'));
 };
 
 /**

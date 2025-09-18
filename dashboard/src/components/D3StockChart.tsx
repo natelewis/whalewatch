@@ -4,7 +4,13 @@ import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { ChartData, useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
-import { TimeframeConfig } from '../utils/chartDataUtils';
+import {
+  TimeframeConfig,
+  calculateInnerDimensions,
+  applyAxisStyling,
+  createXAxis,
+  createYAxis,
+} from '../utils/chartDataUtils';
 import { BarChart3, Settings, Play, Pause, RotateCcw } from 'lucide-react';
 
 interface D3StockChartProps {
@@ -79,9 +85,7 @@ const calculateChartState = ({
   fixedYScaleDomain: [number, number] | null;
 }): ChartCalculations => {
   // Calculate dimensions (single source)
-  const { width, height, margin } = dimensions;
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
+  const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
 
   // Handle cases where we have less data than the ideal buffer size
   const availableDataLength = allChartData.length;
@@ -251,9 +255,8 @@ const createChart = ({
   const svg = d3.select(svgElement);
   svg.selectAll('*').remove(); // Clear previous chart
 
-  const { width, height, margin } = dimensions;
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
+  const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
+  const { margin } = dimensions;
 
   // Data is already sorted from chartDataUtils.processChartData
   const sortedData = allChartData;
@@ -277,47 +280,26 @@ const createChart = ({
   g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
 
   // Create axes in the main chart group
-  const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
-  const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
-  const chartInnerHeight = chartHeight - chartMargin.top - chartMargin.bottom;
+  const { innerWidth: chartInnerWidth, innerHeight: chartInnerHeight } =
+    calculateInnerDimensions(dimensions);
 
   // Create X-axis using global indices (will be updated dynamically in handleZoom)
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(
-      d3
-        .axisBottom(xScale)
-        .tickSizeOuter(0)
-        .ticks(8) // Generate 8 ticks that will slide with the data
-        .tickFormat((d) => {
-          const globalIndex = Math.round(d as number);
-          // Find the data point at this global index
-          if (globalIndex >= 0 && globalIndex < sortedData.length) {
-            const date = new Date(sortedData[globalIndex].time);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          }
-          return '';
-        })
-    );
+    .call(createXAxis(xScale, sortedData));
 
   // Create Y-axis
   const yAxis = g
     .append('g')
     .attr('class', 'y-axis')
     .attr('transform', `translate(${chartInnerWidth},0)`)
-    .call(d3.axisRight(yScale).tickSizeOuter(0).ticks(10).tickFormat(d3.format('.2f')));
+    .call(createYAxis(yScale));
 
-  // Style the domain lines to be gray and remove end tick marks (nubs)
-  xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-  yAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-
-  // Style tick lines to be gray, keep labels white
-  xAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-  yAxis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-  xAxis.selectAll('.tick text').style('font-size', '12px');
-  yAxis.selectAll('.tick text').style('font-size', '12px');
+  // Apply consistent styling to both axes
+  applyAxisStyling(xAxis);
+  applyAxisStyling(yAxis);
 
   // Show all tick marks and labels
 
@@ -353,40 +335,18 @@ const createChart = ({
     // Update X-axis using the same transformed scale as candlesticks
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
-      const { margin: axisMargin } = dimensions;
-      const axisInnerHeight = dimensions.height - axisMargin.top - axisMargin.bottom;
+      const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(
-        d3
-          .axisBottom(calculations.transformedXScale)
-          .ticks(8) // Generate 8 ticks that will slide with the data
-          .tickSizeOuter(0)
-          .tickFormat((d) => {
-            const globalIndex = Math.floor(d as number);
-            // Find the data point at this global index
-            const sortedChartData = allChartData;
-            if (globalIndex >= 0 && globalIndex < sortedChartData.length) {
-              const date = new Date(sortedChartData[globalIndex].time);
-              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            }
-            return '';
-          })
-      );
+      xAxisGroup.call(createXAxis(calculations.transformedXScale, allChartData));
     }
 
     // Update Y-axis using centralized calculations
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
-      yAxisGroup.call(
-        d3
-          .axisRight(calculations.transformedYScale)
-          .tickSizeOuter(0)
-          .ticks(10)
-          .tickFormat(d3.format('.2f'))
-      );
+      yAxisGroup.call(createYAxis(calculations.transformedYScale));
 
-      // Reapply font-size styling to maintain consistency with initial load
-      yAxisGroup.selectAll('.tick text').style('font-size', '12px');
+      // Apply consistent styling to maintain consistency with initial load
+      applyAxisStyling(yAxisGroup);
     }
 
     checkAndLoadMoreData();
