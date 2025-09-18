@@ -57,6 +57,31 @@ const formatXAxisLabel = (date: Date, timeframe: ChartTimeframe | null): string 
   // Fallback to time format
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 };
+
+// ============================================================================
+// CENTRALIZED TICK FORMATTING - Single source of truth for x-axis labels
+// ============================================================================
+const createTickFormatter = (
+  scale: d3.ScaleLinear<number, number>,
+  data: ChartData,
+  timeframe: ChartTimeframe | null,
+  dataOffset: number = 0
+) => {
+  return (d: d3.NumberValue): string => {
+    // Get the data index from the scale
+    const scaleIndex = Math.round(scale.invert(d as number));
+    // Convert scale index to data array index
+    const dataIndex = scaleIndex - dataOffset;
+    // Clamp to valid range
+    const clampedIndex = Math.max(0, Math.min(dataIndex, data.length - 1));
+
+    if (clampedIndex >= 0 && clampedIndex < data.length) {
+      const date = new Date(data[clampedIndex].time);
+      return formatXAxisLabel(date, timeframe);
+    }
+    return '';
+  };
+};
 // ============================================================================
 
 // ============================================================================
@@ -414,18 +439,7 @@ const createChart = ({
         .axisBottom(xScale)
         .tickSizeOuter(0)
         .ticks(8) // Generate 8 ticks that will slide with the data
-        .tickFormat((d) => {
-          // Use the scale to get the correct data index
-          const dataIndex = Math.round(xScale.invert(d as number));
-          // Clamp to valid range
-          const clampedIndex = Math.max(0, Math.min(dataIndex, sortedData.length - 1));
-
-          if (clampedIndex >= 0 && clampedIndex < sortedData.length) {
-            const date = new Date(sortedData[clampedIndex].time);
-            return formatXAxisLabel(date, timeframe);
-          }
-          return '';
-        })
+        .tickFormat(createTickFormatter(xScale, sortedData, timeframe, 0))
     );
 
   // Style the domain line to be gray
@@ -538,21 +552,14 @@ const createChart = ({
           .axisBottom(calculations.transformedXScale)
           .ticks(8) // Generate 8 ticks that will slide with the data
           .tickSizeOuter(0)
-          .tickFormat((d) => {
-            // Use the transformed scale to get the correct data index
-            const dataIndex = Math.round(calculations.transformedXScale.invert(d as number));
-            // Clamp to valid range
-            const clampedIndex = Math.max(
-              0,
-              Math.min(dataIndex, calculations.bufferedData.length - 1)
-            );
-
-            if (clampedIndex >= 0 && clampedIndex < calculations.bufferedData.length) {
-              const date = new Date(calculations.bufferedData[clampedIndex].time);
-              return formatXAxisLabel(date, timeframe);
-            }
-            return '';
-          })
+          .tickFormat(
+            createTickFormatter(
+              calculations.transformedXScale,
+              calculations.bufferedData,
+              timeframe,
+              calculations.bufferedViewStart
+            )
+          )
       );
 
       // Style the domain line to be gray
@@ -632,32 +639,30 @@ const createChart = ({
       );
     }
 
-    // Update X-axis using the centralized calculations
+    // Update X-axis using only x-axis panning (no y-axis scaling)
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { margin: axisMargin } = dimensions;
       const axisInnerHeight = dimensions.height - axisMargin.top - axisMargin.bottom;
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+
+      // Create x-axis scale with only x-axis panning, no y-axis scaling
+      const xOnlyTransform = d3.zoomIdentity.translate(currentXTransform.x, 0);
+      const xOnlyScale = xOnlyTransform.rescaleX(calculations.baseXScale);
+
       xAxisGroup.call(
         d3
-          .axisBottom(calculations.transformedXScale)
+          .axisBottom(xOnlyScale)
           .ticks(8) // Generate 8 ticks that will slide with the data
           .tickSizeOuter(0)
-          .tickFormat((d) => {
-            // Use the transformed scale to get the correct data index
-            const dataIndex = Math.round(calculations.transformedXScale.invert(d as number));
-            // Clamp to valid range
-            const clampedIndex = Math.max(
-              0,
-              Math.min(dataIndex, calculations.bufferedData.length - 1)
-            );
-
-            if (clampedIndex >= 0 && clampedIndex < calculations.bufferedData.length) {
-              const date = new Date(calculations.bufferedData[clampedIndex].time);
-              return formatXAxisLabel(date, timeframe);
-            }
-            return '';
-          })
+          .tickFormat(
+            createTickFormatter(
+              xOnlyScale,
+              calculations.bufferedData,
+              timeframe,
+              calculations.bufferedViewStart
+            )
+          )
       );
 
       // Style the domain line to be gray
