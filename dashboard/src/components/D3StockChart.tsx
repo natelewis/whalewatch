@@ -127,10 +127,14 @@ const calculateChartState = ({
   const baseYScale = d3
     .scaleLinear()
     .domain(
-      fixedYScaleDomain || [
-        d3.min(visibleData, (d) => d.low) as number,
-        d3.max(visibleData, (d) => d.high) as number,
-      ]
+      fixedYScaleDomain ||
+        ((): [number, number] => {
+          const minPrice = d3.min(visibleData, (d) => d.low) as number;
+          const maxPrice = d3.max(visibleData, (d) => d.high) as number;
+          const priceRange = maxPrice - minPrice;
+          const padding = priceRange * 0.5; // Add 20% padding above and below
+          return [minPrice - padding, maxPrice + padding];
+        })()
     )
     .range([innerHeight, 0]);
 
@@ -338,7 +342,7 @@ const createChart = ({
     .append('g')
     .attr('class', 'y-axis')
     .attr('transform', `translate(${chartInnerWidth},0)`)
-    .call(d3.axisRight(yScale).tickFormat(d3.format('.2f')));
+    .call(d3.axisRight(yScale).ticks(11).tickFormat(d3.format('.2f')));
 
   // Style the domain lines to be gray and remove end tick marks (nubs)
   xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
@@ -415,7 +419,13 @@ const createChart = ({
     // Update Y-axis using centralized calculations
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
-      yAxisGroup.call(d3.axisRight(calculations.transformedYScale).tickFormat(d3.format('.2f')));
+      yAxisGroup.call(
+        d3
+          .axisRight(calculations.transformedYScale)
+          .ticks(11)
+          .tickFormat(d3.format('.2f'))
+          .tickSize(0)
+      );
     }
 
     checkAndLoadMoreData();
@@ -471,7 +481,7 @@ const createChart = ({
       const [mouseX, mouseY] = d3.pointer(event);
       const mouseIndex = xScale.invert(mouseX);
 
-      // Find closest data point by index
+      // Find closest data point by index for tooltip data
       const index = Math.round(mouseIndex);
       if (!visibleData) {
         return;
@@ -480,11 +490,11 @@ const createChart = ({
       const d = visibleData[clampedIndex];
 
       if (d) {
-        // Update crosshair
+        // Update crosshair to follow cursor position exactly
         crosshair
           .select('.crosshair-x')
-          .attr('x1', xScale(clampedIndex))
-          .attr('x2', xScale(clampedIndex))
+          .attr('x1', mouseX)
+          .attr('x2', mouseX)
           .attr('y1', 0)
           .attr('y2', innerHeight);
 
@@ -492,10 +502,10 @@ const createChart = ({
           .select('.crosshair-y')
           .attr('x1', 0)
           .attr('x2', innerWidth)
-          .attr('y1', yScale(d.close))
-          .attr('y2', yScale(d.close));
+          .attr('y1', mouseY)
+          .attr('y2', mouseY);
 
-        // Update hover data
+        // Update hover data (still use closest bar data for tooltip)
         setHoverData({
           x: mouseX + margin.left,
           y: mouseY + margin.top,
