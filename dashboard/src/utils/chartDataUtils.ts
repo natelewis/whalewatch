@@ -52,8 +52,8 @@ export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[
  */
 export const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
   if (bars.length === 0) {
-return null;
-}
+    return null;
+  }
 
   return {
     earliest: bars[0].t,
@@ -75,7 +75,9 @@ export const getDataPointsForTimeframe = (
 /**
  * Process raw chart data into formatted candlestick data
  */
-export const processChartData = (bars: AlpacaBar[]): {
+export const processChartData = (
+  bars: AlpacaBar[]
+): {
   formattedData: CandlestickData[];
   dataRange: DataRange | null;
 } => {
@@ -97,18 +99,18 @@ export const fillMissingMinutes = (
   timeframe: ChartTimeframe
 ): CandlestickData[] => {
   if (data.length === 0) {
-return data;
-}
+    return data;
+  }
 
   const filledData: CandlestickData[] = [];
-  
+
   // Get interval in milliseconds based on timeframe
   const getIntervalMs = (tf: ChartTimeframe): number => {
     const intervalMap: Record<ChartTimeframe, number> = {
-      '1m': 60 * 1000,        // 1 minute
-      '5m': 5 * 60 * 1000,    // 5 minutes
-      '30m': 30 * 60 * 1000,  // 30 minutes
-      '1h': 60 * 60 * 1000,   // 1 hour
+      '1m': 60 * 1000, // 1 minute
+      '5m': 5 * 60 * 1000, // 5 minutes
+      '30m': 30 * 60 * 1000, // 30 minutes
+      '1h': 60 * 60 * 1000, // 1 hour
       '2h': 2 * 60 * 60 * 1000, // 2 hours
       '4h': 4 * 60 * 60 * 1000, // 4 hours
       '1d': 24 * 60 * 60 * 1000, // 1 day

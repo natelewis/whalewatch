@@ -122,10 +122,8 @@ const calculateChartState = ({
   // Maps global data indices to screen coordinates, with visible area at [0, innerWidth]
   const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
 
-  // Get sorted data first (needed for both x and y scale calculations)
-  const sortedData = [...allChartData].sort(
-    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-  );
+  // Data is already sorted from chartDataUtils.processChartData
+  const sortedData = allChartData;
 
   // Get buffered data (includes off-screen candles for smooth panning)
   const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
@@ -257,10 +255,8 @@ const createChart = ({
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
-  // Sort data by time - always use current state
-  const sortedData = [...allChartData].sort(
-    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-  );
+  // Data is already sorted from chartDataUtils.processChartData
+  const sortedData = allChartData;
 
   const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
 
@@ -368,9 +364,7 @@ const createChart = ({
           .tickFormat((d) => {
             const globalIndex = Math.floor(d as number);
             // Find the data point at this global index
-            const sortedChartData = [...allChartData].sort(
-              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-            );
+            const sortedChartData = allChartData;
             if (globalIndex >= 0 && globalIndex < sortedChartData.length) {
               const date = new Date(sortedChartData[globalIndex].time);
               return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -455,10 +449,8 @@ const createChart = ({
       // Find closest data point by index for tooltip data
       const index = Math.round(mouseIndex);
 
-      // Use the full sorted data, not just visible data
-      const sortedChartData = [...allChartData].sort(
-        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-      );
+      // Use the full data (already sorted from chartDataUtils.processChartData)
+      const sortedChartData = allChartData;
 
       if (!sortedChartData || sortedChartData.length === 0) {
         return;
@@ -511,9 +503,7 @@ const createChart = ({
 
   // Set the fixed y-scale domain based on all chart data to lock it during panning
   if (allChartData && allChartData.length > 0) {
-    const sortedChartData = [...allChartData].sort(
-      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-    );
+    const sortedChartData = allChartData;
     const initialYMin = d3.min(sortedChartData, (d) => d.low) as number;
     const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
     const priceRange = initialYMax - initialYMin;
@@ -620,10 +610,8 @@ const getVisibleDataPoints = (
   endIndex: number,
   chartData: ChartData
 ): ChartData => {
-  // Always use the current state data
-  const sortedData = [...chartData].sort(
-    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-  );
+  // Data is already sorted from chartDataUtils.processChartData
+  const sortedData = chartData;
 
   // If no data, return empty array
   if (sortedData.length === 0) {
