@@ -108,7 +108,12 @@ const calculateChartState = ({
 
     // Calculate base scales for full buffer positioning
     // Maps global data indices to screen coordinates, with visible area at [0, innerWidth]
-    const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
+    // Add small padding to the right so newest candle doesn't touch the domain line
+    const rightPadding = innerWidth * 0.02; // 2% padding on the right
+    const baseXScale = d3
+      .scaleLinear()
+      .domain([viewStart, viewEnd])
+      .range([0, innerWidth - rightPadding]);
 
     // Get sorted data first (needed for both x and y scale calculations)
     const sortedData = [...allChartData].sort(
