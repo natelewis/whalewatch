@@ -868,14 +868,16 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       const totalDataLength = allChartData.length;
       const prevDataLength = prevDataLengthRef.current;
 
-      // If this is the first load, show newest data with proper buffer setup
-      if (prevDataLength === 0) {
+      // If this is the first load or a timeframe change, show newest data with proper buffer setup
+      if (prevDataLength === 0 || isInitialLoad.current) {
         // Set up initial view to show most recent data with full buffer available
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
-        console.log('Initial load - setting view indices with buffer system:', {
+        console.log('Initial load or timeframe change - setting view indices with buffer system:', {
           totalDataLength,
+          prevDataLength,
+          isInitialLoad: isInitialLoad.current,
           CHART_DATA_POINTS,
           OUTSIDE_BUFFER,
           TOTAL_BUFFERED_POINTS,
@@ -1120,7 +1122,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Centralized chart rendering - only re-render when data changes, not during panning
   useEffect(() => {
-    if (!isValidChartData(visibleData) || !isValidChartData(allChartData)) {
+    if (!isValidChartData(visibleData) || !isValidChartData(allChartData) || !chartExists) {
       return;
     }
     if (svgRef.current) {
@@ -1135,7 +1137,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
     }
-  }, [visibleData, allChartData, dimensions, fixedYScaleDomain]);
+  }, [visibleData, allChartData, dimensions, fixedYScaleDomain, chartExists]);
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
