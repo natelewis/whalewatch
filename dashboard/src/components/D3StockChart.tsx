@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
@@ -45,7 +45,6 @@ interface HoverData {
 // ============================================================================
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 const OUTSIDE_BUFFER = 100; // Read datapoints to the left and right of visible area (off-screen buffer)
-const DATA_FETCH_THRESHOLD = 75; // Fetch more data when only this many points remain on either side
 const TOTAL_BUFFERED_POINTS = CHART_DATA_POINTS + OUTSIDE_BUFFER * 2; // Total points including buffers
 // ============================================================================
 
@@ -193,11 +192,8 @@ const createChart = ({
   setChartExists,
   dimensions,
   setIsZooming,
-  setIsPanning,
-  setHasUserPanned,
   setCurrentViewStart,
   setCurrentViewEnd,
-  checkAndLoadMoreData,
   setHoverData,
   setChartLoaded,
   setFixedYScaleDomain,
@@ -213,11 +209,8 @@ const createChart = ({
   setChartExists: (value: boolean) => void;
   dimensions: ChartDimensions;
   setIsZooming: (value: boolean) => void;
-  setIsPanning: (value: boolean) => void;
-  setHasUserPanned: (value: boolean) => void;
   setCurrentViewStart: (value: number) => void;
   setCurrentViewEnd: (value: number) => void;
-  checkAndLoadMoreData: () => void;
   setHoverData: (value: HoverData | null) => void;
   setChartLoaded: (value: boolean) => void;
   setFixedYScaleDomain: (value: [number, number] | null) => void;
@@ -302,8 +295,6 @@ const createChart = ({
 
   const handleZoomStart = (): void => {
     setIsZooming(true);
-    setIsPanning(true);
-    setHasUserPanned(true); // Mark that user has started panning
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -346,13 +337,10 @@ const createChart = ({
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(yAxisGroup);
     }
-
-    checkAndLoadMoreData();
   };
 
   const handleZoomEnd = (): void => {
     setIsZooming(false);
-    setIsPanning(false);
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -651,41 +639,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const [isLive, setIsLive] = useState(false);
   const [hoverData, setHoverData] = useState<HoverData | null>(null);
   const [isZooming, setIsZooming] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
   const [chartLoaded, setChartLoaded] = useState(false);
   const [visibleData, setVisibleData] = useState<ChartData>([]);
   const [allChartData, setAllChartData] = useState<ChartData>([]);
 
-  // Panning and predictive loading state
+  // Panning state
   const [currentViewStart, setCurrentViewStart] = useState(0);
   const [currentViewEnd, setCurrentViewEnd] = useState(0);
-  const [isLoadingMoreData, setIsLoadingMoreData] = useState(false);
   const isInitialLoad = useRef(true);
-
-  // Track loading attempts to prevent infinite loops
-  const lastLoadAttemptRef = useRef<{ type: 'left' | 'right'; dataLength: number } | null>(null);
-
-  // Track when we've reached the limits of available data
-  const dataLimitsRef = useRef<{ hasReachedLeftLimit: boolean; hasReachedRightLimit: boolean }>({
-    hasReachedLeftLimit: false,
-    hasReachedRightLimit: false,
-  });
-
-  // Track if we're currently loading data to preserve price range
-  const isDataLoadingRef = useRef<boolean>(false);
-
-  // Track if we're currently vertically panning to prevent data loading conflicts
-  const isVerticallyPanningRef = useRef<boolean>(false);
-
-  // Track if user has panned to enable data loading
-  const [hasUserPanned, setHasUserPanned] = useState<boolean>(false);
-
-  // Track last data loading check to prevent spam
-  const lastDataLoadCheckRef = useRef<number>(0);
-  const DATA_LOAD_CHECK_INTERVAL = 500; // Minimum 500ms between data load checks
-
-  // Track last view indices to detect significant changes
-  const lastViewIndicesRef = useRef<{ start: number; end: number } | null>(null);
 
   // Track if chart already exists to avoid unnecessary recreations
   const [chartExists, setChartExists] = useState<boolean>(false);
@@ -723,7 +684,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Chart data management
   const chartDataHook = useChartData({
     timeframes,
-    bufferPoints: 100, // Increased buffer for more data preloading
+    bufferPoints: 100, // Buffer for data preloading
     onDataLoaded: (data: ChartData) => {
       // Update all chart data whenever new data is loaded
       setAllChartData(data);
@@ -777,17 +738,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     if (timeframe !== null) {
       isInitialLoad.current = true; // Reset for new symbol/timeframe
-      // setChartExists(false); // Reset chart existence for new symbol/timeframe
-      setHasUserPanned(false); // Reset user panning state
       setChartLoaded(false); // Reset chart loaded state
       setFixedYScaleDomain(null); // Reset fixed y-scale domain for new data
-
-      // Reset data limits for new symbol/timeframe
-      dataLimitsRef.current = {
-        hasReachedLeftLimit: false,
-        hasReachedRightLimit: false,
-      };
-      lastLoadAttemptRef.current = null; // Reset load attempt tracking
 
       console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
       chartDataHook.loadChartData(symbol, timeframe);
@@ -825,17 +777,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Track previous data length to detect when new data is loaded
-  const prevDataLengthRef = useRef<number>(0);
-
   // Set initial view to show newest data when data loads
   useEffect(() => {
     if (isValidChartData(allChartData)) {
       const totalDataLength = allChartData.length;
-      const prevDataLength = prevDataLengthRef.current;
 
       // If this is the first load, show newest data with proper buffer setup
-      if (prevDataLength === 0) {
+      if (isInitialLoad.current) {
         // Set up initial view to show most recent data with full buffer available
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
@@ -855,203 +803,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         setCurrentViewStart(newStartIndex);
         setCurrentViewEnd(newEndIndex);
         isInitialLoad.current = false; // Mark initial load as complete
-        // setChartExists(false); // Reset chart existence for new data
-      } else if (totalDataLength > prevDataLength) {
-        // If data length increased (new data loaded), don't adjust view position
-        // The view should only change during user interactions, not data loads
-        console.log('New data loaded, but not adjusting view (user interaction only):', {
-          totalDataLength,
-          prevDataLength,
-          dataAdded: totalDataLength - prevDataLength,
-          currentViewStart,
-          currentViewEnd,
-          hasUserPanned,
-        });
-
-        // Reset loading attempt tracking
-        lastLoadAttemptRef.current = null;
       }
-
-      prevDataLengthRef.current = totalDataLength;
     }
   }, [allChartData.length]);
-
-  // Check if we need to load more data when panning
-  const checkAndLoadMoreData = useCallback(async (): Promise<void> => {
-    if (
-      !symbol ||
-      !timeframe ||
-      isLoadingMoreData ||
-      isInitialLoad.current ||
-      !hasUserPanned ||
-      isVerticallyPanningRef.current ||
-      isDataLoadingRef.current ||
-      !chartExists
-    ) {
-      return;
-    }
-
-    // Set data loading flag immediately to prevent concurrent calls
-    isDataLoadingRef.current = true;
-
-    const totalDataLength = allChartData.length;
-
-    // Calculate actual buffer positions based on current view
-    const leftBufferRemaining = currentViewStart; // How much data is available to the left
-    const rightBufferRemaining = totalDataLength - currentViewEnd - 1; // How much data is available to the right
-
-    let shouldLoadLeft = false;
-    let shouldLoadRight = false;
-
-    // Check if we need more historical data (approaching left edge of buffer)
-    if (
-      leftBufferRemaining <= DATA_FETCH_THRESHOLD &&
-      !chartDataHook.isLeftLoading &&
-      !dataLimitsRef.current.hasReachedLeftLimit &&
-      totalDataLength > 0
-    ) {
-      const lastAttempt = lastLoadAttemptRef.current;
-      if (!(lastAttempt?.type === 'left' && lastAttempt.dataLength === totalDataLength)) {
-        shouldLoadLeft = true;
-        console.log('🔄 Need more historical data:', {
-          leftBufferRemaining,
-          threshold: DATA_FETCH_THRESHOLD,
-          currentViewStart,
-          totalDataLength,
-          hasReachedLeftLimit: dataLimitsRef.current.hasReachedLeftLimit,
-        });
-      }
-    }
-
-    // Check if we need more recent data (approaching right edge of buffer)
-    // Note: For future data, we're more restrictive as there might not be any data available
-    if (
-      rightBufferRemaining <= DATA_FETCH_THRESHOLD &&
-      !chartDataHook.isRightLoading &&
-      !dataLimitsRef.current.hasReachedRightLimit &&
-      totalDataLength > 0
-    ) {
-      const lastAttempt = lastLoadAttemptRef.current;
-      if (!(lastAttempt?.type === 'right' && lastAttempt.dataLength === totalDataLength)) {
-        shouldLoadRight = true;
-        console.log('🔄 Need more recent data:', {
-          rightBufferRemaining,
-          threshold: DATA_FETCH_THRESHOLD,
-          currentViewEnd,
-          totalDataLength,
-          hasReachedRightLimit: dataLimitsRef.current.hasReachedRightLimit,
-        });
-      }
-    }
-
-    // If no loading is needed, reset the flag and return
-    if (!shouldLoadLeft && !shouldLoadRight) {
-      isDataLoadingRef.current = false;
-      return;
-    }
-
-    // Load data if needed
-    try {
-      if (shouldLoadLeft) {
-        lastLoadAttemptRef.current = { type: 'left', dataLength: totalDataLength };
-        setIsLoadingMoreData(true);
-        const prevDataLength = allChartData.length;
-        await chartDataHook.loadMoreDataLeft(symbol, timeframe);
-
-        // Check if we've reached the left limit (no more historical data available)
-        // Wait a bit for the data to be processed, then check if data length increased
-        setTimeout(() => {
-          if (allChartData.length === prevDataLength) {
-            dataLimitsRef.current.hasReachedLeftLimit = true;
-            console.log('📍 Reached left data limit - no more historical data available');
-          }
-        }, 100);
-      }
-
-      if (shouldLoadRight) {
-        lastLoadAttemptRef.current = { type: 'right', dataLength: totalDataLength };
-        setIsLoadingMoreData(true);
-        const prevDataLength = allChartData.length;
-        await chartDataHook.loadMoreDataRight(symbol, timeframe);
-
-        // Check if we've reached the right limit (no more future data available)
-        // Wait a bit for the data to be processed, then check if data length increased
-        setTimeout(() => {
-          if (allChartData.length === prevDataLength) {
-            dataLimitsRef.current.hasReachedRightLimit = true;
-            console.log('📍 Reached right data limit - no more future data available');
-          }
-        }, 100);
-      }
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      // On error, mark limits as reached to prevent infinite retries
-      if (shouldLoadLeft) {
-        dataLimitsRef.current.hasReachedLeftLimit = true;
-      }
-      if (shouldLoadRight) {
-        dataLimitsRef.current.hasReachedRightLimit = true;
-      }
-    } finally {
-      setIsLoadingMoreData(false);
-      isDataLoadingRef.current = false; // Reset data loading flag
-    }
-  }, [
-    symbol,
-    timeframe,
-    currentViewStart,
-    currentViewEnd,
-    chartDataHook,
-    isLoadingMoreData,
-    isInitialLoad,
-    hasUserPanned,
-  ]);
-
-  // Check for data loading when view changes (with throttling)
-  useEffect((): void => {
-    if (
-      isValidChartData(allChartData) &&
-      !isLoadingMoreData &&
-      !isInitialLoad.current &&
-      hasUserPanned
-    ) {
-      const now = Date.now();
-      const timeSinceLastCheck = now - lastDataLoadCheckRef.current;
-      const lastViewIndices = lastViewIndicesRef.current;
-
-      // Check if view indices have changed significantly (more than 5 points for more responsive loading)
-      const hasSignificantChange =
-        !lastViewIndices ||
-        Math.abs(currentViewStart - lastViewIndices.start) > 5 ||
-        Math.abs(currentViewEnd - lastViewIndices.end) > 5;
-
-      // Reduce throttling during panning for more responsive data loading
-      const throttlingInterval = isPanning
-        ? DATA_LOAD_CHECK_INTERVAL / 2
-        : DATA_LOAD_CHECK_INTERVAL;
-
-      // Only check for data loading if enough time has passed, we're not already loading,
-      // and there's a significant change
-      if (
-        timeSinceLastCheck >= throttlingInterval &&
-        !isDataLoadingRef.current &&
-        hasSignificantChange
-      ) {
-        lastDataLoadCheckRef.current = now;
-        lastViewIndicesRef.current = { start: currentViewStart, end: currentViewEnd };
-        checkAndLoadMoreData();
-      }
-    }
-    return undefined;
-  }, [
-    currentViewStart,
-    currentViewEnd,
-    checkAndLoadMoreData,
-    isLoadingMoreData,
-    isInitialLoad,
-    hasUserPanned,
-    isPanning,
-  ]);
 
   // Auto-enable live mode when user pans to the rightmost edge
   const [isAtRightEdge, setIsAtRightEdge] = useState(false);
@@ -1079,13 +833,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
   }, [currentViewEnd, allChartData.length, isLive]);
 
-  useEffect(() => {
+  useEffect((): void => {
     // svgRef.current now points to the <svg> element in the DOM
     console.log('SVG element is ready:', svgRef.current);
   }, []);
 
   // Centralized chart rendering - only re-render when data changes, not during panning
-  useEffect(() => {
+  useEffect((): void => {
     if (!isValidChartData(visibleData) || !isValidChartData(allChartData)) {
       return;
     }
@@ -1147,11 +901,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           setChartExists,
           dimensions,
           setIsZooming,
-          setIsPanning,
-          setHasUserPanned,
           setCurrentViewStart,
           setCurrentViewEnd,
-          checkAndLoadMoreData,
           setHoverData,
           setChartLoaded,
           setFixedYScaleDomain,
@@ -1336,12 +1087,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
                 <span className="text-xs text-yellow-500">Live mode will activate</span>
-              </div>
-            )}
-            {isLoadingMoreData && (
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-xs text-blue-500">Loading historical data...</span>
               </div>
             )}
             <span className="text-xs text-muted-foreground">(D3.js powered)</span>
