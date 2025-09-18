@@ -155,35 +155,6 @@ const calculateChartState = ({
   const actualBufferedData =
     calculatedBufferedData.length > 0 ? calculatedBufferedData : actualVisibleData;
 
-  // Debug logging for view calculations
-  console.log('🔢 View Calculations:', {
-    availableDataLength,
-    idealBufferSize,
-    actualBufferSize,
-    panOffset: Math.round(panOffset * 100) / 100,
-    indices: {
-      baseViewStart,
-      bufferedViewStart,
-      bufferedViewEnd,
-      viewStart,
-      viewEnd,
-    },
-    dataLengths: {
-      actualVisibleData: actualVisibleData.length,
-      actualBufferedData: actualBufferedData.length,
-    },
-    scale: {
-      domain: baseXScale.domain(),
-      range: baseXScale.range(),
-      samplePositions: {
-        leftBuffer: `index ${bufferedViewStart} → x=${baseXScale(bufferedViewStart)}`,
-        firstVisible: `index ${viewStart} → x=${baseXScale(viewStart)}`,
-        lastVisible: `index ${viewEnd} → x=${baseXScale(viewEnd)}`,
-        rightBuffer: `index ${bufferedViewEnd} → x=${baseXScale(bufferedViewEnd)}`,
-      },
-    },
-  });
-
   return {
     innerWidth,
     innerHeight,
@@ -898,17 +869,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             height: Math.max(400, rect.height - 100),
           };
 
-          // DEBUG: Log dimension changes
-          console.log('📐 DIMENSIONS DEBUG - Resize:', {
-            containerRect: { width: rect.width, height: rect.height },
-            previousDimensions: prev,
-            newDimensions: newDims,
-            changed: {
-              widthChanged: Math.abs(prev.width - newDims.width) > 0.1,
-              heightChanged: Math.abs(prev.height - newDims.height) > 0.1,
-            },
-          });
-
           return newDims;
         });
       }
@@ -1217,23 +1177,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       const shouldCreateChart = !chartExists;
 
       if (shouldCreateChart) {
-        console.log(
-          'Creating chart - chartExists:',
-          chartExists,
-          'dataLength:',
-          allChartData.length,
-          'visibleDataLength:',
-          visibleData.length,
-          'hasUserPanned:',
-          hasUserPanned,
-          'isPanning:',
-          isPanning,
-          'isZooming:',
-          isZooming,
-          'viewIndices:',
-          { currentViewStart, currentViewEnd }
-        );
-
         // Create calculations for chart creation
         const initialTransform = d3.zoomIdentity;
         const calculations = calculateChartState({
