@@ -36,46 +36,99 @@ interface HoverData {
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 // ============================================================================
 
-const useChartScales = ({
-  visibleData,
+// ============================================================================
+// CENTRALIZED CALCULATIONS - Single source of truth for all chart math
+// ============================================================================
+interface ChartCalculations {
+  // Dimensions
+  innerWidth: number;
+  innerHeight: number;
+
+  // Base scales (untransformed)
+  baseXScale: d3.ScaleLinear<number, number>;
+  baseYScale: d3.ScaleLinear<number, number>;
+
+  // Transformed scales (for panning/zooming)
+  transformedXScale: d3.ScaleLinear<number, number>;
+  transformedYScale: d3.ScaleLinear<number, number>;
+
+  // View calculations
+  viewStart: number;
+  viewEnd: number;
+  visibleData: ChartData;
+
+  // Transform string for rendering
+  transformString: string;
+}
+
+const calculateChartState = ({
   dimensions,
+  visibleData,
+  allChartData,
+  transform,
   fixedYScaleDomain,
 }: {
-  visibleData: ChartData;
   dimensions: ChartDimensions;
+  visibleData: ChartData;
+  allChartData: ChartData;
+  transform: d3.ZoomTransform;
   fixedYScaleDomain: [number, number] | null;
-}): {
-  xScale: d3.ScaleLinear<number, number> | null;
-  yScale: d3.ScaleLinear<number, number> | null;
-} => {
-  return useMemo(() => {
-    if (!visibleData || visibleData.length === 0 || dimensions.width === 0) {
-      return { xScale: null, yScale: null };
-    }
+}): ChartCalculations => {
+  // Calculate dimensions (single source)
+  const { width, height, margin } = dimensions;
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
 
-    const { width, height, margin } = dimensions;
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
+  // Calculate base scales (single source)
+  const baseXScale = d3
+    .scaleLinear()
+    .domain([0, visibleData.length - 1])
+    .range([0, innerWidth]);
 
-    const xScale = d3
-      .scaleLinear()
-      .domain([0, visibleData.length - 1])
-      .range([0, innerWidth]);
+  const baseYScale = d3
+    .scaleLinear()
+    .domain(
+      fixedYScaleDomain || [
+        d3.min(visibleData, (d) => d.low) as number,
+        d3.max(visibleData, (d) => d.high) as number,
+      ]
+    )
+    .range([innerHeight, 0]);
 
-    // Use fixed y-scale domain if available, otherwise calculate from data
-    const yScale = d3
-      .scaleLinear()
-      .domain(
-        fixedYScaleDomain || [
-          d3.min(visibleData, (d) => d.low) as number,
-          d3.max(visibleData, (d) => d.high) as number,
-        ]
-      )
-      .range([innerHeight, 0]);
+  // Calculate transformed scales (single source)
+  const transformedXScale = transform.rescaleX(baseXScale);
+  const transformedYScale = transform.rescaleY(baseYScale);
 
-    return { xScale, yScale };
-  }, [visibleData, dimensions, fixedYScaleDomain]);
+  // Calculate view indices (single source)
+  const panOffsetPixels = transform.x;
+  const bandWidth = innerWidth / CHART_DATA_POINTS;
+  const panOffset = panOffsetPixels / bandWidth;
+  const baseViewStart = allChartData.length - CHART_DATA_POINTS;
+  const viewStart = Math.max(0, baseViewStart - panOffset);
+  const viewEnd = Math.min(allChartData.length - 1, viewStart + CHART_DATA_POINTS - 1);
+
+  // Get visible data (single source)
+  const sortedData = [...allChartData].sort(
+    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+  );
+  const calculatedVisibleData = sortedData.slice(viewStart, viewEnd + 1);
+
+  return {
+    innerWidth,
+    innerHeight,
+    baseXScale,
+    baseYScale,
+    transformedXScale,
+    transformedYScale,
+    viewStart,
+    viewEnd,
+    visibleData: calculatedVisibleData,
+    transformString: transform.toString(),
+  };
 };
+// ============================================================================
+
+// Removed useChartScales - now using centralized calculateChartState
 
 // Create D3 chart
 const createChart = ({
@@ -96,7 +149,6 @@ const createChart = ({
   checkAndLoadMoreData,
   setHoverData,
   setChartLoaded,
-  setCurrentTransform,
   setFixedYScaleDomain,
   fixedYScaleDomain,
 }: {
@@ -117,7 +169,6 @@ const createChart = ({
   checkAndLoadMoreData: () => void;
   setHoverData: (value: HoverData | null) => void;
   setChartLoaded: (value: boolean) => void;
-  setCurrentTransform: (value: d3.ZoomTransform | null) => void;
   setFixedYScaleDomain: (value: [number, number] | null) => void;
   fixedYScaleDomain: [number, number] | null;
 }): void => {
@@ -126,8 +177,8 @@ const createChart = ({
     return;
   }
 
-  if (d3.select(svgElement).select('g').empty()) {
-    console.log('createChart: No .g element found, skipping chart creation');
+  if (!d3.select(svgElement).select('g').empty()) {
+    console.log('createChart: g element not found, skipping chart creation');
     return;
   }
 
@@ -176,6 +227,9 @@ const createChart = ({
     .append('rect')
     .attr('width', innerWidth)
     .attr('height', innerHeight);
+
+  // Create chart content group for transforms
+  g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
 
   // Create axes in the main chart group
   const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
@@ -242,61 +296,46 @@ const createChart = ({
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
     const { transform } = event;
-    setCurrentTransform(transform);
-    updateCurrentView({
+
+    // Single source of truth for all calculations
+    const calculations = calculateChartState({
+      dimensions,
+      visibleData,
+      allChartData: sortedData,
       transform,
-      sortedData,
-      setCurrentViewStart,
-      setCurrentViewEnd,
+      fixedYScaleDomain,
     });
 
-    // Use the same scale logic as the initial state for consistent tick spacing
-    // This ensures tick marks maintain the same spacing during panning
-    const consistentXScale = d3
-      .scaleLinear()
-      .domain([0, visibleData.length - 1])
-      .range([0, innerWidth]);
+    // Update view state using centralized calculations
+    setCurrentViewStart(calculations.viewStart);
+    setCurrentViewEnd(calculations.viewEnd);
 
-    // Y-axis: Use the fixed y-scale domain to prevent changes during panning
-    const consistentYScale = d3
-      .scaleLinear()
-      .domain(
-        fixedYScaleDomain || [
-          d3.min(visibleData, (d) => d.low) as number,
-          d3.max(visibleData, (d) => d.high) as number,
-        ]
-      )
-      .range([innerHeight, 0]);
+    // Apply transform to the main chart content group (includes candlesticks)
+    const chartContentGroup = g.select<SVGGElement>('.chart-content');
+    if (!chartContentGroup.empty()) {
+      chartContentGroup.attr('transform', calculations.transformString);
+    }
 
-    // Update axes using the same scale logic as initial rendering
+    // Update X-axis using centralized calculations
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
-      // Update X-axis with consistent scaling and sliding transform
-      xAxisGroup.attr('transform', `translate(${transform.x},${innerHeight})`).call(
-        d3.axisBottom(consistentXScale).tickFormat((d) => {
-          const visibleIndex = Math.round(d as number);
-          if (visibleIndex >= 0 && visibleIndex < visibleData.length) {
-            const date = new Date(visibleData[visibleIndex].time);
+      xAxisGroup.call(
+        d3.axisBottom(calculations.transformedXScale).tickFormat((d) => {
+          const visibleIndex = Math.floor(d as number);
+          if (visibleIndex >= 0 && visibleIndex < calculations.visibleData.length) {
+            const date = new Date(calculations.visibleData[visibleIndex].time);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           }
           return '';
         })
       );
-      // Keep the axis line (domain path) fixed by overriding its transform
-      xAxisGroup.select('.domain').attr('transform', `translate(${-transform.x},0)`);
     }
 
+    // Update Y-axis using centralized calculations
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
-      yAxisGroup
-        .attr('transform', `translate(${innerWidth},${transform.y})`)
-        .call(d3.axisRight(consistentYScale).tickFormat(d3.format('.2f')));
-      // Keep the axis line (domain path) fixed by overriding its transform
-      yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
+      yAxisGroup.call(d3.axisRight(calculations.transformedYScale).tickFormat(d3.format('.2f')));
     }
-
-    // Re-render candlesticks with the current transform
-    renderCandlestickChart(svgElement, visibleData, consistentXScale, consistentYScale, transform);
 
     checkAndLoadMoreData();
   };
@@ -402,59 +441,30 @@ const createChart = ({
   console.log('🎯 CHART LOADED - Axes can now be created');
 };
 
-const updateCurrentView = ({
-  transform,
-  sortedData,
-  setCurrentViewStart,
-  setCurrentViewEnd,
-}: {
-  transform: d3.ZoomTransform;
-  sortedData: ChartData;
-  setCurrentViewStart: (value: number) => void;
-  setCurrentViewEnd: (value: number) => void;
-}): { newViewStart: number; newViewEnd: number } => {
-  // Calculate the visible range using simple math based on pan offset
-  const panOffsetPixels = Math.abs(transform.x);
-  const bandWidth = innerWidth / CHART_DATA_POINTS;
-  const panOffset = Math.floor(panOffsetPixels / bandWidth);
-  const maxPanOffset = Math.max(0, sortedData.length - CHART_DATA_POINTS);
-  const clampedPanOffset = Math.min(panOffset, maxPanOffset);
-  const newViewStart = Math.max(0, sortedData.length - CHART_DATA_POINTS - clampedPanOffset);
-  const newViewEnd = Math.min(sortedData.length - 1, newViewStart + CHART_DATA_POINTS - 1);
-
-  setCurrentViewStart(newViewStart);
-  setCurrentViewEnd(newViewEnd);
-
-  return { newViewStart, newViewEnd };
-};
+// Removed updateCurrentView - now using centralized calculateChartState
 
 const renderCandlestickChart = (
   svgElement: SVGSVGElement,
-  data: ChartData,
-  xScale: d3.ScaleLinear<number, number> | null,
-  yScale: d3.ScaleLinear<number, number> | null,
-  transform?: d3.ZoomTransform
+  calculations: ChartCalculations
 ): void => {
-  if (!xScale || !yScale) {
+  // Find the chart content group and remove existing candlesticks
+  const chartContent = d3.select(svgElement).select('.chart-content');
+  if (chartContent.empty()) {
+    console.warn('Chart content group not found, cannot render candlesticks');
     return;
   }
 
-  // Add crosshair
-  d3.select(svgElement).selectAll('.candle-sticks').remove();
-  const candleSticks = d3.select(svgElement).append('g').attr('class', 'candle-sticks');
+  chartContent.selectAll('.candle-sticks').remove();
+  const candleSticks = chartContent.append('g').attr('class', 'candle-sticks');
 
-  // Apply transform to the candlesticks group if provided
-  if (transform) {
-    candleSticks.attr('transform', `translate(${transform.x},${transform.y})`);
-  }
+  // Don't apply transform here - it's handled in handleZoom for smooth panning
 
   const candleWidth = Math.max(1, 4);
 
-  data.forEach((d, index) => {
-    // Use the simple x scale directly
-    const x = xScale(index);
+  calculations.visibleData.forEach((d, index) => {
+    // Use the base x scale directly (not transformed - transform is applied to group)
+    const x = calculations.baseXScale(index);
 
-    // Debug logging for first few candlesticks (removed to prevent spam)
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
 
@@ -463,8 +473,8 @@ const renderCandlestickChart = (
       .append('line')
       .attr('x1', x)
       .attr('x2', x)
-      .attr('y1', yScale(d.high))
-      .attr('y2', yScale(d.low))
+      .attr('y1', calculations.baseYScale(d.high))
+      .attr('y2', calculations.baseYScale(d.low))
       .attr('stroke', color)
       .attr('stroke-width', 1);
 
@@ -472,9 +482,12 @@ const renderCandlestickChart = (
     candleSticks
       .append('rect')
       .attr('x', x - candleWidth / 2)
-      .attr('y', yScale(Math.max(d.open, d.close)))
+      .attr('y', calculations.baseYScale(Math.max(d.open, d.close)))
       .attr('width', candleWidth)
-      .attr('height', Math.abs(yScale(d.close) - yScale(d.open)) || 1)
+      .attr(
+        'height',
+        Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1
+      )
       .attr('fill', isUp ? color : 'none')
       .attr('stroke', color)
       .attr('stroke-width', 1);
@@ -604,8 +617,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Track if chart already exists to avoid unnecessary recreations
   const [chartExists, setChartExists] = useState<boolean>(false);
 
-  // Track current transform for candlestick rendering
-  const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
+  // Transform is now handled directly in handleZoom for smooth panning
 
   // Store fixed y-scale domain to prevent recalculation during panning
   const [fixedYScaleDomain, setFixedYScaleDomain] = useState<[number, number] | null>(null);
@@ -617,7 +629,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     margin: { top: 20, right: 30, bottom: 40, left: 60 },
   });
 
-  const { xScale, yScale } = useChartScales({ visibleData, dimensions, fixedYScaleDomain });
+  // Centralized calculations will be used instead of useChartScales
 
   // Define timeframes array
   const timeframes: TimeframeConfig[] = useMemo(
@@ -940,21 +952,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     console.log('SVG element is ready:', svgRef.current);
   }, []);
 
-  // Centralized chart rendering - automatically re-renders when dependencies change
+  // Centralized chart rendering - only re-render when data changes, not during panning
   useEffect(() => {
-    if (!visibleData || visibleData.length === 0) {
+    if (!visibleData || visibleData.length === 0 || !allChartData.length) {
       return;
     }
     if (svgRef.current) {
-      renderCandlestickChart(
-        svgRef.current as SVGSVGElement,
+      // Create calculations for initial render (no transform)
+      const initialTransform = d3.zoomIdentity;
+      const calculations = calculateChartState({
+        dimensions,
         visibleData,
-        xScale,
-        yScale,
-        currentTransform || undefined
-      );
+        allChartData,
+        transform: initialTransform,
+        fixedYScaleDomain,
+      });
+
+      renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
     }
-  }, [visibleData, xScale, yScale, currentTransform]);
+  }, [visibleData, allChartData, dimensions, fixedYScaleDomain]);
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
@@ -980,7 +996,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Don't recreate chart after panning - this causes unwanted y-scale recalculation
       const shouldCreateChart = !chartExists;
 
-      if (shouldCreateChart && xScale && yScale) {
+      if (shouldCreateChart) {
         console.log(
           'Creating chart - chartExists:',
           chartExists,
@@ -997,11 +1013,22 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           'viewIndices:',
           { currentViewStart, currentViewEnd }
         );
+
+        // Create calculations for chart creation
+        const initialTransform = d3.zoomIdentity;
+        const calculations = calculateChartState({
+          dimensions,
+          visibleData,
+          allChartData,
+          transform: initialTransform,
+          fixedYScaleDomain,
+        });
+
         createChart({
           svgElement: svgRef.current as SVGSVGElement,
           allChartData,
-          xScale,
-          yScale,
+          xScale: calculations.baseXScale,
+          yScale: calculations.baseYScale,
           chartLoaded,
           visibleData,
           setChartExists,
@@ -1014,7 +1041,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           checkAndLoadMoreData,
           setHoverData,
           setChartLoaded,
-          setCurrentTransform,
           setFixedYScaleDomain,
           fixedYScaleDomain,
         });
@@ -1024,12 +1050,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     return undefined; // Explicit return for linter
   }, [
     allChartData.length,
-    xScale,
-    yScale,
     currentViewStart,
     currentViewEnd,
     dimensions,
     visibleData,
+    fixedYScaleDomain,
   ]);
 
   return (
