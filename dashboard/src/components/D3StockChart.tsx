@@ -37,6 +37,28 @@ const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 const OUTSIDE_BUFFER = 100; // Read datapoints to the left and right of visible area (off-screen buffer)
 const DATA_FETCH_THRESHOLD = 75; // Fetch more data when only this many points remain on either side
 const TOTAL_BUFFERED_POINTS = CHART_DATA_POINTS + OUTSIDE_BUFFER * 2; // Total points including buffers
+
+// ============================================================================
+// X-AXIS LABEL FORMATTING - Format labels based on timeframe
+// ============================================================================
+const formatXAxisLabel = (date: Date, timeframe: ChartTimeframe | null): string => {
+  if (!timeframe) {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // For timeframes less than 1 day, show time only
+  if (['1m', '5m', '30m', '1h'].includes(timeframe)) {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // For timeframes 1 day and above, show date with year
+  if (['1d', '1w', '1M'].includes(timeframe)) {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  // Fallback to time format
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+};
 // ============================================================================
 
 // ============================================================================
@@ -404,7 +426,7 @@ const createChart = ({
           // Find the data point at this global index
           if (globalIndex >= 0 && globalIndex < sortedData.length) {
             const date = new Date(sortedData[globalIndex].time);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            return formatXAxisLabel(date, timeframe);
           }
           return '';
         })
@@ -540,7 +562,7 @@ const createChart = ({
             );
             if (globalIndex >= 0 && globalIndex < sortedChartData.length) {
               const date = new Date(sortedChartData[globalIndex].time);
-              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+              return formatXAxisLabel(date, timeframe);
             }
             return '';
           })
@@ -646,7 +668,7 @@ const createChart = ({
             );
             if (globalIndex >= 0 && globalIndex < sortedChartData.length) {
               const date = new Date(sortedChartData[globalIndex].time);
-              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+              return formatXAxisLabel(date, timeframe);
             }
             return '';
           })
