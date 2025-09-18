@@ -69,13 +69,11 @@ interface ChartCalculations {
 
 const calculateChartState = ({
   dimensions,
-  visibleData,
   allChartData,
   transform,
   fixedYScaleDomain,
 }: {
   dimensions: ChartDimensions;
-  visibleData: ChartData;
   allChartData: ChartData;
   transform: d3.ZoomTransform;
   fixedYScaleDomain: [number, number] | null;
@@ -124,15 +122,24 @@ const calculateChartState = ({
   // Maps global data indices to screen coordinates, with visible area at [0, innerWidth]
   const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
 
+  // Get sorted data first (needed for both x and y scale calculations)
+  const sortedData = [...allChartData].sort(
+    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+  );
+
+  // Get buffered data (includes off-screen candles for smooth panning)
+  const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
+
   const baseYScale = d3
     .scaleLinear()
     .domain(
       fixedYScaleDomain ||
         ((): [number, number] => {
-          const minPrice = d3.min(visibleData, (d) => d.low) as number;
-          const maxPrice = d3.max(visibleData, (d) => d.high) as number;
+          // Use bufferedData instead of visibleData to ensure y-axis matches all rendered data
+          const minPrice = d3.min(calculatedBufferedData, (d) => d.low) as number;
+          const maxPrice = d3.max(calculatedBufferedData, (d) => d.high) as number;
           const priceRange = maxPrice - minPrice;
-          const padding = priceRange * 0.5; // Add 20% padding above and below
+          const padding = priceRange * 0.1; // Add 10% padding above and below (reduced from 50%)
           return [minPrice - padding, maxPrice + padding];
         })()
     )
@@ -142,16 +149,8 @@ const calculateChartState = ({
   const transformedXScale = transform.rescaleX(baseXScale);
   const transformedYScale = transform.rescaleY(baseYScale);
 
-  // Get sorted data (single source)
-  const sortedData = [...allChartData].sort(
-    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-  );
-
   // Get visible data (center portion)
   const calculatedVisibleData = sortedData.slice(viewStart, viewEnd + 1);
-
-  // Get buffered data (includes off-screen candles for smooth panning)
-  const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
 
   // Ensure we have reasonable data lengths
   const actualVisibleData = calculatedVisibleData.length > 0 ? calculatedVisibleData : [];
@@ -378,7 +377,6 @@ const createChart = ({
     // Single source of truth for all calculations
     const calculations = calculateChartState({
       dimensions,
-      visibleData,
       allChartData: sortedData,
       transform,
       fixedYScaleDomain,
@@ -479,15 +477,37 @@ const createChart = ({
         return;
       }
       const [mouseX, mouseY] = d3.pointer(event);
-      const mouseIndex = xScale.invert(mouseX);
+
+      // Get the current transform from the zoom behavior
+      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+      const transformedXScale = currentTransform.rescaleX(xScale);
+      const mouseIndex = transformedXScale.invert(mouseX);
 
       // Find closest data point by index for tooltip data
       const index = Math.round(mouseIndex);
-      if (!visibleData) {
+
+      // Use the full sorted data, not just visible data
+      const sortedChartData = [...allChartData].sort(
+        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+
+      if (!sortedChartData || sortedChartData.length === 0) {
         return;
       }
-      const clampedIndex = Math.max(0, Math.min(index, visibleData.length - 1));
-      const d = visibleData[clampedIndex];
+
+      const clampedIndex = Math.max(0, Math.min(index, sortedChartData.length - 1));
+      const d = sortedChartData[clampedIndex];
+
+      // Debug logging to verify hover data is updating
+      console.log('Hover debug:', {
+        mouseX,
+        mouseIndex,
+        index,
+        clampedIndex,
+        dataPoint: d
+          ? { time: d.time, open: d.open, high: d.high, low: d.low, close: d.close }
+          : null,
+      });
 
       if (d) {
         // Update crosshair to follow cursor position exactly
@@ -520,12 +540,20 @@ const createChart = ({
       }
     });
 
-  // Set the fixed y-scale domain based on initial data to lock it during panning
-  if (visibleData && visibleData.length > 0) {
-    const initialYMin = d3.min(visibleData, (d) => d.low) as number;
-    const initialYMax = d3.max(visibleData, (d) => d.high) as number;
-    setFixedYScaleDomain([initialYMin, initialYMax]);
-    console.log('🔒 Y-axis locked to initial range:', [initialYMin, initialYMax]);
+  // Set the fixed y-scale domain based on all chart data to lock it during panning
+  if (allChartData && allChartData.length > 0) {
+    const sortedChartData = [...allChartData].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+    const initialYMin = d3.min(sortedChartData, (d) => d.low) as number;
+    const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
+    const priceRange = initialYMax - initialYMin;
+    const padding = priceRange * 0.1; // Add 10% padding above and below
+    setFixedYScaleDomain([initialYMin - padding, initialYMax + padding]);
+    console.log('🔒 Y-axis locked to full data range:', [
+      initialYMin - padding,
+      initialYMax + padding,
+    ]);
   }
 
   setChartLoaded(true);
@@ -1157,7 +1185,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       const initialTransform = d3.zoomIdentity;
       const calculations = calculateChartState({
         dimensions,
-        visibleData,
         allChartData,
         transform: initialTransform,
         fixedYScaleDomain,
@@ -1213,7 +1240,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         const initialTransform = d3.zoomIdentity;
         const calculations = calculateChartState({
           dimensions,
-          visibleData,
           allChartData,
           transform: initialTransform,
           fixedYScaleDomain,
@@ -1391,25 +1417,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             </div>
 
             {/* Tooltip */}
-            {hoverData && (
-              <div
-                className="absolute bg-background border border-border rounded-lg p-2 shadow-lg pointer-events-none z-10"
-                style={{
-                  left: Math.min(hoverData.x + 10, dimensions.width - 200),
-                  top: Math.max(hoverData.y - 10, 10),
-                }}
-              >
-                <div className="text-sm">
-                  <div className="font-semibold">
-                    {new Date(hoverData.data!.time).toLocaleString()}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {hoverData.data!.open.toFixed(2)} / {hoverData.data!.high.toFixed(2)} /{' '}
-                    {hoverData.data!.low.toFixed(2)} / {hoverData.data!.close.toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
