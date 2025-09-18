@@ -401,8 +401,7 @@ const createChart = ({
   g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
 
   // Create axes in the main chart group
-  const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
-  const chartInnerWidth = chartWidth - chartMargin.left - chartMargin.right;
+  const { height: chartHeight, margin: chartMargin } = dimensions;
   const chartInnerHeight = chartHeight - chartMargin.top - chartMargin.bottom;
 
   // Create X-axis using global indices (will be updated dynamically in handleZoom)
@@ -416,10 +415,13 @@ const createChart = ({
         .tickSizeOuter(0)
         .ticks(8) // Generate 8 ticks that will slide with the data
         .tickFormat((d) => {
-          const globalIndex = Math.round(d as number);
-          // Find the data point at this global index
-          if (globalIndex >= 0 && globalIndex < sortedData.length) {
-            const date = new Date(sortedData[globalIndex].time);
+          // Use the scale to get the correct data index
+          const dataIndex = Math.round(xScale.invert(d as number));
+          // Clamp to valid range
+          const clampedIndex = Math.max(0, Math.min(dataIndex, sortedData.length - 1));
+
+          if (clampedIndex >= 0 && clampedIndex < sortedData.length) {
+            const date = new Date(sortedData[clampedIndex].time);
             return formatXAxisLabel(date, timeframe);
           }
           return '';
@@ -433,7 +435,7 @@ const createChart = ({
   const yAxis = g
     .append('g')
     .attr('class', 'y-axis')
-    .attr('transform', `translate(${chartInnerWidth},0)`)
+    .attr('transform', `translate(${innerWidth},0)`)
     .call(d3.axisRight(yScale).tickSizeOuter(0).ticks(10).tickFormat(d3.format('.2f')));
 
   // Style the domain lines to be gray and remove end tick marks (nubs)
@@ -501,37 +503,20 @@ const createChart = ({
     // Update y translate for panning
     currentYTranslate = panStartYTranslate + transform.y;
 
-    // Create a transform with only panning info to calculate view window
-    const panTransformForViewCalc = d3.zoomIdentity.translate(constrainedX, 0);
+    // Use centralized calculations for consistency
+    const panTransform = d3.zoomIdentity
+      .translate(constrainedX, currentYTranslate)
+      .scale(currentYScale);
+    const calculations = calculateChartState({
+      dimensions,
+      allChartData: allChartData,
+      transform: panTransform,
+      fixedYScaleDomain,
+      timeframe,
+    });
 
-    // Compute visible indices directly from transform and dimensions
-    const bandWidth = innerWidth / CHART_DATA_POINTS;
-    const total = sortedData.length;
-    const approxStart = Math.max(0, Math.floor((0 - constrainedX) / bandWidth));
-    const approxEnd = Math.min(total - 1, Math.ceil((innerWidth - constrainedX) / bandWidth));
-    const visibleStart = approxStart;
-    const visibleEnd = Math.min(total - 1, Math.max(visibleStart, approxEnd));
-
-    setCurrentViewStart(visibleStart);
-    setCurrentViewEnd(visibleEnd);
-
-    // Manually create the correct transformed scales
-    const baseXScale = d3.scaleLinear().domain([visibleStart, visibleEnd]).range([0, innerWidth]);
-    const yTransform = d3.zoomIdentity.translate(0, currentYTranslate).scale(currentYScale);
-    const priceData = sortedData.slice(visibleStart, visibleEnd + 1);
-    const baseYScale = d3
-      .scaleLinear()
-      .domain(
-        fixedYScaleDomain ||
-          ((): [number, number] => {
-            const minPrice = d3.min(priceData, (d) => d.low) as number;
-            const maxPrice = d3.max(priceData, (d) => d.high) as number;
-            return [minPrice, maxPrice];
-          })()
-      )
-      .range([innerHeight, 0]);
-    const transformedXScale = panTransformForViewCalc.rescaleX(baseXScale);
-    const transformedYScale = yTransform.rescaleY(baseYScale);
+    setCurrentViewStart(calculations.viewStart);
+    setCurrentViewEnd(calculations.viewEnd);
 
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroupElement = g.select<SVGGElement>('.chart-content');
@@ -550,17 +535,20 @@ const createChart = ({
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       xAxisGroup.call(
         d3
-          .axisBottom(transformedXScale)
+          .axisBottom(calculations.transformedXScale)
           .ticks(8) // Generate 8 ticks that will slide with the data
           .tickSizeOuter(0)
           .tickFormat((d) => {
-            const globalIndex = Math.floor(d as number);
-            // Find the data point at this global index
-            const sortedChartData = [...allChartData].sort(
-              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+            // Use the transformed scale to get the correct data index
+            const dataIndex = Math.round(calculations.transformedXScale.invert(d as number));
+            // Clamp to valid range
+            const clampedIndex = Math.max(
+              0,
+              Math.min(dataIndex, calculations.bufferedData.length - 1)
             );
-            if (globalIndex >= 0 && globalIndex < sortedChartData.length) {
-              const date = new Date(sortedChartData[globalIndex].time);
+
+            if (clampedIndex >= 0 && clampedIndex < calculations.bufferedData.length) {
+              const date = new Date(calculations.bufferedData[clampedIndex].time);
               return formatXAxisLabel(date, timeframe);
             }
             return '';
@@ -575,7 +563,11 @@ const createChart = ({
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
       yAxisGroup.call(
-        d3.axisRight(transformedYScale).tickSizeOuter(0).ticks(10).tickFormat(d3.format('.2f'))
+        d3
+          .axisRight(calculations.transformedYScale)
+          .tickSizeOuter(0)
+          .ticks(10)
+          .tickFormat(d3.format('.2f'))
       );
 
       // Reapply font-size styling to maintain consistency with initial load
@@ -618,31 +610,17 @@ const createChart = ({
     currentYScale = newYScale;
     currentYTranslate = newYTranslate;
 
-    // Create a transform for the Y-axis only
-    const yTransform = d3.zoomIdentity.translate(0, currentYTranslate).scale(currentYScale);
-
-    // Get the base scales and dimensions without applying a transform yet
-    // Build Y-scale from current visible slice
-    const { width: dimsWidth, margin: dimsMargin } = dimensions;
-    const innerWidthWheel = dimsWidth - dimsMargin.left - dimsMargin.right;
-    const bandWidth = innerWidthWheel / CHART_DATA_POINTS;
-    const total = sortedData.length;
-    const currentX = currentXTransform.x;
-    const visibleStart = Math.max(0, Math.floor((0 - currentX) / bandWidth));
-    const visibleEnd = Math.min(total - 1, Math.floor((innerWidthWheel - currentX) / bandWidth));
-    const priceData = sortedData.slice(visibleStart, visibleEnd + 1);
-    const baseYScale = d3
-      .scaleLinear()
-      .domain(
-        fixedYScaleDomain ||
-          ((): [number, number] => {
-            const minPrice = d3.min(priceData, (d) => d.low) as number;
-            const maxPrice = d3.max(priceData, (d) => d.high) as number;
-            return [minPrice, maxPrice];
-          })()
-      )
-      .range([innerHeight, 0]);
-    const transformedYScale = yTransform.rescaleY(baseYScale);
+    // Use centralized calculations for consistency
+    const wheelTransform = d3.zoomIdentity
+      .translate(currentXTransform.x, currentYTranslate)
+      .scale(currentYScale);
+    const calculations = calculateChartState({
+      dimensions,
+      allChartData: allChartData,
+      transform: wheelTransform,
+      fixedYScaleDomain,
+      timeframe,
+    });
 
     // Apply a non-uniform scale transform to the chart content
     // This scales only the Y-axis, leaving the X-axis unaffected
@@ -654,32 +632,28 @@ const createChart = ({
       );
     }
 
-    // Update X-axis using the existing pan transform (no scale change)
+    // Update X-axis using the centralized calculations
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { margin: axisMargin } = dimensions;
       const axisInnerHeight = dimensions.height - axisMargin.top - axisMargin.bottom;
-      const baseXScale = d3
-        .scaleLinear()
-        .domain([visibleStart, visibleEnd])
-        .range([0, innerWidthWheel]);
-      const xTransform = currentXTransform;
-      const transformedXScale = xTransform.rescaleX(baseXScale);
-
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       xAxisGroup.call(
         d3
-          .axisBottom(transformedXScale)
+          .axisBottom(calculations.transformedXScale)
           .ticks(8) // Generate 8 ticks that will slide with the data
           .tickSizeOuter(0)
           .tickFormat((d) => {
-            const globalIndex = Math.floor(d as number);
-            // Find the data point at this global index
-            const sortedChartData = [...allChartData].sort(
-              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+            // Use the transformed scale to get the correct data index
+            const dataIndex = Math.round(calculations.transformedXScale.invert(d as number));
+            // Clamp to valid range
+            const clampedIndex = Math.max(
+              0,
+              Math.min(dataIndex, calculations.bufferedData.length - 1)
             );
-            if (globalIndex >= 0 && globalIndex < sortedChartData.length) {
-              const date = new Date(sortedChartData[globalIndex].time);
+
+            if (clampedIndex >= 0 && clampedIndex < calculations.bufferedData.length) {
+              const date = new Date(calculations.bufferedData[clampedIndex].time);
               return formatXAxisLabel(date, timeframe);
             }
             return '';
@@ -690,11 +664,15 @@ const createChart = ({
       xAxisGroup.select('.domain').style('stroke', '#666').style('stroke-width', 1);
     }
 
-    // Update Y-axis using the new transformed Y-scale
+    // Update Y-axis using the centralized calculations
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
       yAxisGroup.call(
-        d3.axisRight(transformedYScale).tickSizeOuter(0).ticks(10).tickFormat(d3.format('.2f'))
+        d3
+          .axisRight(calculations.transformedYScale)
+          .tickSizeOuter(0)
+          .ticks(10)
+          .tickFormat(d3.format('.2f'))
       );
 
       // Reapply font-size styling to maintain consistency with initial load
@@ -955,7 +933,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const [dimensions, setDimensions] = useState<ChartDimensions>({
     width: 800,
     height: 400,
-    margin: { top: 20, right: 60, bottom: 40, left: 0 },
+    margin: { top: 20, right: 60, bottom: 40, left: 20 },
   });
 
   // Panning visible window
