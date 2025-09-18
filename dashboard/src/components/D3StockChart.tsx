@@ -95,6 +95,72 @@ const calculateChartState = ({
 
   // Base view shows most recent data, adjusted for available data
   const baseViewStart = Math.max(0, availableDataLength - actualBufferSize);
+
+  // For initial load (no panning), ensure newest candle is at right edge
+  if (panOffset === 0) {
+    // On initial load, position so newest candle is at right edge
+    const viewEnd = availableDataLength - 1; // Newest candle
+    const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
+
+    // Calculate buffer positions around the visible area
+    const bufferedViewStart = Math.max(0, viewStart - OUTSIDE_BUFFER);
+    const bufferedViewEnd = Math.min(availableDataLength - 1, viewEnd + OUTSIDE_BUFFER);
+
+    // Calculate base scales for full buffer positioning
+    // Maps global data indices to screen coordinates, with visible area at [0, innerWidth]
+    const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
+
+    // Get sorted data first (needed for both x and y scale calculations)
+    const sortedData = [...allChartData].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+
+    // Get buffered data (includes off-screen candles for smooth panning)
+    const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
+
+    const baseYScale = d3
+      .scaleLinear()
+      .domain(
+        fixedYScaleDomain ||
+          ((): [number, number] => {
+            // Use bufferedData instead of visibleData to ensure y-axis matches all rendered data
+            const minPrice = d3.min(calculatedBufferedData, (d) => d.low) as number;
+            const maxPrice = d3.max(calculatedBufferedData, (d) => d.high) as number;
+            return [minPrice, maxPrice];
+          })()
+      )
+      .range([innerHeight, 0]);
+
+    // Calculate transformed scales (single source)
+    const transformedXScale = transform.rescaleX(baseXScale);
+    const transformedYScale = transform.rescaleY(baseYScale);
+
+    // Get visible data (center portion)
+    const calculatedVisibleData = sortedData.slice(viewStart, viewEnd + 1);
+
+    // Ensure we have reasonable data lengths
+    const actualVisibleData = calculatedVisibleData.length > 0 ? calculatedVisibleData : [];
+    const actualBufferedData =
+      calculatedBufferedData.length > 0 ? calculatedBufferedData : actualVisibleData;
+
+    return {
+      innerWidth,
+      innerHeight,
+      baseXScale,
+      baseYScale,
+      transformedXScale,
+      transformedYScale,
+      viewStart,
+      viewEnd,
+      bufferedViewStart,
+      bufferedViewEnd,
+      visibleData: actualVisibleData,
+      bufferedData: actualBufferedData,
+      transformString: transform.toString(),
+    };
+  }
+
+  // For panning (panOffset !== 0), use the original buffer-based logic
   const bufferedViewStart = Math.max(
     0,
     Math.min(availableDataLength - actualBufferSize, baseViewStart - panOffset)
