@@ -322,6 +322,7 @@ const createChart = ({
     .call(
       d3
         .axisBottom(xScale)
+        .tickSizeOuter(0)
         .ticks(8) // Generate 8 ticks that will slide with the data
         .tickFormat((d) => {
           const globalIndex = Math.round(d as number);
@@ -339,7 +340,7 @@ const createChart = ({
     .append('g')
     .attr('class', 'y-axis')
     .attr('transform', `translate(${chartInnerWidth},0)`)
-    .call(d3.axisRight(yScale).ticks(10).tickFormat(d3.format('.2f')));
+    .call(d3.axisRight(yScale).tickSizeOuter(0).ticks(10).tickFormat(d3.format('.2f')));
 
   // Style the domain lines to be gray and remove end tick marks (nubs)
   xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
@@ -392,6 +393,7 @@ const createChart = ({
         d3
           .axisBottom(calculations.transformedXScale)
           .ticks(8) // Generate 8 ticks that will slide with the data
+          .tickSizeOuter(0)
           .tickFormat((d) => {
             const globalIndex = Math.floor(d as number);
             // Find the data point at this global index
@@ -413,10 +415,13 @@ const createChart = ({
       yAxisGroup.call(
         d3
           .axisRight(calculations.transformedYScale)
-          .ticks(15)
+          .tickSizeOuter(0)
+          .ticks(10)
           .tickFormat(d3.format('.2f'))
-          .tickSize(0)
       );
+
+      // Reapply font-size styling to maintain consistency with initial load
+      yAxisGroup.selectAll('.tick text').style('font-size', '12px');
     }
 
     checkAndLoadMoreData();
