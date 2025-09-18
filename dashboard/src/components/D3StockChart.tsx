@@ -395,6 +395,9 @@ const createChart = ({
     // Update X-axis using the same transformed scale as candlesticks
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
+      const { margin: axisMargin } = dimensions;
+      const axisInnerHeight = dimensions.height - axisMargin.top - axisMargin.bottom;
+      xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       xAxisGroup.call(
         d3
           .axisBottom(calculations.transformedXScale)
@@ -784,7 +787,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const [dimensions, setDimensions] = useState<ChartDimensions>({
     width: 800,
     height: 400,
-    margin: { top: 20, right: 30, bottom: 40, left: 60 },
+    margin: { top: 20, right: 60, bottom: 40, left: 0 },
   });
 
   // Centralized calculations will be used instead of useChartScales
