@@ -96,7 +96,7 @@ const calculateChartState = ({
   // Constrain panning to prevent going beyond the fake future data point
   // Allow unlimited panning to the past (positive panOffset values)
   // But limit future panning (negative panOffset values) to -2 data points
-  const minPanOffset = -2; // Minimum pan offset in data points (for future limit)
+  const minPanOffset = -0; // Minimum pan offset in data points (for future limit)
   if (panOffset < minPanOffset) {
     panOffset = minPanOffset; // Only constrain when panning too far to the future
   }
