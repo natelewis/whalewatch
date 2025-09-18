@@ -99,29 +99,50 @@ const calculateChartState = ({
   // For initial load (no panning), ensure newest candle is at right edge
   if (panOffset === 0) {
     // On initial load, position so newest candle is at right edge
-    const viewEnd = availableDataLength - 1; // Newest candle
-    const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
+    // Add a fake future data point to create padding
+    const viewEnd = availableDataLength; // One position past the newest candle
+    const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS);
 
     // Calculate buffer positions around the visible area
     const bufferedViewStart = Math.max(0, viewStart - OUTSIDE_BUFFER);
-    const bufferedViewEnd = Math.min(availableDataLength - 1, viewEnd + OUTSIDE_BUFFER);
+    const bufferedViewEnd = Math.min(availableDataLength, viewEnd + OUTSIDE_BUFFER);
 
     // Calculate base scales for full buffer positioning
     // Maps global data indices to screen coordinates, with visible area at [0, innerWidth]
-    // Add small padding to the right so newest candle doesn't touch the domain line
-    const rightPadding = innerWidth * 0.02; // 2% padding on the right
-    const baseXScale = d3
-      .scaleLinear()
-      .domain([viewStart, viewEnd])
-      .range([0, innerWidth - rightPadding]);
+    const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
 
     // Get sorted data first (needed for both x and y scale calculations)
     const sortedData = [...allChartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
+    // Add a fake future data point to create padding on the right
+    const lastDataPoint = sortedData[sortedData.length - 1];
+    const fakeFuturePoint = {
+      time: new Date(new Date(lastDataPoint.time).getTime() + 60000).toISOString(), // 1 minute in the future
+      open: lastDataPoint.close,
+      high: lastDataPoint.close + 0.01, // Make it slightly visible for debugging
+      low: lastDataPoint.close - 0.01,
+      close: lastDataPoint.close,
+      volume: 0,
+    };
+    const dataWithFake = [...sortedData, fakeFuturePoint];
+
+    console.log('Fake data point approach:', {
+      originalDataLength: sortedData.length,
+      dataWithFakeLength: dataWithFake.length,
+      viewStart,
+      viewEnd,
+      lastRealCandleIndex: sortedData.length - 1,
+      fakeCandleIndex: dataWithFake.length - 1,
+      scaleDomain: [viewStart, viewEnd],
+      scaleRange: [0, innerWidth],
+      lastRealCandleX: baseXScale(sortedData.length - 1),
+      fakeCandleX: baseXScale(dataWithFake.length - 1),
+    });
+
     // Get buffered data (includes off-screen candles for smooth panning)
-    const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
+    const calculatedBufferedData = dataWithFake.slice(bufferedViewStart, bufferedViewEnd + 1);
 
     const baseYScale = d3
       .scaleLinear()
@@ -140,8 +161,8 @@ const calculateChartState = ({
     const transformedXScale = transform.rescaleX(baseXScale);
     const transformedYScale = transform.rescaleY(baseYScale);
 
-    // Get visible data (center portion)
-    const calculatedVisibleData = sortedData.slice(viewStart, viewEnd + 1);
+    // Get visible data (center portion) - use data with fake point
+    const calculatedVisibleData = dataWithFake.slice(viewStart, viewEnd + 1);
 
     // Ensure we have reasonable data lengths
     const actualVisibleData = calculatedVisibleData.length > 0 ? calculatedVisibleData : [];
@@ -198,8 +219,30 @@ const calculateChartState = ({
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
+  // Add fake future data point for panning case too, but only if we're showing recent data
+  let dataWithFake = sortedData;
+  if (viewEnd >= availableDataLength - 1) {
+    const lastDataPoint = sortedData[sortedData.length - 1];
+    const fakeFuturePoint = {
+      time: new Date(new Date(lastDataPoint.time).getTime() + 60000).toISOString(),
+      open: lastDataPoint.close,
+      high: lastDataPoint.close + 0.01,
+      low: lastDataPoint.close - 0.01,
+      close: lastDataPoint.close,
+      volume: 0,
+    };
+    dataWithFake = [...sortedData, fakeFuturePoint];
+
+    console.log('Panning case - adding fake candle:', {
+      viewEnd,
+      availableDataLength,
+      originalDataLength: sortedData.length,
+      dataWithFakeLength: dataWithFake.length,
+    });
+  }
+
   // Get buffered data (includes off-screen candles for smooth panning)
-  const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
+  const calculatedBufferedData = dataWithFake.slice(bufferedViewStart, bufferedViewEnd + 1);
 
   const baseYScale = d3
     .scaleLinear()
@@ -218,8 +261,8 @@ const calculateChartState = ({
   const transformedXScale = transform.rescaleX(baseXScale);
   const transformedYScale = transform.rescaleY(baseYScale);
 
-  // Get visible data (center portion)
-  const calculatedVisibleData = sortedData.slice(viewStart, viewEnd + 1);
+  // Get visible data (center portion) - use data with fake point if available
+  const calculatedVisibleData = dataWithFake.slice(viewStart, viewEnd + 1);
 
   // Ensure we have reasonable data lengths
   const actualVisibleData = calculatedVisibleData.length > 0 ? calculatedVisibleData : [];
@@ -406,6 +449,9 @@ const createChart = ({
         })
     );
 
+  // Style the domain line to be gray
+  xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
   // Create Y-axis
   const yAxis = g
     .append('g')
@@ -478,6 +524,9 @@ const createChart = ({
             return '';
           })
       );
+
+      // Style the domain line to be gray
+      xAxisGroup.select('.domain').style('stroke', '#666').style('stroke-width', 1);
     }
 
     // Update Y-axis using centralized calculations
@@ -656,10 +705,21 @@ const renderCandlestickChart = (
     const globalIndex = calculations.bufferedViewStart + bufferedIndex;
     const x = calculations.baseXScale(globalIndex);
 
-    console.log(`Rendering candle ${bufferedIndex}: globalIndex=${globalIndex}, x=${x}`);
+    // Check if this is the fake candle (it will be the last one in the buffered data)
+    const isFakeCandle =
+      bufferedIndex === calculations.bufferedData.length - 1 &&
+      calculations.bufferedData.length > 0 &&
+      calculations.bufferedData[calculations.bufferedData.length - 1].volume === 0;
+
+    console.log(
+      `Rendering candle ${bufferedIndex}: globalIndex=${globalIndex}, x=${x}, isFake=${isFakeCandle}`
+    );
 
     const isUp = d.close >= d.open;
-    const color = isUp ? '#26a69a' : '#ef5350';
+
+    // make buffered candle transparent
+    const opacity = isFakeCandle ? 0 : 1; // 50% opacity for fake candle
+    const color = isFakeCandle ? '#ffa500' : isUp ? '#26a69a' : '#ef5350'; // Orange for fake candle
 
     // High-Low line
     candleSticks
@@ -669,7 +729,8 @@ const renderCandlestickChart = (
       .attr('y1', calculations.baseYScale(d.high))
       .attr('y2', calculations.baseYScale(d.low))
       .attr('stroke', color)
-      .attr('stroke-width', 1);
+      .attr('stroke-width', 1)
+      .style('opacity', opacity);
 
     // Open-Close rectangle
     candleSticks
@@ -683,7 +744,8 @@ const renderCandlestickChart = (
       )
       .attr('fill', isUp ? color : 'none')
       .attr('stroke', color)
-      .attr('stroke-width', 1);
+      .attr('stroke-width', 1)
+      .style('opacity', opacity);
   });
 
   console.log('🎨 Rendered candles (FULL BUFFER):', {
