@@ -436,17 +436,6 @@ const createChart = ({
       );
     });
 
-  // const handleZoomStart = (): void => {
-  //   setIsZooming(true);
-  //   setIsPanning(true);
-  //   setHasUserPanned(true); // Mark that user has started panning
-  //   panStartYTranslate = currentYTranslate;
-
-  //   // Hide crosshair during panning
-  //   crosshair.select('.crosshair-x').style('opacity', 0);
-  //   crosshair.select('.crosshair-y').style('opacity', 0);
-  // };
-
   const handleZoomStart = (): void => {
     setIsZooming(true);
     setIsPanning(true);
@@ -481,16 +470,14 @@ const createChart = ({
     // Update y translate for panning
     currentYTranslate = panStartYTranslate + transform.y;
 
-    // Create combined transform for calculations
-    const combinedTransform = d3.zoomIdentity
-      .translate(currentXTransform.x, currentYTranslate)
-      .scale(1, currentYScale);
+    // Create a transform with only panning info to calculate view window
+    const panTransformForViewCalc = d3.zoomIdentity.translate(constrainedX, 0);
 
-    // Single source of truth for all calculations
+    // Get ONLY view indices and base scales. Transformed scales from this call would be incorrect.
     const calculations = calculateChartState({
       dimensions,
       allChartData: sortedData,
-      transform: combinedTransform,
+      transform: panTransformForViewCalc,
       fixedYScaleDomain,
     });
 
@@ -498,21 +485,29 @@ const createChart = ({
     setCurrentViewStart(calculations.viewStart);
     setCurrentViewEnd(calculations.viewEnd);
 
+    // Manually create the correct transformed scales
+    const transformedXScale = panTransformForViewCalc.rescaleX(calculations.baseXScale);
+    const yTransform = d3.zoomIdentity.translate(0, currentYTranslate).scale(currentYScale);
+    const transformedYScale = yTransform.rescaleY(calculations.baseYScale);
+
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroupElement = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroupElement.empty()) {
-      chartContentGroupElement.attr('transform', calculations.transformString);
+      chartContentGroupElement.attr(
+        'transform',
+        `translate(${constrainedX}, ${currentYTranslate}) scale(1, ${currentYScale})`
+      );
     }
 
     // Update X-axis using the same transformed scale as candlesticks
-    const xAxisGroup = g.select<SVGSVGElement>('.x-axis');
+    const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { margin: axisMargin } = dimensions;
       const axisInnerHeight = dimensions.height - axisMargin.top - axisMargin.bottom;
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       xAxisGroup.call(
         d3
-          .axisBottom(calculations.transformedXScale)
+          .axisBottom(transformedXScale)
           .ticks(8) // Generate 8 ticks that will slide with the data
           .tickSizeOuter(0)
           .tickFormat((d) => {
@@ -534,14 +529,10 @@ const createChart = ({
     }
 
     // Update Y-axis using centralized calculations
-    const yAxisGroup = g.select<SVGSVGElement>('.y-axis');
+    const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
       yAxisGroup.call(
-        d3
-          .axisRight(calculations.transformedYScale)
-          .tickSizeOuter(0)
-          .ticks(10)
-          .tickFormat(d3.format('.2f'))
+        d3.axisRight(transformedYScale).tickSizeOuter(0).ticks(10).tickFormat(d3.format('.2f'))
       );
 
       // Reapply font-size styling to maintain consistency with initial load
@@ -568,7 +559,7 @@ const createChart = ({
 
     // Only affect y-axis scaling, centered on mouse position
     const deltaY = event.deltaY;
-    const scaleFactor = deltaY > 0 ? 0.95 : 1.05; // Invert for natural scrolling
+    const scaleFactor = deltaY > 0 ? 0.98 : 1.02; // Invert for natural scrolling
 
     // Get mouse position relative to the chart
     const [, mouseY] = d3.pointer(event, svg.node() as SVGSVGElement);
@@ -704,10 +695,7 @@ const createChart = ({
       const [mouseX, mouseY] = d3.pointer(event);
 
       // Get the current transform from the zoom behavior
-      const combinedTransform = d3.zoomIdentity
-        .translate(currentXTransform.x, currentYTranslate)
-        .scale(1, currentYScale);
-      const transformedXScale = combinedTransform.rescaleX(xScale);
+      const transformedXScale = currentXTransform.rescaleX(xScale);
       const mouseIndex = transformedXScale.invert(mouseX);
 
       // Find closest data point by index for tooltip data
@@ -1508,7 +1496,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             <span>Displaying: {CHART_DATA_POINTS} points</span>
             <span>
               View:{' '}
-              {(() => {
+              {((): string => {
                 const actualStart = Math.max(0, currentViewStart);
                 const actualEnd = Math.min(allChartData.length - 1, currentViewEnd);
                 const actualPoints = actualEnd - actualStart + 1;
