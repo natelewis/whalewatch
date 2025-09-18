@@ -184,44 +184,34 @@ const calculateChartState = ({
 // Create D3 chart
 const createChart = ({
   svgElement,
-  // chartExists,
   allChartData,
   xScale,
   yScale,
   chartLoaded,
   visibleData,
-  setChartExists,
   dimensions,
-  setIsZooming,
-  setIsPanning,
-  setHasUserPanned,
-  setCurrentViewStart,
-  setCurrentViewEnd,
-  checkAndLoadMoreData,
-  setHoverData,
-  setChartLoaded,
-  setFixedYScaleDomain,
   fixedYScaleDomain,
+  onChartStateChange,
+  onHoverDataChange,
 }: {
   svgElement: SVGSVGElement;
-  // chartExists: boolean;
   allChartData: ChartData;
   xScale: d3.ScaleLinear<number, number>;
   yScale: d3.ScaleLinear<number, number>;
   chartLoaded: boolean;
   visibleData: ChartData;
-  setChartExists: (value: boolean) => void;
   dimensions: ChartDimensions;
-  setIsZooming: (value: boolean) => void;
-  setIsPanning: (value: boolean) => void;
-  setHasUserPanned: (value: boolean) => void;
-  setCurrentViewStart: (value: number) => void;
-  setCurrentViewEnd: (value: number) => void;
-  checkAndLoadMoreData: () => void;
-  setHoverData: (value: HoverData | null) => void;
-  setChartLoaded: (value: boolean) => void;
-  setFixedYScaleDomain: (value: [number, number] | null) => void;
   fixedYScaleDomain: [number, number] | null;
+  onChartStateChange: (state: {
+    isZooming: boolean;
+    isPanning: boolean;
+    hasUserPanned: boolean;
+    currentViewStart: number;
+    currentViewEnd: number;
+    chartLoaded: boolean;
+    fixedYScaleDomain: [number, number] | null;
+  }) => void;
+  onHoverDataChange: (hoverData: HoverData | null) => void;
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation');
@@ -246,7 +236,16 @@ const createChart = ({
     return;
   }
 
-  setChartExists(true);
+  // Notify parent component that chart exists
+  onChartStateChange({
+    isZooming: false,
+    isPanning: false,
+    hasUserPanned: false,
+    currentViewStart: 0,
+    currentViewEnd: 0,
+    chartLoaded: true,
+    fixedYScaleDomain,
+  });
   const svg = d3.select(svgElement);
   svg.selectAll('*').remove(); // Clear previous chart
 
@@ -301,9 +300,15 @@ const createChart = ({
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
   const handleZoomStart = (): void => {
-    setIsZooming(true);
-    setIsPanning(true);
-    setHasUserPanned(true); // Mark that user has started panning
+    onChartStateChange({
+      isZooming: true,
+      isPanning: true,
+      hasUserPanned: true,
+      currentViewStart: 0, // Will be updated in handleZoom
+      currentViewEnd: 0, // Will be updated in handleZoom
+      chartLoaded: true,
+      fixedYScaleDomain,
+    });
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -318,8 +323,15 @@ const createChart = ({
     });
 
     // Update view state using centralized calculations
-    setCurrentViewStart(calculations.viewStart);
-    setCurrentViewEnd(calculations.viewEnd);
+    onChartStateChange({
+      isZooming: true,
+      isPanning: true,
+      hasUserPanned: true,
+      currentViewStart: calculations.viewStart,
+      currentViewEnd: calculations.viewEnd,
+      chartLoaded: true,
+      fixedYScaleDomain,
+    });
 
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
@@ -346,13 +358,18 @@ const createChart = ({
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(yAxisGroup);
     }
-
-    checkAndLoadMoreData();
   };
 
   const handleZoomEnd = (): void => {
-    setIsZooming(false);
-    setIsPanning(false);
+    onChartStateChange({
+      isZooming: false,
+      isPanning: false,
+      hasUserPanned: true,
+      currentViewStart: 0, // Will be updated by parent component
+      currentViewEnd: 0, // Will be updated by parent component
+      chartLoaded: true,
+      fixedYScaleDomain,
+    });
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -391,7 +408,7 @@ const createChart = ({
     .on('mouseout', () => {
       crosshair.select('.crosshair-x').style('opacity', 0);
       crosshair.select('.crosshair-y').style('opacity', 0);
-      setHoverData(null);
+      onHoverDataChange(null);
     })
     .on('mousemove', (event) => {
       if (!xScale || !yScale) {
@@ -445,7 +462,7 @@ const createChart = ({
           .attr('y2', mouseY);
 
         // Update hover data (still use closest bar data for tooltip)
-        setHoverData({
+        onHoverDataChange({
           x: mouseX + margin.left,
           y: mouseY + margin.top,
           data: {
@@ -466,14 +483,31 @@ const createChart = ({
     const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
     const priceRange = initialYMax - initialYMin;
     const padding = priceRange * 0.2; // Add 20% padding above and below for more labels
-    setFixedYScaleDomain([initialYMin - padding, initialYMax + padding]);
-    console.log('🔒 Y-axis locked to full data range:', [
-      initialYMin - padding,
-      initialYMax + padding,
-    ]);
+    const newFixedYScaleDomain: [number, number] = [initialYMin - padding, initialYMax + padding];
+
+    onChartStateChange({
+      isZooming: false,
+      isPanning: false,
+      hasUserPanned: false,
+      currentViewStart: 0,
+      currentViewEnd: 0,
+      chartLoaded: true,
+      fixedYScaleDomain: newFixedYScaleDomain,
+    });
+
+    console.log('🔒 Y-axis locked to full data range:', newFixedYScaleDomain);
+  } else {
+    onChartStateChange({
+      isZooming: false,
+      isPanning: false,
+      hasUserPanned: false,
+      currentViewStart: 0,
+      currentViewEnd: 0,
+      chartLoaded: true,
+      fixedYScaleDomain,
+    });
   }
 
-  setChartLoaded(true);
   console.log('🎯 CHART LOADED - Axes can now be created');
 };
 
@@ -777,7 +811,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     if (timeframe !== null) {
       isInitialLoad.current = true; // Reset for new symbol/timeframe
-      // setChartExists(false); // Reset chart existence for new symbol/timeframe
+      setChartExists(false); // Reset chart existence for new symbol/timeframe
       setHasUserPanned(false); // Reset user panning state
       setChartLoaded(false); // Reset chart loaded state
       setFixedYScaleDomain(null); // Reset fixed y-scale domain for new data
@@ -1008,7 +1042,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   ]);
 
   // Check for data loading when view changes (with throttling)
-  useEffect((): void => {
+  useEffect(() => {
     if (
       isValidChartData(allChartData) &&
       !isLoadingMoreData &&
@@ -1144,18 +1178,24 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           yScale: calculations.baseYScale,
           chartLoaded,
           visibleData,
-          setChartExists,
           dimensions,
-          setIsZooming,
-          setIsPanning,
-          setHasUserPanned,
-          setCurrentViewStart,
-          setCurrentViewEnd,
-          checkAndLoadMoreData,
-          setHoverData,
-          setChartLoaded,
-          setFixedYScaleDomain,
           fixedYScaleDomain,
+          onChartStateChange: (state) => {
+            setChartExists(true);
+            setIsZooming(state.isZooming);
+            setIsPanning(state.isPanning);
+            setHasUserPanned(state.hasUserPanned);
+            setCurrentViewStart(state.currentViewStart);
+            setCurrentViewEnd(state.currentViewEnd);
+            setChartLoaded(state.chartLoaded);
+            setFixedYScaleDomain(state.fixedYScaleDomain);
+
+            // Trigger data loading check when view changes
+            if (state.hasUserPanned && state.currentViewStart !== 0 && state.currentViewEnd !== 0) {
+              checkAndLoadMoreData();
+            }
+          },
+          onHoverDataChange: setHoverData,
         });
       }
     }
@@ -1168,6 +1208,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     dimensions,
     visibleData,
     fixedYScaleDomain,
+    chartExists,
   ]);
 
   return (
@@ -1318,7 +1359,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             <span>Displaying: {CHART_DATA_POINTS} points</span>
             <span>
               View:{' '}
-              {(() => {
+              {((): string => {
                 const actualStart = Math.max(0, currentViewStart);
                 const actualEnd = Math.min(allChartData.length - 1, currentViewEnd);
                 const actualPoints = actualEnd - actualStart + 1;
