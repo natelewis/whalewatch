@@ -138,9 +138,7 @@ const calculateChartState = ({
           // Use bufferedData instead of visibleData to ensure y-axis matches all rendered data
           const minPrice = d3.min(calculatedBufferedData, (d) => d.low) as number;
           const maxPrice = d3.max(calculatedBufferedData, (d) => d.high) as number;
-          const priceRange = maxPrice - minPrice;
-          const padding = priceRange * 0.1; // Add 10% padding above and below (reduced from 50%)
-          return [minPrice - padding, maxPrice + padding];
+          return [minPrice, maxPrice];
         })()
     )
     .range([innerHeight, 0]);
@@ -341,7 +339,7 @@ const createChart = ({
     .append('g')
     .attr('class', 'y-axis')
     .attr('transform', `translate(${chartInnerWidth},0)`)
-    .call(d3.axisRight(yScale).ticks(11).tickFormat(d3.format('.2f')));
+    .call(d3.axisRight(yScale).ticks(10).tickFormat(d3.format('.2f')));
 
   // Style the domain lines to be gray and remove end tick marks (nubs)
   xAxis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
@@ -353,15 +351,7 @@ const createChart = ({
   xAxis.selectAll('.tick text').style('font-size', '12px');
   yAxis.selectAll('.tick text').style('font-size', '12px');
 
-  // Don't hide any tick marks - show all labels including edge ones
-
-  yAxis
-    .selectAll('.tick')
-    .filter((d, i, nodes) => {
-      const totalTicks = nodes.length;
-      return i === 0 || i === totalTicks - 1;
-    })
-    .style('display', 'none');
+  // Show all tick marks and labels
 
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
@@ -423,7 +413,7 @@ const createChart = ({
       yAxisGroup.call(
         d3
           .axisRight(calculations.transformedYScale)
-          .ticks(11)
+          .ticks(15)
           .tickFormat(d3.format('.2f'))
           .tickSize(0)
       );
@@ -551,7 +541,7 @@ const createChart = ({
     const initialYMin = d3.min(sortedChartData, (d) => d.low) as number;
     const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
     const priceRange = initialYMax - initialYMin;
-    const padding = priceRange * 0.1; // Add 10% padding above and below
+    const padding = priceRange * 0.2; // Add 20% padding above and below for more labels
     setFixedYScaleDomain([initialYMin - padding, initialYMax + padding]);
     console.log('🔒 Y-axis locked to full data range:', [
       initialYMin - padding,
@@ -1107,7 +1097,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   ]);
 
   // Check for data loading when view changes (with throttling)
-  useEffect(() => {
+  useEffect((): void => {
     if (allChartData.length > 0 && !isLoadingMoreData && !isInitialLoad.current && hasUserPanned) {
       const now = Date.now();
       const timeSinceLastCheck = now - lastDataLoadCheckRef.current;
@@ -1402,9 +1392,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               ) : (
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-foreground text-lg">{symbol}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {timeframe || 'Loading...'} • {allChartData.length} points
-                  </span>
                 </div>
               )}
             </div>
