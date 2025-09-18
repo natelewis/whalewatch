@@ -11,6 +11,9 @@ import {
   createXAxis,
   createYAxis,
   formatPrice,
+  isValidChartData,
+  clampIndex,
+  hasRequiredChartParams,
 } from '../utils/chartDataUtils';
 import { BarChart3, Settings, Play, Pause, RotateCcw } from 'lucide-react';
 
@@ -230,16 +233,7 @@ const createChart = ({
     return;
   }
 
-  if (
-    !allChartData ||
-    !Array.isArray(allChartData) ||
-    allChartData.length === 0 ||
-    !xScale ||
-    !yScale ||
-    chartLoaded ||
-    !visibleData ||
-    visibleData.length === 0
-  ) {
+  if (!hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }) || chartLoaded) {
     console.log('createChart: Early return conditions:', {
       allChartDataLength: allChartData?.length || 0,
       allChartDataIsArray: Array.isArray(allChartData),
@@ -416,11 +410,11 @@ const createChart = ({
       // Use the full data (already sorted from chartDataUtils.processChartData)
       const sortedChartData = allChartData;
 
-      if (!sortedChartData || sortedChartData.length === 0) {
+      if (!isValidChartData(sortedChartData)) {
         return;
       }
 
-      const clampedIndex = Math.max(0, Math.min(index, sortedChartData.length - 1));
+      const clampedIndex = clampIndex(index, sortedChartData.length);
       const d = sortedChartData[clampedIndex];
 
       // Debug logging to verify hover data is updating
@@ -466,7 +460,7 @@ const createChart = ({
     });
 
   // Set the fixed y-scale domain based on all chart data to lock it during panning
-  if (allChartData && allChartData.length > 0) {
+  if (isValidChartData(allChartData)) {
     const sortedChartData = allChartData;
     const initialYMin = d3.min(sortedChartData, (d) => d.low) as number;
     const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
@@ -578,7 +572,7 @@ const getVisibleDataPoints = (
   const sortedData = chartData;
 
   // If no data, return empty array
-  if (sortedData.length === 0) {
+  if (!isValidChartData(sortedData)) {
     console.log('getVisibleData: No data available');
     return [];
   }
@@ -602,8 +596,8 @@ const getVisibleDataPoints = (
   // Handle edge cases more gracefully for panning
   // Allow negative start indices for historical data loading
   // Clamp indices to valid ranges instead of falling back
-  const actualStartIndex = Math.max(0, Math.min(startIndex, sortedData.length - 1));
-  const actualEndIndex = Math.max(actualStartIndex, Math.min(endIndex, sortedData.length - 1));
+  const actualStartIndex = clampIndex(startIndex, sortedData.length);
+  const actualEndIndex = Math.max(actualStartIndex, clampIndex(endIndex, sortedData.length));
 
   // If we have a valid range, use it
   if (actualStartIndex <= actualEndIndex && actualEndIndex < sortedData.length) {
@@ -743,7 +737,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Update visible data when view changes
   useEffect(() => {
-    if (allChartData.length > 0) {
+    if (isValidChartData(allChartData)) {
       const newVisibleData = getVisibleDataPoints(currentViewStart, currentViewEnd, allChartData);
       console.log('Updating visible data:', {
         currentViewStart,
@@ -836,7 +830,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Set initial view to show newest data when data loads
   useEffect(() => {
-    if (allChartData.length > 0) {
+    if (isValidChartData(allChartData)) {
       const totalDataLength = allChartData.length;
       const prevDataLength = prevDataLengthRef.current;
 
@@ -1015,7 +1009,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Check for data loading when view changes (with throttling)
   useEffect((): void => {
-    if (allChartData.length > 0 && !isLoadingMoreData && !isInitialLoad.current && hasUserPanned) {
+    if (
+      isValidChartData(allChartData) &&
+      !isLoadingMoreData &&
+      !isInitialLoad.current &&
+      hasUserPanned
+    ) {
       const now = Date.now();
       const timeSinceLastCheck = now - lastDataLoadCheckRef.current;
       const lastViewIndices = lastViewIndicesRef.current;
@@ -1087,7 +1086,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Centralized chart rendering - only re-render when data changes, not during panning
   useEffect(() => {
-    if (!visibleData || visibleData.length === 0 || !allChartData.length) {
+    if (!isValidChartData(visibleData) || !isValidChartData(allChartData)) {
       return;
     }
     if (svgRef.current) {
@@ -1106,7 +1105,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
-    if (allChartData.length > 0 && currentViewEnd > 0 && visibleData && visibleData.length > 0) {
+    if (isValidChartData(allChartData) && currentViewEnd > 0 && isValidChartData(visibleData)) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
       if (currentViewStart > currentViewEnd || currentViewEnd < 0) {

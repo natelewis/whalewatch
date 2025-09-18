@@ -161,6 +161,41 @@ export const formatPrice = (price: number): string => {
 };
 
 /**
+ * Validate that chart data is valid and non-empty
+ */
+export const isValidChartData = (data: unknown): data is CandlestickData[] => {
+  return !!(data && Array.isArray(data) && data.length > 0);
+};
+
+/**
+ * Clamp an index to valid array bounds
+ */
+export const clampIndex = (index: number, arrayLength: number): number => {
+  return Math.max(0, Math.min(index, arrayLength - 1));
+};
+
+/**
+ * Validate that required chart parameters are present
+ */
+export const hasRequiredChartParams = (params: {
+  allChartData?: unknown;
+  xScale?: unknown;
+  yScale?: unknown;
+  visibleData?: unknown;
+}): boolean => {
+  return !!(
+    params.allChartData &&
+    Array.isArray(params.allChartData) &&
+    params.allChartData.length > 0 &&
+    params.xScale &&
+    params.yScale &&
+    params.visibleData &&
+    Array.isArray(params.visibleData) &&
+    params.visibleData.length > 0
+  );
+};
+
+/**
  * Fill missing intervals for any timeframe data
  */
 export const fillMissingMinutes = (
