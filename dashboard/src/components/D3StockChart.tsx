@@ -93,12 +93,12 @@ const calculateChartState = ({
   const bandWidth = innerWidth / CHART_DATA_POINTS;
   let panOffset = panOffsetPixels / bandWidth;
 
-  // Constrain panning to prevent going beyond the fake future data point
+  // Constrain panning to prevent going beyond the newest real data
   // Allow unlimited panning to the past (positive panOffset values)
-  // But limit future panning (negative panOffset values) to -2 data points
-  const minPanOffset = -2; // Minimum pan offset in data points (for future limit)
+  // But prevent all future panning (negative panOffset values)
+  const minPanOffset = 0; // No future panning allowed - stop at newest real data
   if (panOffset < minPanOffset) {
-    panOffset = minPanOffset; // Only constrain when panning too far to the future
+    panOffset = minPanOffset; // Prevent any future panning
   }
   // Allow positive panOffset values (past panning) to pass through unchanged
 
@@ -493,13 +493,12 @@ const createChart = ({
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
     let { transform } = event;
 
-    // Apply panning constraint to prevent going beyond the fake future data point
-    const bandWidth = innerWidth / CHART_DATA_POINTS;
-    const minPanOffsetPixels = bandWidth * -2; // Limit future panning to -2 data points
+    // Apply panning constraint to prevent going beyond the newest real data
+    const minPanOffsetPixels = 0; // No future panning allowed - stop at newest real data
 
     let constrainedX = transform.x;
     if (transform.x < minPanOffsetPixels) {
-      constrainedX = minPanOffsetPixels; // Only constrain when panning too far to the future
+      constrainedX = minPanOffsetPixels; // Prevent any future panning
     }
     // Allow positive transform.x values (past panning) to pass through unchanged
 
