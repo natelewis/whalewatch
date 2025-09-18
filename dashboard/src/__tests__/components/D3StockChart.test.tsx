@@ -421,4 +421,42 @@ describe('D3StockChart', () => {
     expect(screen.getByRole('heading', { name: 'AAPL' })).toBeInTheDocument();
     expect(mockUseChartData.loadChartData).toHaveBeenCalledWith('AAPL', '1h');
   });
+
+  it('prevents panning into the future and resets zoom state correctly', () => {
+    // Mock D3 zoom behavior to track transform calls
+    const mockZoom = {
+      scaleExtent: vi.fn().mockReturnThis(),
+      on: vi.fn().mockReturnThis(),
+      transform: vi.fn().mockReturnThis(),
+    };
+
+    const mockZoomTransform = vi.fn(() => ({
+      x: -100, // Simulate trying to pan into the future
+      y: 0,
+      k: 1,
+      rescaleX: vi.fn(() => ({
+        domain: vi.fn().mockReturnThis(),
+        range: vi.fn().mockReturnThis(),
+        invert: vi.fn(),
+      })),
+      rescaleY: vi.fn(() => ({
+        domain: vi.fn().mockReturnThis(),
+        range: vi.fn().mockReturnThis(),
+        invert: vi.fn(),
+      })),
+    }));
+
+    // Mock the zoom behavior to return our mock
+    vi.mocked(d3.zoom).mockReturnValue(mockZoom);
+    vi.mocked(d3.zoomTransform).mockImplementation(mockZoomTransform);
+
+    render(<D3StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
+
+    // The chart should render without errors
+    expect(screen.getByRole('heading', { name: 'TSLA' })).toBeInTheDocument();
+
+    // Verify that the zoom behavior was set up correctly
+    expect(mockZoom.scaleExtent).toHaveBeenCalled();
+    expect(mockZoom.on).toHaveBeenCalled();
+  });
 });

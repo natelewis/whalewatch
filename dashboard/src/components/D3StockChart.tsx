@@ -462,6 +462,15 @@ const createChart = ({
 
     if (transform.x < minPanOffsetPixels) {
       constrainedX = minPanOffsetPixels; // Prevent any future panning
+
+      // Reset the zoom behavior's internal state to prevent offset accumulation
+      // This ensures that when the user tries to pan back into the past,
+      // they don't need to "undo" the accumulated offset first
+      const constrainedTransform = d3.zoomIdentity
+        .translate(constrainedX, transform.y)
+        .scale(transform.k);
+      svg.call(zoom.transform, constrainedTransform);
+      return; // Exit early to prevent double processing
     }
 
     // Update x transform for panning
