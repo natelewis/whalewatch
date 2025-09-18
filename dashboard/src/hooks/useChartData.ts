@@ -61,8 +61,6 @@ export const useChartData = ({
   const [isLeftLoading, setIsLeftLoading] = useState(false);
   const [isRightLoading, setIsRightLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [leftLoadCount, setLeftLoadCount] = useState(0);
-  const [rightLoadCount, setRightLoadCount] = useState(0);
   const [maxDataPoints, setMaxDataPoints] = useState<number>(0);
 
   // View-based loading state
@@ -77,6 +75,12 @@ export const useChartData = ({
   const [allData, setAllData] = useState<CandlestickData[]>([]); // Store all loaded data
   const [currentViewData, setCurrentViewData] = useState<CandlestickData[]>([]); // Current view data
   const viewStateRef = useRef<ViewState | null>(null);
+
+  // Request de-duplication and boundary flags
+  const lastLeftEndTimeRef = useRef<string | null>(null);
+  const lastRightEndTimeRef = useRef<string | null>(null);
+  const noMoreLeftDataRef = useRef<boolean>(false);
+  const noMoreRightDataRef = useRef<boolean>(false);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -106,8 +110,6 @@ export const useChartData = ({
   const canPanLeft = viewState ? viewState.currentViewStart > 0 : false;
   const canPanRight = viewState ? viewState.currentViewEnd < viewState.totalDataPoints - 1 : false;
 
-  // Debug logging for pan states
-
   // Pan left - move view one position to the left
   const panLeft = useCallback(() => {
     if (!viewState || !canPanLeft) {
@@ -115,7 +117,6 @@ export const useChartData = ({
       return;
     }
 
-    // Move by half the view size for more noticeable panning
     const panStep = Math.max(1, Math.floor(viewState.viewSize / 2));
     const newViewStart = Math.max(0, viewState.currentViewStart - panStep);
     const newViewEnd = newViewStart + viewState.viewSize - 1;
@@ -128,17 +129,8 @@ export const useChartData = ({
       hasDataAfter: newViewEnd < viewState.totalDataPoints - 1,
     };
 
-    console.log('panLeft newViewState:', newViewState);
-    console.log('panLeft data slice:', {
-      start: newViewStart,
-      end: newViewEnd + 1,
-      sliceLength: allData.slice(newViewStart, newViewEnd + 1).length,
-      firstItem: allData[newViewStart],
-      lastItem: allData[newViewEnd],
-    });
-
     updateViewState(newViewState);
-  }, [viewState, canPanLeft, updateViewState, allData]);
+  }, [viewState, canPanLeft, updateViewState]);
 
   // Pan right - move view one position to the right
   const panRight = useCallback(() => {
@@ -146,7 +138,6 @@ export const useChartData = ({
       return;
     }
 
-    // Move by half the view size for more noticeable panning
     const panStep = Math.max(1, Math.floor(viewState.viewSize / 2));
     const newViewEnd = Math.min(viewState.totalDataPoints - 1, viewState.currentViewEnd + panStep);
     const newViewStart = newViewEnd - viewState.viewSize + 1;
@@ -175,47 +166,31 @@ export const useChartData = ({
         let response: ChartDataResponse;
 
         if (enableViewBasedLoading) {
-          // Use view-based loading - load 3 views worth of data
           response = await apiService.getChartData(
             symbol,
             timeframe,
             dataPoints,
-            undefined, // endTime - use current time
-            undefined, // bufferPoints - not used in view-based mode
-            true, // viewBasedLoading
-            dataPoints // viewSize
+            undefined,
+            undefined,
+            true,
+            dataPoints
           );
         } else {
-          // Use traditional loading
           response = await apiService.getChartData(
             symbol,
             timeframe,
             dataPoints,
-            undefined, // endTime - use current time
-            bufferPoints // Add buffer points
+            undefined,
+            bufferPoints
           );
         }
 
-        // Process the data using utility functions
         const { formattedData, dataRange: newDataRange } = processChartData(response.bars);
 
-        console.log('Initial data load:', {
-          symbol,
-          timeframe,
-          dataPoints,
-          barsCount: response.bars?.length || 0,
-          formattedDataLength: formattedData.length,
-          dataRange: newDataRange,
-          viewBasedLoading: enableViewBasedLoading,
-        });
-
         if (enableViewBasedLoading) {
-          // Store all data and set up view state
           setAllData(formattedData);
 
-          // Initialize view state - start at the most recent data (rightmost view)
           const totalDataPoints = formattedData.length;
-          // Use a smaller view size to enable panning - use 1/3 of the data or the requested dataPoints, whichever is smaller
           const viewSize = Math.min(dataPoints, Math.max(10, Math.floor(totalDataPoints / 3)));
           const currentViewStart = Math.max(0, totalDataPoints - viewSize);
           const currentViewEnd = totalDataPoints - 1;
@@ -226,50 +201,33 @@ export const useChartData = ({
             viewSize,
             totalDataPoints,
             hasDataBefore: currentViewStart > 0,
-            hasDataAfter: false, // We start at the most recent data
+            hasDataAfter: false,
           };
 
-          console.log('View-based loading setup:', {
-            totalDataPoints,
-            viewSize,
-            currentViewStart,
-            currentViewEnd,
-            hasDataBefore: currentViewStart > 0,
-            hasDataAfter: false,
-            formattedDataLength: formattedData.length,
-          });
-
-          // Set view state and current view data directly
           setViewState(initialViewState);
           viewStateRef.current = initialViewState;
           const viewData = formattedData.slice(currentViewStart, currentViewEnd + 1);
-
-          console.log('Initial view data:', {
-            viewDataLength: viewData.length,
-            allDataLength: formattedData.length,
-          });
-
           setCurrentViewData(viewData);
-          // Set the main chartData to the initial view
           setChartData(viewData);
         } else {
-          // Traditional mode - use all data
           setChartData(formattedData);
         }
 
         setDataRange(newDataRange);
         setMaxDataPoints(dataPoints);
+        // Reset boundary flags when reloading base data
+        noMoreLeftDataRef.current = false;
+        noMoreRightDataRef.current = false;
+        lastLeftEndTimeRef.current = null;
+        lastRightEndTimeRef.current = null;
 
-        // Reset loading states for new data
-        setLeftLoadCount(0);
-        setRightLoadCount(0);
-
-        // Call callback if provided
         if (onDataLoaded) {
           onDataLoaded(enableViewBasedLoading ? currentViewData : formattedData, newDataRange);
         }
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.error || 'Failed to load chart data';
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as { response?: { data?: { error?: string } } }).response?.data?.error ||
+          'Failed to load chart data';
         setError(errorMessage);
 
         if (onError) {
@@ -295,17 +253,15 @@ export const useChartData = ({
       console.log('loadMoreDataLeft called:', {
         chartDataLength: chartData.length,
         isLeftLoading,
-        leftLoadCount,
         symbol,
         timeframe,
         enableViewBasedLoading,
       });
 
-      if (!chartData.length || isLeftLoading || leftLoadCount >= 5) {
+      if (!chartData.length || isLeftLoading) {
         console.log('loadMoreDataLeft blocked:', {
           noData: !chartData.length,
           isLoading: isLeftLoading,
-          tooManyLoads: leftLoadCount >= 5,
         });
         return;
       }
@@ -314,41 +270,50 @@ export const useChartData = ({
         setIsLeftLoading(true);
         setError(null);
 
-        // Find the timeframe configuration to get the appropriate data points
-        const timeframeConfig = timeframes.find((tf) => tf.value === timeframe);
-        const dataPoints = timeframeConfig?.dataPoints || DEFAULT_CHART_DATA_POINTS;
-
-        // Get the earliest timestamp from current data
+        // Determine earliest time from current data
         const sortedData = [...chartData].sort(
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         );
         const earliestTime = sortedData[0].time;
-        const endTime = new Date(new Date(earliestTime).getTime() - 60000).toISOString(); // Subtract 1 minute
+        const endTime = new Date(new Date(earliestTime).getTime() - 60000).toISOString();
+
+        // Guard against duplicate requests and exhausted data
+        if (noMoreLeftDataRef.current) {
+          console.log('loadMoreDataLeft blocked: no more older data');
+          return;
+        }
+        if (lastLeftEndTimeRef.current === endTime) {
+          console.log('loadMoreDataLeft blocked: duplicate endTime', endTime);
+          return;
+        }
+        lastLeftEndTimeRef.current = endTime;
 
         console.log('Making API call for left data:', {
           symbol,
           timeframe,
-          dataPoints,
+          dataPoints:
+            timeframes.find((tf) => tf.value === timeframe)?.dataPoints ||
+            DEFAULT_CHART_DATA_POINTS,
           endTime,
           bufferPoints,
           enableViewBasedLoading,
         });
 
         let response: ChartDataResponse;
+        const dataPoints =
+          timeframes.find((tf) => tf.value === timeframe)?.dataPoints || DEFAULT_CHART_DATA_POINTS;
 
         if (enableViewBasedLoading) {
-          // Use view-based loading for additional data
           response = await apiService.getChartData(
             symbol,
             timeframe,
             dataPoints,
             endTime,
-            undefined, // bufferPoints - not used in view-based mode
-            true, // viewBasedLoading
-            dataPoints // viewSize
+            undefined,
+            true,
+            dataPoints
           );
         } else {
-          // Use traditional loading
           response = await apiService.getChartData(
             symbol,
             timeframe,
@@ -363,33 +328,39 @@ export const useChartData = ({
           response,
         });
 
-        // Process the new data
         const { formattedData } = processChartData(response.bars);
 
         console.log('Left data processing:', {
           formattedDataLength: formattedData.length,
-          formattedData: formattedData.slice(0, 3), // Show first 3 items
+          formattedData: formattedData.slice(0, 3),
         });
 
+        // Check if the response actually contains older data
+        const responseEarliest = formattedData.length
+          ? formattedData.reduce<string>(
+              (min, d) => (new Date(d.time).getTime() < new Date(min).getTime() ? d.time : min),
+              formattedData[0].time
+            )
+          : null;
+        const hasOlderData =
+          responseEarliest !== null &&
+          new Date(responseEarliest).getTime() < new Date(earliestTime).getTime();
+        if (!hasOlderData) {
+          // No older data; stop further left attempts until base reload
+          noMoreLeftDataRef.current = true;
+          return;
+        }
+
         if (enableViewBasedLoading) {
-          // Update all data and view state
           setAllData((prevAllData) => {
             const existingTimes = new Set(prevAllData.map((d) => d.time));
             const newData = formattedData.filter((d) => !existingTimes.has(d.time));
-
             const combined = [...prevAllData, ...newData].sort(
               (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
             );
-
-            if (newData.length > 0) {
-              setLeftLoadCount((prev) => prev + 1);
-              console.log('Left data loaded successfully, new count:', newData.length);
-            }
-
             return combined;
           });
         } else {
-          // Traditional mode - merge with existing data
           setChartData((prevData) => {
             const combined = [...formattedData, ...prevData];
             const uniqueData = Array.from(
@@ -398,18 +369,13 @@ export const useChartData = ({
             const sorted = uniqueData.sort(
               (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
             );
-
-            const newDataLength = sorted.length - prevData.length;
-
-            if (newDataLength > 0) {
-              setLeftLoadCount((prev) => prev + 1);
-            }
-
             return sorted;
           });
         }
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.error || 'Failed to load more data';
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as { response?: { data?: { error?: string } } }).response?.data?.error ||
+          'Failed to load more data';
         setError(errorMessage);
 
         if (onError) {
@@ -419,15 +385,7 @@ export const useChartData = ({
         setIsLeftLoading(false);
       }
     },
-    [
-      chartData,
-      timeframes,
-      bufferPoints,
-      isLeftLoading,
-      leftLoadCount,
-      onError,
-      enableViewBasedLoading,
-    ]
+    [chartData, timeframes, bufferPoints, isLeftLoading, onError, enableViewBasedLoading]
   );
 
   const loadMoreDataRight = useCallback(
@@ -435,17 +393,15 @@ export const useChartData = ({
       console.log('loadMoreDataRight called:', {
         chartDataLength: chartData.length,
         isRightLoading,
-        rightLoadCount,
         symbol,
         timeframe,
         enableViewBasedLoading,
       });
 
-      if (!chartData.length || isRightLoading || rightLoadCount >= 5) {
+      if (!chartData.length || isRightLoading) {
         console.log('loadMoreDataRight blocked:', {
           noData: !chartData.length,
           isLoading: isRightLoading,
-          tooManyLoads: rightLoadCount >= 5,
         });
         return;
       }
@@ -454,34 +410,37 @@ export const useChartData = ({
         setIsRightLoading(true);
         setError(null);
 
-        // Find the timeframe configuration to get the appropriate data points
-        const timeframeConfig = timeframes.find((tf) => tf.value === timeframe);
-        const dataPoints = timeframeConfig?.dataPoints || DEFAULT_CHART_DATA_POINTS;
-
-        // Get the latest timestamp from current data
         const sortedData = [...chartData].sort(
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         );
         const latestTime = sortedData[sortedData.length - 1].time;
+        const endTime = new Date(new Date(latestTime).getTime() + 60000).toISOString();
 
-        // Use a time slightly after the latest to get newer data
-        const endTime = new Date(new Date(latestTime).getTime() + 60000).toISOString(); // Add 1 minute
+        if (noMoreRightDataRef.current) {
+          console.log('loadMoreDataRight blocked: no more newer data');
+          return;
+        }
+        if (lastRightEndTimeRef.current === endTime) {
+          console.log('loadMoreDataRight blocked: duplicate endTime', endTime);
+          return;
+        }
+        lastRightEndTimeRef.current = endTime;
 
         let response: ChartDataResponse;
+        const dataPoints =
+          timeframes.find((tf) => tf.value === timeframe)?.dataPoints || DEFAULT_CHART_DATA_POINTS;
 
         if (enableViewBasedLoading) {
-          // Use view-based loading for additional data
           response = await apiService.getChartData(
             symbol,
             timeframe,
             dataPoints,
             endTime,
-            undefined, // bufferPoints - not used in view-based mode
-            true, // viewBasedLoading
-            dataPoints // viewSize
+            undefined,
+            true,
+            dataPoints
           );
         } else {
-          // Use traditional loading
           response = await apiService.getChartData(
             symbol,
             timeframe,
@@ -491,27 +450,32 @@ export const useChartData = ({
           );
         }
 
-        // Process the new data
         const { formattedData } = processChartData(response.bars);
 
+        const responseLatest = formattedData.length
+          ? formattedData.reduce<string>(
+              (max, d) => (new Date(d.time).getTime() > new Date(max).getTime() ? d.time : max),
+              formattedData[0].time
+            )
+          : null;
+        const hasNewerData =
+          responseLatest !== null &&
+          new Date(responseLatest).getTime() > new Date(latestTime).getTime();
+        if (!hasNewerData) {
+          noMoreRightDataRef.current = true;
+          return;
+        }
+
         if (enableViewBasedLoading) {
-          // Update all data and view state
           setAllData((prevAllData) => {
             const existingTimes = new Set(prevAllData.map((d) => d.time));
             const newData = formattedData.filter((d) => !existingTimes.has(d.time));
-
             const combined = [...prevAllData, ...newData].sort(
               (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
             );
-
-            if (newData.length > 0) {
-              setRightLoadCount((prev) => prev + 1);
-            }
-
             return combined;
           });
         } else {
-          // Traditional mode - merge with existing data
           setChartData((prevData) => {
             const combined = [...prevData, ...formattedData];
             const uniqueData = Array.from(
@@ -520,18 +484,13 @@ export const useChartData = ({
             const sorted = uniqueData.sort(
               (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
             );
-
-            const newDataLength = sorted.length - prevData.length;
-
-            if (newDataLength > 0) {
-              setRightLoadCount((prev) => prev + 1);
-            }
-
             return sorted;
           });
         }
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.error || 'Failed to load more data';
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as { response?: { data?: { error?: string } } }).response?.data?.error ||
+          'Failed to load more data';
         setError(errorMessage);
 
         if (onError) {
@@ -541,15 +500,7 @@ export const useChartData = ({
         setIsRightLoading(false);
       }
     },
-    [
-      chartData,
-      timeframes,
-      bufferPoints,
-      isRightLoading,
-      rightLoadCount,
-      onError,
-      enableViewBasedLoading,
-    ]
+    [chartData, timeframes, bufferPoints, isRightLoading, onError, enableViewBasedLoading]
   );
 
   const updateChartWithLiveData = useCallback(
@@ -563,44 +514,35 @@ export const useChartData = ({
       };
 
       if (enableViewBasedLoading) {
-        // Update all data and current view data
         setAllData((prevAllData) => {
           const lastCandle = prevAllData[prevAllData.length - 1];
           if (lastCandle && lastCandle.time === newCandle.time) {
-            // Update existing candle
             const updatedData = [...prevAllData];
             updatedData[updatedData.length - 1] = newCandle;
             return updatedData;
           } else {
-            // Add new candle
             return [...prevAllData, newCandle];
           }
         });
 
-        // Update current view data if it includes the latest data
         setCurrentViewData((prevViewData) => {
           const lastCandle = prevViewData[prevViewData.length - 1];
           if (lastCandle && lastCandle.time === newCandle.time) {
-            // Update existing candle
             const updatedData = [...prevViewData];
             updatedData[updatedData.length - 1] = newCandle;
             return updatedData;
           } else {
-            // Add new candle
             return [...prevViewData, newCandle];
           }
         });
       } else {
-        // Traditional mode - update chart data directly
         setChartData((prevData) => {
           const lastCandle = prevData[prevData.length - 1];
           if (lastCandle && lastCandle.time === newCandle.time) {
-            // Update existing candle
             const updatedData = [...prevData];
             updatedData[updatedData.length - 1] = newCandle;
             return updatedData;
           } else {
-            // Add new candle
             return [...prevData, newCandle];
           }
         });
@@ -612,7 +554,6 @@ export const useChartData = ({
   // Get the limited data for display (only show maxDataPoints)
   const getDisplayData = useCallback(() => {
     if (enableViewBasedLoading) {
-      // In view-based mode, return current view data
       return currentViewData;
     }
 
@@ -639,7 +580,6 @@ export const useChartData = ({
     clearError,
     isLeftLoading,
     isRightLoading,
-    // View-based loading methods
     panLeft,
     panRight,
     canPanLeft,
