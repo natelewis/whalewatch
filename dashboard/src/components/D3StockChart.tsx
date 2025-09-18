@@ -94,9 +94,13 @@ const calculateChartState = ({
   let panOffset = panOffsetPixels / bandWidth;
 
   // Constrain panning to prevent going beyond the fake future data point
-  // Allow panning up to 1 data point to the right (to show the fake future point at right edge)
-  const maxPanOffset = 1; // Maximum pan offset in data points
-  panOffset = Math.min(panOffset, maxPanOffset);
+  // Allow unlimited panning to the past (positive panOffset values)
+  // But limit future panning (negative panOffset values) to -2 data points
+  const minPanOffset = -2; // Minimum pan offset in data points (for future limit)
+  if (panOffset < minPanOffset) {
+    panOffset = minPanOffset; // Only constrain when panning too far to the future
+  }
+  // Allow positive panOffset values (past panning) to pass through unchanged
 
   // Base view shows most recent data, adjusted for available data
   const baseViewStart = Math.max(0, availableDataLength - actualBufferSize);
@@ -193,7 +197,7 @@ const calculateChartState = ({
   // For panning (panOffset !== 0), use the original buffer-based logic
   const bufferedViewStart = Math.max(
     0,
-    Math.min(availableDataLength - actualBufferSize, baseViewStart - panOffset)
+    Math.min(availableDataLength - actualBufferSize, baseViewStart + panOffset)
   );
   const bufferedViewEnd = Math.min(
     availableDataLength - 1,
@@ -491,8 +495,13 @@ const createChart = ({
 
     // Apply panning constraint to prevent going beyond the fake future data point
     const bandWidth = innerWidth / CHART_DATA_POINTS;
-    const maxPanOffsetPixels = bandWidth * 1; // Allow panning by 1 data point to show fake point at right edge
-    const constrainedX = Math.min(transform.x, maxPanOffsetPixels);
+    const minPanOffsetPixels = bandWidth * -2; // Limit future panning to -2 data points
+
+    let constrainedX = transform.x;
+    if (transform.x < minPanOffsetPixels) {
+      constrainedX = minPanOffsetPixels; // Only constrain when panning too far to the future
+    }
+    // Allow positive transform.x values (past panning) to pass through unchanged
 
     // Create a new transform with the constrained x value
     if (constrainedX !== transform.x) {
