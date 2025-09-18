@@ -199,7 +199,7 @@ export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 
 // Chart Constants
 export const DEFAULT_CHART_DATA_POINTS = parseInt(
-  import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '80',
+  import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '500',
   10
 );
 

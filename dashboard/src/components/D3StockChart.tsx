@@ -39,9 +39,11 @@ const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 const useChartScales = ({
   visibleData,
   dimensions,
+  fixedYScaleDomain,
 }: {
   visibleData: ChartData;
   dimensions: ChartDimensions;
+  fixedYScaleDomain: [number, number] | null;
 }): {
   xScale: d3.ScaleLinear<number, number> | null;
   yScale: d3.ScaleLinear<number, number> | null;
@@ -60,16 +62,19 @@ const useChartScales = ({
       .domain([0, visibleData.length - 1])
       .range([0, innerWidth]);
 
+    // Use fixed y-scale domain if available, otherwise calculate from data
     const yScale = d3
       .scaleLinear()
-      .domain([
-        d3.min(visibleData, (d) => d.low) as number,
-        d3.max(visibleData, (d) => d.high) as number,
-      ])
+      .domain(
+        fixedYScaleDomain || [
+          d3.min(visibleData, (d) => d.low) as number,
+          d3.max(visibleData, (d) => d.high) as number,
+        ]
+      )
       .range([innerHeight, 0]);
 
     return { xScale, yScale };
-  }, [visibleData, dimensions]);
+  }, [visibleData, dimensions, fixedYScaleDomain]);
 };
 
 // Create D3 chart
@@ -92,6 +97,8 @@ const createChart = ({
   setHoverData,
   setChartLoaded,
   setCurrentTransform,
+  setFixedYScaleDomain,
+  fixedYScaleDomain,
 }: {
   svgElement: SVGSVGElement;
   // chartExists: boolean;
@@ -111,6 +118,8 @@ const createChart = ({
   setHoverData: (value: HoverData | null) => void;
   setChartLoaded: (value: boolean) => void;
   setCurrentTransform: (value: d3.ZoomTransform | null) => void;
+  setFixedYScaleDomain: (value: [number, number] | null) => void;
+  fixedYScaleDomain: [number, number] | null;
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation');
@@ -248,13 +257,15 @@ const createChart = ({
       .domain([0, visibleData.length - 1])
       .range([0, innerWidth]);
 
-    // Y-axis: Use the visible data price range for consistent scaling
+    // Y-axis: Use the fixed y-scale domain to prevent changes during panning
     const consistentYScale = d3
       .scaleLinear()
-      .domain([
-        d3.min(visibleData, (d) => d.low) as number,
-        d3.max(visibleData, (d) => d.high) as number,
-      ])
+      .domain(
+        fixedYScaleDomain || [
+          d3.min(visibleData, (d) => d.low) as number,
+          d3.max(visibleData, (d) => d.high) as number,
+        ]
+      )
       .range([innerHeight, 0]);
 
     // Update axes using the same scale logic as initial rendering
@@ -378,6 +389,14 @@ const createChart = ({
         });
       }
     });
+
+  // Set the fixed y-scale domain based on initial data to lock it during panning
+  if (visibleData && visibleData.length > 0) {
+    const initialYMin = d3.min(visibleData, (d) => d.low) as number;
+    const initialYMax = d3.max(visibleData, (d) => d.high) as number;
+    setFixedYScaleDomain([initialYMin, initialYMax]);
+    console.log('🔒 Y-axis locked to initial range:', [initialYMin, initialYMax]);
+  }
 
   setChartLoaded(true);
   console.log('🎯 CHART LOADED - Axes can now be created');
@@ -588,6 +607,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Track current transform for candlestick rendering
   const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
 
+  // Store fixed y-scale domain to prevent recalculation during panning
+  const [fixedYScaleDomain, setFixedYScaleDomain] = useState<[number, number] | null>(null);
+
   // Chart dimensions
   const [dimensions, setDimensions] = useState<ChartDimensions>({
     width: 800,
@@ -595,7 +617,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     margin: { top: 20, right: 30, bottom: 40, left: 60 },
   });
 
-  const { xScale, yScale } = useChartScales({ visibleData, dimensions });
+  const { xScale, yScale } = useChartScales({ visibleData, dimensions, fixedYScaleDomain });
 
   // Define timeframes array
   const timeframes: TimeframeConfig[] = useMemo(
@@ -673,6 +695,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // setChartExists(false); // Reset chart existence for new symbol/timeframe
       setHasUserPanned(false); // Reset user panning state
       setChartLoaded(false); // Reset chart loaded state
+      setFixedYScaleDomain(null); // Reset fixed y-scale domain for new data
       chartDataHook.loadChartData(symbol, timeframe);
     }
   }, [symbol, timeframe]);
@@ -992,6 +1015,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           setHoverData,
           setChartLoaded,
           setCurrentTransform,
+          setFixedYScaleDomain,
+          fixedYScaleDomain,
         });
       }
     }
