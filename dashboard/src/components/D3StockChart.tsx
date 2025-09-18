@@ -91,6 +91,7 @@ const createChart = ({
   checkAndLoadMoreData,
   setHoverData,
   setChartLoaded,
+  setCurrentTransform,
 }: {
   svgElement: SVGSVGElement;
   // chartExists: boolean;
@@ -109,6 +110,7 @@ const createChart = ({
   checkAndLoadMoreData: () => void;
   setHoverData: (value: HoverData | null) => void;
   setChartLoaded: (value: boolean) => void;
+  setCurrentTransform: (value: d3.ZoomTransform | null) => void;
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation');
@@ -231,6 +233,7 @@ const createChart = ({
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
     const { transform } = event;
+    setCurrentTransform(transform);
     updateCurrentView({
       transform,
       sortedData,
@@ -280,6 +283,9 @@ const createChart = ({
       // Keep the axis line (domain path) fixed by overriding its transform
       yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
     }
+
+    // Re-render candlesticks with the current transform
+    renderCandlestickChart(svgElement, visibleData, consistentXScale, consistentYScale, transform);
 
     checkAndLoadMoreData();
   };
@@ -407,7 +413,8 @@ const renderCandlestickChart = (
   svgElement: SVGSVGElement,
   data: ChartData,
   xScale: d3.ScaleLinear<number, number> | null,
-  yScale: d3.ScaleLinear<number, number> | null
+  yScale: d3.ScaleLinear<number, number> | null,
+  transform?: d3.ZoomTransform
 ): void => {
   if (!xScale || !yScale) {
     return;
@@ -416,6 +423,11 @@ const renderCandlestickChart = (
   // Add crosshair
   d3.select(svgElement).selectAll('.candle-sticks').remove();
   const candleSticks = d3.select(svgElement).append('g').attr('class', 'candle-sticks');
+
+  // Apply transform to the candlesticks group if provided
+  if (transform) {
+    candleSticks.attr('transform', `translate(${transform.x},${transform.y})`);
+  }
 
   const candleWidth = Math.max(1, 4);
 
@@ -572,6 +584,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Track if chart already exists to avoid unnecessary recreations
   const [chartExists, setChartExists] = useState<boolean>(false);
+
+  // Track current transform for candlestick rendering
+  const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
 
   // Chart dimensions
   const [dimensions, setDimensions] = useState<ChartDimensions>({
@@ -908,9 +923,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return;
     }
     if (svgRef.current) {
-      renderCandlestickChart(svgRef.current as SVGSVGElement, visibleData, xScale, yScale);
+      renderCandlestickChart(
+        svgRef.current as SVGSVGElement,
+        visibleData,
+        xScale,
+        yScale,
+        currentTransform || undefined
+      );
     }
-  }, [visibleData, xScale, yScale]);
+  }, [visibleData, xScale, yScale, currentTransform]);
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
@@ -970,6 +991,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           checkAndLoadMoreData,
           setHoverData,
           setChartLoaded,
+          setCurrentTransform,
         });
       }
     }
