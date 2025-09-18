@@ -319,15 +319,18 @@ const createChart = ({
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
     .call(
-      d3.axisBottom(xScale).tickFormat((d) => {
-        const globalIndex = Math.round(d as number);
-        // Find the data point at this global index
-        if (globalIndex >= 0 && globalIndex < sortedData.length) {
-          const date = new Date(sortedData[globalIndex].time);
-          return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-        }
-        return '';
-      })
+      d3
+        .axisBottom(xScale)
+        .ticks(8) // Generate 8 ticks that will slide with the data
+        .tickFormat((d) => {
+          const globalIndex = Math.round(d as number);
+          // Find the data point at this global index
+          if (globalIndex >= 0 && globalIndex < sortedData.length) {
+            const date = new Date(sortedData[globalIndex].time);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          }
+          return '';
+        })
     );
 
   // Create Y-axis
@@ -347,14 +350,7 @@ const createChart = ({
   xAxis.selectAll('.tick text').style('font-size', '12px');
   yAxis.selectAll('.tick text').style('font-size', '12px');
 
-  // Remove the tick marks at the very ends (nubs) by hiding the first and last ticks
-  xAxis
-    .selectAll('.tick')
-    .filter((d, i, nodes) => {
-      const totalTicks = nodes.length;
-      return i === 0 || i === totalTicks - 1;
-    })
-    .style('display', 'none');
+  // Don't hide any tick marks - show all labels including edge ones
 
   yAxis
     .selectAll('.tick')
@@ -398,18 +394,21 @@ const createChart = ({
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       xAxisGroup.call(
-        d3.axisBottom(calculations.transformedXScale).tickFormat((d) => {
-          const globalIndex = Math.floor(d as number);
-          // Find the data point at this global index
-          const sortedData = [...allChartData].sort(
-            (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-          );
-          if (globalIndex >= 0 && globalIndex < sortedData.length) {
-            const date = new Date(sortedData[globalIndex].time);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-          }
-          return '';
-        })
+        d3
+          .axisBottom(calculations.transformedXScale)
+          .ticks(8) // Generate 8 ticks that will slide with the data
+          .tickFormat((d) => {
+            const globalIndex = Math.floor(d as number);
+            // Find the data point at this global index
+            const sortedChartData = [...allChartData].sort(
+              (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+            );
+            if (globalIndex >= 0 && globalIndex < sortedChartData.length) {
+              const date = new Date(sortedChartData[globalIndex].time);
+              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }
+            return '';
+          })
       );
     }
 
