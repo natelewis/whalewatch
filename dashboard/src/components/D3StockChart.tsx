@@ -75,7 +75,7 @@ const useChartScales = ({
 // Create D3 chart
 const createChart = ({
   svgElement,
-  chartExists,
+  // chartExists,
   allChartData,
   xScale,
   yScale,
@@ -93,7 +93,7 @@ const createChart = ({
   setChartLoaded,
 }: {
   svgElement: SVGSVGElement;
-  chartExists: boolean;
+  // chartExists: boolean;
   allChartData: ChartData;
   xScale: d3.ScaleLinear<number, number>;
   yScale: d3.ScaleLinear<number, number>;
@@ -110,8 +110,17 @@ const createChart = ({
   setHoverData: (value: HoverData | null) => void;
   setChartLoaded: (value: boolean) => void;
 }): void => {
+  if (!svgElement) {
+    console.log('createChart: No svgElement found, skipping chart creation');
+    return;
+  }
+
+  if (d3.select(svgElement).select('g').empty()) {
+    console.log('createChart: No .g element found, skipping chart creation');
+    return;
+  }
+
   if (
-    chartExists ||
     !allChartData ||
     !Array.isArray(allChartData) ||
     allChartData.length === 0 ||
@@ -122,7 +131,6 @@ const createChart = ({
     visibleData.length === 0
   ) {
     console.log('createChart: Early return conditions:', {
-      chartExists,
       allChartDataLength: allChartData?.length || 0,
       allChartDataIsArray: Array.isArray(allChartData),
       hasXScale: !!xScale,
@@ -131,10 +139,6 @@ const createChart = ({
       hasVisibleData: !!visibleData,
       visibleDataLength: visibleData?.length || 0,
     });
-    return;
-  }
-
-  if (!svgElement) {
     return;
   }
 
@@ -409,9 +413,9 @@ const renderCandlestickChart = (
     return;
   }
 
-  // Clear previous chart candlesticks
-  d3.select(svgElement).select('.g').remove();
-  const g = d3.select(svgElement).append('g');
+  // Add crosshair
+  d3.select(svgElement).selectAll('.candle-sticks').remove();
+  const candleSticks = d3.select(svgElement).append('g').attr('class', 'candle-sticks');
 
   const candleWidth = Math.max(1, 4);
 
@@ -424,7 +428,8 @@ const renderCandlestickChart = (
     const color = isUp ? '#26a69a' : '#ef5350';
 
     // High-Low line
-    g.append('line')
+    candleSticks
+      .append('line')
       .attr('x1', x)
       .attr('x2', x)
       .attr('y1', yScale(d.high))
@@ -433,7 +438,8 @@ const renderCandlestickChart = (
       .attr('stroke-width', 1);
 
     // Open-Close rectangle
-    g.append('rect')
+    candleSticks
+      .append('rect')
       .attr('x', x - candleWidth / 2)
       .attr('y', yScale(Math.max(d.open, d.close)))
       .attr('width', candleWidth)
