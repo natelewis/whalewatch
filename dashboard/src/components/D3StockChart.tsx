@@ -180,41 +180,92 @@ const calculateChartState = ({
 
 // Removed useChartScales - now using centralized calculateChartState
 
-// Create D3 chart
+// D3 Chart State Management
+interface D3ChartState {
+  isZooming: boolean;
+  currentViewStart: number;
+  currentViewEnd: number;
+  hoverData: HoverData | null;
+  chartLoaded: boolean;
+  fixedYScaleDomain: [number, number] | null;
+  chartExists: boolean;
+}
+
+// Global D3 chart state - managed outside React lifecycle
+let d3ChartState: D3ChartState = {
+  isZooming: false,
+  currentViewStart: 0,
+  currentViewEnd: 0,
+  hoverData: null,
+  chartLoaded: false,
+  fixedYScaleDomain: null,
+  chartExists: false,
+};
+
+// D3 state update callbacks - set by React component
+let d3StateCallbacks: {
+  setIsZooming?: (value: boolean) => void;
+  setCurrentViewStart?: (value: number) => void;
+  setCurrentViewEnd?: (value: number) => void;
+  setHoverData?: (value: HoverData | null) => void;
+  setChartLoaded?: (value: boolean) => void;
+  setFixedYScaleDomain?: (value: [number, number] | null) => void;
+  setChartExists?: (value: boolean) => void;
+  forceRerender?: () => void;
+} = {};
+
+// Update D3 state and notify React if callbacks are available
+const updateD3State = (updates: Partial<D3ChartState>): void => {
+  d3ChartState = { ...d3ChartState, ...updates };
+
+  // Notify React of state changes
+  if (updates.isZooming !== undefined && d3StateCallbacks.setIsZooming) {
+    d3StateCallbacks.setIsZooming(updates.isZooming);
+  }
+  if (updates.currentViewStart !== undefined && d3StateCallbacks.setCurrentViewStart) {
+    d3StateCallbacks.setCurrentViewStart(updates.currentViewStart);
+  }
+  if (updates.currentViewEnd !== undefined && d3StateCallbacks.setCurrentViewEnd) {
+    d3StateCallbacks.setCurrentViewEnd(updates.currentViewEnd);
+  }
+  if (updates.hoverData !== undefined && d3StateCallbacks.setHoverData) {
+    d3StateCallbacks.setHoverData(updates.hoverData);
+  }
+  if (updates.chartLoaded !== undefined && d3StateCallbacks.setChartLoaded) {
+    d3StateCallbacks.setChartLoaded(updates.chartLoaded);
+  }
+  if (updates.fixedYScaleDomain !== undefined && d3StateCallbacks.setFixedYScaleDomain) {
+    d3StateCallbacks.setFixedYScaleDomain(updates.fixedYScaleDomain);
+  }
+  if (updates.chartExists !== undefined && d3StateCallbacks.setChartExists) {
+    d3StateCallbacks.setChartExists(updates.chartExists);
+  }
+
+  // Force re-render for hover data changes (since it's not in React state)
+  if (updates.hoverData !== undefined && d3StateCallbacks.forceRerender) {
+    d3StateCallbacks.forceRerender();
+  }
+};
+
+// Create D3 chart - Pure D3 function with no React dependencies
 const createChart = ({
   svgElement,
-  // chartExists,
   allChartData,
   xScale,
   yScale,
-  chartLoaded,
   visibleData,
-  setChartExists,
   dimensions,
-  setIsZooming,
-  setCurrentViewStart,
-  setCurrentViewEnd,
-  setHoverData,
-  setChartLoaded,
-  setFixedYScaleDomain,
-  fixedYScaleDomain,
+  fixedYScaleDomain: _fixedYScaleDomain,
+  stateCallbacks,
 }: {
   svgElement: SVGSVGElement;
-  // chartExists: boolean;
   allChartData: ChartData;
   xScale: d3.ScaleLinear<number, number>;
   yScale: d3.ScaleLinear<number, number>;
-  chartLoaded: boolean;
   visibleData: ChartData;
-  setChartExists: (value: boolean) => void;
   dimensions: ChartDimensions;
-  setIsZooming: (value: boolean) => void;
-  setCurrentViewStart: (value: number) => void;
-  setCurrentViewEnd: (value: number) => void;
-  setHoverData: (value: HoverData | null) => void;
-  setChartLoaded: (value: boolean) => void;
-  setFixedYScaleDomain: (value: [number, number] | null) => void;
   fixedYScaleDomain: [number, number] | null;
+  stateCallbacks: typeof d3StateCallbacks;
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation');
@@ -226,20 +277,26 @@ const createChart = ({
     return;
   }
 
-  if (!hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }) || chartLoaded) {
+  if (
+    !hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }) ||
+    d3ChartState.chartLoaded
+  ) {
     console.log('createChart: Early return conditions:', {
       allChartDataLength: allChartData?.length || 0,
       allChartDataIsArray: Array.isArray(allChartData),
       hasXScale: !!xScale,
       hasYScale: !!yScale,
-      chartLoaded,
+      chartLoaded: d3ChartState.chartLoaded,
       hasVisibleData: !!visibleData,
       visibleDataLength: visibleData?.length || 0,
     });
     return;
   }
 
-  setChartExists(true);
+  // Set up state callbacks for D3 to communicate with React
+  d3StateCallbacks = stateCallbacks;
+
+  updateD3State({ chartExists: true });
   const svg = d3.select(svgElement);
   svg.selectAll('*').remove(); // Clear previous chart
 
@@ -294,7 +351,7 @@ const createChart = ({
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
   const handleZoomStart = (): void => {
-    setIsZooming(true);
+    updateD3State({ isZooming: true });
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -305,12 +362,14 @@ const createChart = ({
       dimensions,
       allChartData: sortedData,
       transform,
-      fixedYScaleDomain,
+      fixedYScaleDomain: d3ChartState.fixedYScaleDomain,
     });
 
     // Update view state using centralized calculations
-    setCurrentViewStart(calculations.viewStart);
-    setCurrentViewEnd(calculations.viewEnd);
+    updateD3State({
+      currentViewStart: calculations.viewStart,
+      currentViewEnd: calculations.viewEnd,
+    });
 
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
@@ -340,7 +399,7 @@ const createChart = ({
   };
 
   const handleZoomEnd = (): void => {
-    setIsZooming(false);
+    updateD3State({ isZooming: false });
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -379,7 +438,7 @@ const createChart = ({
     .on('mouseout', () => {
       crosshair.select('.crosshair-x').style('opacity', 0);
       crosshair.select('.crosshair-y').style('opacity', 0);
-      setHoverData(null);
+      updateD3State({ hoverData: null });
     })
     .on('mousemove', (event) => {
       if (!xScale || !yScale) {
@@ -433,15 +492,17 @@ const createChart = ({
           .attr('y2', mouseY);
 
         // Update hover data (still use closest bar data for tooltip)
-        setHoverData({
-          x: mouseX + margin.left,
-          y: mouseY + margin.top,
-          data: {
-            time: d.time,
-            open: d.open,
-            high: d.high,
-            low: d.low,
-            close: d.close,
+        updateD3State({
+          hoverData: {
+            x: mouseX + margin.left,
+            y: mouseY + margin.top,
+            data: {
+              time: d.time,
+              open: d.open,
+              high: d.high,
+              low: d.low,
+              close: d.close,
+            },
           },
         });
       }
@@ -454,14 +515,16 @@ const createChart = ({
     const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
     const priceRange = initialYMax - initialYMin;
     const padding = priceRange * 0.2; // Add 20% padding above and below for more labels
-    setFixedYScaleDomain([initialYMin - padding, initialYMax + padding]);
+    updateD3State({
+      fixedYScaleDomain: [initialYMin - padding, initialYMax + padding],
+    });
     console.log('🔒 Y-axis locked to full data range:', [
       initialYMin - padding,
       initialYMax + padding,
     ]);
   }
 
-  setChartLoaded(true);
+  updateD3State({ chartLoaded: true });
   console.log('🎯 CHART LOADED - Axes can now be created');
 };
 
@@ -637,11 +700,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
   const [isLive, setIsLive] = useState(false);
-  const [hoverData, setHoverData] = useState<HoverData | null>(null);
+  const [, setHoverData] = useState<HoverData | null>(null);
   const [isZooming, setIsZooming] = useState(false);
-  const [chartLoaded, setChartLoaded] = useState(false);
+  const [, setChartLoaded] = useState(false);
   const [visibleData, setVisibleData] = useState<ChartData>([]);
   const [allChartData, setAllChartData] = useState<ChartData>([]);
+
+  // Force re-render when D3 state changes
+  const [, forceUpdate] = useState({});
+  const forceRerender = (): void => forceUpdate({});
 
   // Panning state
   const [currentViewStart, setCurrentViewStart] = useState(0);
@@ -896,17 +963,19 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           allChartData,
           xScale: calculations.baseXScale,
           yScale: calculations.baseYScale,
-          chartLoaded,
           visibleData,
-          setChartExists,
           dimensions,
-          setIsZooming,
-          setCurrentViewStart,
-          setCurrentViewEnd,
-          setHoverData,
-          setChartLoaded,
-          setFixedYScaleDomain,
           fixedYScaleDomain,
+          stateCallbacks: {
+            setIsZooming,
+            setCurrentViewStart,
+            setCurrentViewEnd,
+            setHoverData,
+            setChartLoaded,
+            setFixedYScaleDomain,
+            setChartExists,
+            forceRerender,
+          },
         });
       }
     }
@@ -1009,32 +1078,32 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           <div className="w-full h-full relative" style={{ minHeight: '400px' }}>
             {/* Custom Title Component */}
             <div className="mb-4 px-2 h-12 flex items-center">
-              {hoverData?.data ? (
+              {d3ChartState.hoverData?.data ? (
                 <div className="flex justify-between items-center w-full">
                   <span className="font-bold text-foreground text-lg">{symbol}</span>
                   <div className="flex gap-3 text-sm">
                     <span className="text-muted-foreground">
                       O:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(hoverData.data.open)}
+                        {formatPrice(d3ChartState.hoverData.data.open)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       H:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(hoverData.data.high)}
+                        {formatPrice(d3ChartState.hoverData.data.high)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       L:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(hoverData.data.low)}
+                        {formatPrice(d3ChartState.hoverData.data.low)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       C:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(hoverData.data.close)}
+                        {formatPrice(d3ChartState.hoverData.data.close)}
                       </span>
                     </span>
                   </div>
