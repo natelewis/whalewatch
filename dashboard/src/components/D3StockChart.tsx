@@ -82,11 +82,7 @@ const createChart = ({
   chartLoaded,
   visibleData,
   setChartExists,
-  setChartContent,
   dimensions,
-  currentViewStart,
-  currentViewEnd,
-  chartContent,
   setIsZooming,
   setIsPanning,
   setHasUserPanned,
@@ -104,11 +100,7 @@ const createChart = ({
   chartLoaded: boolean;
   visibleData: ChartData;
   setChartExists: (value: boolean) => void;
-  setChartContent: (value: d3.Selection<SVGGElement, unknown, null, undefined> | null) => void;
   dimensions: ChartDimensions;
-  currentViewStart: number;
-  currentViewEnd: number;
-  chartContent: d3.Selection<SVGGElement, unknown, null, undefined> | null;
   setIsZooming: (value: boolean) => void;
   setIsPanning: (value: boolean) => void;
   setHasUserPanned: (value: boolean) => void;
@@ -149,8 +141,6 @@ const createChart = ({
   setChartExists(true);
   const svg = d3.select(svgElement);
   svg.selectAll('*').remove(); // Clear previous chart
-  // gRef.current = null; // Reset the g ref when clearing the chart
-  setChartContent(null); // Reset the chart content when clearing the chart
 
   const { width, height, margin } = dimensions;
   const innerWidth = width - margin.left - margin.right;
@@ -171,15 +161,6 @@ const createChart = ({
     .append('rect')
     .attr('width', innerWidth)
     .attr('height', innerHeight);
-
-  // Create chart content group (store in state for reuse)
-  if (!chartContent) {
-    const newChartContent = g
-      .append('g')
-      .attr('class', 'chart-content')
-      .attr('clip-path', 'url(#clip)');
-    setChartContent(newChartContent);
-  }
 
   // Create axes in the main chart group
   const { width: chartWidth, height: chartHeight, margin: chartMargin } = dimensions;
@@ -296,17 +277,7 @@ const createChart = ({
       yAxisGroup.select('.domain').attr('transform', `translate(0,${-transform.y})`);
     }
 
-    // Use existing chart content or create new one
-    if (!chartContent) {
-      const newChartContent = g
-        .append('g')
-        .attr('class', 'chart-content')
-        .attr('clip-path', 'url(#clip)');
-      setChartContent(newChartContent);
-    }
-
     checkAndLoadMoreData();
-    // }
   };
 
   const handleZoomEnd = (): void => {
@@ -429,7 +400,7 @@ const updateCurrentView = ({
 };
 
 const renderCandlestickChart = (
-  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  svgElement: SVGSVGElement,
   data: ChartData,
   xScale: d3.ScaleLinear<number, number> | null,
   yScale: d3.ScaleLinear<number, number> | null
@@ -438,8 +409,9 @@ const renderCandlestickChart = (
     return;
   }
 
-  // Clear previous chart elements
-  g.selectAll('*').remove();
+  // Clear previous chart candlesticks
+  d3.select(svgElement).select('.g').remove();
+  const g = d3.select(svgElement).append('g');
 
   const candleWidth = Math.max(1, 4);
 
@@ -558,12 +530,6 @@ const getVisibleDataPoints = (
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [chartContent, setChartContent] = useState<d3.Selection<
-    SVGGElement,
-    unknown,
-    null,
-    undefined
-  > | null>(null);
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [hoverData, setHoverData] = useState<HoverData | null>(null);
@@ -933,19 +899,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Centralized chart rendering - automatically re-renders when dependencies change
   useEffect(() => {
-    if (!chartContent || chartContent.empty()) {
-      // No chart content available
-      return;
-    }
-
     if (!visibleData || visibleData.length === 0) {
       return;
     }
-
-    if (chartContent) {
-      renderCandlestickChart(chartContent, visibleData, xScale, yScale);
+    if (svgRef.current) {
+      renderCandlestickChart(svgRef.current as SVGSVGElement, visibleData, xScale, yScale);
     }
-  }, [allChartData.length, visibleData, dimensions, chartLoaded, xScale, yScale]);
+  }, [visibleData, xScale, yScale]);
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
@@ -997,11 +957,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           chartLoaded,
           visibleData,
           setChartExists,
-          setChartContent,
           dimensions,
-          currentViewStart,
-          currentViewEnd,
-          chartContent,
           setIsZooming,
           setIsPanning,
           setHasUserPanned,
