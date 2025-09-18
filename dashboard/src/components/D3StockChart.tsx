@@ -762,7 +762,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       isDataLoadingRef.current ||
       !chartExists
     ) {
-      // console.log('checkAndLoadMoreData: Early return');
       return;
     }
 
@@ -901,7 +900,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     // svgRef.current now points to the <svg> element in the DOM
     console.log('SVG element is ready:', svgRef.current);
-  }, []); // Empty array means this effect runs only once
+  }, []);
 
   // Centralized chart rendering - automatically re-renders when dependencies change
   useEffect(() => {
@@ -956,7 +955,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         );
         createChart({
           svgElement: svgRef.current as SVGSVGElement,
-          chartExists,
           allChartData,
           xScale,
           yScale,
