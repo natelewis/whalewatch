@@ -4,7 +4,7 @@ import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { ChartData, useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
-import { TimeframeConfig } from '../utils/chartDataUtils';
+import { TimeframeConfig, seedEmptyDataPoints } from '../utils/chartDataUtils';
 import { BarChart3, Settings, Play, Pause, RotateCcw } from 'lucide-react';
 
 interface D3StockChartProps {
@@ -72,19 +72,26 @@ const calculateChartState = ({
   allChartData,
   transform,
   fixedYScaleDomain,
+  timeframe,
 }: {
   dimensions: ChartDimensions;
   allChartData: ChartData;
   transform: d3.ZoomTransform;
   fixedYScaleDomain: [number, number] | null;
+  timeframe: ChartTimeframe | null;
 }): ChartCalculations => {
   // Calculate dimensions (single source)
   const { width, height, margin } = dimensions;
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
+  // Apply data seeding if we have limited data points
+  const seededData = timeframe
+    ? seedEmptyDataPoints(allChartData, timeframe, CHART_DATA_POINTS)
+    : allChartData;
+
   // Handle cases where we have less data than the ideal buffer size
-  const availableDataLength = allChartData.length;
+  const availableDataLength = seededData.length;
   const idealBufferSize = TOTAL_BUFFERED_POINTS;
   const actualBufferSize = Math.min(idealBufferSize, availableDataLength);
 
@@ -121,7 +128,7 @@ const calculateChartState = ({
     const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
 
     // Get sorted data first (needed for both x and y scale calculations)
-    const sortedData = [...allChartData].sort(
+    const sortedData = [...seededData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
     );
 
@@ -210,7 +217,7 @@ const calculateChartState = ({
   const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
 
   // Get sorted data first (needed for both x and y scale calculations)
-  const sortedData = [...allChartData].sort(
+  const sortedData = [...seededData].sort(
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
@@ -299,6 +306,7 @@ const createChart = ({
   setChartLoaded,
   setFixedYScaleDomain,
   fixedYScaleDomain,
+  timeframe,
 }: {
   svgElement: SVGSVGElement;
   // chartExists: boolean;
@@ -319,6 +327,7 @@ const createChart = ({
   setChartLoaded: (value: boolean) => void;
   setFixedYScaleDomain: (value: [number, number] | null) => void;
   fixedYScaleDomain: [number, number] | null;
+  timeframe: ChartTimeframe | null;
 }): void => {
   if (!svgElement) {
     return;
@@ -347,8 +356,13 @@ const createChart = ({
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
+  // Apply data seeding if we have limited data points
+  const seededData = timeframe
+    ? seedEmptyDataPoints(allChartData, timeframe, CHART_DATA_POINTS)
+    : allChartData;
+
   // Sort data by time - always use current state
-  const sortedData = [...allChartData].sort(
+  const sortedData = [...seededData].sort(
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
@@ -486,6 +500,7 @@ const createChart = ({
       allChartData: sortedData,
       transform: panTransformForViewCalc,
       fixedYScaleDomain,
+      timeframe,
     });
 
     // Update view state using centralized calculations
@@ -593,6 +608,7 @@ const createChart = ({
       allChartData: sortedData,
       transform: d3.zoomIdentity, // Use identity to get base scales
       fixedYScaleDomain,
+      timeframe,
     });
 
     // Create the correct transformed Y-scale
@@ -837,10 +853,16 @@ const renderCandlestickChart = (
 const getVisibleDataPoints = (
   startIndex: number,
   endIndex: number,
-  chartData: ChartData
+  chartData: ChartData,
+  timeframe?: ChartTimeframe | null
 ): ChartData => {
+  // Apply data seeding if we have limited data points
+  const seededData = timeframe
+    ? seedEmptyDataPoints(chartData, timeframe, CHART_DATA_POINTS)
+    : chartData;
+
   // Always use the current state data
-  const sortedData = [...chartData].sort(
+  const sortedData = [...seededData].sort(
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
@@ -956,8 +978,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       { value: '5m', label: '5m', dataPoints: DEFAULT_CHART_DATA_POINTS },
       { value: '30m', label: '30m', dataPoints: DEFAULT_CHART_DATA_POINTS },
       { value: '1h', label: '1h', dataPoints: DEFAULT_CHART_DATA_POINTS },
-      { value: '2h', label: '2h', dataPoints: DEFAULT_CHART_DATA_POINTS },
-      { value: '4h', label: '4h', dataPoints: DEFAULT_CHART_DATA_POINTS },
       { value: '1d', label: '1d', dataPoints: DEFAULT_CHART_DATA_POINTS },
       { value: '1w', label: '1w', dataPoints: DEFAULT_CHART_DATA_POINTS },
       { value: '1M', label: '1M', dataPoints: DEFAULT_CHART_DATA_POINTS },
@@ -983,10 +1003,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Update visible data when view changes
   useEffect(() => {
     if (allChartData.length > 0) {
-      const newVisibleData = getVisibleDataPoints(currentViewStart, currentViewEnd, allChartData);
+      const newVisibleData = getVisibleDataPoints(
+        currentViewStart,
+        currentViewEnd,
+        allChartData,
+        timeframe
+      );
       setVisibleData(newVisibleData);
     }
-  }, [currentViewStart, currentViewEnd, allChartData]);
+  }, [currentViewStart, currentViewEnd, allChartData, timeframe]);
 
   // Load saved timeframe from localStorage
   useEffect(() => {
@@ -1288,6 +1313,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         allChartData,
         transform: initialTransform,
         fixedYScaleDomain,
+        timeframe,
       });
 
       renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
@@ -1320,6 +1346,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           allChartData,
           transform: initialTransform,
           fixedYScaleDomain,
+          timeframe,
         });
 
         createChart({
@@ -1341,6 +1368,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           setChartLoaded,
           setFixedYScaleDomain,
           fixedYScaleDomain,
+          timeframe,
         });
       }
     }

@@ -52,8 +52,8 @@ export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[
  */
 export const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
   if (bars.length === 0) {
-return null;
-}
+    return null;
+  }
 
   return {
     earliest: bars[0].t,
@@ -75,7 +75,9 @@ export const getDataPointsForTimeframe = (
 /**
  * Process raw chart data into formatted candlestick data
  */
-export const processChartData = (bars: AlpacaBar[]): {
+export const processChartData = (
+  bars: AlpacaBar[]
+): {
   formattedData: CandlestickData[];
   dataRange: DataRange | null;
 } => {
@@ -97,18 +99,18 @@ export const fillMissingMinutes = (
   timeframe: ChartTimeframe
 ): CandlestickData[] => {
   if (data.length === 0) {
-return data;
-}
+    return data;
+  }
 
   const filledData: CandlestickData[] = [];
-  
+
   // Get interval in milliseconds based on timeframe
   const getIntervalMs = (tf: ChartTimeframe): number => {
     const intervalMap: Record<ChartTimeframe, number> = {
-      '1m': 60 * 1000,        // 1 minute
-      '5m': 5 * 60 * 1000,    // 5 minutes
-      '30m': 30 * 60 * 1000,  // 30 minutes
-      '1h': 60 * 60 * 1000,   // 1 hour
+      '1m': 60 * 1000, // 1 minute
+      '5m': 5 * 60 * 1000, // 5 minutes
+      '30m': 30 * 60 * 1000, // 30 minutes
+      '1h': 60 * 60 * 1000, // 1 hour
       '2h': 2 * 60 * 60 * 1000, // 2 hours
       '4h': 4 * 60 * 60 * 1000, // 4 hours
       '1d': 24 * 60 * 60 * 1000, // 1 day
@@ -150,4 +152,84 @@ return data;
   }
 
   return filledData;
+};
+
+/**
+ * Seed empty data points to ensure proper chart scaling when limited data is available
+ * This prevents the chart from stretching a few data points across the entire width
+ */
+export const seedEmptyDataPoints = (
+  data: CandlestickData[],
+  timeframe: ChartTimeframe,
+  targetDataPoints: number = 80
+): CandlestickData[] => {
+  if (data.length === 0) {
+    return data;
+  }
+
+  // If we already have enough data points, return as is
+  if (data.length >= targetDataPoints) {
+    return data;
+  }
+
+  // Get interval in milliseconds based on timeframe
+  const getIntervalMs = (tf: ChartTimeframe): number => {
+    const intervalMap: Record<ChartTimeframe, number> = {
+      '1m': 60 * 1000, // 1 minute
+      '5m': 5 * 60 * 1000, // 5 minutes
+      '30m': 30 * 60 * 1000, // 30 minutes
+      '1h': 60 * 60 * 1000, // 1 hour
+      '2h': 2 * 60 * 60 * 1000, // 2 hours
+      '4h': 4 * 60 * 60 * 1000, // 4 hours
+      '1d': 24 * 60 * 60 * 1000, // 1 day
+      '1w': 7 * 24 * 60 * 60 * 1000, // 1 week
+      '1M': 30 * 24 * 60 * 60 * 1000, // 1 month (30 days)
+    };
+    return intervalMap[tf] || 60 * 60 * 1000; // Default to 1 hour
+  };
+
+  const intervalMs = getIntervalMs(timeframe);
+
+  // Sort data by time to ensure proper ordering
+  const sortedData = [...data].sort(
+    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+  );
+
+  // Get the latest data point to use as reference for seeding
+  const latestDataPoint = sortedData[sortedData.length - 1];
+  const latestTime = new Date(latestDataPoint.time).getTime();
+
+  // Create a continuous timeline by filling gaps
+  const seededData: CandlestickData[] = [];
+
+  // Start from the earliest time and work forward
+  const earliestTime = new Date(latestTime - (targetDataPoints - 1) * intervalMs).getTime();
+
+  for (let i = 0; i < targetDataPoints; i++) {
+    const currentTime = new Date(earliestTime + i * intervalMs).getTime();
+    const currentTimeStr = new Date(currentTime).toISOString();
+
+    // Check if we have real data for this time
+    const realDataPoint = sortedData.find((d) => {
+      const dataTime = new Date(d.time).getTime();
+      // Allow some tolerance for time matching (within half the interval)
+      return Math.abs(dataTime - currentTime) < intervalMs / 2;
+    });
+
+    if (realDataPoint) {
+      // Use real data
+      seededData.push(realDataPoint);
+    } else {
+      // Use the latest real data point's price for empty slots
+      seededData.push({
+        time: currentTimeStr,
+        open: latestDataPoint.close,
+        high: latestDataPoint.close,
+        low: latestDataPoint.close,
+        close: latestDataPoint.close,
+      });
+    }
+  }
+
+  return seededData;
 };
