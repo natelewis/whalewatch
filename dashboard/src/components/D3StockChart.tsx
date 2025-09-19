@@ -1370,7 +1370,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Load chart data when symbol or timeframe changes (but not on initial mount)
   useEffect(() => {
     // Skip on initial mount - let the initial data loading effect handle it
-    if (isInitialMountRef.current) {
+    // But allow timeframe changes after hot reload
+    if (isInitialMountRef.current && timeframe === null) {
       isInitialMountRef.current = false;
       return;
     }
