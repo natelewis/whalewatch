@@ -230,28 +230,22 @@ const createChart = ({
     return;
   }
 
+  // Check if DOM element exists (for hot reload scenarios)
+  const gElementExists = !d3.select(svgElement).select('g').empty();
+
   if (
     !hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }) ||
-    chartState.chartLoaded ||
+    (chartState.chartLoaded && gElementExists) || // Only skip if chart is loaded AND DOM element exists
     !allChartData ||
     allChartData.length === 0
   ) {
-    console.log('createChart: Early return conditions:', {
-      allChartDataLength: allChartData?.length || 0,
-      allChartDataIsArray: Array.isArray(allChartData),
-      hasXScale: !!xScale,
-      hasYScale: !!yScale,
-      chartLoaded: chartState.chartLoaded,
-      hasVisibleData: !!visibleData,
-      visibleDataLength: visibleData?.length || 0,
-      hasRequiredParams: hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }),
-    });
     return;
   }
 
   if (stateCallbacks.setChartExists) {
     stateCallbacks.setChartExists(true);
   }
+
   const svg = d3.select(svgElement);
   svg.selectAll('*').remove(); // Clear previous chart
 
@@ -1610,6 +1604,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     console.log('SVG element is ready:', svgRef.current);
   }, []);
 
+  // Reset refs on mount to handle hot reload
+  useEffect(() => {
+    chartCreatedRef.current = false;
+    initialRenderCompletedRef.current = false;
+    initialDataLoadedRef.current = false;
+    isInitialMountRef.current = true;
+    lastProcessedDataRef.current = null;
+  }, []); // Only run on mount
+
   // Data length effect removed - chart creation effect now handles both chart creation and initial rendering
 
   // Create chart when data is available and view is properly set
@@ -1620,6 +1623,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Debug logging for chart creation conditions
+    const gElementExists = svgRef.current ? !d3.select(svgRef.current).select('g').empty() : false;
+    const shouldCreate =
+      isValidData &&
+      chartState.allData.length > 0 &&
+      svgRef.current &&
+      (!chartState.chartExists || !gElementExists);
+
     console.log('Chart creation effect conditions:', {
       isValidData,
       currentViewEnd: chartState.currentViewEnd,
@@ -1630,8 +1640,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       chartExists: chartState.chartExists,
       chartCreatedRef: chartCreatedRef.current,
       svgElementAvailable: !!svgRef.current,
-      shouldCreate:
-        isValidData && chartState.allData.length > 0 && !chartState.chartExists && !!svgRef.current,
+      gElementExists,
+      shouldCreate,
     });
 
     // Set viewport if it's not set yet
@@ -1640,18 +1650,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       const viewStart = Math.max(0, dataLength - CHART_DATA_POINTS);
       const viewEnd = dataLength - 1;
       chartActions.setViewport(viewStart, viewEnd);
-
-      console.log('🔄 Setting initial viewport:', {
-        viewStart,
-        viewEnd,
-        dataLength,
-        chartDataPoints: CHART_DATA_POINTS,
-      });
     }
 
-    if (isValidData && chartState.allData.length > 0 && !chartState.chartExists && svgRef.current) {
+    if (shouldCreate) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
+
       if (
         chartState.currentViewStart > chartState.currentViewEnd ||
         chartState.currentViewEnd < 0
@@ -1671,7 +1675,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       // Create chart if it doesn't exist yet, or if there's a significant data change
       // Don't recreate chart after panning - this causes unwanted y-scale recalculation
-      const shouldCreateChart = !chartState.chartExists;
+
+      // If DOM element is missing but state says chart exists, reset the chart state
+      if (chartState.chartExists && !gElementExists) {
+        chartActions.setChartLoaded(false);
+        chartActions.setChartExists(false);
+      }
+
+      const shouldCreateChart = !chartState.chartExists || !gElementExists;
 
       if (shouldCreateChart) {
         // Ensure we have the latest dimensions before creating the chart
@@ -1684,15 +1695,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             width: rect.width,
             height: Math.max(MIN_CHART_HEIGHT, rect.height - CHART_HEIGHT_OFFSET),
           };
-
-          console.log('🔄 Updating dimensions before chart creation:', {
-            containerWidth: rect.width,
-            containerHeight: rect.height,
-            newWidth: latestDimensions.width,
-            newHeight: latestDimensions.height,
-            currentWidth: chartState.dimensions.width,
-            currentHeight: chartState.dimensions.height,
-          });
 
           // Update dimensions if they've changed
           if (
@@ -1752,8 +1754,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         // Also handle initial candlestick rendering for timeframe changes
         // This ensures the chart is fully rendered when switching timeframes
         if (svgRef.current && chartState.allData.length > 0) {
-          console.log('🎨 Rendering initial candlesticks after chart creation');
-
           // Create calculations for initial render (no transform)
           const initialTransformForRender = d3.zoomIdentity;
           const calculationsForRender = calculateChartState({
@@ -1776,11 +1776,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             // Set the fixed Y-scale domain for future renders
             chartActions.setFixedYScaleDomain(fixedYScaleDomain);
             fixedYScaleDomainRef.current = fixedYScaleDomain;
-            console.log('🔒 Y-axis locked to VISIBLE data range (chart creation):', {
-              visibleDataLength: visibleData.length,
-              viewRange: `${calculationsForRender.viewStart}-${calculationsForRender.viewEnd}`,
-              yDomain: fixedYScaleDomain,
-            });
           }
 
           // Recalculate with the fixed Y-scale domain
@@ -1824,13 +1819,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           }
 
           currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
-
-          console.log('🔄 Initial buffer range set (chart creation):', {
-            newBufferRange: `${actualStart}-${actualEnd}`,
-            viewRange: `${finalCalculations.viewStart}-${finalCalculations.viewEnd}`,
-            bufferSize,
-            dataLength,
-          });
 
           // Mark initial render as completed
           initialRenderCompletedRef.current = true;
