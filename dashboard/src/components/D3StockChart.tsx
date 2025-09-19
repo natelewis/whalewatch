@@ -17,7 +17,7 @@ import {
   calculateInnerDimensions,
   isValidChartData,
 } from '../utils/chartDataUtils';
-import { BarChart3, Settings, Play, Pause, RotateCcw } from 'lucide-react';
+import { BarChart3, Settings, Play, Pause, RotateCcw, ArrowRight } from 'lucide-react';
 
 interface D3StockChartProps {
   symbol: string;
@@ -140,6 +140,7 @@ const createChart = ({
   dimensions,
   stateCallbacks,
   chartState,
+  bufferRangeRef,
 }: {
   svgElement: SVGSVGElement;
   allChartData: ChartData;
@@ -163,11 +164,13 @@ const createChart = ({
     setChartExists?: (value: boolean) => void;
     setCurrentTransform?: (value: d3.ZoomTransform) => void;
     forceRerender?: () => void;
+    setZoomBehavior?: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => void;
   };
   chartState: {
     fixedYScaleDomain: [number, number] | null;
     chartLoaded: boolean;
   };
+  bufferRangeRef: React.MutableRefObject<{ start: number; end: number } | null>;
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation');
@@ -251,6 +254,11 @@ const createChart = ({
 
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
+  // Store reference to zoom behavior for programmatic control
+  if (stateCallbacks.setZoomBehavior) {
+    stateCallbacks.setZoomBehavior(zoom);
+  }
+
   const handleZoomStart = (): void => {
     if (stateCallbacks.setIsZooming) {
       stateCallbacks.setIsZooming(true);
@@ -308,8 +316,27 @@ const createChart = ({
       applyAxisStyling(yAxisGroup);
     }
 
-    // Re-render candlesticks with the new view calculations
-    renderCandlestickChart(svgElement, calculations);
+    // Check if we need to re-render candlesticks due to panning outside buffer
+    const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5));
+    const currentViewStart = calculations.viewStart;
+    const currentViewEnd = calculations.viewEnd;
+
+    // Check if current view is outside the current buffer range
+    const currentBufferRange = bufferRangeRef.current;
+    const needsRerender =
+      !currentBufferRange ||
+      currentViewStart < currentBufferRange.start + bufferSize * 0.3 || // 30% margin
+      currentViewEnd > currentBufferRange.end - bufferSize * 0.3;
+
+    if (needsRerender) {
+      console.log('🔄 Re-rendering candlesticks - view outside buffer range');
+      renderCandlestickChart(svgElement, calculations);
+
+      // Update buffer range tracking
+      const actualStart = Math.max(0, currentViewStart - bufferSize);
+      const actualEnd = Math.min(calculations.allData.length - 1, currentViewEnd + bufferSize);
+      bufferRangeRef.current = { start: actualStart, end: actualEnd };
+    }
   };
 
   const handleZoomEnd = (): void => {
@@ -455,11 +482,11 @@ const renderCandlestickChart = (
 
   const candleWidth = Math.max(1, 4);
 
-  // Render only candles within the visible viewport for better performance
-  // This ensures we only render candles that are actually visible to the user
-  // Use safe bounds checking like in the debug area
-  const actualStart = Math.max(0, calculations.viewStart);
-  const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd);
+  // Render candles with a buffer around the visible viewport for smooth panning
+  // This provides a good balance between performance and smooth interaction
+  const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5)); // 50% buffer or minimum 20 candles
+  const actualStart = Math.max(0, calculations.viewStart - bufferSize);
+  const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd + bufferSize);
   const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
 
   visibleCandles.forEach((d, localIndex) => {
@@ -497,11 +524,13 @@ const renderCandlestickChart = (
       .attr('stroke-width', 1);
   });
 
-  console.log('🎨 Rendered VISIBLE candles (OPTIMIZED FOR PERFORMANCE):', {
+  console.log('🎨 Rendered BUFFERED candles (SMOOTH PANNING + PERFORMANCE):', {
     allDataLength: calculations.allData.length,
-    visibleCandlesRendered: visibleCandles.length,
+    bufferedCandlesRendered: visibleCandles.length,
     visibleDataLength: calculations.visibleData.length,
     viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+    bufferRange: `${actualStart}-${actualEnd}`,
+    bufferSize: bufferSize,
     rightmostDataIndex: calculations.allData.length - 1,
     rightmostX: calculations.innerWidth,
     scaleInfo: {
@@ -531,6 +560,96 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Local state for current transform (for debugging)
   const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
+
+  // Track current buffer range to know when to re-render (use ref to avoid stale closures)
+  const currentBufferRangeRef = useRef<{ start: number; end: number } | null>(null);
+
+  // Store reference to the zoom behavior for programmatic control
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
+  // Function to move chart to rightmost position (newest data)
+  const moveToRightmost = (): void => {
+    if (!isValidData || chartState.allData.length === 0) {
+      return;
+    }
+
+    const totalDataLength = chartState.allData.length;
+    const newEndIndex = totalDataLength - 1;
+    const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
+
+    console.log('🎯 Moving to rightmost position:', {
+      totalDataLength,
+      newStartIndex,
+      newEndIndex,
+      rangeSize: newEndIndex - newStartIndex + 1,
+    });
+
+    // Calculate the transform needed to show the rightmost data
+    const { innerWidth } = calculateInnerDimensions(chartState.dimensions);
+    const bandWidth = innerWidth / CHART_DATA_POINTS;
+
+    // Calculate how much we need to pan to the right to show the newest data
+    const rightmostDataIndex = totalDataLength - 1;
+    const panOffsetPixels = (rightmostDataIndex - newEndIndex) * bandWidth;
+
+    // Create a transform that pans to the rightmost position
+    const transform = d3.zoomIdentity.translate(panOffsetPixels, 0);
+
+    // Update the current transform state
+    setCurrentTransform(transform);
+
+    // Calculate the new chart state with this transform
+    const calculations = calculateChartState({
+      dimensions: chartState.dimensions,
+      allChartData: chartState.allData,
+      transform,
+      fixedYScaleDomain: chartState.fixedYScaleDomain,
+    });
+
+    // Update view state using centralized calculations
+    chartActions.setCurrentViewStart(calculations.viewStart);
+    chartActions.setCurrentViewEnd(calculations.viewEnd);
+
+    // Apply transform to the main chart content group
+    if (svgRef.current) {
+      const svg = d3.select(svgRef.current);
+
+      // Update the D3 zoom behavior's internal transform state
+      if (zoomBehaviorRef.current) {
+        svg.call(zoomBehaviorRef.current.transform, transform);
+      }
+
+      const chartContentGroup = svg.select<SVGGElement>('.chart-content');
+      if (!chartContentGroup.empty()) {
+        chartContentGroup.attr('transform', calculations.transformString);
+      }
+
+      // Update X-axis using right-aligned transformedXScale
+      const xAxisGroup = svg.select<SVGGElement>('.x-axis');
+      if (!xAxisGroup.empty()) {
+        const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
+        xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+        xAxisGroup.call(createXAxis(calculations.transformedXScale, chartState.allData));
+        applyAxisStyling(xAxisGroup);
+      }
+
+      // Update Y-axis using centralized calculations
+      const yAxisGroup = svg.select<SVGGElement>('.y-axis');
+      if (!yAxisGroup.empty()) {
+        yAxisGroup.call(createYAxis(calculations.transformedYScale));
+        applyAxisStyling(yAxisGroup);
+      }
+
+      // Re-render candlesticks with the new view
+      renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
+
+      // Update buffer range
+      const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5));
+      const actualStart = Math.max(0, calculations.viewStart - bufferSize);
+      const actualEnd = Math.min(chartState.allData.length - 1, calculations.viewEnd + bufferSize);
+      currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+    }
+  };
 
   // Centralized calculations will be used instead of useChartScales
 
@@ -720,6 +839,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Only render candlesticks on initial data load
       // Subsequent renders are handled by the zoom handler
       renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
+
+      // Set initial buffer range
+      const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5));
+      const actualStart = Math.max(0, calculations.viewStart - bufferSize);
+      const actualEnd = Math.min(
+        calculations.allData.length - 1,
+        calculations.viewEnd + bufferSize
+      );
+      currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
     }
   }, [
     chartState.allData.length, // Only re-render when data length changes (new data loaded)
@@ -781,8 +909,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             setChartExists: chartActions.setChartExists,
             setCurrentTransform: setCurrentTransform,
             forceRerender,
+            setZoomBehavior: (behavior) => {
+              zoomBehaviorRef.current = behavior;
+            },
           },
           chartState,
+          bufferRangeRef: currentBufferRangeRef,
         });
       }
     }
@@ -824,6 +956,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                 title="Refresh data"
               >
                 <RotateCcw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={moveToRightmost}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="Move to newest data"
+                disabled={!isValidData || chartState.allData.length === 0}
+              >
+                <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
