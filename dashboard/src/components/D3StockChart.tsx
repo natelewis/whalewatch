@@ -6,6 +6,7 @@ import { ChartData, useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
+import { apiService } from '../services/apiService';
 import {
   TimeframeConfig,
   applyAxisStyling,
@@ -16,6 +17,7 @@ import {
   hasRequiredChartParams,
   calculateInnerDimensions,
   isValidChartData,
+  processChartData,
 } from '../utils/chartDataUtils';
 import { BarChart3, Settings, Play, Pause, RotateCcw, ArrowRight } from 'lucide-react';
 
@@ -635,6 +637,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Local state for current transform (for debugging)
   const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
 
+  // Experiment mode state
+  const [experimentDataPoints, setExperimentDataPoints] = useState(DEFAULT_CHART_DATA_POINTS);
+
   // Track current buffer range to know when to re-render (use ref to avoid stale closures)
   const currentBufferRangeRef = useRef<{ start: number; end: number } | null>(null);
 
@@ -643,6 +648,41 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Store reference to the fixed Y-scale domain to avoid stale closure issues
   const fixedYScaleDomainRef = useRef<[number, number] | null>(null);
+
+  // Function to fetch more historical data
+  const fetchMoreData = (): void => {
+    if (timeframe === null) {
+      console.warn('Cannot fetch more data: no timeframe selected');
+      return;
+    }
+
+    const newDataPoints = Math.min(experimentDataPoints + 20, 500); // Increase by 20 points each time, max 500
+    setExperimentDataPoints(newDataPoints);
+
+    console.log('🔄 Fetching more historical data:', {
+      currentPoints: experimentDataPoints,
+      newPoints: newDataPoints,
+      symbol,
+      timeframe,
+    });
+
+    // Use the API service directly with the increased data points
+    apiService
+      .getChartData(symbol, timeframe, newDataPoints, undefined, DATA_PRELOAD_BUFFER)
+      .then((response) => {
+        const { formattedData } = processChartData(response.bars);
+        chartActions.setAllData(formattedData);
+        console.log('✅ Successfully loaded more data:', {
+          newDataLength: formattedData.length,
+          dataPoints: newDataPoints,
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to load more data:', error);
+        // Revert the data points on error
+        setExperimentDataPoints(experimentDataPoints);
+      });
+  };
 
   // Function to move chart to rightmost position (newest data)
   const moveToRightmost = (): void => {
@@ -1122,6 +1162,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               >
                 <ArrowRight className="h-4 w-4" />
               </button>
+              <button
+                onClick={fetchMoreData}
+                className="flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors bg-orange-500 text-white hover:bg-orange-600"
+                title="Fetch more historical data (+20 points)"
+                disabled={!timeframe}
+              >
+                + More Data
+              </button>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -1243,6 +1291,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             {/* Data Information */}
             <span>Total: {chartState.allData.length}</span>
             <span>Visible: {CHART_DATA_POINTS}</span>
+            <span>Data Points: {experimentDataPoints}</span>
             <span>
               View:{' '}
               {(() => {
@@ -1288,6 +1337,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
                 <span className="text-xs text-yellow-500">Auto-live</span>
+              </div>
+            )}
+            {experimentDataPoints > DEFAULT_CHART_DATA_POINTS && (
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                <span className="text-xs text-orange-500">
+                  Extended ({experimentDataPoints} pts)
+                </span>
               </div>
             )}
             <span className="text-xs text-muted-foreground">D3.js</span>
