@@ -32,8 +32,8 @@ interface D3StockChartProps {
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 
 // Buffer and margin constants
-const BUFFER_SIZE_MULTIPLIER = 0.75; // Buffer size as percentage of chart data points
-const MIN_BUFFER_SIZE = 30; // Minimum buffer size in data points
+const BUFFER_SIZE_MULTIPLIER = 1.5; // Buffer size as percentage of chart data points (120 points)
+const MIN_BUFFER_SIZE = 60; // Minimum buffer size in data points
 const MARGIN_SIZE = 10; // Fixed margin size in data points for re-render detection
 // Removed unused candlestick buffer constants since we now render only visible points
 
@@ -594,29 +594,35 @@ const renderCandlestickChart = (
 
   const candleWidth = Math.max(1, 4);
 
-  // Render only the visible candles (80 points)
-  // Since the X-scale now maps only the visible points, we don't need buffering
-  const visibleCandles = calculations.allData.slice(
-    calculations.viewStart,
-    calculations.viewEnd + 1
+  // Render candles with a buffer around the visible viewport for smooth panning
+  // This provides a good balance between performance and smooth interaction
+  const bufferSize = Math.max(
+    MIN_BUFFER_SIZE,
+    Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
   );
+  const actualStart = Math.max(0, calculations.viewStart - bufferSize);
+  const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd + bufferSize);
+  const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
 
   console.log('🎨 Rendering candlesticks:', {
     allDataLength: calculations.allData.length,
     viewStart: calculations.viewStart,
     viewEnd: calculations.viewEnd,
+    actualStart,
+    actualEnd,
     visibleCandlesCount: visibleCandles.length,
+    bufferSize,
     scaleDomain: calculations.baseXScale.domain(),
     scaleRange: calculations.baseXScale.range(),
   });
 
   visibleCandles.forEach((d, localIndex) => {
-    // Calculate the data index within the visible range
-    const dataIndex = calculations.viewStart + localIndex;
+    // Calculate the global data index for proper X-axis alignment
+    const globalIndex = actualStart + localIndex;
 
     // Use the X scale to position the candle
     // The scale maps the full dataset, so we use the actual data index
-    const x = calculations.baseXScale(dataIndex);
+    const x = calculations.baseXScale(globalIndex);
 
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
@@ -646,10 +652,13 @@ const renderCandlestickChart = (
       .attr('stroke-width', 1);
   });
 
-  console.log('🎨 Rendered VISIBLE candles (80 POINTS):', {
+  console.log('🎨 Rendered BUFFERED candles (SMOOTH PANNING):', {
     allDataLength: calculations.allData.length,
-    visibleCandlesRendered: visibleCandles.length,
+    bufferedCandlesRendered: visibleCandles.length,
+    visibleDataLength: calculations.visibleData.length,
     viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+    bufferRange: `${actualStart}-${actualEnd}`,
+    bufferSize: bufferSize,
     rightmostDataIndex: calculations.allData.length - 1,
     rightmostX: calculations.innerWidth,
     scaleInfo: {
