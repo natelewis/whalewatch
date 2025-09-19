@@ -52,6 +52,64 @@ const DATA_PRELOAD_BUFFER = 100; // Buffer points for data preloading
 // ============================================================================
 // CENTRALIZED CALCULATIONS - Single source of truth for all chart math
 // ============================================================================
+
+/**
+ * Centralized Y-scale domain calculation
+ * This is the single source of truth for all Y-scale domain calculations
+ */
+const calculateYScaleDomain = (
+  data: CandlestickData[],
+  fixedDomain: [number, number] | null = null
+): [number, number] => {
+  if (fixedDomain) {
+    console.log('🔒 Using FIXED Y-scale domain:', fixedDomain);
+    return fixedDomain;
+  }
+
+  if (!data || data.length === 0) {
+    console.log('⚠️ No data for Y-scale, using fallback domain');
+    return [0, 100]; // Default fallback
+  }
+
+  const minPrice = d3.min(data, (d) => d.low) as number;
+  const maxPrice = d3.max(data, (d) => d.high) as number;
+  const priceRange = maxPrice - minPrice;
+  const padding = priceRange * PRICE_PADDING_MULTIPLIER;
+  const domain: [number, number] = [minPrice - padding, maxPrice + padding];
+
+  console.log('📊 Calculated Y-scale domain:', {
+    dataLength: data.length,
+    minPrice,
+    maxPrice,
+    priceRange,
+    padding,
+    domain,
+  });
+
+  return domain;
+};
+
+/**
+ * Centralized Y-scale creation
+ * This ensures all Y-scales are created consistently
+ */
+const createYScale = (
+  data: CandlestickData[],
+  innerHeight: number,
+  fixedDomain: [number, number] | null = null
+): d3.ScaleLinear<number, number> => {
+  const domain = calculateYScaleDomain(data, fixedDomain);
+  const scale = d3.scaleLinear().domain(domain).range([innerHeight, 0]);
+
+  console.log('🎯 Created Y-scale:', {
+    domain,
+    range: [innerHeight, 0],
+    usingFixed: !!fixedDomain,
+    dataLength: data.length,
+  });
+
+  return scale;
+};
 interface ChartCalculations {
   // Dimensions
   innerWidth: number;
@@ -138,18 +196,8 @@ const calculateChartState = ({
   //   visiblePoints: viewEnd - viewStart + 1,
   // });
 
-  // Create Y scale based on all data or fixed domain
-  const baseYScale = d3
-    .scaleLinear()
-    .domain(
-      fixedYScaleDomain ||
-        ((): [number, number] => {
-          const minPrice = d3.min(allChartData, (d) => d.low) as number;
-          const maxPrice = d3.max(allChartData, (d) => d.high) as number;
-          return [minPrice, maxPrice];
-        })()
-    )
-    .range([innerHeight, 0]);
+  // Create Y scale using centralized calculation
+  const baseYScale = createYScale(allChartData, innerHeight, fixedYScaleDomain);
 
   // Calculate transformed scales (single source)
   const transformedXScale = transform.rescaleX(baseXScale);
@@ -944,6 +992,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     currentDataRef.current = chartState.allData;
   }, [chartState.allData]);
 
+  // Update fixed Y-scale domain ref when it changes
+  useEffect(() => {
+    fixedYScaleDomainRef.current = chartState.fixedYScaleDomain;
+  }, [chartState.fixedYScaleDomain]);
+
   // Function to automatically load more data when buffered candles are rendered
   const loadMoreDataOnBufferedRender = useCallback((): void => {
     if (timeframe === null) {
@@ -967,6 +1020,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const newDataPoints = Math.min(experimentDataPoints + bufferSize, 500);
     setExperimentDataPoints(newDataPoints);
 
+    // Calculate endTime based on the oldest data point we currently have
+    // Use ref to avoid stale closure issues
+    const currentData = currentDataRef.current;
+    const oldestDataPoint = currentData[0];
+    const endTime = oldestDataPoint ? oldestDataPoint.time : undefined;
+
     console.log('🔄 Auto-loading more historical data on buffered render:', {
       currentPoints: experimentDataPoints,
       newPoints: newDataPoints,
@@ -974,11 +1033,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       pointsToAdd: bufferSize,
       symbol,
       timeframe,
+      currentDataLength: currentData.length,
+      endTime: endTime ? new Date(endTime).toISOString() : 'current time',
+      oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.time).toISOString() : 'none',
     });
 
     // Use the API service directly with the increased data points
     apiService
-      .getChartData(symbol, timeframe, newDataPoints, undefined, DATA_PRELOAD_BUFFER)
+      .getChartData(symbol, timeframe, newDataPoints, endTime, DATA_PRELOAD_BUFFER)
       .then((response) => {
         const { formattedData } = processChartData(response.bars);
 
@@ -1044,16 +1106,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const newDataPoints = Math.min(experimentDataPoints + 20, 500); // Increase by 20 points each time, max 500
     setExperimentDataPoints(newDataPoints);
 
+    // Calculate endTime based on the oldest data point we currently have
+    // Use ref to avoid stale closure issues
+    const currentData = currentDataRef.current;
+    const oldestDataPoint = currentData[0];
+    const endTime = oldestDataPoint ? oldestDataPoint.time : undefined;
+
     console.log('🔄 Fetching more historical data:', {
       currentPoints: experimentDataPoints,
       newPoints: newDataPoints,
       symbol,
       timeframe,
+      currentDataLength: currentData.length,
+      endTime: endTime ? new Date(endTime).toISOString() : 'current time',
+      oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.time).toISOString() : 'none',
     });
 
     // Use the API service directly with the increased data points
     apiService
-      .getChartData(symbol, timeframe, newDataPoints, undefined, DATA_PRELOAD_BUFFER)
+      .getChartData(symbol, timeframe, newDataPoints, endTime, DATA_PRELOAD_BUFFER)
       .then((response) => {
         const { formattedData } = processChartData(response.bars);
 
@@ -1097,11 +1168,22 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
           // Calculate chart state with the FRESH data
+          // Use the locked Y-scale domain from ref to prevent price level shifting
+          const lockedYScaleDomain = fixedYScaleDomainRef.current;
+
+          console.log('🔒 Using LOCKED Y-scale domain for More Data re-render:', {
+            lockedDomain: lockedYScaleDomain,
+            fromState: chartState.fixedYScaleDomain,
+            areEqual:
+              JSON.stringify(lockedYScaleDomain) === JSON.stringify(chartState.fixedYScaleDomain),
+            newDataLength: formattedData.length,
+          });
+
           const calculations = calculateChartState({
             dimensions: chartState.dimensions,
             allChartData: formattedData, // Use the fresh data directly
             transform: currentZoomTransform,
-            fixedYScaleDomain: chartState.fixedYScaleDomain,
+            fixedYScaleDomain: lockedYScaleDomain, // Use the LOCKED domain, never recalculate
           });
 
           // Update clip-path to accommodate the expanded dataset
@@ -1117,6 +1199,24 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
             xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, formattedData));
             applyAxisStyling(xAxisGroup);
+          }
+
+          // Update Y-axis using the LOCKED Y-scale domain
+          const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
+          if (!yAxisGroup.empty()) {
+            const { innerWidth: axisInnerWidth } = calculateInnerDimensions(chartState.dimensions);
+            yAxisGroup.attr('transform', `translate(${axisInnerWidth},0)`);
+
+            // Use the SAME Y-scale that the candlesticks use to ensure perfect alignment
+            yAxisGroup.call(createYAxis(calculations.baseYScale));
+            applyAxisStyling(yAxisGroup);
+
+            console.log('🔒 Y-axis updated with LOCKED domain:', {
+              lockedDomain: lockedYScaleDomain,
+              axisScaleDomain: calculations.baseYScale.domain(),
+              candlestickScaleDomain: calculations.baseYScale.domain(),
+              scalesMatch: true, // They're the same scale
+            });
           }
 
           // Re-render with fresh data
@@ -1764,15 +1864,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             fixedYScaleDomain: chartState.fixedYScaleDomain,
           });
 
-          // Calculate the fixed Y-scale domain based on the VISIBLE data slice
+          // Calculate the fixed Y-scale domain using centralized calculation
           let fixedYScaleDomain: [number, number] | null = null;
           if (isValidChartData(calculationsForRender.visibleData)) {
-            const visibleData = calculationsForRender.visibleData;
-            const initialYMin = d3.min(visibleData, (d) => d.low) as number;
-            const initialYMax = d3.max(visibleData, (d) => d.high) as number;
-            const priceRange = initialYMax - initialYMin;
-            const padding = priceRange * PRICE_PADDING_MULTIPLIER;
-            fixedYScaleDomain = [initialYMin - padding, initialYMax + padding];
+            // Use centralized Y-scale domain calculation
+            fixedYScaleDomain = calculateYScaleDomain(calculationsForRender.visibleData);
 
             // Set the fixed Y-scale domain for future renders
             chartActions.setFixedYScaleDomain(fixedYScaleDomain);

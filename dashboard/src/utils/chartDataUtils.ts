@@ -267,13 +267,6 @@ export const createCustomTimeAxis = (
   // Generate time-based ticks that make sense for the data
   const timeTicks = generateTimeBasedTicks(allChartData);
 
-  console.log('🎯 Creating custom time axis:', {
-    dataLength: allChartData.length,
-    timeTicksCount: timeTicks.length,
-    timeTicks: timeTicks.map((t) => t.toLocaleTimeString()),
-    scaleRange: transformedLinearScale.range(),
-  });
-
   // Create a custom axis function that positions ticks based on data indices
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {
     selection.each(function (this: SVGGElement) {
@@ -314,14 +307,6 @@ export const createCustomTimeAxis = (
           time: tick,
           position: position,
         };
-      });
-
-      console.log('🎯 Tick data created:', {
-        tickDataCount: tickData.length,
-        tickData: tickData.map((t) => ({
-          time: t.time.toLocaleTimeString(),
-          position: t.position,
-        })),
       });
 
       // Add tick marks and labels
