@@ -910,12 +910,21 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    const newDataPoints = Math.min(experimentDataPoints + 20, 500); // Increase by 20 points each time, max 500
+    // Calculate buffer size the same way as in renderCandlestickChart
+    const bufferSize = Math.max(
+      MIN_BUFFER_SIZE,
+      Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
+    );
+
+    // Add the same amount of data that we're rendering in the buffer
+    const newDataPoints = Math.min(experimentDataPoints + bufferSize, 500);
     setExperimentDataPoints(newDataPoints);
 
     console.log('🔄 Auto-loading more historical data on buffered render:', {
       currentPoints: experimentDataPoints,
       newPoints: newDataPoints,
+      bufferSize,
+      pointsToAdd: bufferSize,
       symbol,
       timeframe,
     });
