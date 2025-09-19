@@ -322,24 +322,83 @@ const createChart = ({
     }
 
     // Check if we need to re-render candlesticks due to panning outside buffer
-    const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5));
+    const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75)); // Increased buffer size
     const currentViewStart = calculations.viewStart;
     const currentViewEnd = calculations.viewEnd;
+    const dataLength = calculations.allData.length;
 
     // Check if current view is outside the current buffer range
     const currentBufferRange = bufferRangeRef.current;
-    const needsRerender =
-      !currentBufferRange ||
-      currentViewStart < currentBufferRange.start + bufferSize * 0.3 || // 30% margin
-      currentViewEnd > currentBufferRange.end - bufferSize * 0.3;
+
+    // Use a more conservative margin (10% instead of 20%) to reduce spammy re-renders
+    // Also add a minimum margin to prevent re-renders on tiny movements
+    const marginSize = Math.max(5, Math.floor(bufferSize * 0.1));
+
+    // Smart buffer range logic that accounts for data boundaries
+    let needsRerender = false;
+
+    if (!currentBufferRange) {
+      // No buffer range set yet - always re-render
+      needsRerender = true;
+    } else {
+      // Check if we're at data boundaries and adjust margin accordingly
+      const atDataStart = currentViewStart <= 0;
+      const atDataEnd = currentViewEnd >= dataLength - marginSize; // Within margin of data end
+
+      if (atDataStart && atDataEnd) {
+        // At both boundaries - only re-render if view has changed significantly
+        needsRerender =
+          Math.abs(currentViewStart - currentBufferRange.start) > marginSize ||
+          Math.abs(currentViewEnd - currentBufferRange.end) > marginSize;
+      } else if (atDataStart) {
+        // At start boundary - only check end margin
+        needsRerender = currentViewEnd > currentBufferRange.end - marginSize;
+      } else if (atDataEnd) {
+        // At end boundary - only check start margin
+        needsRerender = currentViewStart < currentBufferRange.start + marginSize;
+      } else {
+        // In the middle - check both margins
+        needsRerender =
+          currentViewStart < currentBufferRange.start + marginSize ||
+          currentViewEnd > currentBufferRange.end - marginSize;
+      }
+    }
 
     if (needsRerender) {
-      console.log('🔄 Re-rendering candlesticks - view outside buffer range');
+      console.log('🔄 Re-rendering candlesticks - view outside buffer range', {
+        currentView: `${currentViewStart}-${currentViewEnd}`,
+        bufferRange: currentBufferRange
+          ? `${currentBufferRange.start}-${currentBufferRange.end}`
+          : 'none',
+        marginSize,
+        bufferSize,
+      });
       renderCandlestickChart(svgElement, calculations);
 
-      // Update buffer range tracking
-      const actualStart = Math.max(0, currentViewStart - bufferSize);
-      const actualEnd = Math.min(calculations.allData.length - 1, currentViewEnd + bufferSize);
+      // Update buffer range tracking with smart boundary-aware buffer
+      const atDataStart = currentViewStart <= 0;
+      const atDataEnd = currentViewEnd >= dataLength - marginSize; // Within margin of data end
+
+      let actualStart, actualEnd;
+
+      if (atDataStart && atDataEnd) {
+        // At both boundaries - use the full data range
+        actualStart = 0;
+        actualEnd = dataLength - 1;
+      } else if (atDataStart) {
+        // At start boundary - only buffer forward
+        actualStart = 0;
+        actualEnd = Math.min(dataLength - 1, currentViewEnd + bufferSize);
+      } else if (atDataEnd) {
+        // At end boundary - only buffer backward
+        actualStart = Math.max(0, currentViewStart - bufferSize);
+        actualEnd = dataLength - 1;
+      } else {
+        // In the middle - buffer both ways
+        actualStart = Math.max(0, currentViewStart - bufferSize);
+        actualEnd = Math.min(dataLength - 1, currentViewEnd + bufferSize);
+      }
+
       bufferRangeRef.current = { start: actualStart, end: actualEnd };
     }
   };
@@ -637,10 +696,33 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Re-render candlesticks with the new view
       renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
 
-      // Update buffer range
-      const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5));
-      const actualStart = Math.max(0, calculations.viewStart - bufferSize);
-      const actualEnd = Math.min(chartState.allData.length - 1, calculations.viewEnd + bufferSize);
+      // Update buffer range with smart boundary-aware buffer
+      const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75));
+      const dataLength = chartState.allData.length;
+      const marginSize = Math.max(5, Math.floor(bufferSize * 0.1));
+      const atDataStart = calculations.viewStart <= 0;
+      const atDataEnd = calculations.viewEnd >= dataLength - marginSize; // Within margin of data end
+
+      let actualStart, actualEnd;
+
+      if (atDataStart && atDataEnd) {
+        // At both boundaries - use the full data range
+        actualStart = 0;
+        actualEnd = dataLength - 1;
+      } else if (atDataStart) {
+        // At start boundary - only buffer forward
+        actualStart = 0;
+        actualEnd = Math.min(dataLength - 1, calculations.viewEnd + bufferSize);
+      } else if (atDataEnd) {
+        // At end boundary - only buffer backward
+        actualStart = Math.max(0, calculations.viewStart - bufferSize);
+        actualEnd = dataLength - 1;
+      } else {
+        // In the middle - buffer both ways
+        actualStart = Math.max(0, calculations.viewStart - bufferSize);
+        actualEnd = Math.min(dataLength - 1, calculations.viewEnd + bufferSize);
+      }
+
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
     }
   };
@@ -682,14 +764,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     if (isValidData) {
       const newVisibleData = getVisibleData(chartState.currentViewStart, chartState.currentViewEnd);
-      console.log('Updating visible data:', {
-        currentViewStart: chartState.currentViewStart,
-        currentViewEnd: chartState.currentViewEnd,
-        allChartDataLength: chartState.allData.length,
-        newVisibleDataLength: newVisibleData.length,
-        newVisibleDataStart: newVisibleData[0]?.time,
-        newVisibleDataEnd: newVisibleData[newVisibleData.length - 1]?.time,
-      });
+      // console.log('Updating visible data:', {
+      //   currentViewStart: chartState.currentViewStart,
+      //   currentViewEnd: chartState.currentViewEnd,
+      //   allChartDataLength: chartState.allData.length,
+      //   newVisibleDataLength: newVisibleData.length,
+      //   newVisibleDataStart: newVisibleData[0]?.time,
+      //   newVisibleDataEnd: newVisibleData[newVisibleData.length - 1]?.time,
+      // });
       chartActions.setData(newVisibleData);
     }
   }, [
@@ -864,13 +946,33 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       renderCandlestickChart(svgRef.current as SVGSVGElement, finalCalculations);
 
-      // Set initial buffer range
-      const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5));
-      const actualStart = Math.max(0, finalCalculations.viewStart - bufferSize);
-      const actualEnd = Math.min(
-        finalCalculations.allData.length - 1,
-        finalCalculations.viewEnd + bufferSize
-      );
+      // Set initial buffer range with smart boundary-aware buffer
+      const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75));
+      const dataLength = finalCalculations.allData.length;
+      const marginSize = Math.max(5, Math.floor(bufferSize * 0.1));
+      const atDataStart = finalCalculations.viewStart <= 0;
+      const atDataEnd = finalCalculations.viewEnd >= dataLength - marginSize; // Within margin of data end
+
+      let actualStart, actualEnd;
+
+      if (atDataStart && atDataEnd) {
+        // At both boundaries - use the full data range
+        actualStart = 0;
+        actualEnd = dataLength - 1;
+      } else if (atDataStart) {
+        // At start boundary - only buffer forward
+        actualStart = 0;
+        actualEnd = Math.min(dataLength - 1, finalCalculations.viewEnd + bufferSize);
+      } else if (atDataEnd) {
+        // At end boundary - only buffer backward
+        actualStart = Math.max(0, finalCalculations.viewStart - bufferSize);
+        actualEnd = dataLength - 1;
+      } else {
+        // In the middle - buffer both ways
+        actualStart = Math.max(0, finalCalculations.viewStart - bufferSize);
+        actualEnd = Math.min(dataLength - 1, finalCalculations.viewEnd + bufferSize);
+      }
+
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
     }
   }, [
