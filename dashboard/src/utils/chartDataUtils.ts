@@ -174,6 +174,18 @@ export const createIndexToTimeScale = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
   allChartData: { time: string }[]
 ): d3.ScaleTime<Date, number> => {
+  // Safety check for empty or invalid data
+  if (!allChartData || allChartData.length === 0) {
+    console.warn('createIndexToTimeScale called with empty or undefined allChartData');
+    // Return a default scale that won't cause errors
+    return d3.scaleTime<Date, number>().domain([new Date(), new Date()]).range([0, 1]);
+  }
+
+  if (!allChartData[0] || !allChartData[0].time) {
+    console.warn('createIndexToTimeScale called with invalid chart data - missing time property');
+    return d3.scaleTime<Date, number>().domain([new Date(), new Date()]).range([0, 1]);
+  }
+
   // Get the domain from the transformed linear scale (data indices)
   const [domainStart, domainEnd] = transformedLinearScale.domain();
 

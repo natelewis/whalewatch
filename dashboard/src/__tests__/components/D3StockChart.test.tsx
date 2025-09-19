@@ -2,11 +2,12 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import D3StockChart from '../../components/D3StockChart';
-import { useChartData } from '../../hooks/useChartData';
+// Removed useChartData import - now using useChartStateManager
+import { useChartStateManager } from '../../hooks/useChartStateManager';
 import { useChartWebSocket } from '../../hooks/useChartWebSocket';
 
 // Mock the hooks
-vi.mock('../../hooks/useChartData');
+vi.mock('../../hooks/useChartStateManager');
 vi.mock('../../hooks/useChartWebSocket');
 
 // Mock D3
@@ -155,24 +156,52 @@ const mockChartData = [
   },
 ];
 
-const mockUseChartData = {
-  chartData: mockChartData,
-  dataRange: null,
-  isLoading: false,
-  error: null,
-  loadChartData: vi.fn(),
-  loadMoreDataLeft: vi.fn(),
-  loadMoreDataRight: vi.fn(),
-  updateChartWithLiveData: vi.fn(),
-  clearError: vi.fn(),
-  isLeftLoading: false,
-  isRightLoading: false,
-  panLeft: vi.fn(),
-  panRight: vi.fn(),
-  canPanLeft: false,
-  canPanRight: false,
-  viewState: null,
-  updateViewState: vi.fn(),
+const mockUseChartStateManager = {
+  state: {
+    data: mockChartData,
+    allData: mockChartData,
+    isLoading: false,
+    error: null,
+    isLive: false,
+    chartLoaded: false,
+    chartExists: false,
+    currentViewStart: 0,
+    currentViewEnd: mockChartData.length - 1,
+    dimensions: { width: 800, height: 400, margin: { top: 20, right: 60, bottom: 40, left: 0 } },
+    transform: { x: 0, y: 0, k: 1 },
+    hoverData: null,
+    timeframe: '1h',
+    symbol: 'TSLA',
+    dataPointsToShow: 100,
+    fixedYScaleDomain: null,
+  },
+  actions: {
+    loadChartData: vi.fn(),
+    updateChartWithLiveData: vi.fn(),
+    setAllData: vi.fn(),
+    setData: vi.fn(),
+    setIsLive: vi.fn(),
+    setError: vi.fn(),
+    setIsLoading: vi.fn(),
+    resetChart: vi.fn(),
+    setTimeframe: vi.fn(),
+    setCurrentViewStart: vi.fn(),
+    setCurrentViewEnd: vi.fn(),
+    setViewport: vi.fn(),
+    setHoverData: vi.fn(),
+    setChartLoaded: vi.fn(),
+    setChartExists: vi.fn(),
+    setTransform: vi.fn(),
+    updateTransform: vi.fn(),
+    resetTransform: vi.fn(),
+    setSymbol: vi.fn(),
+    setDimensions: vi.fn(),
+    setDataPointsToShow: vi.fn(),
+    setFixedYScaleDomain: vi.fn(),
+    addDataPoint: vi.fn(),
+    updateData: vi.fn(),
+    updateMultiple: vi.fn(),
+  },
 };
 
 const mockUseChartWebSocket = {
@@ -182,7 +211,7 @@ const mockUseChartWebSocket = {
 
 describe('D3StockChart', () => {
   beforeEach(() => {
-    vi.mocked(useChartData).mockReturnValue(mockUseChartData);
+    vi.mocked(useChartStateManager).mockReturnValue(mockUseChartStateManager);
     vi.mocked(useChartWebSocket).mockReturnValue(mockUseChartWebSocket);
     localStorageMock.getItem.mockReturnValue('1h');
   });
@@ -197,9 +226,12 @@ describe('D3StockChart', () => {
   });
 
   it('displays loading state when data is loading', () => {
-    vi.mocked(useChartData).mockReturnValue({
-      ...mockUseChartData,
-      isLoading: true,
+    vi.mocked(useChartStateManager).mockReturnValue({
+      ...mockUseChartStateManager,
+      state: {
+        ...mockUseChartStateManager.state,
+        isLoading: true,
+      },
     });
 
     render(<D3StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
@@ -207,9 +239,12 @@ describe('D3StockChart', () => {
   });
 
   it('displays error state when there is an error', () => {
-    vi.mocked(useChartData).mockReturnValue({
-      ...mockUseChartData,
-      error: 'Failed to load data',
+    vi.mocked(useChartStateManager).mockReturnValue({
+      ...mockUseChartStateManager,
+      state: {
+        ...mockUseChartStateManager.state,
+        error: 'Failed to load data',
+      },
     });
 
     render(<D3StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
@@ -244,7 +279,7 @@ describe('D3StockChart', () => {
     expect(timeframeButtons.length).toBeGreaterThan(0);
 
     fireEvent.click(timeframeButtons[0]);
-    expect(mockUseChartData.loadChartData).toHaveBeenCalled();
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalled();
   });
 
   it('allows chart type selection', () => {
@@ -255,7 +290,7 @@ describe('D3StockChart', () => {
     expect(candlestickElement).toBeInTheDocument();
 
     // Chart type change should not trigger data reload
-    expect(mockUseChartData.loadChartData).toHaveBeenCalledTimes(1); // Only initial load
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledTimes(1); // Only initial load
   });
 
   it('toggles live mode', () => {
@@ -274,7 +309,7 @@ describe('D3StockChart', () => {
     const refreshButton = screen.getByTitle('Refresh data');
     fireEvent.click(refreshButton);
 
-    expect(mockUseChartData.loadChartData).toHaveBeenCalledWith('TSLA', '1h');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '1h');
   });
 
   it('resets zoom when reset button is clicked', () => {
@@ -348,7 +383,7 @@ describe('D3StockChart', () => {
 
     expect(localStorageMock.getItem).toHaveBeenCalledWith('chartTimeframe');
     // The component uses the saved timeframe from localStorage
-    expect(mockUseChartData.loadChartData).toHaveBeenCalledWith('TSLA', '5m');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '5m');
   });
 
   it('saves timeframe to localStorage when changed', () => {
@@ -387,9 +422,13 @@ describe('D3StockChart', () => {
   });
 
   it('handles missing chart data gracefully', () => {
-    (useChartData as jest.Mock).mockReturnValue({
-      ...mockUseChartData,
-      chartData: [],
+    vi.mocked(useChartStateManager).mockReturnValue({
+      ...mockUseChartStateManager,
+      state: {
+        ...mockUseChartStateManager.state,
+        data: [],
+        allData: [],
+      },
     });
 
     render(<D3StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
@@ -419,6 +458,6 @@ describe('D3StockChart', () => {
     rerender(<D3StockChart symbol="AAPL" onSymbolChange={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'AAPL' })).toBeInTheDocument();
-    expect(mockUseChartData.loadChartData).toHaveBeenCalledWith('AAPL', '1h');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('AAPL', '1h');
   });
 });

@@ -8,6 +8,10 @@ import {
   TimeframeConfig,
 } from '../utils/chartDataUtils';
 
+// THIS FILE IS DEPRECATED -
+
+// Only FOR OLD ANALYSIS USE
+
 export type ChartData = CandlestickData[];
 
 interface UseChartDataProps {

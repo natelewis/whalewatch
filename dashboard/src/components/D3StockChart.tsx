@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import * as d3 from 'd3';
 import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS, ChartDimensions } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
-import { ChartData, useChartData } from '../hooks/useChartData';
+import { CandlestickData } from '../utils/chartDataUtils';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
@@ -70,8 +70,8 @@ interface ChartCalculations {
   // View calculations
   viewStart: number;
   viewEnd: number;
-  visibleData: ChartData;
-  allData: ChartData; // Full dataset for rendering
+  visibleData: CandlestickData[];
+  allData: CandlestickData[]; // Full dataset for rendering
 
   // Transform string for rendering
   transformString: string;
@@ -84,7 +84,7 @@ const calculateChartState = ({
   fixedYScaleDomain,
 }: {
   dimensions: ChartDimensions;
-  allChartData: ChartData;
+  allChartData: CandlestickData[];
   transform: d3.ZoomTransform;
   fixedYScaleDomain: [number, number] | null;
 }): ChartCalculations => {
@@ -191,10 +191,10 @@ const createChart = ({
   onBufferedCandlesRendered,
 }: {
   svgElement: SVGSVGElement;
-  allChartData: ChartData;
+  allChartData: CandlestickData[];
   xScale: d3.ScaleLinear<number, number>;
   yScale: d3.ScaleLinear<number, number>;
-  visibleData: ChartData;
+  visibleData: CandlestickData[];
   dimensions: ChartDimensions;
   stateCallbacks: {
     setIsZooming?: (value: boolean) => void;
@@ -214,7 +214,7 @@ const createChart = ({
     forceRerender?: () => void;
     setZoomBehavior?: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => void;
     getFixedYScaleDomain?: () => [number, number] | null;
-    getCurrentData?: () => ChartData;
+    getCurrentData?: () => CandlestickData[];
     getCurrentDimensions?: () => ChartDimensions;
   };
   chartState: {
@@ -237,7 +237,9 @@ const createChart = ({
 
   if (
     !hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }) ||
-    chartState.chartLoaded
+    chartState.chartLoaded ||
+    !allChartData ||
+    allChartData.length === 0
   ) {
     console.log('createChart: Early return conditions:', {
       allChartDataLength: allChartData?.length || 0,
@@ -247,6 +249,7 @@ const createChart = ({
       chartLoaded: chartState.chartLoaded,
       hasVisibleData: !!visibleData,
       visibleDataLength: visibleData?.length || 0,
+      hasRequiredParams: hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }),
     });
     return;
   }
@@ -289,6 +292,11 @@ const createChart = ({
   // This ensures the same scale is used for both initial load and pan/zoom
 
   // Create X-axis using the same approach as pan/zoom for consistency
+  // Add safety check to prevent error when sortedData is empty
+  if (sortedData.length === 0) {
+    console.warn('createIndexToTimeScale called with empty sortedData in initial render');
+    return;
+  }
   const initialTimeScale = createIndexToTimeScale(xScale, sortedData);
   const timeBasedTickValues = calculateTimeBasedTickValues(sortedData, 20);
   const xAxis = g
@@ -333,14 +341,28 @@ const createChart = ({
     }
 
     // Get the current fixed Y-scale domain from the ref to avoid stale closure issues
-    const currentFixedYScaleDomain =
-      stateCallbacks.getFixedYScaleDomain?.() || chartState.fixedYScaleDomain;
+    const currentFixedYScaleDomain = stateCallbacks.getFixedYScaleDomain?.() || null;
 
-    // Get the current data from the chart state instead of using captured sortedData
-    const currentData = stateCallbacks.getCurrentData?.() || sortedData;
+    // Get the current data from the callback to avoid stale closure issues
+    const currentData = stateCallbacks.getCurrentData?.();
+    
+    // Early return if no valid data - prevents errors during panning
+    if (!currentData || currentData.length === 0) {
+      console.warn('handleZoom called with empty currentData, skipping zoom processing', {
+        getCurrentDataResult: currentData,
+        currentDataLength: currentData?.length || 0,
+      });
+      return;
+    }
 
-    // Get current dimensions to avoid stale closure issues
-    const currentDimensions = stateCallbacks.getCurrentDimensions?.() || dimensions;
+    // Get current dimensions from the callback to avoid stale closure issues
+    const currentDimensions = stateCallbacks.getCurrentDimensions?.();
+    
+    // Early return if no valid dimensions
+    if (!currentDimensions) {
+      console.warn('handleZoom called with no dimensions, skipping zoom processing');
+      return;
+    }
 
     // Single source of truth for all calculations
     const calculations = calculateChartState({
@@ -704,7 +726,8 @@ const renderCandlestickChart = (
     lastCandleIndex: actualEnd,
   });
 
-  // Use the base linear scale for candlestick positioning since the chart content group already has the transform applied
+  // Use the base linear scale for candlestick positioning since the chart content group
+  // already has the transform applied
 
   visibleCandles.forEach((d, localIndex) => {
     // Calculate the global data index for proper positioning
@@ -811,7 +834,7 @@ const renderCandlestickChart = (
 // Function to update clip-path when data changes
 const updateClipPath = (
   svgElement: SVGSVGElement,
-  allChartData: ChartData,
+  allChartData: CandlestickData[],
   dimensions: ChartDimensions
 ): void => {
   const svg = d3.select(svgElement);
@@ -863,6 +886,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Local state for timeframe management
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
 
+  // Debug logging for data state
+  useEffect(() => {
+    console.log('Chart data state:', {
+      allDataLength: chartState.allData.length,
+      isValidData,
+      isLoading: chartState.isLoading,
+      error: chartState.error,
+      symbol,
+      timeframe,
+    });
+  }, [
+    chartState.allData.length,
+    isValidData,
+    chartState.isLoading,
+    chartState.error,
+    symbol,
+    timeframe,
+  ]);
+
   // Local state for current transform (for debugging)
   const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
 
@@ -876,6 +918,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Track if we're currently in a panning operation to prevent infinite loops
   const isPanningRef = useRef(false);
 
+  // Track if we're currently loading data to prevent duplicate requests
+  const isLoadingDataRef = useRef(false);
+
+  // Track if chart has been created to prevent unnecessary re-creation
+  const chartCreatedRef = useRef(false);
+
+  // Track if initial view has been set to prevent repeated setup
+  const initialViewSetRef = useRef(false);
+
   // Store reference to the zoom behavior for programmatic control
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
@@ -883,7 +934,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const fixedYScaleDomainRef = useRef<[number, number] | null>(null);
 
   // Store reference to the current data to avoid stale closure issues
-  const currentDataRef = useRef<ChartData>([]);
+  const currentDataRef = useRef<CandlestickData[]>([]);
 
   // Store reference to the current dimensions to avoid stale closure issues
   const currentDimensionsRef = useRef<ChartDimensions>({
@@ -896,6 +947,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     currentDimensionsRef.current = chartState.dimensions;
   }, [chartState.dimensions]);
+  
+  // Update data ref when chart data changes
+  useEffect(() => {
+    currentDataRef.current = chartState.allData;
+  }, [chartState.allData]);
 
   // Function to automatically load more data when buffered candles are rendered
   const loadMoreDataOnBufferedRender = useCallback((): void => {
@@ -941,9 +997,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         });
 
         chartActions.setAllData(formattedData);
-
-        // Update the data ref immediately to avoid stale closure issues
-        currentDataRef.current = formattedData;
 
         console.log('✅ Successfully auto-loaded more data:', {
           newDataLength: formattedData.length,
@@ -1020,9 +1073,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
         chartActions.setAllData(formattedData);
 
-        // Update the data ref immediately to avoid stale closure issues
-        currentDataRef.current = formattedData;
-
         // Check state after a brief delay to see if it updates
         setTimeout(() => {
           console.log('📊 After setAllData (delayed):', {
@@ -1074,6 +1124,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             );
 
             // Create time-based scale that maps data indices to screen coordinates
+            // Add safety check to prevent error when formattedData is empty
+            if (formattedData.length === 0) {
+              console.warn('createIndexToTimeScale called with empty formattedData');
+              return;
+            }
             const indexToTimeScale = createIndexToTimeScale(
               calculations.transformedXScale,
               formattedData
@@ -1171,6 +1226,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
 
         // Create time-based scale that maps data indices to screen coordinates
+        // Add safety check to prevent error when allData is empty
+        if (chartState.allData.length === 0) {
+          console.warn('createIndexToTimeScale called with empty allData');
+          return;
+        }
         const indexToTimeScale = createIndexToTimeScale(
           calculations.transformedXScale,
           chartState.allData
@@ -1256,21 +1316,17 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     []
   );
 
-  // Chart data management
-  const chartDataHook = useChartData({
-    timeframes,
-    bufferPoints: DATA_PRELOAD_BUFFER,
-    onDataLoaded: (data: ChartData) => {
-      // Update all chart data whenever new data is loaded
-      chartActions.setAllData(data);
-      // Update the data ref to avoid stale closure issues
-      currentDataRef.current = data;
-    },
-  });
+  // Chart data management is now handled by useChartStateManager
 
   // WebSocket for real-time data
   const chartWebSocket = useChartWebSocket({
     symbol,
+    onChartData: (bar) => {
+      if (chartState.isLive) {
+        console.log('📊 Received WebSocket data:', bar);
+        chartActions.updateChartWithLiveData(bar);
+      }
+    },
   });
 
   // Update visible data when view changes
@@ -1295,16 +1351,39 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     getVisibleData,
   ]); // Removed chartActions
 
-  // Load saved timeframe from localStorage
+  // Load saved timeframe from localStorage and load initial data
   useEffect(() => {
+    if (isLoadingDataRef.current) {
+      console.log('🔄 Data loading already in progress, skipping duplicate request');
+      return;
+    }
+
     try {
       const savedTimeframe = getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1h');
       setTimeframe(savedTimeframe);
+
+      // Load initial data immediately
+      console.log('🔄 Loading initial data for symbol:', { symbol, timeframe: savedTimeframe });
+      isLoadingDataRef.current = true;
+      chartActions
+        .loadChartData(symbol, savedTimeframe, DEFAULT_CHART_DATA_POINTS, DATA_PRELOAD_BUFFER)
+        .finally(() => {
+          isLoadingDataRef.current = false;
+        });
     } catch (error) {
       console.warn('Failed to load chart timeframe from localStorage:', error);
       setTimeframe('1h');
+
+      // Load initial data with default timeframe
+      console.log('🔄 Loading initial data with default timeframe:', { symbol, timeframe: '1h' });
+      isLoadingDataRef.current = true;
+      chartActions
+        .loadChartData(symbol, '1h', DEFAULT_CHART_DATA_POINTS, DATA_PRELOAD_BUFFER)
+        .finally(() => {
+          isLoadingDataRef.current = false;
+        });
     }
-  }, []);
+  }, [symbol]); // Removed chartActions to prevent infinite loops
 
   // Save timeframe to localStorage
   useEffect(() => {
@@ -1319,14 +1398,33 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Load chart data when symbol or timeframe changes
   useEffect(() => {
-    if (timeframe !== null) {
+    if (timeframe !== null && !isLoadingDataRef.current) {
       chartActions.resetChart(); // Reset chart state for new symbol/timeframe
       chartActions.setTimeframe(timeframe);
 
       console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
-      chartDataHook.loadChartData(symbol, timeframe);
+      isLoadingDataRef.current = true;
+      chartActions
+        .loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, DATA_PRELOAD_BUFFER)
+        .finally(() => {
+          isLoadingDataRef.current = false;
+        });
     }
-  }, [symbol, timeframe]); // Removed chartActions and chartDataHook from dependencies
+  }, [symbol, timeframe]); // Removed chartActions to prevent infinite loops
+
+  // Cleanup refs on unmount
+  useEffect(() => {
+    return () => {
+      isLoadingDataRef.current = false;
+      chartCreatedRef.current = false;
+    };
+  }, []);
+
+  // Reset refs when symbol changes
+  useEffect(() => {
+    chartCreatedRef.current = false;
+    initialViewSetRef.current = false;
+  }, [symbol]);
 
   // Subscribe to WebSocket when live mode is enabled
   useEffect(() => {
@@ -1357,7 +1455,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Set initial view to show newest data when data loads
   useEffect(() => {
-    if (isValidData) {
+    if (isValidData && !initialViewSetRef.current) {
       const totalDataLength = chartState.allData.length;
 
       // If this is the first load, show newest data with proper buffer setup
@@ -1375,9 +1473,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         });
 
         chartActions.setViewport(newStartIndex, newEndIndex);
+        initialViewSetRef.current = true;
       }
     }
-  }, [chartState.allData.length, chartState.data.length, isValidData]); // Removed chartActions
+  }, [chartState.allData.length, isValidData]); // Removed chartState.data.length to prevent re-runs
 
   // Auto-enable live mode when user pans to the rightmost edge
   const [isAtRightEdge, setIsAtRightEdge] = useState(false);
@@ -1524,7 +1623,37 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
-    if (isValidData && chartState.currentViewEnd > 0 && chartState.data.length > 0) {
+    // Only create chart if it hasn't been created yet and we have valid data
+    if (chartCreatedRef.current) {
+      return; // Chart already created, skip
+    }
+
+    // Only log when we're actually going to create a chart
+    if (
+      isValidData &&
+      chartState.currentViewEnd > 0 &&
+      chartState.data.length > 0 &&
+      chartState.allData.length > 0 &&
+      !chartState.chartExists
+    ) {
+      console.log('Chart creation effect triggered:', {
+        isValidData,
+        currentViewEnd: chartState.currentViewEnd,
+        dataLength: chartState.data.length,
+        allDataLength: chartState.allData.length,
+        isLoading: chartState.isLoading,
+        error: chartState.error,
+        chartExists: chartState.chartExists,
+      });
+    }
+
+    if (
+      isValidData &&
+      chartState.currentViewEnd > 0 &&
+      chartState.data.length > 0 &&
+      chartState.allData.length > 0 &&
+      !chartState.chartExists
+    ) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
       if (
@@ -1590,6 +1719,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           isPanningRef: isPanningRef,
           onBufferedCandlesRendered: loadMoreDataOnBufferedRender,
         });
+
+        // Mark chart as created to prevent re-creation
+        chartCreatedRef.current = true;
       }
     }
 
@@ -1625,7 +1757,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                 {chartState.isLive ? 'Live' : 'Paused'}
               </button>
               <button
-                onClick={() => timeframe && chartDataHook.loadChartData(symbol, timeframe)}
+                onClick={() =>
+                  timeframe &&
+                  chartActions.loadChartData(
+                    symbol,
+                    timeframe,
+                    DEFAULT_CHART_DATA_POINTS,
+                    DATA_PRELOAD_BUFFER
+                  )
+                }
                 className="p-1 text-muted-foreground hover:text-foreground"
                 title="Refresh data"
               >
@@ -1686,23 +1826,37 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       {/* Chart Container */}
       <div className="flex-1 p-4">
-        {chartDataHook.isLoading ? (
+        {chartState.isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
               <p className="text-muted-foreground">Loading chart data...</p>
             </div>
           </div>
-        ) : chartDataHook.error ? (
+        ) : chartState.error ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <p className="text-destructive mb-4">{chartDataHook.error}</p>
+              <p className="text-destructive mb-4">{chartState.error}</p>
               <button
-                onClick={() => timeframe && chartDataHook.loadChartData(symbol, timeframe)}
+                onClick={() =>
+                  timeframe &&
+                  chartActions.loadChartData(
+                    symbol,
+                    timeframe,
+                    DEFAULT_CHART_DATA_POINTS,
+                    DATA_PRELOAD_BUFFER
+                  )
+                }
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               >
                 Retry
               </button>
+            </div>
+          </div>
+        ) : !isValidData || chartState.allData.length === 0 ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <p className="text-muted-foreground">No data available</p>
             </div>
           </div>
         ) : (

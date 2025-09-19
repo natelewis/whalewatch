@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChartTimeframe, ChartDimensions } from '../types';
-import { CandlestickData } from '../utils/chartDataUtils';
+import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS } from '../types';
+import { CandlestickData, processChartData, DataRange } from '../utils/chartDataUtils';
+import { apiService } from '../services/apiService';
 
 export interface ChartTransform {
   x: number;
@@ -53,6 +54,15 @@ export interface ChartActions {
   setAllData: (data: CandlestickData[]) => void;
   addDataPoint: (point: CandlestickData) => void;
   updateData: (updates: Partial<{ data: CandlestickData[]; allData: CandlestickData[] }>) => void;
+
+  // Data loading actions
+  loadChartData: (
+    symbol: string,
+    timeframe: ChartTimeframe,
+    dataPoints?: number,
+    bufferPoints?: number
+  ) => Promise<void>;
+  updateChartWithLiveData: (bar: any) => void; // AlpacaBar type
 
   // Transform actions
   setTransform: (transform: ChartTransform) => void;
@@ -267,6 +277,85 @@ export const useChartStateManager = (
     setState((prev) => ({ ...prev, ...updates }));
   }, []);
 
+  // Data loading actions
+  const loadChartData = useCallback(
+    async (
+      symbol: string,
+      timeframe: ChartTimeframe,
+      dataPoints: number = DEFAULT_CHART_DATA_POINTS,
+      bufferPoints: number = 20
+    ) => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Load chart data from API
+        const response = await apiService.getChartData(
+          symbol,
+          timeframe,
+          dataPoints,
+          undefined, // endTime - use current time
+          bufferPoints
+        );
+
+        // Process the data using utility functions
+        const { formattedData, dataRange } = processChartData(response.bars);
+
+        console.log('Initial data load:', {
+          symbol,
+          timeframe,
+          dataPoints,
+          barsCount: response.bars?.length || 0,
+          formattedDataLength: formattedData.length,
+          dataRange,
+        });
+
+        // Update state with new data
+        setAllData(formattedData);
+        setDataPointsToShow(dataPoints);
+        setSymbol(symbol);
+        setTimeframe(timeframe);
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.error || 'Failed to load chart data';
+        setError(errorMessage);
+        console.error('Error loading chart data:', errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [setIsLoading, setError, setAllData, setDataPointsToShow, setSymbol, setTimeframe]
+  );
+
+  const updateChartWithLiveData = useCallback((bar: any) => {
+    const newCandle: CandlestickData = {
+      time: bar.t,
+      open: bar.o,
+      high: bar.h,
+      low: bar.l,
+      close: bar.c,
+    };
+
+    // Update chart data directly
+    setState((prev) => {
+      const lastCandle = prev.allData[prev.allData.length - 1];
+      let updatedAllData: CandlestickData[];
+
+      if (lastCandle && lastCandle.time === newCandle.time) {
+        // Update existing candle
+        updatedAllData = [...prev.allData];
+        updatedAllData[updatedAllData.length - 1] = newCandle;
+      } else {
+        // Add new candle
+        updatedAllData = [...prev.allData, newCandle];
+      }
+
+      return {
+        ...prev,
+        allData: updatedAllData,
+      };
+    });
+  }, []);
+
   // Handle initial data load
   useEffect(() => {
     if (state.allData.length > 0 && isInitialLoadRef.current) {
@@ -289,6 +378,8 @@ export const useChartStateManager = (
     setAllData,
     addDataPoint,
     updateData,
+    loadChartData,
+    updateChartWithLiveData,
     setTransform,
     updateTransform,
     resetTransform,
