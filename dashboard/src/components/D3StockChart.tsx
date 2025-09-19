@@ -4,40 +4,25 @@ import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { ChartData, useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
+import { ChartDimensions } from '../hooks/useChartDimensions';
+import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
+import { useChartStateManager } from '../hooks/useChartStateManager';
 import {
   TimeframeConfig,
-  calculateInnerDimensions,
   applyAxisStyling,
   createXAxis,
   createYAxis,
   formatPrice,
-  isValidChartData,
   clampIndex,
   hasRequiredChartParams,
+  calculateInnerDimensions,
+  isValidChartData,
 } from '../utils/chartDataUtils';
 import { BarChart3, Settings, Play, Pause, RotateCcw } from 'lucide-react';
 
 interface D3StockChartProps {
   symbol: string;
   onSymbolChange: (symbol: string) => void;
-}
-
-interface ChartDimensions {
-  width: number;
-  height: number;
-  margin: { top: number; right: number; bottom: number; left: number };
-}
-
-interface HoverData {
-  x: number;
-  y: number;
-  data: {
-    time: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-  } | null;
 }
 
 // ============================================================================
@@ -180,72 +165,17 @@ const calculateChartState = ({
 
 // Removed useChartScales - now using centralized calculateChartState
 
-// D3 Chart State Management
-interface D3ChartState {
-  isZooming: boolean;
-  currentViewStart: number;
-  currentViewEnd: number;
-  hoverData: HoverData | null;
-  chartLoaded: boolean;
-  fixedYScaleDomain: [number, number] | null;
-  chartExists: boolean;
-}
-
-// Global D3 chart state - managed outside React lifecycle
-let d3ChartState: D3ChartState = {
-  isZooming: false,
-  currentViewStart: 0,
-  currentViewEnd: 0,
-  hoverData: null,
-  chartLoaded: false,
-  fixedYScaleDomain: null,
-  chartExists: false,
-};
-
 // D3 state update callbacks - set by React component
 let d3StateCallbacks: {
   setIsZooming?: (value: boolean) => void;
   setCurrentViewStart?: (value: number) => void;
   setCurrentViewEnd?: (value: number) => void;
-  setHoverData?: (value: HoverData | null) => void;
+  setHoverData?: (value: any) => void;
   setChartLoaded?: (value: boolean) => void;
   setFixedYScaleDomain?: (value: [number, number] | null) => void;
   setChartExists?: (value: boolean) => void;
   forceRerender?: () => void;
 } = {};
-
-// Update D3 state and notify React if callbacks are available
-const updateD3State = (updates: Partial<D3ChartState>): void => {
-  d3ChartState = { ...d3ChartState, ...updates };
-
-  // Notify React of state changes
-  if (updates.isZooming !== undefined && d3StateCallbacks.setIsZooming) {
-    d3StateCallbacks.setIsZooming(updates.isZooming);
-  }
-  if (updates.currentViewStart !== undefined && d3StateCallbacks.setCurrentViewStart) {
-    d3StateCallbacks.setCurrentViewStart(updates.currentViewStart);
-  }
-  if (updates.currentViewEnd !== undefined && d3StateCallbacks.setCurrentViewEnd) {
-    d3StateCallbacks.setCurrentViewEnd(updates.currentViewEnd);
-  }
-  if (updates.hoverData !== undefined && d3StateCallbacks.setHoverData) {
-    d3StateCallbacks.setHoverData(updates.hoverData);
-  }
-  if (updates.chartLoaded !== undefined && d3StateCallbacks.setChartLoaded) {
-    d3StateCallbacks.setChartLoaded(updates.chartLoaded);
-  }
-  if (updates.fixedYScaleDomain !== undefined && d3StateCallbacks.setFixedYScaleDomain) {
-    d3StateCallbacks.setFixedYScaleDomain(updates.fixedYScaleDomain);
-  }
-  if (updates.chartExists !== undefined && d3StateCallbacks.setChartExists) {
-    d3StateCallbacks.setChartExists(updates.chartExists);
-  }
-
-  // Force re-render for hover data changes (since it's not in React state)
-  if (updates.hoverData !== undefined && d3StateCallbacks.forceRerender) {
-    d3StateCallbacks.forceRerender();
-  }
-};
 
 // Create D3 chart - Pure D3 function with no React dependencies
 const createChart = ({
@@ -257,6 +187,7 @@ const createChart = ({
   dimensions,
   fixedYScaleDomain: _fixedYScaleDomain,
   stateCallbacks,
+  chartState,
 }: {
   svgElement: SVGSVGElement;
   allChartData: ChartData;
@@ -265,7 +196,20 @@ const createChart = ({
   visibleData: ChartData;
   dimensions: ChartDimensions;
   fixedYScaleDomain: [number, number] | null;
-  stateCallbacks: typeof d3StateCallbacks;
+  stateCallbacks: {
+    setIsZooming?: (value: boolean) => void;
+    setCurrentViewStart?: (value: number) => void;
+    setCurrentViewEnd?: (value: number) => void;
+    setHoverData?: (value: any) => void;
+    setChartLoaded?: (value: boolean) => void;
+    setFixedYScaleDomain?: (value: [number, number] | null) => void;
+    setChartExists?: (value: boolean) => void;
+    forceRerender?: () => void;
+  };
+  chartState: {
+    fixedYScaleDomain: [number, number] | null;
+    chartLoaded: boolean;
+  };
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation');
@@ -279,14 +223,14 @@ const createChart = ({
 
   if (
     !hasRequiredChartParams({ allChartData, xScale, yScale, visibleData }) ||
-    d3ChartState.chartLoaded
+    chartState.chartLoaded
   ) {
     console.log('createChart: Early return conditions:', {
       allChartDataLength: allChartData?.length || 0,
       allChartDataIsArray: Array.isArray(allChartData),
       hasXScale: !!xScale,
       hasYScale: !!yScale,
-      chartLoaded: d3ChartState.chartLoaded,
+      chartLoaded: chartState.chartLoaded,
       hasVisibleData: !!visibleData,
       visibleDataLength: visibleData?.length || 0,
     });
@@ -296,7 +240,9 @@ const createChart = ({
   // Set up state callbacks for D3 to communicate with React
   d3StateCallbacks = stateCallbacks;
 
-  updateD3State({ chartExists: true });
+  if (stateCallbacks.setChartExists) {
+    stateCallbacks.setChartExists(true);
+  }
   const svg = d3.select(svgElement);
   svg.selectAll('*').remove(); // Clear previous chart
 
@@ -351,7 +297,9 @@ const createChart = ({
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
 
   const handleZoomStart = (): void => {
-    updateD3State({ isZooming: true });
+    if (stateCallbacks.setIsZooming) {
+      stateCallbacks.setIsZooming(true);
+    }
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -362,14 +310,16 @@ const createChart = ({
       dimensions,
       allChartData: sortedData,
       transform,
-      fixedYScaleDomain: d3ChartState.fixedYScaleDomain,
+      fixedYScaleDomain: chartState.fixedYScaleDomain,
     });
 
     // Update view state using centralized calculations
-    updateD3State({
-      currentViewStart: calculations.viewStart,
-      currentViewEnd: calculations.viewEnd,
-    });
+    if (stateCallbacks.setCurrentViewStart) {
+      stateCallbacks.setCurrentViewStart(calculations.viewStart);
+    }
+    if (stateCallbacks.setCurrentViewEnd) {
+      stateCallbacks.setCurrentViewEnd(calculations.viewEnd);
+    }
 
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
@@ -399,7 +349,9 @@ const createChart = ({
   };
 
   const handleZoomEnd = (): void => {
-    updateD3State({ isZooming: false });
+    if (stateCallbacks.setIsZooming) {
+      stateCallbacks.setIsZooming(false);
+    }
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -438,7 +390,9 @@ const createChart = ({
     .on('mouseout', () => {
       crosshair.select('.crosshair-x').style('opacity', 0);
       crosshair.select('.crosshair-y').style('opacity', 0);
-      updateD3State({ hoverData: null });
+      if (stateCallbacks.setHoverData) {
+        stateCallbacks.setHoverData(null);
+      }
     })
     .on('mousemove', (event) => {
       if (!xScale || !yScale) {
@@ -492,8 +446,8 @@ const createChart = ({
           .attr('y2', mouseY);
 
         // Update hover data (still use closest bar data for tooltip)
-        updateD3State({
-          hoverData: {
+        if (stateCallbacks.setHoverData) {
+          stateCallbacks.setHoverData({
             x: mouseX + margin.left,
             y: mouseY + margin.top,
             data: {
@@ -503,8 +457,8 @@ const createChart = ({
               low: d.low,
               close: d.close,
             },
-          },
-        });
+          });
+        }
       }
     });
 
@@ -515,16 +469,18 @@ const createChart = ({
     const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
     const priceRange = initialYMax - initialYMin;
     const padding = priceRange * 0.2; // Add 20% padding above and below for more labels
-    updateD3State({
-      fixedYScaleDomain: [initialYMin - padding, initialYMax + padding],
-    });
+    if (stateCallbacks.setFixedYScaleDomain) {
+      stateCallbacks.setFixedYScaleDomain([initialYMin - padding, initialYMax + padding]);
+    }
     console.log('🔒 Y-axis locked to full data range:', [
       initialYMin - padding,
       initialYMax + padding,
     ]);
   }
 
-  updateD3State({ chartLoaded: true });
+  if (stateCallbacks.setChartLoaded) {
+    stateCallbacks.setChartLoaded(true);
+  }
   console.log('🎯 CHART LOADED - Axes can now be created');
 };
 
@@ -614,121 +570,22 @@ const renderCandlestickChart = (
   });
 };
 
-const getVisibleDataPoints = (
-  startIndex: number,
-  endIndex: number,
-  chartData: ChartData
-): ChartData => {
-  // Data is already sorted from chartDataUtils.processChartData
-  const sortedData = chartData;
-
-  // If no data, return empty array
-  if (!isValidChartData(sortedData)) {
-    console.log('getVisibleData: No data available');
-    return [];
-  }
-
-  // If indices are not properly initialized (both 0), return the most recent data
-  if (startIndex === 0 && endIndex === 0) {
-    const fallbackStart = Math.max(0, sortedData.length - CHART_DATA_POINTS);
-    const fallbackEnd = sortedData.length - 1;
-    const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
-
-    console.log('getVisibleData: Indices not initialized, using most recent data', {
-      totalData: sortedData.length,
-      fallbackStart,
-      fallbackEnd,
-      fallbackDataLength: fallbackData.length,
-    });
-
-    return fallbackData;
-  }
-
-  // Handle edge cases more gracefully for panning
-  // Allow negative start indices for historical data loading
-  // Clamp indices to valid ranges instead of falling back
-  const actualStartIndex = clampIndex(startIndex, sortedData.length);
-  const actualEndIndex = Math.max(actualStartIndex, clampIndex(endIndex, sortedData.length));
-
-  // If we have a valid range, use it
-  if (actualStartIndex <= actualEndIndex && actualEndIndex < sortedData.length) {
-    const slicedData = sortedData.slice(actualStartIndex, actualEndIndex + 1);
-    console.log('getVisibleData: Using requested range', {
-      requestedIndices: { startIndex, endIndex },
-      actualIndices: { actualStartIndex, actualEndIndex },
-      slicedDataLength: slicedData.length,
-    });
-    return slicedData;
-  }
-
-  // If we're panning to historical data (negative start), try to get what we can
-  if (startIndex < 0) {
-    const availableStart = Math.max(0, sortedData.length + startIndex);
-    const availableEnd = Math.min(sortedData.length - 1, availableStart + CHART_DATA_POINTS - 1);
-    const historicalData = sortedData.slice(availableStart, availableEnd + 1);
-
-    if (historicalData.length > 0) {
-      console.log('getVisibleData: Using historical data for panning', {
-        requestedStart: startIndex,
-        actualStart: availableStart,
-        actualEnd: availableEnd,
-        dataLength: historicalData.length,
-      });
-      return historicalData;
-    }
-  }
-
-  // Final fallback: return the most recent data
-  const fallbackStart = Math.max(0, sortedData.length - CHART_DATA_POINTS);
-  const fallbackEnd = sortedData.length - 1;
-  const fallbackData = sortedData.slice(fallbackStart, fallbackEnd + 1);
-
-  console.log('getVisibleData: Using fallback data', {
-    requestedIndices: { startIndex, endIndex },
-    actualIndices: { actualStartIndex, actualEndIndex },
-    totalData: sortedData.length,
-    fallbackStart,
-    fallbackEnd,
-    fallbackDataLength: fallbackData.length,
-  });
-
-  return fallbackData;
-};
-
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
-  const [isLive, setIsLive] = useState(false);
-  const [, setHoverData] = useState<HoverData | null>(null);
-  const [isZooming, setIsZooming] = useState(false);
-  const [, setChartLoaded] = useState(false);
-  const [visibleData, setVisibleData] = useState<ChartData>([]);
-  const [allChartData, setAllChartData] = useState<ChartData>([]);
+
+  // Use consolidated state management
+  const { state: chartState, actions: chartActions } = useChartStateManager(symbol, null);
+
+  // Use new utility hooks
+  const { isValidData, getVisibleData } = useChartDataProcessor(chartState.allData);
 
   // Force re-render when D3 state changes
   const [, forceUpdate] = useState({});
   const forceRerender = (): void => forceUpdate({});
 
-  // Panning state
-  const [currentViewStart, setCurrentViewStart] = useState(0);
-  const [currentViewEnd, setCurrentViewEnd] = useState(0);
-  const isInitialLoad = useRef(true);
-
-  // Track if chart already exists to avoid unnecessary recreations
-  const [chartExists, setChartExists] = useState<boolean>(false);
-
-  // Transform is now handled directly in handleZoom for smooth panning
-
-  // Store fixed y-scale domain to prevent recalculation during panning
-  const [fixedYScaleDomain, setFixedYScaleDomain] = useState<[number, number] | null>(null);
-
-  // Chart dimensions
-  const [dimensions, setDimensions] = useState<ChartDimensions>({
-    width: 800,
-    height: 400,
-    margin: { top: 20, right: 60, bottom: 40, left: 0 },
-  });
+  // Local state for timeframe management
+  const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
 
   // Centralized calculations will be used instead of useChartScales
 
@@ -754,7 +611,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     bufferPoints: 100, // Buffer for data preloading
     onDataLoaded: (data: ChartData) => {
       // Update all chart data whenever new data is loaded
-      setAllChartData(data);
+      chartActions.setAllData(data);
     },
   });
 
@@ -765,19 +622,25 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Update visible data when view changes
   useEffect(() => {
-    if (isValidChartData(allChartData)) {
-      const newVisibleData = getVisibleDataPoints(currentViewStart, currentViewEnd, allChartData);
+    if (isValidData) {
+      const newVisibleData = getVisibleData(chartState.currentViewStart, chartState.currentViewEnd);
       console.log('Updating visible data:', {
-        currentViewStart,
-        currentViewEnd,
-        allChartDataLength: allChartData.length,
+        currentViewStart: chartState.currentViewStart,
+        currentViewEnd: chartState.currentViewEnd,
+        allChartDataLength: chartState.allData.length,
         newVisibleDataLength: newVisibleData.length,
         newVisibleDataStart: newVisibleData[0]?.time,
         newVisibleDataEnd: newVisibleData[newVisibleData.length - 1]?.time,
       });
-      setVisibleData(newVisibleData);
+      chartActions.setData(newVisibleData);
     }
-  }, [currentViewStart, currentViewEnd, allChartData]);
+  }, [
+    chartState.currentViewStart,
+    chartState.currentViewEnd,
+    chartState.allData,
+    isValidData,
+    getVisibleData,
+  ]); // Removed chartActions
 
   // Load saved timeframe from localStorage
   useEffect(() => {
@@ -804,37 +667,32 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Load chart data when symbol or timeframe changes
   useEffect(() => {
     if (timeframe !== null) {
-      isInitialLoad.current = true; // Reset for new symbol/timeframe
-      setChartLoaded(false); // Reset chart loaded state
-      setFixedYScaleDomain(null); // Reset fixed y-scale domain for new data
+      chartActions.resetChart(); // Reset chart state for new symbol/timeframe
+      chartActions.setTimeframe(timeframe);
 
       console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
       chartDataHook.loadChartData(symbol, timeframe);
     }
-  }, [symbol, timeframe]);
+  }, [symbol, timeframe]); // Removed chartActions and chartDataHook from dependencies
 
   // Subscribe to WebSocket when live mode is enabled
   useEffect(() => {
-    if (isLive) {
+    if (chartState.isLive) {
       chartWebSocket.subscribeToChartData();
     } else {
       chartWebSocket.unsubscribeFromChartData();
     }
-  }, [isLive]);
+  }, [chartState.isLive]); // Removed chartWebSocket from dependencies
 
   // Handle container resize
   useEffect(() => {
     const handleResize = (): void => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        setDimensions((prev) => {
-          const newDims = {
-            ...prev,
-            width: rect.width,
-            height: Math.max(400, rect.height - 100),
-          };
-
-          return newDims;
+        chartActions.setDimensions({
+          ...chartState.dimensions,
+          width: rect.width,
+          height: Math.max(400, rect.height - 100),
         });
       }
     };
@@ -842,15 +700,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, []); // Removed dependencies to prevent infinite loops
 
   // Set initial view to show newest data when data loads
   useEffect(() => {
-    if (isValidChartData(allChartData)) {
-      const totalDataLength = allChartData.length;
+    if (isValidData) {
+      const totalDataLength = chartState.allData.length;
 
       // If this is the first load, show newest data with proper buffer setup
-      if (isInitialLoad.current) {
+      if (chartState.data.length === 0 && totalDataLength > 0) {
         // Set up initial view to show most recent data with full buffer available
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
@@ -867,12 +725,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           availableRightBuffer: totalDataLength - newEndIndex - 1,
         });
 
-        setCurrentViewStart(newStartIndex);
-        setCurrentViewEnd(newEndIndex);
-        isInitialLoad.current = false; // Mark initial load as complete
+        chartActions.setViewport(newStartIndex, newEndIndex);
       }
     }
-  }, [allChartData.length]);
+  }, [chartState.allData.length, chartState.data.length, isValidData]); // Removed chartActions
 
   // Auto-enable live mode when user pans to the rightmost edge
   const [isAtRightEdge, setIsAtRightEdge] = useState(false);
@@ -880,8 +736,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   const RIGHT_EDGE_CHECK_INTERVAL = 1000; // Check every 1 second to prevent rapid toggling
 
   useEffect(() => {
-    const dataLength = allChartData.length;
-    const atRightEdge = currentViewEnd >= dataLength - 5; // Within 5 points of the end
+    const dataLength = chartState.allData.length;
+    const atRightEdge = chartState.currentViewEnd >= dataLength - 5; // Within 5 points of the end
     const now = Date.now();
     const timeSinceLastCheck = now - lastRightEdgeCheckRef.current;
 
@@ -890,15 +746,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       lastRightEdgeCheckRef.current = now;
       setIsAtRightEdge(atRightEdge);
 
-      if (atRightEdge && !isLive) {
+      if (atRightEdge && !chartState.isLive) {
         console.log('User reached right edge - enabling live mode for real-time data');
-        setIsLive(true);
-      } else if (!atRightEdge && isLive) {
+        chartActions.setIsLive(true);
+      } else if (!atRightEdge && chartState.isLive) {
         console.log('User moved away from right edge - disabling live mode');
-        setIsLive(false);
+        chartActions.setIsLive(false);
       }
     }
-  }, [currentViewEnd, allChartData.length, isLive]);
+  }, [chartState.currentViewEnd, chartState.allData.length, chartState.isLive]); // Removed chartActions
 
   useEffect((): void => {
     // svgRef.current now points to the <svg> element in the DOM
@@ -907,88 +763,99 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Centralized chart rendering - only re-render when data changes, not during panning
   useEffect((): void => {
-    if (!isValidChartData(visibleData) || !isValidChartData(allChartData)) {
+    if (!isValidData || !chartState.data.length) {
       return;
     }
     if (svgRef.current) {
       // Create calculations for initial render (no transform)
       const initialTransform = d3.zoomIdentity;
       const calculations = calculateChartState({
-        dimensions,
-        allChartData,
+        dimensions: chartState.dimensions,
+        allChartData: chartState.allData,
         transform: initialTransform,
-        fixedYScaleDomain,
+        fixedYScaleDomain: chartState.fixedYScaleDomain,
       });
 
       renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
     }
-  }, [visibleData, allChartData, dimensions, fixedYScaleDomain]);
+  }, [
+    chartState.data,
+    chartState.allData,
+    chartState.dimensions,
+    chartState.fixedYScaleDomain,
+    isValidData,
+  ]);
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
-    if (isValidChartData(allChartData) && currentViewEnd > 0 && isValidChartData(visibleData)) {
+    if (isValidData && chartState.currentViewEnd > 0 && chartState.data.length > 0) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
-      if (currentViewStart > currentViewEnd || currentViewEnd < 0) {
+      if (
+        chartState.currentViewStart > chartState.currentViewEnd ||
+        chartState.currentViewEnd < 0
+      ) {
         console.warn('Invalid view range in chart creation effect, resetting to valid values:', {
-          currentViewStart,
-          currentViewEnd,
-          dataLength: allChartData.length,
+          currentViewStart: chartState.currentViewStart,
+          currentViewEnd: chartState.currentViewEnd,
+          dataLength: chartState.allData.length,
         });
 
         // Reset to valid view indices
-        const validViewStart = Math.max(0, allChartData.length - CHART_DATA_POINTS);
-        const validViewEnd = allChartData.length - 1;
-        setCurrentViewStart(validViewStart);
-        setCurrentViewEnd(validViewEnd);
+        const validViewStart = Math.max(0, chartState.allData.length - CHART_DATA_POINTS);
+        const validViewEnd = chartState.allData.length - 1;
+        chartActions.setViewport(validViewStart, validViewEnd);
         return;
       }
 
       // Create chart if it doesn't exist yet, or if there's a significant data change
       // Don't recreate chart after panning - this causes unwanted y-scale recalculation
-      const shouldCreateChart = !chartExists;
+      const shouldCreateChart = !chartState.chartExists;
 
       if (shouldCreateChart) {
         // Create calculations for chart creation
         const initialTransform = d3.zoomIdentity;
         const calculations = calculateChartState({
-          dimensions,
-          allChartData,
+          dimensions: chartState.dimensions,
+          allChartData: chartState.allData,
           transform: initialTransform,
-          fixedYScaleDomain,
+          fixedYScaleDomain: chartState.fixedYScaleDomain,
         });
 
         createChart({
           svgElement: svgRef.current as SVGSVGElement,
-          allChartData,
+          allChartData: chartState.allData,
           xScale: calculations.baseXScale,
           yScale: calculations.baseYScale,
-          visibleData,
-          dimensions,
-          fixedYScaleDomain,
+          visibleData: chartState.data,
+          dimensions: chartState.dimensions,
+          fixedYScaleDomain: chartState.fixedYScaleDomain,
           stateCallbacks: {
-            setIsZooming,
-            setCurrentViewStart,
-            setCurrentViewEnd,
-            setHoverData,
-            setChartLoaded,
-            setFixedYScaleDomain,
-            setChartExists,
+            setIsZooming: chartActions.setIsZooming,
+            setCurrentViewStart: chartActions.setCurrentViewStart,
+            setCurrentViewEnd: chartActions.setCurrentViewEnd,
+            setHoverData: chartActions.setHoverData,
+            setChartLoaded: chartActions.setChartLoaded,
+            setFixedYScaleDomain: chartActions.setFixedYScaleDomain,
+            setChartExists: chartActions.setChartExists,
             forceRerender,
           },
+          chartState,
         });
       }
     }
 
     return undefined; // Explicit return for linter
   }, [
-    allChartData.length,
-    currentViewStart,
-    currentViewEnd,
-    dimensions,
-    visibleData,
-    fixedYScaleDomain,
-  ]);
+    chartState.allData.length,
+    chartState.currentViewStart,
+    chartState.currentViewEnd,
+    chartState.dimensions,
+    chartState.data,
+    chartState.fixedYScaleDomain,
+    chartState.chartExists,
+    isValidData,
+  ]); // Removed chartActions
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -999,15 +866,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             <h3 className="text-lg font-semibold text-foreground">{symbol}</h3>
             <div className="flex items-center space-x-2">
               <button
-                onClick={() => setIsLive(!isLive)}
+                onClick={() => chartActions.setIsLive(!chartState.isLive)}
                 className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                  isLive
+                  chartState.isLive
                     ? 'bg-green-500 text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
-                {isLive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                {isLive ? 'Live' : 'Paused'}
+                {chartState.isLive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                {chartState.isLive ? 'Live' : 'Paused'}
               </button>
               <button
                 onClick={() => timeframe && chartDataHook.loadChartData(symbol, timeframe)}
@@ -1078,32 +945,32 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           <div className="w-full h-full relative" style={{ minHeight: '400px' }}>
             {/* Custom Title Component */}
             <div className="mb-4 px-2 h-12 flex items-center">
-              {d3ChartState.hoverData?.data ? (
+              {chartState.hoverData?.data ? (
                 <div className="flex justify-between items-center w-full">
                   <span className="font-bold text-foreground text-lg">{symbol}</span>
                   <div className="flex gap-3 text-sm">
                     <span className="text-muted-foreground">
                       O:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(d3ChartState.hoverData.data.open)}
+                        {formatPrice(chartState.hoverData.data.open)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       H:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(d3ChartState.hoverData.data.high)}
+                        {formatPrice(chartState.hoverData.data.high)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       L:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(d3ChartState.hoverData.data.low)}
+                        {formatPrice(chartState.hoverData.data.low)}
                       </span>
                     </span>
                     <span className="text-muted-foreground">
                       C:{' '}
                       <span className="font-mono text-foreground">
-                        {formatPrice(d3ChartState.hoverData.data.close)}
+                        {formatPrice(chartState.hoverData.data.close)}
                       </span>
                     </span>
                   </div>
@@ -1118,10 +985,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             <div ref={containerRef} className="w-full h-full">
               <svg
                 ref={svgRef}
-                width={dimensions.width}
-                height={dimensions.height}
+                width={chartState.dimensions.width}
+                height={chartState.dimensions.height}
                 className="w-full h-full"
-                style={{ cursor: isZooming ? 'grabbing' : 'grab' }}
+                style={{ cursor: chartState.isZooming ? 'grabbing' : 'grab' }}
               />
             </div>
 
@@ -1134,13 +1001,16 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       <div className="p-4 border-t border-border">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
-            <span>Total data: {allChartData.length}</span>
+            <span>Total data: {chartState.allData.length}</span>
             <span>Displaying: {CHART_DATA_POINTS} points</span>
             <span>
               View:{' '}
               {(() => {
-                const actualStart = Math.max(0, currentViewStart);
-                const actualEnd = Math.min(allChartData.length - 1, currentViewEnd);
+                const actualStart = Math.max(0, chartState.currentViewStart);
+                const actualEnd = Math.min(
+                  chartState.allData.length - 1,
+                  chartState.currentViewEnd
+                );
                 const actualPoints = actualEnd - actualStart + 1;
                 return `${actualStart}-${actualEnd} (${actualPoints} points)`;
               })()}
@@ -1149,10 +1019,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           </div>
           <div className="flex items-center space-x-2">
             <div
-              className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500' : 'bg-gray-500'}`}
+              className={`w-2 h-2 rounded-full ${
+                chartState.isLive ? 'bg-green-500' : 'bg-gray-500'
+              }`}
             ></div>
-            <span>{isLive ? 'Live data (auto-enabled)' : 'Historical data'}</span>
-            {isAtRightEdge && !isLive && (
+            <span>{chartState.isLive ? 'Live data (auto-enabled)' : 'Historical data'}</span>
+            {isAtRightEdge && !chartState.isLive && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
                 <span className="text-xs text-yellow-500">Live mode will activate</span>

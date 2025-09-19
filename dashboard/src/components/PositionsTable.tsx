@@ -23,22 +23,22 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
   const getPLColor = (pl: string): string => {
     const plValue = parseFloat(pl);
     if (plValue > 0) {
-return 'text-green-500';
-}
+      return 'text-green-500';
+    }
     if (plValue < 0) {
-return 'text-red-500';
-}
+      return 'text-red-500';
+    }
     return 'text-muted-foreground';
   };
 
   const getPLIcon = (pl: string) => {
     const plValue = parseFloat(pl);
     if (plValue > 0) {
-return <TrendingUp className="h-4 w-4 text-green-500" />;
-}
+      return <TrendingUp className="h-4 w-4 text-green-500" />;
+    }
     if (plValue < 0) {
-return <TrendingDown className="h-4 w-4 text-red-500" />;
-}
+      return <TrendingDown className="h-4 w-4 text-red-500" />;
+    }
     return null;
   };
 
@@ -84,12 +84,8 @@ return <TrendingDown className="h-4 w-4 text-red-500" />;
               <tr key={position.asset_id} className="hover:bg-muted/50">
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="text-sm font-medium text-foreground">
-                      {position.symbol}
-                    </div>
-                    <div className="ml-2 text-xs text-muted-foreground">
-                      {position.exchange}
-                    </div>
+                    <div className="text-sm font-medium text-foreground">{position.symbol}</div>
+                    <div className="ml-2 text-xs text-muted-foreground">{position.exchange}</div>
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-foreground">
@@ -104,7 +100,9 @@ return <TrendingDown className="h-4 w-4 text-red-500" />;
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     {getPLIcon(position.unrealized_pl)}
-                    <span className={`ml-1 text-sm font-medium ${getPLColor(position.unrealized_pl)}`}>
+                    <span
+                      className={`ml-1 text-sm font-medium ${getPLColor(position.unrealized_pl)}`}
+                    >
                       {formatCurrency(position.unrealized_pl)}
                     </span>
                   </div>
