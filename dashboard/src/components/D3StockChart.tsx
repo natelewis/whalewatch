@@ -1439,17 +1439,57 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const handleResize = (): void => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        chartActions.setDimensions({
+        const newDimensions = {
           ...chartState.dimensions,
           width: rect.width,
           height: Math.max(MIN_CHART_HEIGHT, rect.height - CHART_HEIGHT_OFFSET),
+        };
+
+        console.log('🔄 Resize detected:', {
+          containerWidth: rect.width,
+          containerHeight: rect.height,
+          newWidth: newDimensions.width,
+          newHeight: newDimensions.height,
+          currentWidth: chartState.dimensions.width,
+          currentHeight: chartState.dimensions.height,
         });
+
+        chartActions.setDimensions(newDimensions);
       }
     };
 
-    handleResize();
+    // Use a small delay to ensure container is properly sized
+    const timeoutId = setTimeout(() => {
+      handleResize();
+    }, 100);
+
+    // Also try again after a longer delay to catch any late container sizing
+    const fallbackTimeoutId = setTimeout(() => {
+      handleResize();
+    }, 500);
+
+    // Also use ResizeObserver for more accurate container size detection
+    let resizeObserver: ResizeObserver | null = null;
+    if (containerRef.current && window.ResizeObserver) {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.target === containerRef.current) {
+            handleResize();
+          }
+        }
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(fallbackTimeoutId);
+      window.removeEventListener('resize', handleResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
   }, []); // No dependencies needed - just sets dimensions
 
   // Separate effect to handle dimension changes and re-render chart
@@ -1460,11 +1500,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       chartState.chartExists &&
       chartState.allData.length > 0
     ) {
-      console.log('🔄 Dimensions changed, re-rendering chart:', {
-        width: chartState.dimensions.width,
-        height: chartState.dimensions.height,
-      });
-
       // Get current transform
       const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
@@ -1474,6 +1509,16 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         allChartData: chartState.allData,
         transform: currentZoomTransform,
         fixedYScaleDomain: chartState.fixedYScaleDomain,
+      });
+
+      console.log('🔄 Dimensions changed, re-rendering chart:', {
+        width: chartState.dimensions.width,
+        height: chartState.dimensions.height,
+        innerWidth: calculations.innerWidth,
+        innerHeight: calculations.innerHeight,
+        bandWidth: calculations.innerWidth / CHART_DATA_POINTS,
+        baseXScaleDomain: calculations.baseXScale.domain(),
+        baseXScaleRange: calculations.baseXScale.range(),
       });
 
       // Update clip-path for new dimensions
@@ -1486,11 +1531,21 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
         // Create time-based scale that maps data indices to screen coordinates
         if (chartState.allData.length > 0) {
+          // Use the base X scale since the chart content group already has the transform applied
+          // This prevents double transformation (scale + group transform)
           const indexToTimeScale = createIndexToTimeScale(
-            calculations.transformedXScale,
+            calculations.baseXScale, // Use base scale since transform is applied to content group
             chartState.allData
           );
           const timeBasedTickValues = calculateTimeBasedTickValues(chartState.allData, 20);
+
+          console.log('🔄 Updating X-axis on resize:', {
+            innerWidth: calculations.innerWidth,
+            bandWidth: calculations.innerWidth / CHART_DATA_POINTS,
+            scaleDomain: calculations.baseXScale.domain(),
+            scaleRange: calculations.baseXScale.range(),
+            tickCount: timeBasedTickValues.length,
+          });
 
           xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
           xAxisGroup.call(createXAxis(indexToTimeScale, chartState.allData, timeBasedTickValues));
@@ -1503,7 +1558,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       if (!yAxisGroup.empty()) {
         const { innerWidth: axisInnerWidth } = calculateInnerDimensions(chartState.dimensions);
         yAxisGroup.attr('transform', `translate(${axisInnerWidth},0)`);
-        yAxisGroup.call(createYAxis(calculations.transformedYScale));
+        // Use base Y scale since the chart content group already has the transform applied
+        yAxisGroup.call(createYAxis(calculations.baseYScale));
         applyAxisStyling(yAxisGroup);
       }
 
@@ -1514,6 +1570,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       }
 
       // Re-render candlesticks with new dimensions
+      // Note: candlesticks will use base scales since transform is applied to chart content group
       renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
 
       // Update overlay for new dimensions
@@ -1750,10 +1807,40 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       const shouldCreateChart = !chartState.chartExists;
 
       if (shouldCreateChart) {
+        // Ensure we have the latest dimensions before creating the chart
+        let dimensionsToUse = chartState.dimensions;
+
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const latestDimensions = {
+            ...chartState.dimensions,
+            width: rect.width,
+            height: Math.max(MIN_CHART_HEIGHT, rect.height - CHART_HEIGHT_OFFSET),
+          };
+
+          console.log('🔄 Updating dimensions before chart creation:', {
+            containerWidth: rect.width,
+            containerHeight: rect.height,
+            newWidth: latestDimensions.width,
+            newHeight: latestDimensions.height,
+            currentWidth: chartState.dimensions.width,
+            currentHeight: chartState.dimensions.height,
+          });
+
+          // Update dimensions if they've changed
+          if (
+            latestDimensions.width !== chartState.dimensions.width ||
+            latestDimensions.height !== chartState.dimensions.height
+          ) {
+            chartActions.setDimensions(latestDimensions);
+            dimensionsToUse = latestDimensions;
+          }
+        }
+
         // Create calculations for chart creation
         const initialTransform = d3.zoomIdentity;
         const calculations = calculateChartState({
-          dimensions: chartState.dimensions,
+          dimensions: dimensionsToUse,
           allChartData: chartState.allData,
           transform: initialTransform,
           fixedYScaleDomain: chartState.fixedYScaleDomain,
@@ -1765,7 +1852,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           xScale: calculations.baseXScale,
           yScale: calculations.baseYScale,
           visibleData: chartState.data,
-          dimensions: chartState.dimensions,
+          dimensions: dimensionsToUse,
           stateCallbacks: {
             setIsZooming: chartActions.setIsZooming,
             setCurrentViewStart: chartActions.setCurrentViewStart,
