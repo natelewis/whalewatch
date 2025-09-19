@@ -278,12 +278,6 @@ const createChart = ({
     const currentFixedYScaleDomain =
       stateCallbacks.getFixedYScaleDomain?.() || chartState.fixedYScaleDomain;
 
-    console.log('🔍 Zoom calculations:', {
-      chartStateFixed: chartState.fixedYScaleDomain,
-      callbackFixed: stateCallbacks.getFixedYScaleDomain?.(),
-      usingCallback: !!stateCallbacks.getFixedYScaleDomain?.(),
-    });
-
     // Single source of truth for all calculations
     const calculations = calculateChartState({
       dimensions,
@@ -321,13 +315,6 @@ const createChart = ({
     // Update Y-axis using centralized calculations
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
-      console.log('🔍 Zoom Y-axis update:', {
-        fixedYScaleDomain: chartState.fixedYScaleDomain,
-        transformedYScaleDomain: calculations.transformedYScale.domain(),
-        baseYScaleDomain: calculations.baseYScale.domain(),
-        usingFixed: !!chartState.fixedYScaleDomain,
-      });
-
       yAxisGroup.call(createYAxis(calculations.transformedYScale));
 
       // Apply consistent styling to maintain consistency with initial load
@@ -874,12 +861,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       // Only render candlesticks on initial data load
       // Subsequent renders are handled by the zoom handler
-      console.log('🔍 Initial render Y-axis:', {
-        fixedYScaleDomain: fixedYScaleDomain,
-        finalYScaleDomain: finalCalculations.baseYScale.domain(),
-        visibleDataLength: finalCalculations.visibleData.length,
-        viewRange: `${finalCalculations.viewStart}-${finalCalculations.viewEnd}`,
-      });
 
       renderCandlestickChart(svgRef.current as SVGSVGElement, finalCalculations);
 
