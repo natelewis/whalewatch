@@ -32,9 +32,9 @@ interface D3StockChartProps {
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 
 // Buffer and margin constants
-const BUFFER_SIZE_MULTIPLIER = 1.5; // Buffer size as percentage of chart data points (120 points)
-const MIN_BUFFER_SIZE = 60; // Minimum buffer size in data points
-const MARGIN_SIZE = 10; // Fixed margin size in data points for re-render detection
+const BUFFER_SIZE_MULTIPLIER = 0.5; // Buffer size as percentage of chart data points (40 points)
+const MIN_BUFFER_SIZE = 20; // Minimum buffer size in data points
+const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
 // Removed unused candlestick buffer constants since we now render only visible points
 
 // Zoom and scale constants
@@ -122,21 +122,21 @@ const calculateChartState = ({
     .domain([0, availableDataLength - 1]) // Full dataset range
     .range([leftmostX, rightmostX]); // Range sized for full dataset
 
-  // Debug logging for view calculations
-  console.log('📊 Chart state calculations:', {
-    availableDataLength,
-    bandWidth,
-    totalDataWidth,
-    leftmostX,
-    rightmostX,
-    viewStart,
-    viewEnd,
-    panOffsetPixels,
-    panOffsetDataPoints,
-    scaleDomain: [0, availableDataLength - 1],
-    scaleRange: [leftmostX, rightmostX],
-    visiblePoints: viewEnd - viewStart + 1,
-  });
+  // // Debug logging for view calculations
+  // console.log('📊 Chart state calculations:', {
+  //   availableDataLength,
+  //   bandWidth,
+  //   totalDataWidth,
+  //   leftmostX,
+  //   rightmostX,
+  //   viewStart,
+  //   viewEnd,
+  //   panOffsetPixels,
+  //   panOffsetDataPoints,
+  //   scaleDomain: [0, availableDataLength - 1],
+  //   scaleRange: [leftmostX, rightmostX],
+  //   visiblePoints: viewEnd - viewStart + 1,
+  // });
 
   // Create Y scale based on all data or fixed domain
   const baseYScale = d3
@@ -389,33 +389,76 @@ const createChart = ({
     // Fixed margin is more stable than percentage-based margin
     const marginSize = MARGIN_SIZE;
 
+    // // Debug logging for buffer range tracking
+    // console.log('🔍 Buffer range check:', {
+    //   currentView: `${currentViewStart}-${currentViewEnd}`,
+    //   currentBufferRange: currentBufferRange
+    //     ? `${currentBufferRange.start}-${currentBufferRange.end}`
+    //     : 'none',
+    //   bufferSize,
+    //   marginSize,
+    //   dataLength,
+    // });
+
     // Smart buffer range logic that accounts for data boundaries
     let needsRerender = false;
 
     if (!currentBufferRange) {
       // No buffer range set yet - always re-render
       needsRerender = true;
+      console.log('🔄 No buffer range set - triggering re-render');
     } else {
       // Check if we're at data boundaries and adjust margin accordingly
       const atDataStart = currentViewStart <= marginSize; // Within margin of data start
       const atDataEnd = currentViewEnd >= dataLength - marginSize - 1; // Within margin of data end
 
+      // console.log('🔍 Buffer boundary check:', {
+      //   atDataStart,
+      //   atDataEnd,
+      //   currentViewStart,
+      //   currentViewEnd,
+      //   dataLength,
+      //   marginSize,
+      // });
+
       if (atDataStart && atDataEnd) {
         // At both boundaries - only re-render if view has changed significantly
-        needsRerender =
-          Math.abs(currentViewStart - currentBufferRange.start) > marginSize ||
-          Math.abs(currentViewEnd - currentBufferRange.end) > marginSize;
+        const startDiff = Math.abs(currentViewStart - currentBufferRange.start);
+        const endDiff = Math.abs(currentViewEnd - currentBufferRange.end);
+        needsRerender = startDiff > marginSize || endDiff > marginSize;
+        console.log('🔍 At both boundaries:', { startDiff, endDiff, needsRerender });
       } else if (atDataStart) {
         // At start boundary - only check if we've moved forward significantly
         needsRerender = currentViewEnd > currentBufferRange.end - marginSize;
+        // console.log('🔍 At start boundary:', {
+        //   currentViewEnd,
+        //   bufferEnd: currentBufferRange.end,
+        //   threshold: currentBufferRange.end - marginSize,
+        //   needsRerender,
+        // });
       } else if (atDataEnd) {
         // At end boundary - only check start margin
         needsRerender = currentViewStart < currentBufferRange.start + marginSize;
+        // console.log('🔍 At end boundary:', {
+        //   currentViewStart,
+        //   bufferStart: currentBufferRange.start,
+        //   threshold: currentBufferRange.start + marginSize,
+        //   needsRerender,
+        // });
       } else {
         // In the middle - check both margins
-        needsRerender =
-          currentViewStart < currentBufferRange.start + marginSize ||
-          currentViewEnd > currentBufferRange.end - marginSize;
+        const startCheck = currentViewStart < currentBufferRange.start + marginSize;
+        const endCheck = currentViewEnd > currentBufferRange.end - marginSize;
+        needsRerender = startCheck || endCheck;
+        // console.log('🔍 In the middle:', {
+        //   startCheck,
+        //   endCheck,
+        //   currentViewStart,
+        //   currentViewEnd,
+        //   bufferStart: currentBufferRange.start,
+        //   bufferEnd: currentBufferRange.end,
+        //   needsRerender,
+        // });
       }
     }
 
@@ -455,6 +498,12 @@ const createChart = ({
       }
 
       bufferRangeRef.current = { start: actualStart, end: actualEnd };
+
+      console.log('🔄 Updated buffer range:', {
+        newBufferRange: `${actualStart}-${actualEnd}`,
+        viewRange: `${currentViewStart}-${currentViewEnd}`,
+        bufferSize,
+      });
     }
   };
 
@@ -959,6 +1008,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       }
 
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+
+      console.log('🔄 Buffer range updated in moveToRightmost:', {
+        newBufferRange: `${actualStart}-${actualEnd}`,
+        viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+        bufferSize,
+        dataLength,
+      });
     }
   };
 
@@ -1231,6 +1287,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       }
 
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+
+      console.log('🔄 Initial buffer range set:', {
+        newBufferRange: `${actualStart}-${actualEnd}`,
+        viewRange: `${finalCalculations.viewStart}-${finalCalculations.viewEnd}`,
+        bufferSize,
+        dataLength,
+      });
     }
   }, [
     chartState.allData.length, // Only re-render when data length changes (new data loaded)
