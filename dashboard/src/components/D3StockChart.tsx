@@ -28,8 +28,6 @@ interface D3StockChartProps {
 // CONFIGURATION CONSTANTS - Modify these to adjust chart behavior
 // ============================================================================
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
-const OUTSIDE_BUFFER = 100; // Read datapoints to the left and right of visible area (off-screen buffer)
-const TOTAL_BUFFERED_POINTS = CHART_DATA_POINTS + OUTSIDE_BUFFER * 2; // Total points including buffers
 // ============================================================================
 
 // ============================================================================
@@ -40,7 +38,7 @@ interface ChartCalculations {
   innerWidth: number;
   innerHeight: number;
 
-  // Base scales (untransformed)
+  // Base scales (untransformed) - maps full dataset to screen coordinates
   baseXScale: d3.ScaleLinear<number, number>;
   baseYScale: d3.ScaleLinear<number, number>;
 
@@ -48,11 +46,11 @@ interface ChartCalculations {
   transformedXScale: d3.ScaleLinear<number, number>;
   transformedYScale: d3.ScaleLinear<number, number>;
 
-  // Buffer system calculations
-  bufferedViewStart: number;
-  bufferedViewEnd: number;
+  // View calculations
+  viewStart: number;
+  viewEnd: number;
   visibleData: ChartData;
-  bufferedData: ChartData; // Includes off-screen buffer data for pre-rendering
+  allData: ChartData; // Full dataset for rendering
 
   // Transform string for rendering
   transformString: string;
@@ -72,53 +70,38 @@ const calculateChartState = ({
   // Calculate dimensions (single source)
   const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
 
-  // Handle cases where we have less data than the ideal buffer size
+  // RIGHT-ALIGNED SYSTEM: Rightmost data is always at right edge (ground 0)
   const availableDataLength = allChartData.length;
-  const idealBufferSize = TOTAL_BUFFERED_POINTS;
-  const actualBufferSize = Math.min(idealBufferSize, availableDataLength);
-
-  // Calculate view indices with buffer system (single source)
-  const panOffsetPixels = transform.x;
   const bandWidth = innerWidth / CHART_DATA_POINTS;
-  const panOffset = panOffsetPixels / bandWidth;
 
-  // Base view shows most recent data, adjusted for available data
-  const baseViewStart = Math.max(0, availableDataLength - actualBufferSize);
-  const bufferedViewStart = Math.max(
-    0,
-    Math.min(availableDataLength - actualBufferSize, baseViewStart - panOffset)
-  );
-  const bufferedViewEnd = Math.min(
-    availableDataLength - 1,
-    bufferedViewStart + actualBufferSize - 1
-  );
+  // Calculate pan offset in data points (positive = pan left, negative = pan right)
+  const panOffsetPixels = transform.x;
+  const panOffsetDataPoints = panOffsetPixels / bandWidth;
 
-  // Calculate base scales for buffered data positioning
-  // Maps the visible portion of buffered data to screen coordinates
-  const visibleStartInBuffer = bufferedViewStart + OUTSIDE_BUFFER;
-  const visibleEndInBuffer = Math.min(
-    bufferedViewEnd,
-    visibleStartInBuffer + CHART_DATA_POINTS - 1
-  );
+  // Calculate which portion of the full dataset should be visible
+  // Rightmost data is always at the right edge, panning moves the view left
+  const rightmostDataIndex = availableDataLength - 1;
+  const viewEnd = Math.min(rightmostDataIndex, rightmostDataIndex - panOffsetDataPoints);
+  const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
+
+  // Create base X scale that maps data indices to screen coordinates
+  // RIGHT-ALIGNED: Rightmost data is always at right edge, with proper spacing
+  const totalDataWidth = availableDataLength * bandWidth;
+  const rightmostX = innerWidth; // Rightmost data at right edge
+
   const baseXScale = d3
     .scaleLinear()
-    .domain([visibleStartInBuffer, visibleEndInBuffer])
-    .range([0, innerWidth]);
+    .domain([0, availableDataLength - 1]) // Full dataset range
+    .range([rightmostX - totalDataWidth, rightmostX]); // Right-aligned positioning
 
-  // Data is already sorted from chartDataUtils.processChartData
-  const sortedData = allChartData;
-
-  // Get buffered data (includes off-screen candles for smooth panning)
-  const calculatedBufferedData = sortedData.slice(bufferedViewStart, bufferedViewEnd + 1);
-
+  // Create Y scale based on all data or fixed domain
   const baseYScale = d3
     .scaleLinear()
     .domain(
       fixedYScaleDomain ||
         ((): [number, number] => {
-          // Use bufferedData instead of visibleData to ensure y-axis matches all rendered data
-          const minPrice = d3.min(calculatedBufferedData, (d) => d.low) as number;
-          const maxPrice = d3.max(calculatedBufferedData, (d) => d.high) as number;
+          const minPrice = d3.min(allChartData, (d) => d.low) as number;
+          const maxPrice = d3.max(allChartData, (d) => d.high) as number;
           return [minPrice, maxPrice];
         })()
     )
@@ -128,13 +111,8 @@ const calculateChartState = ({
   const transformedXScale = transform.rescaleX(baseXScale);
   const transformedYScale = transform.rescaleY(baseYScale);
 
-  // Get visible data (use buffered data for rendering)
-  const calculatedVisibleData = calculatedBufferedData;
-
-  // Ensure we have reasonable data lengths
-  const actualVisibleData = calculatedVisibleData.length > 0 ? calculatedVisibleData : [];
-  const actualBufferedData =
-    calculatedBufferedData.length > 0 ? calculatedBufferedData : actualVisibleData;
+  // Get visible data slice for tooltips and other interactions
+  const visibleData = allChartData.slice(viewStart, viewEnd + 1);
 
   return {
     innerWidth,
@@ -143,10 +121,10 @@ const calculateChartState = ({
     baseYScale,
     transformedXScale,
     transformedYScale,
-    bufferedViewStart,
-    bufferedViewEnd,
-    visibleData: actualVisibleData,
-    bufferedData: actualBufferedData,
+    viewStart,
+    viewEnd,
+    visibleData,
+    allData: allChartData,
     transformString: transform.toString(),
   };
 };
@@ -251,7 +229,7 @@ const createChart = ({
   const { innerWidth: chartInnerWidth, innerHeight: chartInnerHeight } =
     calculateInnerDimensions(dimensions);
 
-  // Create X-axis using global indices (will be updated dynamically in handleZoom)
+  // Create X-axis using right-aligned positioning
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
@@ -295,12 +273,12 @@ const createChart = ({
       fixedYScaleDomain: chartState.fixedYScaleDomain,
     });
 
-    // Update buffer state using centralized calculations
+    // Update view state using centralized calculations
     if (stateCallbacks.setCurrentViewStart) {
-      stateCallbacks.setCurrentViewStart(calculations.bufferedViewStart);
+      stateCallbacks.setCurrentViewStart(calculations.viewStart);
     }
     if (stateCallbacks.setCurrentViewEnd) {
-      stateCallbacks.setCurrentViewEnd(calculations.bufferedViewEnd);
+      stateCallbacks.setCurrentViewEnd(calculations.viewEnd);
     }
 
     // Apply transform to the main chart content group (includes candlesticks)
@@ -309,11 +287,11 @@ const createChart = ({
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
-    // Update X-axis using transformedXScale but without additional transform
+    // Update X-axis using right-aligned transformedXScale
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
-      // Use transformedXScale and let it handle all positioning
+      // Use transformedXScale with right-aligned positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       xAxisGroup.call(createXAxis(calculations.transformedXScale, allChartData));
 
@@ -347,7 +325,7 @@ const createChart = ({
     .append('line')
     .attr('class', 'crosshair-x')
     .attr('stroke', '#666')
-    .attr('stroke-width', 1)
+    .attr('stroke-Bufferwidth', 1)
     .attr('stroke-dasharray', '3,3')
     .style('opacity', 0);
 
@@ -383,12 +361,10 @@ const createChart = ({
       }
       const [mouseX, mouseY] = d3.pointer(event);
 
-      // Get the current transform from the zoom behavior
+      // Use the right-aligned scale for consistent positioning with candles and X-axis
       const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
       const transformedXScale = currentTransform.rescaleX(xScale);
       const mouseIndex = transformedXScale.invert(mouseX);
-
-      // Find closest data point by index for tooltip data
       const index = Math.round(mouseIndex);
 
       // Use the full data (already sorted from chartDataUtils.processChartData)
@@ -476,14 +452,11 @@ const renderCandlestickChart = (
 
   const candleWidth = Math.max(1, 4);
 
-  // Render ALL buffered data - let clipping handle what's visible
-  // Pre-render everything so it's available during smooth panning
-  calculations.bufferedData.forEach((d, bufferedIndex) => {
-    // Use global index directly with the scale
-    const globalIndex = calculations.bufferedViewStart + bufferedIndex;
+  // Render ALL candles in the dataset using right-aligned scale
+  // This ensures perfect alignment between candles and X-axis labels while maintaining right-alignment
+  calculations.allData.forEach((d, globalIndex) => {
+    // Use the right-aligned scale for perfect alignment with X-axis
     const x = calculations.baseXScale(globalIndex);
-
-    console.log(`Rendering candle ${bufferedIndex}: globalIndex=${globalIndex}, x=${x}`);
 
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
@@ -513,10 +486,12 @@ const renderCandlestickChart = (
       .attr('stroke-width', 1);
   });
 
-  console.log('🎨 Rendered candles (FULL BUFFER):', {
-    bufferedDataLength: calculations.bufferedData.length,
+  console.log('🎨 Rendered ALL candles (RIGHT-ALIGNED WITH X-AXIS):', {
+    allDataLength: calculations.allData.length,
     visibleDataLength: calculations.visibleData.length,
-    bufferedRange: `${calculations.bufferedViewStart}-${calculations.bufferedViewEnd}`,
+    viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+    rightmostDataIndex: calculations.allData.length - 1,
+    rightmostX: calculations.innerWidth,
     scaleInfo: {
       domain: calculations.baseXScale.domain(),
       range: calculations.baseXScale.range(),
@@ -671,16 +646,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
-        console.log('Initial load - setting view indices with buffer system:', {
+        console.log('Initial load - setting view indices:', {
           totalDataLength,
           CHART_DATA_POINTS,
-          OUTSIDE_BUFFER,
-          TOTAL_BUFFERED_POINTS,
           newStartIndex,
           newEndIndex,
           rangeSize: newEndIndex - newStartIndex + 1,
-          availableLeftBuffer: newStartIndex,
-          availableRightBuffer: totalDataLength - newEndIndex - 1,
         });
 
         chartActions.setViewport(newStartIndex, newEndIndex);
@@ -962,9 +933,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             {/* Data Information */}
             <span>Total: {chartState.allData.length}</span>
             <span>Visible: {CHART_DATA_POINTS}</span>
-            <span>Buffer: {OUTSIDE_BUFFER * 2}</span>
             <span>
-              Buffer:{' '}
+              View:{' '}
               {(() => {
                 const actualStart = Math.max(0, chartState.currentViewStart);
                 const actualEnd = Math.min(
@@ -1028,20 +998,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               <div>All Data Length: {chartState.allData.length}</div>
             </div>
             <div>
-              <div className="font-medium text-foreground mb-1">Buffer State</div>
-              <div>Buffer Start: {chartState.currentViewStart}</div>
-              <div>Buffer End: {chartState.currentViewEnd}</div>
+              <div className="font-medium text-foreground mb-1">View State</div>
+              <div>View Start: {chartState.currentViewStart}</div>
+              <div>View End: {chartState.currentViewEnd}</div>
               <div>At Right Edge: {isAtRightEdge ? '✓' : '✗'}</div>
               <div>Y-Scale Fixed: {chartState.fixedYScaleDomain ? '✓' : '✗'}</div>
             </div>
             <div>
-              <div className="font-medium text-foreground mb-1">Buffer System</div>
-              <div>Outside Buffer: {OUTSIDE_BUFFER}</div>
-              <div>Total Buffered: {TOTAL_BUFFERED_POINTS}</div>
+              <div className="font-medium text-foreground mb-1">Rendering System</div>
               <div>Chart Points: {CHART_DATA_POINTS}</div>
-              <div>
-                Buffer Ratio: {(((OUTSIDE_BUFFER * 2) / CHART_DATA_POINTS) * 100).toFixed(1)}%
-              </div>
+              <div>Total Data: {chartState.allData.length}</div>
+              <div>Rendering: All Data</div>
+              <div>Clipping: Viewport</div>
             </div>
             <div>
               <div className="font-medium text-foreground mb-1">Dimensions</div>
