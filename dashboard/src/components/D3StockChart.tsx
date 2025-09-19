@@ -165,6 +165,7 @@ const createChart = ({
     setCurrentTransform?: (value: d3.ZoomTransform) => void;
     forceRerender?: () => void;
     setZoomBehavior?: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => void;
+    getFixedYScaleDomain?: () => [number, number] | null;
   };
   chartState: {
     fixedYScaleDomain: [number, number] | null;
@@ -273,12 +274,22 @@ const createChart = ({
       stateCallbacks.setCurrentTransform(transform);
     }
 
+    // Get the current fixed Y-scale domain from the ref to avoid stale closure issues
+    const currentFixedYScaleDomain =
+      stateCallbacks.getFixedYScaleDomain?.() || chartState.fixedYScaleDomain;
+
+    console.log('🔍 Zoom calculations:', {
+      chartStateFixed: chartState.fixedYScaleDomain,
+      callbackFixed: stateCallbacks.getFixedYScaleDomain?.(),
+      usingCallback: !!stateCallbacks.getFixedYScaleDomain?.(),
+    });
+
     // Single source of truth for all calculations
     const calculations = calculateChartState({
       dimensions,
       allChartData: sortedData,
       transform,
-      fixedYScaleDomain: chartState.fixedYScaleDomain,
+      fixedYScaleDomain: currentFixedYScaleDomain,
     });
 
     // Update view state using centralized calculations
@@ -310,6 +321,13 @@ const createChart = ({
     // Update Y-axis using centralized calculations
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
+      console.log('🔍 Zoom Y-axis update:', {
+        fixedYScaleDomain: chartState.fixedYScaleDomain,
+        transformedYScaleDomain: calculations.transformedYScale.domain(),
+        baseYScaleDomain: calculations.baseYScale.domain(),
+        usingFixed: !!chartState.fixedYScaleDomain,
+      });
+
       yAxisGroup.call(createYAxis(calculations.transformedYScale));
 
       // Apply consistent styling to maintain consistency with initial load
@@ -440,21 +458,7 @@ const createChart = ({
       }
     });
 
-  // Set the fixed y-scale domain based on all chart data to lock it during panning
-  if (isValidChartData(allChartData)) {
-    const sortedChartData = allChartData;
-    const initialYMin = d3.min(sortedChartData, (d) => d.low) as number;
-    const initialYMax = d3.max(sortedChartData, (d) => d.high) as number;
-    const priceRange = initialYMax - initialYMin;
-    const padding = priceRange * 0.2; // Add 20% padding above and below for more labels
-    if (stateCallbacks.setFixedYScaleDomain) {
-      stateCallbacks.setFixedYScaleDomain([initialYMin - padding, initialYMax + padding]);
-    }
-    console.log('🔒 Y-axis locked to full data range:', [
-      initialYMin - padding,
-      initialYMax + padding,
-    ]);
-  }
+  // Fixed Y-scale domain is now set during initial rendering to ensure consistency
 
   if (stateCallbacks.setChartLoaded) {
     stateCallbacks.setChartLoaded(true);
@@ -566,6 +570,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Store reference to the zoom behavior for programmatic control
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
+  // Store reference to the fixed Y-scale domain to avoid stale closure issues
+  const fixedYScaleDomainRef = useRef<[number, number] | null>(null);
 
   // Function to move chart to rightmost position (newest data)
   const moveToRightmost = (): void => {
@@ -821,9 +828,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     console.log('SVG element is ready:', svgRef.current);
   }, []);
 
-  // Initial candlestick rendering when data first loads
+  // Initial candlestick rendering when data first loads and chart is ready
   useEffect((): void => {
-    if (!isValidData || !chartState.data.length) {
+    if (!isValidData || !chartState.data.length || !chartState.chartLoaded) {
       return;
     }
     if (svgRef.current) {
@@ -833,26 +840,62 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         dimensions: chartState.dimensions,
         allChartData: chartState.allData,
         transform: initialTransform,
-        fixedYScaleDomain: chartState.fixedYScaleDomain,
+        fixedYScaleDomain: null, // Don't use fixed domain yet
+      });
+
+      // Calculate the fixed Y-scale domain based on the VISIBLE data slice
+      // This ensures the Y-scale is appropriate for what's actually shown
+      let fixedYScaleDomain: [number, number] | null = null;
+      if (isValidChartData(calculations.visibleData)) {
+        const visibleData = calculations.visibleData;
+        const initialYMin = d3.min(visibleData, (d) => d.low) as number;
+        const initialYMax = d3.max(visibleData, (d) => d.high) as number;
+        const priceRange = initialYMax - initialYMin;
+        const padding = priceRange * 0.2; // Add 20% padding above and below
+        fixedYScaleDomain = [initialYMin - padding, initialYMax + padding];
+
+        // Set the fixed Y-scale domain for future renders
+        chartActions.setFixedYScaleDomain(fixedYScaleDomain);
+        fixedYScaleDomainRef.current = fixedYScaleDomain; // Store in ref for zoom handler
+        console.log('🔒 Y-axis locked to VISIBLE data range (initial render):', {
+          visibleDataLength: visibleData.length,
+          viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+          yDomain: fixedYScaleDomain,
+        });
+      }
+
+      // Recalculate with the fixed Y-scale domain
+      const finalCalculations = calculateChartState({
+        dimensions: chartState.dimensions,
+        allChartData: chartState.allData,
+        transform: initialTransform,
+        fixedYScaleDomain: fixedYScaleDomain,
       });
 
       // Only render candlesticks on initial data load
       // Subsequent renders are handled by the zoom handler
-      renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
+      console.log('🔍 Initial render Y-axis:', {
+        fixedYScaleDomain: fixedYScaleDomain,
+        finalYScaleDomain: finalCalculations.baseYScale.domain(),
+        visibleDataLength: finalCalculations.visibleData.length,
+        viewRange: `${finalCalculations.viewStart}-${finalCalculations.viewEnd}`,
+      });
+
+      renderCandlestickChart(svgRef.current as SVGSVGElement, finalCalculations);
 
       // Set initial buffer range
       const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5));
-      const actualStart = Math.max(0, calculations.viewStart - bufferSize);
+      const actualStart = Math.max(0, finalCalculations.viewStart - bufferSize);
       const actualEnd = Math.min(
-        calculations.allData.length - 1,
-        calculations.viewEnd + bufferSize
+        finalCalculations.allData.length - 1,
+        finalCalculations.viewEnd + bufferSize
       );
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
     }
   }, [
     chartState.allData.length, // Only re-render when data length changes (new data loaded)
     chartState.dimensions,
-    chartState.fixedYScaleDomain,
+    chartState.chartLoaded, // Wait for chart to be fully loaded
     isValidData,
   ]);
 
@@ -912,6 +955,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             setZoomBehavior: (behavior) => {
               zoomBehaviorRef.current = behavior;
             },
+            getFixedYScaleDomain: () => fixedYScaleDomainRef.current,
           },
           chartState,
           bufferRangeRef: currentBufferRangeRef,
