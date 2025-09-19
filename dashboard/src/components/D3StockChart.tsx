@@ -356,6 +356,13 @@ const createChart = ({
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroup.empty()) {
+      console.log('🔄 APPLYING CHART CONTENT TRANSFORM:', {
+        transformString: calculations.transformString,
+        viewStart: calculations.viewStart,
+        viewEnd: calculations.viewEnd,
+        scaleDomain: calculations.transformedXScale.domain(),
+        scaleRange: calculations.transformedXScale.range(),
+      });
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
@@ -501,15 +508,15 @@ const createChart = ({
       } else if (atDataStart) {
         // At start boundary - only buffer forward
         actualStart = 0;
-        actualEnd = Math.min(dataLength - 1, currentViewEnd + bufferSize);
+        actualEnd = Math.min(dataLength - 1, Math.ceil(currentViewEnd) + bufferSize);
       } else if (atDataEnd) {
         // At end boundary - only buffer backward
-        actualStart = Math.max(0, currentViewStart - bufferSize);
+        actualStart = Math.max(0, Math.floor(currentViewStart) - bufferSize);
         actualEnd = dataLength - 1;
       } else {
         // In the middle - buffer both ways
-        actualStart = Math.max(0, currentViewStart - bufferSize);
-        actualEnd = Math.min(dataLength - 1, currentViewEnd + bufferSize);
+        actualStart = Math.max(0, Math.floor(currentViewStart) - bufferSize);
+        actualEnd = Math.min(dataLength - 1, Math.ceil(currentViewEnd) + bufferSize);
       }
 
       bufferRangeRef.current = { start: actualStart, end: actualEnd };
@@ -657,6 +664,7 @@ const renderCandlestickChart = (
   // Don't apply transform here - it's handled in handleZoom for smooth panning
 
   const candleWidth = Math.max(1, 4);
+  const hoverWidth = Math.max(8, candleWidth * 2); // Wider hover area
 
   // Render candles with a buffer around the visible viewport for smooth panning
   // This provides a good balance between performance and smooth interaction
@@ -664,8 +672,12 @@ const renderCandlestickChart = (
     MIN_BUFFER_SIZE,
     Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
   );
-  const actualStart = Math.max(0, calculations.viewStart - bufferSize);
-  const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd + bufferSize);
+  // Convert fractional view indices to integers for proper array slicing
+  const actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
+  const actualEnd = Math.min(
+    calculations.allData.length - 1,
+    Math.ceil(calculations.viewEnd) + bufferSize
+  );
   const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
 
   console.log('🎨 Rendering candlesticks:', {
@@ -678,21 +690,106 @@ const renderCandlestickChart = (
     bufferSize,
     scaleDomain: calculations.baseXScale.domain(),
     scaleRange: calculations.baseXScale.range(),
+    firstCandleTime:
+      visibleCandles.length > 0 ? new Date(visibleCandles[0].time).toLocaleString() : 'none',
+    lastCandleTime:
+      visibleCandles.length > 0
+        ? new Date(visibleCandles[visibleCandles.length - 1].time).toLocaleString()
+        : 'none',
+    firstCandleIndex: actualStart,
+    lastCandleIndex: actualEnd,
   });
 
-  // Use the same unified time-based scale as the X-axis for perfect alignment
-  // This ensures candlesticks and X-axis labels are always in sync
-  const candlestickTimeScale = createIndexToTimeScale(
-    calculations.transformedXScale,
-    calculations.allData
-  );
+  // Use the transformed linear scale for candlestick positioning to match the zoom transform
+  // This ensures perfect alignment with the chart content group transform
+  console.log('🎨 Creating candlesticks with hover events:', {
+    visibleCandlesCount: visibleCandles.length,
+    actualStart,
+    actualEnd,
+    viewStart: calculations.viewStart,
+    viewEnd: calculations.viewEnd,
+    bufferSize,
+    scaleDomain: calculations.transformedXScale.domain(),
+    scaleRange: calculations.transformedXScale.range(),
+    transformString: calculations.transformString,
+  });
 
-  visibleCandles.forEach((d) => {
-    // Use the time-based scale for positioning (same as X-axis labels)
-    const x = candlestickTimeScale(new Date(d.time));
+  visibleCandles.forEach((d, localIndex) => {
+    // Calculate the global data index for proper positioning
+    const globalIndex = actualStart + localIndex;
+
+    // Use the base linear scale for positioning since the chart content group already has the transform applied
+    // This prevents double transformation (scale + group transform)
+    const x = calculations.baseXScale(globalIndex);
+
+    // Debug positioning for first few candlesticks
+    if (localIndex < 5) {
+      console.log(`🎯 CANDLESTICK POSITIONING [${localIndex}]:`, {
+        globalIndex,
+        localIndex,
+        actualStart,
+        x,
+        time: d.time,
+        scaleDomain: calculations.transformedXScale.domain(),
+        scaleRange: calculations.transformedXScale.range(),
+        transformString: calculations.transformString,
+      });
+    }
 
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
+
+    // Add invisible hover area for easier interaction
+    candleSticks
+      .append('rect')
+      .attr('x', x - hoverWidth / 2)
+      .attr('y', 0)
+      .attr('width', hoverWidth)
+      .attr('height', calculations.innerHeight)
+      .attr('fill', 'transparent')
+      .attr('class', 'candlestick-hover-area')
+      .style('cursor', 'pointer')
+      .on('mouseover', function (event) {
+        console.log('🎯 CANDLESTICK HOVER:', {
+          O: d.open.toFixed(2),
+          H: d.high.toFixed(2),
+          L: d.low.toFixed(2),
+          C: d.close.toFixed(2),
+        });
+
+        // Show tooltip with debugging info
+        const tooltip = d3
+          .select('body')
+          .selectAll<HTMLDivElement, number>('.candlestick-tooltip')
+          .data([1]);
+        tooltip
+          .enter()
+          .append('div')
+          .attr('class', 'candlestick-tooltip')
+          .style('position', 'absolute')
+          .style('background', 'rgba(0, 0, 0, 0.8)')
+          .style('color', 'white')
+          .style('padding', '8px')
+          .style('border-radius', '4px')
+          .style('font-size', '12px')
+          .style('pointer-events', 'none')
+          .style('z-index', '1000')
+          .merge(tooltip)
+          .html(
+            `
+            <div><strong>Time:</strong> ${new Date(d.time).toLocaleString()}</div>
+            <div><strong>O:</strong> ${d.open.toFixed(2)}</div>
+            <div><strong>H:</strong> ${d.high.toFixed(2)}</div>
+            <div><strong>L:</strong> ${d.low.toFixed(2)}</div>
+            <div><strong>C:</strong> ${d.close.toFixed(2)}</div>
+          `
+          )
+          .style('left', `${event.pageX + 10}px`)
+          .style('top', `${event.pageY - 10}px`);
+      })
+      .on('mouseout', function () {
+        d3.select('body').selectAll('.candlestick-tooltip').remove();
+      });
 
     // High-Low line
     candleSticks
@@ -702,7 +799,9 @@ const renderCandlestickChart = (
       .attr('y1', calculations.baseYScale(d.high))
       .attr('y2', calculations.baseYScale(d.low))
       .attr('stroke', color)
-      .attr('stroke-width', 1);
+      .attr('stroke-width', 1)
+      .attr('class', 'candlestick-line')
+      .style('opacity', 1);
 
     // Open-Close rectangle
     candleSticks
@@ -716,7 +815,9 @@ const renderCandlestickChart = (
       )
       .attr('fill', isUp ? color : 'none')
       .attr('stroke', color)
-      .attr('stroke-width', 1);
+      .attr('stroke-width', 1)
+      .attr('class', 'candlestick-rect')
+      .style('opacity', 0.8);
   });
 
   console.log('🎨 Rendered BUFFERED candles (SMOOTH PANNING):', {
@@ -898,6 +999,27 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           // Update clip-path to accommodate the expanded dataset
           updateClipPath(svgRef.current as SVGSVGElement, formattedData, chartState.dimensions);
 
+          // Update X-axis with the new data
+          const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
+          if (!xAxisGroup.empty()) {
+            const { innerHeight: axisInnerHeight } = calculateInnerDimensions(
+              chartState.dimensions
+            );
+
+            // Create time-based scale that maps data indices to screen coordinates
+            const indexToTimeScale = createIndexToTimeScale(
+              calculations.transformedXScale,
+              formattedData
+            );
+
+            // Calculate time-based tick values (every 20 data points) for the new dataset
+            const newTimeBasedTickValues = calculateTimeBasedTickValues(formattedData, 20);
+
+            xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+            xAxisGroup.call(createXAxis(indexToTimeScale, formattedData, newTimeBasedTickValues));
+            applyAxisStyling(xAxisGroup);
+          }
+
           // Re-render with fresh data
           renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
 
@@ -1027,15 +1149,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       } else if (atDataStart) {
         // At start boundary - only buffer forward
         actualStart = 0;
-        actualEnd = Math.min(dataLength - 1, calculations.viewEnd + bufferSize);
+        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
       } else if (atDataEnd) {
         // At end boundary - only buffer backward
-        actualStart = Math.max(0, calculations.viewStart - bufferSize);
+        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
         actualEnd = dataLength - 1;
       } else {
         // In the middle - buffer both ways
-        actualStart = Math.max(0, calculations.viewStart - bufferSize);
-        actualEnd = Math.min(dataLength - 1, calculations.viewEnd + bufferSize);
+        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
+        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
       }
 
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
@@ -1306,15 +1428,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       } else if (atDataStart) {
         // At start boundary - only buffer forward
         actualStart = 0;
-        actualEnd = Math.min(dataLength - 1, finalCalculations.viewEnd + bufferSize);
+        actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
       } else if (atDataEnd) {
         // At end boundary - only buffer backward
-        actualStart = Math.max(0, finalCalculations.viewStart - bufferSize);
+        actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
         actualEnd = dataLength - 1;
       } else {
         // In the middle - buffer both ways
-        actualStart = Math.max(0, finalCalculations.viewStart - bufferSize);
-        actualEnd = Math.min(dataLength - 1, finalCalculations.viewEnd + bufferSize);
+        actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
+        actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
       }
 
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
@@ -1520,7 +1642,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             <div className="mb-4 px-2 h-12 flex items-center">
               {chartState.hoverData?.data ? (
                 <div className="flex justify-between items-center w-full">
-                  <span className="font-bold text-foreground text-lg">{symbol}</span>
+                  <div className="flex flex-col">
+                    <span className="font-bold text-foreground text-lg">{symbol}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(chartState.hoverData.data.time).toLocaleString()}
+                    </span>
+                  </div>
                   <div className="flex gap-3 text-sm">
                     <span className="text-muted-foreground">
                       O:{' '}

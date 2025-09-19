@@ -146,23 +146,23 @@ const StockChartComponent: React.FC<StockChartProps> = ({
   // Check if we're near boundaries and trigger data loading
   const checkBoundariesAndLoadData = useCallback(() => {
     if (!chartDataHook.chartData.length || !chartDataHook.viewState) {
-return;
-}
+      return;
+    }
 
     // Don't check if already loading
     if (chartDataHook.isLeftLoading || chartDataHook.isRightLoading) {
-return;
-}
+      return;
+    }
 
     // Get current range from Plotly or use full range
     const totalPoints = chartDataHook.chartData.length;
     if (totalPoints === 0) {
-return;
-}
+      return;
+    }
 
     if (!currentRange) {
-return;
-}
+      return;
+    }
 
     const leftPosition = Math.max(0, currentRange[0]);
     const rightPosition = Math.min(totalPoints - 1, currentRange[1]);
@@ -238,8 +238,8 @@ return;
 
     const totalPoints = chartDataHook.chartData.length;
     if (!currentRange) {
-return;
-}
+      return;
+    }
     const viewportSize = currentRange[1] - currentRange[0] + 1;
 
     // Calculate how much data we have on each side of the current view
@@ -371,11 +371,11 @@ return;
     chartDataHook.chartData.forEach((candle) => {
       // Check high and low values for each candle
       if (candle.high > highest) {
-highest = candle.high;
-}
+        highest = candle.high;
+      }
       if (candle.low < lowest) {
-lowest = candle.low;
-}
+        lowest = candle.low;
+      }
     });
 
     // Only update if we found valid values
@@ -546,13 +546,13 @@ lowest = candle.low;
   const handleChartMouseMove = useCallback(
     (event: MouseEvent) => {
       if (!chartRef || !chartDataHook.chartData.length) {
-return;
-}
+        return;
+      }
 
       const plotArea = chartRef.querySelector('.nsewdrag.drag');
       if (!plotArea) {
-return;
-}
+        return;
+      }
 
       const rect = plotArea.getBoundingClientRect();
       const containerRect = chartRef.getBoundingClientRect();
@@ -621,8 +621,8 @@ return;
   // Add mouse event listeners to chart container for persistent tooltip
   useEffect(() => {
     if (!chartRef) {
-return;
-}
+      return;
+    }
 
     chartRef.addEventListener('mousemove', handleChartMouseMove);
     chartRef.addEventListener('mouseleave', handleChartMouseLeave);
@@ -735,8 +735,8 @@ return;
 
   useEffect(() => {
     if (!chartRef) {
-return;
-}
+      return;
+    }
 
     const calculateBounds = () => {
       // Try multiple selectors to find the plot area
@@ -933,8 +933,8 @@ return;
   // Memoized time axis calculations
   const timeAxisTicks = useMemo(() => {
     if (chartDataHook.chartData.length === 0) {
-return [];
-}
+      return [];
+    }
 
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
@@ -968,8 +968,8 @@ return [];
 
   const timeAxisLabels = useMemo(() => {
     if (chartDataHook.chartData.length === 0) {
-return [];
-}
+      return [];
+    }
 
     const sortedData = [...chartDataHook.chartData].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
