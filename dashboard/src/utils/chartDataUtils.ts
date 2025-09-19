@@ -121,17 +121,46 @@ export const applyAxisStyling = (
 };
 
 /**
+ * Calculate dynamic tick values based on the current view domain
+ */
+export const calculateDynamicTickValues = (
+  scale: d3.ScaleLinear<number, number>,
+  allChartData: { time: string }[],
+  targetTickCount: number = 8
+): number[] => {
+  const [domainStart, domainEnd] = scale.domain();
+  const dataLength = allChartData.length;
+
+  // Calculate appropriate tick interval based on domain size and target tick count
+  const domainSize = domainEnd - domainStart;
+  const tickInterval = Math.max(1, Math.floor(domainSize / targetTickCount));
+
+  // Find the first tick value >= the start of the domain
+  const firstTick = Math.ceil(domainStart / tickInterval) * tickInterval;
+
+  // Generate ticks from that starting point until we're past the end of the domain
+  const dynamicTickValues: number[] = [];
+  for (let i = firstTick; i <= domainEnd; i += tickInterval) {
+    if (i >= 0 && i < dataLength) {
+      dynamicTickValues.push(i);
+    }
+  }
+
+  return dynamicTickValues;
+};
+
+/**
  * Create X-axis with consistent configuration
  */
 export const createXAxis = (
   scale: d3.ScaleLinear<number, number>,
   allChartData: { time: string }[],
-  tickCount: number = 8
+  tickCount: number = 8,
+  customTickValues?: number[]
 ): d3.Axis<d3.NumberValue> => {
-  return d3
+  const axis = d3
     .axisBottom(scale)
     .tickSizeOuter(0)
-    .ticks(tickCount)
     .tickFormat((d) => {
       const globalIndex = Math.round(d as number);
       // Find the data point at this global index
@@ -141,6 +170,13 @@ export const createXAxis = (
       }
       return '';
     });
+
+  // Use custom tick values if provided, otherwise use default tick count
+  if (customTickValues) {
+    return axis.tickValues(customTickValues);
+  } else {
+    return axis.ticks(tickCount);
+  }
 };
 
 /**

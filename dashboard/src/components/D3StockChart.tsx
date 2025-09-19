@@ -12,6 +12,7 @@ import {
   applyAxisStyling,
   createXAxis,
   createYAxis,
+  calculateDynamicTickValues,
   formatPrice,
   clampIndex,
   hasRequiredChartParams,
@@ -279,12 +280,13 @@ const createChart = ({
   const { innerWidth: chartInnerWidth, innerHeight: chartInnerHeight } =
     calculateInnerDimensions(dimensions);
 
-  // Create X-axis using right-aligned positioning
+  // Create X-axis using dynamic tick calculation for consistency with panning/zooming
+  const initialDynamicTickValues = calculateDynamicTickValues(xScale, sortedData, 8);
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createXAxis(xScale, sortedData));
+    .call(createXAxis(xScale, sortedData, 8, initialDynamicTickValues));
 
   // Create Y-axis
   const yAxis = g
@@ -352,13 +354,23 @@ const createChart = ({
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
-    // Update X-axis using right-aligned transformedXScale
+    // Update X-axis using dynamic tick values based on current view
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
-      // Use transformedXScale with right-aligned positioning
+
+      // Calculate dynamic tick values based on the current view
+      const dynamicTickValues = calculateDynamicTickValues(
+        calculations.transformedXScale,
+        currentData,
+        8 // target tick count
+      );
+
+      // Use transformedXScale with dynamic tick values
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(createXAxis(calculations.transformedXScale, currentData));
+      xAxisGroup.call(
+        createXAxis(calculations.transformedXScale, currentData, 8, dynamicTickValues)
+      );
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
@@ -958,12 +970,22 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         chartContentGroup.attr('transform', calculations.transformString);
       }
 
-      // Update X-axis using right-aligned transformedXScale
+      // Update X-axis using dynamic tick values based on current view
       const xAxisGroup = svg.select<SVGGElement>('.x-axis');
       if (!xAxisGroup.empty()) {
         const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
+
+        // Calculate dynamic tick values based on the current view
+        const dynamicTickValues = calculateDynamicTickValues(
+          calculations.transformedXScale,
+          chartState.allData,
+          8 // target tick count
+        );
+
         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-        xAxisGroup.call(createXAxis(calculations.transformedXScale, chartState.allData));
+        xAxisGroup.call(
+          createXAxis(calculations.transformedXScale, chartState.allData, 8, dynamicTickValues)
+        );
         applyAxisStyling(xAxisGroup);
       }
 
