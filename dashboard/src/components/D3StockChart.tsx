@@ -229,7 +229,7 @@ const createChart = ({
   }
 
   if (!d3.select(svgElement).select('g').empty()) {
-    console.log('createChart: g element not found, skipping chart creation');
+    console.log('createChart: g element already exists, skipping chart creation');
     return;
   }
 
@@ -915,6 +915,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Track if initial view has been set to prevent repeated setup
   const initialViewSetRef = useRef(false);
 
+  // Track if initial render has been completed to prevent recursive rendering
+  const initialRenderCompletedRef = useRef(false);
+
+  // Track if initial data has been loaded to prevent duplicate loading
+  const initialDataLoadedRef = useRef(false);
+
+  // Track if this is the initial mount to prevent timeframe effect from running
+  const isInitialMountRef = useRef(true);
+
+  // Track last processed WebSocket data to prevent duplicate processing
+  const lastProcessedDataRef = useRef<string | null>(null);
+
   // Store reference to the zoom behavior for programmatic control
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
@@ -1280,6 +1292,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     symbol,
     onChartData: (bar) => {
       if (chartState.isLive) {
+        // Create a unique key for this data point to prevent duplicate processing
+        const dataKey = `${bar.t}-${bar.o}-${bar.h}-${bar.l}-${bar.c}`;
+
+        // Skip if we've already processed this exact data point
+        if (lastProcessedDataRef.current === dataKey) {
+          return;
+        }
+
+        lastProcessedDataRef.current = dataKey;
         console.log('📊 Received WebSocket data:', bar);
         chartActions.updateChartWithLiveData(bar);
       }
@@ -1310,8 +1331,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Load saved timeframe from localStorage and load initial data
   useEffect(() => {
-    if (isLoadingDataRef.current) {
-      console.log('🔄 Data loading already in progress, skipping duplicate request');
+    if (isLoadingDataRef.current || initialDataLoadedRef.current) {
+      console.log('🔄 Data loading already in progress or completed, skipping duplicate request');
       return;
     }
 
@@ -1322,6 +1343,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Load initial data immediately
       console.log('🔄 Loading initial data for symbol:', { symbol, timeframe: savedTimeframe });
       isLoadingDataRef.current = true;
+      initialDataLoadedRef.current = true;
       chartActions
         .loadChartData(symbol, savedTimeframe, DEFAULT_CHART_DATA_POINTS, DATA_PRELOAD_BUFFER)
         .finally(() => {
@@ -1334,6 +1356,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Load initial data with default timeframe
       console.log('🔄 Loading initial data with default timeframe:', { symbol, timeframe: '1h' });
       isLoadingDataRef.current = true;
+      initialDataLoadedRef.current = true;
       chartActions
         .loadChartData(symbol, '1h', DEFAULT_CHART_DATA_POINTS, DATA_PRELOAD_BUFFER)
         .finally(() => {
@@ -1353,12 +1376,22 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
   }, [timeframe]);
 
-  // Load chart data when symbol or timeframe changes
+  // Load chart data when symbol or timeframe changes (but not on initial mount)
   useEffect(() => {
+    // Skip on initial mount - let the initial data loading effect handle it
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    // Only run if timeframe is not null and not currently loading
     if (timeframe !== null && !isLoadingDataRef.current) {
       chartActions.resetChart(); // Reset chart state for new symbol/timeframe
       chartActions.setTimeframe(timeframe);
       chartCreatedRef.current = false; // Allow chart recreation for new timeframe
+      initialRenderCompletedRef.current = false; // Allow initial render for new timeframe
+      initialDataLoadedRef.current = false; // Allow data loading for new timeframe
+      lastProcessedDataRef.current = null; // Reset WebSocket data tracking
 
       console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
       isLoadingDataRef.current = true;
@@ -1382,6 +1415,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     chartCreatedRef.current = false;
     initialViewSetRef.current = false;
+    initialRenderCompletedRef.current = false;
+    initialDataLoadedRef.current = false;
+    isInitialMountRef.current = true; // Reset for new symbol
+    lastProcessedDataRef.current = null; // Reset WebSocket data tracking
   }, [symbol]);
 
   // Subscribe to WebSocket when live mode is enabled
@@ -1584,10 +1621,16 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       allDataLength: chartState.allData.length,
       chartLoaded: chartState.chartLoaded,
       manualRenderInProgress: manualRenderInProgressRef.current,
+      initialRenderCompleted: initialRenderCompletedRef.current,
     });
 
     if (manualRenderInProgressRef.current) {
       console.log('⏭️ Skipping React effect - manual render in progress');
+      return;
+    }
+
+    if (initialRenderCompletedRef.current) {
+      console.log('⏭️ Skipping React effect - initial render already completed');
       return;
     }
 
@@ -1680,12 +1723,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         bufferSize,
         dataLength,
       });
+
+      // Mark initial render as completed to prevent recursive rendering
+      initialRenderCompletedRef.current = true;
     }
   }, [
-    chartState.allData.length, // Only re-render when data length changes (new data loaded)
+    // Only run for initial data load, not for timeframe changes
+    // The chart creation effect handles timeframe changes
+    chartState.allData.length,
     chartState.dimensions,
-    chartState.chartLoaded, // Wait for chart to be fully loaded
+    chartState.chartLoaded,
     isValidData,
+    initialRenderCompletedRef.current, // Include this to prevent running after initial render
   ]);
 
   // Create chart when data is available and view is properly set
@@ -1695,23 +1744,22 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       return; // Chart already created, skip
     }
 
-    // Only log when we're actually going to create a chart
-    if (
-      isValidData &&
-      chartState.currentViewEnd > 0 &&
-      chartState.allData.length > 0 &&
-      !chartState.chartExists
-    ) {
-      console.log('Chart creation effect triggered:', {
-        isValidData,
-        currentViewEnd: chartState.currentViewEnd,
-        dataLength: chartState.data.length,
-        allDataLength: chartState.allData.length,
-        isLoading: chartState.isLoading,
-        error: chartState.error,
-        chartExists: chartState.chartExists,
-      });
-    }
+    // Debug logging for chart creation conditions
+    console.log('Chart creation effect conditions:', {
+      isValidData,
+      currentViewEnd: chartState.currentViewEnd,
+      dataLength: chartState.data.length,
+      allDataLength: chartState.allData.length,
+      isLoading: chartState.isLoading,
+      error: chartState.error,
+      chartExists: chartState.chartExists,
+      chartCreatedRef: chartCreatedRef.current,
+      shouldCreate:
+        isValidData &&
+        chartState.currentViewEnd > 0 &&
+        chartState.allData.length > 0 &&
+        !chartState.chartExists,
+    });
 
     if (
       isValidData &&
@@ -1817,6 +1865,93 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
         // Mark chart as created to prevent re-creation
         chartCreatedRef.current = true;
+
+        // Also handle initial candlestick rendering for timeframe changes
+        // This ensures the chart is fully rendered when switching timeframes
+        if (svgRef.current && chartState.allData.length > 0) {
+          console.log('🎨 Rendering initial candlesticks after chart creation');
+
+          // Create calculations for initial render (no transform)
+          const initialTransformForRender = d3.zoomIdentity;
+          const calculationsForRender = calculateChartState({
+            dimensions: dimensionsToUse,
+            allChartData: chartState.allData,
+            transform: initialTransformForRender,
+            fixedYScaleDomain: chartState.fixedYScaleDomain,
+          });
+
+          // Calculate the fixed Y-scale domain based on the VISIBLE data slice
+          let fixedYScaleDomain: [number, number] | null = null;
+          if (isValidChartData(calculationsForRender.visibleData)) {
+            const visibleData = calculationsForRender.visibleData;
+            const initialYMin = d3.min(visibleData, (d) => d.low) as number;
+            const initialYMax = d3.max(visibleData, (d) => d.high) as number;
+            const priceRange = initialYMax - initialYMin;
+            const padding = priceRange * PRICE_PADDING_MULTIPLIER;
+            fixedYScaleDomain = [initialYMin - padding, initialYMax + padding];
+
+            // Set the fixed Y-scale domain for future renders
+            chartActions.setFixedYScaleDomain(fixedYScaleDomain);
+            fixedYScaleDomainRef.current = fixedYScaleDomain;
+            console.log('🔒 Y-axis locked to VISIBLE data range (chart creation):', {
+              visibleDataLength: visibleData.length,
+              viewRange: `${calculationsForRender.viewStart}-${calculationsForRender.viewEnd}`,
+              yDomain: fixedYScaleDomain,
+            });
+          }
+
+          // Recalculate with the fixed Y-scale domain
+          const finalCalculations = calculateChartState({
+            dimensions: dimensionsToUse,
+            allChartData: chartState.allData,
+            transform: initialTransformForRender,
+            fixedYScaleDomain: fixedYScaleDomain,
+          });
+
+          // Update clip-path to accommodate the current dataset
+          updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, dimensionsToUse);
+
+          // Render candlesticks
+          renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, finalCalculations);
+
+          // Set initial buffer range
+          const bufferSize = Math.max(
+            MIN_BUFFER_SIZE,
+            Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
+          );
+          const dataLength = finalCalculations.allData.length;
+          const marginSize = MARGIN_SIZE;
+          const atDataStart = finalCalculations.viewStart <= marginSize;
+          const atDataEnd = finalCalculations.viewEnd >= dataLength - marginSize;
+
+          let actualStart, actualEnd;
+
+          if (atDataStart && atDataEnd) {
+            actualStart = 0;
+            actualEnd = dataLength - 1;
+          } else if (atDataStart) {
+            actualStart = 0;
+            actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
+          } else if (atDataEnd) {
+            actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
+            actualEnd = dataLength - 1;
+          } else {
+            actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
+            actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
+          }
+
+          currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+
+          console.log('🔄 Initial buffer range set (chart creation):', {
+            newBufferRange: `${actualStart}-${actualEnd}`,
+            viewRange: `${finalCalculations.viewStart}-${finalCalculations.viewEnd}`,
+            bufferSize,
+            dataLength,
+          });
+
+          // Mark initial render as completed
+          initialRenderCompletedRef.current = true;
+        }
       }
     }
 
