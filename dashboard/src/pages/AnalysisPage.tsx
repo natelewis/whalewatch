@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StockChart } from '../components/StockChart';
+import React, { useState } from 'react';
+import D3StockChart from '../components/D3StockChart';
 import { PageHeader } from '../components/PageHeader';
 
 export const AnalysisPage: React.FC = () => {
@@ -22,8 +22,16 @@ export const AnalysisPage: React.FC = () => {
       {/* Main Content */}
       <div className="h-[calc(100vh-200px)]">
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Chart Analysis</h2>
-          <StockChart symbol={selectedSymbol} onSymbolChange={handleSymbolChange} />
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">D3 Stock Chart</h2>
+            <div className="text-sm text-muted-foreground">
+              <span className="mr-4">🖱️ Drag to pan</span>
+              <span className="mr-4">⌨️ Arrow keys to pan</span>
+              <span className="mr-4">🏠 Home/End for edges</span>
+              <span>🔄 Scroll to zoom</span>
+            </div>
+          </div>
+          <D3StockChart symbol={selectedSymbol} onSymbolChange={handleSymbolChange} />
         </div>
       </div>
     </div>

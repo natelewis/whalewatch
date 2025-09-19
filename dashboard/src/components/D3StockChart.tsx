@@ -264,7 +264,6 @@ const createChart = ({
   const { margin } = dimensions;
 
   // Data is already sorted from chartDataUtils.processChartData
-  const sortedData = allChartData;
 
   const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
 

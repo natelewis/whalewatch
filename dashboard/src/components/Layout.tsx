@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { BarChart3, Eye, Search, LogOut, Moon, Sun, Menu, X, FlaskConical } from 'lucide-react';
+import { BarChart3, Eye, Search, LogOut, Moon, Sun, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 interface LayoutProps {
@@ -18,7 +18,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Account', href: '/', icon: BarChart3 },
     { name: 'Analysis', href: '/analysis', icon: Eye },
-    { name: 'Experimental', href: '/experimental-analysis', icon: FlaskConical },
     { name: 'Whale Finder', href: '/whale-finder', icon: Search },
   ];
 

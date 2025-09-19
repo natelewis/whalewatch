@@ -3,7 +3,7 @@ import { AlpacaOptionsContract } from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
-import { StockChart } from '../components/StockChart';
+import D3StockChart from '../components/D3StockChart';
 import { PageHeader } from '../components/PageHeader';
 
 export const WhaleWatchPage: React.FC = () => {
@@ -79,8 +79,16 @@ export const WhaleWatchPage: React.FC = () => {
 
         {/* Stock Chart */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Chart Analysis</h2>
-          <StockChart symbol={selectedSymbol} onSymbolChange={handleSymbolChange} />
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">D3 Stock Chart</h2>
+            <div className="text-sm text-muted-foreground">
+              <span className="mr-4">🖱️ Drag to pan</span>
+              <span className="mr-4">⌨️ Arrow keys to pan</span>
+              <span className="mr-4">🏠 Home/End for edges</span>
+              <span>🔄 Scroll to zoom</span>
+            </div>
+          </div>
+          <D3StockChart symbol={selectedSymbol} onSymbolChange={handleSymbolChange} />
         </div>
       </div>
     </div>
