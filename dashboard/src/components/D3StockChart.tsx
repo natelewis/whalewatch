@@ -224,12 +224,9 @@ const createChart = ({
   onBufferedCandlesRendered?: () => void;
 }): void => {
   if (!svgElement) {
-    console.log('createChart: No svgElement found, skipping chart creation');
-    return;
-  }
-
-  if (!d3.select(svgElement).select('g').empty()) {
-    console.log('createChart: g element already exists, skipping chart creation');
+    console.log(
+      'createChart: No svgElement found, skipping chart creation (SVG element not mounted yet)'
+    );
     return;
   }
 
@@ -1613,129 +1610,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     console.log('SVG element is ready:', svgRef.current);
   }, []);
 
-  // Initial candlestick rendering when data first loads and chart is ready
-  useEffect((): void => {
-    console.log('🔄 Data length change effect triggered:', {
-      isValidData,
-      dataLength: chartState.data.length,
-      allDataLength: chartState.allData.length,
-      chartLoaded: chartState.chartLoaded,
-      manualRenderInProgress: manualRenderInProgressRef.current,
-      initialRenderCompleted: initialRenderCompletedRef.current,
-    });
-
-    if (manualRenderInProgressRef.current) {
-      console.log('⏭️ Skipping React effect - manual render in progress');
-      return;
-    }
-
-    if (initialRenderCompletedRef.current) {
-      console.log('⏭️ Skipping React effect - initial render already completed');
-      return;
-    }
-
-    if (!isValidData || !chartState.data.length || !chartState.chartLoaded) {
-      console.log('❌ Early return from data length effect');
-      return;
-    }
-    if (svgRef.current) {
-      // Create calculations for initial render (no transform)
-      const initialTransform = d3.zoomIdentity;
-      const calculations = calculateChartState({
-        dimensions: chartState.dimensions,
-        allChartData: chartState.allData,
-        transform: initialTransform,
-        fixedYScaleDomain: null, // Don't use fixed domain yet
-      });
-
-      // Calculate the fixed Y-scale domain based on the VISIBLE data slice
-      // This ensures the Y-scale is appropriate for what's actually shown
-      let fixedYScaleDomain: [number, number] | null = null;
-      if (isValidChartData(calculations.visibleData)) {
-        const visibleData = calculations.visibleData;
-        const initialYMin = d3.min(visibleData, (d) => d.low) as number;
-        const initialYMax = d3.max(visibleData, (d) => d.high) as number;
-        const priceRange = initialYMax - initialYMin;
-        const padding = priceRange * PRICE_PADDING_MULTIPLIER;
-        fixedYScaleDomain = [initialYMin - padding, initialYMax + padding];
-
-        // Set the fixed Y-scale domain for future renders
-        chartActions.setFixedYScaleDomain(fixedYScaleDomain);
-        fixedYScaleDomainRef.current = fixedYScaleDomain; // Store in ref for zoom handler
-        console.log('🔒 Y-axis locked to VISIBLE data range (initial render):', {
-          visibleDataLength: visibleData.length,
-          viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-          yDomain: fixedYScaleDomain,
-        });
-      }
-
-      // Recalculate with the fixed Y-scale domain
-      const finalCalculations = calculateChartState({
-        dimensions: chartState.dimensions,
-        allChartData: chartState.allData,
-        transform: initialTransform,
-        fixedYScaleDomain: fixedYScaleDomain,
-      });
-
-      // Update clip-path to accommodate the current dataset
-      updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
-
-      // Only render candlesticks on initial data load
-      // Subsequent renders are handled by the zoom handler
-
-      renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, finalCalculations);
-
-      // Set initial buffer range with smart boundary-aware buffer
-      const bufferSize = Math.max(
-        MIN_BUFFER_SIZE,
-        Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-      );
-      const dataLength = finalCalculations.allData.length;
-      const marginSize = MARGIN_SIZE;
-      const atDataStart = finalCalculations.viewStart <= marginSize; // Within margin of data start
-      const atDataEnd = finalCalculations.viewEnd >= dataLength - marginSize; // Within margin of data end
-
-      let actualStart, actualEnd;
-
-      if (atDataStart && atDataEnd) {
-        // At both boundaries - use the full data range
-        actualStart = 0;
-        actualEnd = dataLength - 1;
-      } else if (atDataStart) {
-        // At start boundary - only buffer forward
-        actualStart = 0;
-        actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
-      } else if (atDataEnd) {
-        // At end boundary - only buffer backward
-        actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
-        actualEnd = dataLength - 1;
-      } else {
-        // In the middle - buffer both ways
-        actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
-        actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
-      }
-
-      currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
-
-      console.log('🔄 Initial buffer range set:', {
-        newBufferRange: `${actualStart}-${actualEnd}`,
-        viewRange: `${finalCalculations.viewStart}-${finalCalculations.viewEnd}`,
-        bufferSize,
-        dataLength,
-      });
-
-      // Mark initial render as completed to prevent recursive rendering
-      initialRenderCompletedRef.current = true;
-    }
-  }, [
-    // Only run for initial data load, not for timeframe changes
-    // The chart creation effect handles timeframe changes
-    chartState.allData.length,
-    chartState.dimensions,
-    chartState.chartLoaded,
-    isValidData,
-    initialRenderCompletedRef.current, // Include this to prevent running after initial render
-  ]);
+  // Data length effect removed - chart creation effect now handles both chart creation and initial rendering
 
   // Create chart when data is available and view is properly set
   useEffect(() => {
@@ -1754,19 +1629,27 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       error: chartState.error,
       chartExists: chartState.chartExists,
       chartCreatedRef: chartCreatedRef.current,
+      svgElementAvailable: !!svgRef.current,
       shouldCreate:
-        isValidData &&
-        chartState.currentViewEnd > 0 &&
-        chartState.allData.length > 0 &&
-        !chartState.chartExists,
+        isValidData && chartState.allData.length > 0 && !chartState.chartExists && !!svgRef.current,
     });
 
-    if (
-      isValidData &&
-      chartState.currentViewEnd > 0 &&
-      chartState.allData.length > 0 &&
-      !chartState.chartExists
-    ) {
+    // Set viewport if it's not set yet
+    if (isValidData && chartState.allData.length > 0 && chartState.currentViewEnd === 0) {
+      const dataLength = chartState.allData.length;
+      const viewStart = Math.max(0, dataLength - CHART_DATA_POINTS);
+      const viewEnd = dataLength - 1;
+      chartActions.setViewport(viewStart, viewEnd);
+
+      console.log('🔄 Setting initial viewport:', {
+        viewStart,
+        viewEnd,
+        dataLength,
+        chartDataPoints: CHART_DATA_POINTS,
+      });
+    }
+
+    if (isValidData && chartState.allData.length > 0 && !chartState.chartExists && svgRef.current) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
       if (
@@ -1964,6 +1847,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     chartState.fixedYScaleDomain,
     chartState.chartExists,
     isValidData,
+    svgRef.current, // Re-run when SVG element becomes available
   ]); // Removed chartState.data and chartActions to prevent infinite loops
 
   return (
