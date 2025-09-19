@@ -35,8 +35,7 @@ const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 const BUFFER_SIZE_MULTIPLIER = 0.75; // Buffer size as percentage of chart data points
 const MIN_BUFFER_SIZE = 30; // Minimum buffer size in data points
 const MARGIN_SIZE = 10; // Fixed margin size in data points for re-render detection
-const CANDLESTICK_BUFFER_SIZE_MULTIPLIER = 30; // Buffer size for candlestick rendering
-const MIN_CANDLESTICK_BUFFER_SIZE = 10; // Minimum buffer size for candlestick rendering
+// Removed unused candlestick buffer constants since we now render only visible points
 
 // Zoom and scale constants
 const ZOOM_SCALE_MIN = 0.5; // Minimum zoom scale
@@ -105,14 +104,39 @@ const calculateChartState = ({
   const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
 
   // Create base X scale that maps data indices to screen coordinates
-  // RIGHT-ALIGNED: Rightmost data is always at right edge, with proper spacing
-  const totalDataWidth = availableDataLength * bandWidth;
-  const rightmostX = innerWidth; // Rightmost data at right edge
+  // The scale should always map the full dataset to a fixed range that shows 80 points
+  // Panning is handled by the transform, not by changing the scale range
 
+  // Calculate the scale range to accommodate the full dataset
+  // The range should be wide enough to show all data points with proper spacing
+  const totalDataWidth = availableDataLength * bandWidth;
+
+  // Position the scale so the rightmost data is at the right edge
+  const rightmostX = innerWidth;
+  const leftmostX = rightmostX - totalDataWidth;
+
+  // Create X scale that maps the full dataset to a range that allows panning
+  // The scale should map the full dataset, but we'll only render visible points
   const baseXScale = d3
     .scaleLinear()
     .domain([0, availableDataLength - 1]) // Full dataset range
-    .range([rightmostX - totalDataWidth, rightmostX]); // Right-aligned positioning
+    .range([leftmostX, rightmostX]); // Range sized for full dataset
+
+  // Debug logging for view calculations
+  console.log('📊 Chart state calculations:', {
+    availableDataLength,
+    bandWidth,
+    totalDataWidth,
+    leftmostX,
+    rightmostX,
+    viewStart,
+    viewEnd,
+    panOffsetPixels,
+    panOffsetDataPoints,
+    scaleDomain: [0, availableDataLength - 1],
+    scaleRange: [leftmostX, rightmostX],
+    visiblePoints: viewEnd - viewStart + 1,
+  });
 
   // Create Y scale based on all data or fixed domain
   const baseYScale = d3
@@ -186,6 +210,8 @@ const createChart = ({
     forceRerender?: () => void;
     setZoomBehavior?: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => void;
     getFixedYScaleDomain?: () => [number, number] | null;
+    getCurrentData?: () => ChartData;
+    getCurrentDimensions?: () => ChartDimensions;
   };
   chartState: {
     fixedYScaleDomain: [number, number] | null;
@@ -301,9 +327,12 @@ const createChart = ({
     // Get the current data from the chart state instead of using captured sortedData
     const currentData = stateCallbacks.getCurrentData?.() || sortedData;
 
+    // Get current dimensions to avoid stale closure issues
+    const currentDimensions = stateCallbacks.getCurrentDimensions?.() || dimensions;
+
     // Single source of truth for all calculations
     const calculations = calculateChartState({
-      dimensions,
+      dimensions: currentDimensions,
       allChartData: currentData,
       transform,
       fixedYScaleDomain: currentFixedYScaleDomain,
@@ -565,32 +594,29 @@ const renderCandlestickChart = (
 
   const candleWidth = Math.max(1, 4);
 
-  // Render candles with a buffer around the visible viewport for smooth panning
-  // This provides a good balance between performance and smooth interaction
-  const bufferSize = Math.max(
-    MIN_CANDLESTICK_BUFFER_SIZE,
-    Math.floor(CHART_DATA_POINTS * CANDLESTICK_BUFFER_SIZE_MULTIPLIER)
+  // Render only the visible candles (80 points)
+  // Since the X-scale now maps only the visible points, we don't need buffering
+  const visibleCandles = calculations.allData.slice(
+    calculations.viewStart,
+    calculations.viewEnd + 1
   );
-  const actualStart = Math.max(0, calculations.viewStart - bufferSize);
-  const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd + bufferSize);
-  const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
 
   console.log('🎨 Rendering candlesticks:', {
     allDataLength: calculations.allData.length,
     viewStart: calculations.viewStart,
     viewEnd: calculations.viewEnd,
-    actualStart,
-    actualEnd,
     visibleCandlesCount: visibleCandles.length,
-    bufferSize,
+    scaleDomain: calculations.baseXScale.domain(),
+    scaleRange: calculations.baseXScale.range(),
   });
 
   visibleCandles.forEach((d, localIndex) => {
-    // Calculate the global index for proper X-axis alignment
-    const globalIndex = actualStart + localIndex;
+    // Calculate the data index within the visible range
+    const dataIndex = calculations.viewStart + localIndex;
 
-    // Use the right-aligned scale for perfect alignment with X-axis
-    const x = calculations.baseXScale(globalIndex);
+    // Use the X scale to position the candle
+    // The scale maps the full dataset, so we use the actual data index
+    const x = calculations.baseXScale(dataIndex);
 
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
@@ -620,13 +646,10 @@ const renderCandlestickChart = (
       .attr('stroke-width', 1);
   });
 
-  console.log('🎨 Rendered BUFFERED candles (SMOOTH PANNING + PERFORMANCE):', {
+  console.log('🎨 Rendered VISIBLE candles (80 POINTS):', {
     allDataLength: calculations.allData.length,
-    bufferedCandlesRendered: visibleCandles.length,
-    visibleDataLength: calculations.visibleData.length,
+    visibleCandlesRendered: visibleCandles.length,
     viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-    bufferRange: `${actualStart}-${actualEnd}`,
-    bufferSize: bufferSize,
     rightmostDataIndex: calculations.allData.length - 1,
     rightmostX: calculations.innerWidth,
     scaleInfo: {
@@ -635,6 +658,44 @@ const renderCandlestickChart = (
       totalWidth: calculations.baseXScale.range()[1] - calculations.baseXScale.range()[0],
     },
   });
+};
+
+// Function to update clip-path when data changes
+const updateClipPath = (
+  svgElement: SVGSVGElement,
+  allChartData: ChartData,
+  dimensions: ChartDimensions
+): void => {
+  const svg = d3.select(svgElement);
+  const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
+
+  // Calculate buffer space for the clip-path
+  // Since we're rendering the full dataset, we need a buffer that can
+  // accommodate the full dataset width plus extra space for smooth panning
+  const bandWidth = innerWidth / CHART_DATA_POINTS;
+  const totalDataWidth = allChartData.length * bandWidth;
+
+  // Create a buffer that's large enough for the full dataset plus extra space
+  // This allows for smooth panning without clipping issues
+  const bufferSpace = Math.max(innerWidth * 2, totalDataWidth + innerWidth);
+
+  // Update the existing clip-path rectangle
+  const clipRect = svg.select('#clip rect');
+  if (!clipRect.empty()) {
+    clipRect
+      .attr('x', -bufferSpace)
+      .attr('y', -bufferSpace)
+      .attr('width', innerWidth + bufferSpace * 2)
+      .attr('height', innerHeight + bufferSpace * 2);
+
+    console.log('🔄 Updated clip-path for expanded dataset:', {
+      dataLength: allChartData.length,
+      totalDataWidth,
+      bufferSpace,
+      clipWidth: innerWidth + bufferSpace * 2,
+      clipHeight: innerHeight + bufferSpace * 2,
+    });
+  }
 };
 
 const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
@@ -672,6 +733,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Store reference to the current data to avoid stale closure issues
   const currentDataRef = useRef<ChartData>([]);
+
+  // Store reference to the current dimensions to avoid stale closure issues
+  const currentDimensionsRef = useRef<ChartDimensions>({
+    width: 0,
+    height: 0,
+    margin: { top: 0, right: 0, bottom: 0, left: 0 },
+  });
+
+  // Update dimensions ref when dimensions change
+  useEffect(() => {
+    currentDimensionsRef.current = chartState.dimensions;
+  }, [chartState.dimensions]);
 
   // Function to fetch more historical data
   const fetchMoreData = (): void => {
@@ -736,15 +809,18 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           manualRenderInProgressRef.current = true;
 
           // Get current transform
-          const currentTransform = d3.zoomTransform(svgRef.current);
+          const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
           // Calculate chart state with the FRESH data
           const calculations = calculateChartState({
             dimensions: chartState.dimensions,
             allChartData: formattedData, // Use the fresh data directly
-            transform: currentTransform,
+            transform: currentZoomTransform,
             fixedYScaleDomain: chartState.fixedYScaleDomain,
           });
+
+          // Update clip-path to accommodate the expanded dataset
+          updateClipPath(svgRef.current as SVGSVGElement, formattedData, chartState.dimensions);
 
           // Re-render with fresh data
           renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
@@ -1107,6 +1183,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         fixedYScaleDomain: fixedYScaleDomain,
       });
 
+      // Update clip-path to accommodate the current dataset
+      updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
+
       // Only render candlesticks on initial data load
       // Subsequent renders are handled by the zoom handler
 
@@ -1189,7 +1268,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
         createChart({
           svgElement: svgRef.current as SVGSVGElement,
-          allChartData: chartState.allData,
+          allChartData: chartState.allData, // This will be updated via getCurrentData
           xScale: calculations.baseXScale,
           yScale: calculations.baseYScale,
           visibleData: chartState.data,
@@ -1209,8 +1288,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             },
             getFixedYScaleDomain: () => fixedYScaleDomainRef.current,
             getCurrentData: () => currentDataRef.current,
+            getCurrentDimensions: () => currentDimensionsRef.current, // Add this to avoid stale dimensions
           },
-          chartState,
+          chartState: {
+            fixedYScaleDomain: chartState.fixedYScaleDomain,
+            chartLoaded: chartState.chartLoaded,
+          },
           bufferRangeRef: currentBufferRangeRef,
         });
       }
