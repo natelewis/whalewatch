@@ -121,61 +121,176 @@ export const applyAxisStyling = (
 };
 
 /**
- * Calculate dynamic tick values based on the current view domain
+ * Calculate dynamic tick values for time-based scale (every 20 data points)
  */
-export const calculateDynamicTickValues = (
-  scale: d3.ScaleLinear<number, number>,
+export const calculateTimeBasedTickValues = (
   allChartData: { time: string }[],
-  targetTickCount: number = 8
-): number[] => {
-  const [domainStart, domainEnd] = scale.domain();
-  const dataLength = allChartData.length;
+  interval: number = 20
+): Date[] => {
+  const tickValues: Date[] = [];
 
-  // Calculate appropriate tick interval based on domain size and target tick count
-  const domainSize = domainEnd - domainStart;
-  const tickInterval = Math.max(1, Math.floor(domainSize / targetTickCount));
-
-  // Find the first tick value >= the start of the domain
-  const firstTick = Math.ceil(domainStart / tickInterval) * tickInterval;
-
-  // Generate ticks from that starting point until we're past the end of the domain
-  const dynamicTickValues: number[] = [];
-  for (let i = firstTick; i <= domainEnd; i += tickInterval) {
-    if (i >= 0 && i < dataLength) {
-      dynamicTickValues.push(i);
-    }
+  // Generate ticks every 'interval' data points
+  for (let i = 0; i < allChartData.length; i += interval) {
+    tickValues.push(new Date(allChartData[i].time));
   }
 
-  return dynamicTickValues;
+  return tickValues;
 };
 
 /**
- * Create X-axis with consistent configuration
+ * Create unified time-based scale that works with transformed linear scale
+ * This ensures perfect alignment between X-axis and candlesticks
+ */
+export const createUnifiedTimeScale = (
+  transformedLinearScale: d3.ScaleLinear<number, number>,
+  allChartData: { time: string }[]
+): d3.ScaleTime<Date, number> => {
+  // Get the domain from the transformed linear scale (data indices)
+  const [domainStart, domainEnd] = transformedLinearScale.domain();
+
+  // Use exact data indices to map to time values for perfect alignment
+  const startIndex = Math.max(0, Math.floor(domainStart));
+  const endIndex = Math.min(allChartData.length - 1, Math.ceil(domainEnd));
+
+  const startTime = new Date(allChartData[startIndex]?.time || allChartData[0].time);
+  const endTime = new Date(
+    allChartData[endIndex]?.time || allChartData[allChartData.length - 1].time
+  );
+
+  // Create time-based scale with the same range as the transformed linear scale
+  // This ensures perfect alignment with the linear scale's positioning
+  const range = transformedLinearScale.range();
+  const scale = d3.scaleTime<Date, number>();
+  scale.domain([startTime, endTime]);
+  (scale as any).range([range[0], range[1]]);
+  return scale;
+};
+
+/**
+ * Create a time-based scale that maps data indices to screen coordinates
+ * This ensures the X-axis labels align perfectly with candlesticks
+ */
+export const createIndexToTimeScale = (
+  transformedLinearScale: d3.ScaleLinear<number, number>,
+  allChartData: { time: string }[]
+): d3.ScaleTime<Date, number> => {
+  // Get the domain from the transformed linear scale (data indices)
+  const [domainStart, domainEnd] = transformedLinearScale.domain();
+
+  // Handle the case where we're panning beyond the actual data
+  // We need to extend the time domain to match the linear scale's behavior
+  const dataLength = allChartData.length;
+
+  let startTime: Date;
+  let endTime: Date;
+
+  if (domainStart < 0) {
+    // Panning before the data - extrapolate backwards
+    const timeStep = getAverageTimeStep(allChartData);
+    const extrapolatedTime = new Date(allChartData[0].time).getTime() + domainStart * timeStep;
+    startTime = new Date(extrapolatedTime);
+  } else if (domainStart >= dataLength) {
+    // Panning after the data - extrapolate forwards
+    const timeStep = getAverageTimeStep(allChartData);
+    const extrapolatedTime =
+      new Date(allChartData[dataLength - 1].time).getTime() +
+      (domainStart - dataLength + 1) * timeStep;
+    startTime = new Date(extrapolatedTime);
+  } else {
+    // Within data bounds - interpolate normally
+    startTime = interpolateTimeAtIndex(allChartData, domainStart);
+  }
+
+  if (domainEnd < 0) {
+    // Panning before the data - extrapolate backwards
+    const timeStep = getAverageTimeStep(allChartData);
+    const extrapolatedTime = new Date(allChartData[0].time).getTime() + domainEnd * timeStep;
+    endTime = new Date(extrapolatedTime);
+  } else if (domainEnd >= dataLength) {
+    // Panning after the data - extrapolate forwards
+    const timeStep = getAverageTimeStep(allChartData);
+    const extrapolatedTime =
+      new Date(allChartData[dataLength - 1].time).getTime() +
+      (domainEnd - dataLength + 1) * timeStep;
+    endTime = new Date(extrapolatedTime);
+  } else {
+    // Within data bounds - interpolate normally
+    endTime = interpolateTimeAtIndex(allChartData, domainEnd);
+  }
+
+  // Create time-based scale that maps time values to screen coordinates
+  // The key is that this scale should produce the same screen positions as the linear scale
+  const range = transformedLinearScale.range();
+  const scale = d3.scaleTime<Date, number>();
+  scale.domain([startTime, endTime]);
+  (scale as any).range([range[0], range[1]]);
+  return scale;
+};
+
+/**
+ * Get the average time step between data points
+ * This is used to extrapolate time values beyond the actual data
+ */
+const getAverageTimeStep = (allChartData: { time: string }[]): number => {
+  if (allChartData.length < 2) {
+    // If we have less than 2 data points, assume 1 minute intervals
+    return 60 * 1000; // 1 minute in milliseconds
+  }
+
+  const firstTime = new Date(allChartData[0].time).getTime();
+  const lastTime = new Date(allChartData[allChartData.length - 1].time).getTime();
+
+  // Calculate average time step in milliseconds
+  return (lastTime - firstTime) / (allChartData.length - 1);
+};
+
+/**
+ * Interpolate time value at a fractional data index
+ * This ensures precise mapping between data indices and time values
+ */
+const interpolateTimeAtIndex = (allChartData: { time: string }[], index: number): Date => {
+  const floorIndex = Math.floor(index);
+  const ceilIndex = Math.ceil(index);
+
+  if (floorIndex === ceilIndex) {
+    // Exact index, return the time directly
+    return new Date(allChartData[floorIndex]?.time || allChartData[0].time);
+  }
+
+  // Interpolate between the two adjacent data points
+  const floorTime = new Date(allChartData[floorIndex]?.time || allChartData[0].time).getTime();
+  const ceilTime = new Date(
+    allChartData[ceilIndex]?.time || allChartData[allChartData.length - 1].time
+  ).getTime();
+
+  const fraction = index - floorIndex;
+  const interpolatedTime = floorTime + (ceilTime - floorTime) * fraction;
+
+  return new Date(interpolatedTime);
+};
+
+/**
+ * Create X-axis with time-based scale configuration
  */
 export const createXAxis = (
-  scale: d3.ScaleLinear<number, number>,
+  scale: d3.ScaleTime<Date, number> | d3.ScaleTime<number, number>,
   allChartData: { time: string }[],
-  tickCount: number = 8,
-  customTickValues?: number[]
+  customTickValues?: Date[]
 ): d3.Axis<d3.NumberValue> => {
   const axis = d3
-    .axisBottom(scale)
+    .axisBottom(scale as d3.AxisScale<Date | d3.NumberValue>)
     .tickSizeOuter(0)
     .tickFormat((d) => {
-      const globalIndex = Math.round(d as number);
-      // Find the data point at this global index
-      if (globalIndex >= 0 && globalIndex < allChartData.length) {
-        const date = new Date(allChartData[globalIndex].time);
-        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      }
-      return '';
+      // For time-based scale, d is already a Date object
+      const date = d as Date;
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     });
 
-  // Use custom tick values if provided, otherwise use default tick count
+  // Use custom tick values if provided, otherwise use default time-based ticks
   if (customTickValues) {
     return axis.tickValues(customTickValues);
   } else {
-    return axis.ticks(tickCount);
+    return axis.ticks(8); // Default to 8 ticks
   }
 };
 

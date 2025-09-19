@@ -12,7 +12,8 @@ import {
   applyAxisStyling,
   createXAxis,
   createYAxis,
-  calculateDynamicTickValues,
+  calculateTimeBasedTickValues,
+  createIndexToTimeScale,
   formatPrice,
   clampIndex,
   hasRequiredChartParams,
@@ -280,13 +281,17 @@ const createChart = ({
   const { innerWidth: chartInnerWidth, innerHeight: chartInnerHeight } =
     calculateInnerDimensions(dimensions);
 
-  // Create X-axis using dynamic tick calculation for consistency with panning/zooming
-  const initialDynamicTickValues = calculateDynamicTickValues(xScale, sortedData, 8);
+  // Use the provided base X scale for consistency with calculations
+  // This ensures the same scale is used for both initial load and pan/zoom
+
+  // Create X-axis using the same approach as pan/zoom for consistency
+  const initialTimeScale = createIndexToTimeScale(xScale, sortedData);
+  const timeBasedTickValues = calculateTimeBasedTickValues(sortedData, 20);
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createXAxis(xScale, sortedData, 8, initialDynamicTickValues));
+    .call(createXAxis(initialTimeScale, sortedData, timeBasedTickValues));
 
   // Create Y-axis
   const yAxis = g
@@ -354,23 +359,21 @@ const createChart = ({
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
-    // Update X-axis using dynamic tick values based on current view
+    // Update X-axis using time-based scale that aligns with candlesticks
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
 
-      // Calculate dynamic tick values based on the current view
-      const dynamicTickValues = calculateDynamicTickValues(
-        calculations.transformedXScale,
-        currentData,
-        8 // target tick count
-      );
+      // Create time-based scale that maps data indices to screen coordinates
+      const indexToTimeScale = createIndexToTimeScale(calculations.transformedXScale, currentData);
 
-      // Use transformedXScale with dynamic tick values
+      // Calculate time-based tick values (every 20 data points) for the full dataset
+      // This ensures consistent tick count between initial load and pan/zoom
+      const currentTimeBasedTickValues = calculateTimeBasedTickValues(currentData, 20);
+
+      // Use time-based scale with dynamic tick values
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(
-        createXAxis(calculations.transformedXScale, currentData, 8, dynamicTickValues)
-      );
+      xAxisGroup.call(createXAxis(indexToTimeScale, currentData, currentTimeBasedTickValues));
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
@@ -677,13 +680,16 @@ const renderCandlestickChart = (
     scaleRange: calculations.baseXScale.range(),
   });
 
-  visibleCandles.forEach((d, localIndex) => {
-    // Calculate the global data index for proper X-axis alignment
-    const globalIndex = actualStart + localIndex;
+  // Use the same unified time-based scale as the X-axis for perfect alignment
+  // This ensures candlesticks and X-axis labels are always in sync
+  const candlestickTimeScale = createIndexToTimeScale(
+    calculations.transformedXScale,
+    calculations.allData
+  );
 
-    // Use the X scale to position the candle
-    // The scale maps the full dataset, so we use the actual data index
-    const x = calculations.baseXScale(globalIndex);
+  visibleCandles.forEach((d) => {
+    // Use the time-based scale for positioning (same as X-axis labels)
+    const x = candlestickTimeScale(new Date(d.time));
 
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
@@ -970,21 +976,24 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         chartContentGroup.attr('transform', calculations.transformString);
       }
 
-      // Update X-axis using dynamic tick values based on current view
+      // Update X-axis using time-based scale that aligns with candlesticks
       const xAxisGroup = svg.select<SVGGElement>('.x-axis');
       if (!xAxisGroup.empty()) {
         const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
 
-        // Calculate dynamic tick values based on the current view
-        const dynamicTickValues = calculateDynamicTickValues(
+        // Create time-based scale that maps data indices to screen coordinates
+        const indexToTimeScale = createIndexToTimeScale(
           calculations.transformedXScale,
-          chartState.allData,
-          8 // target tick count
+          chartState.allData
         );
+
+        // Calculate time-based tick values (every 20 data points) for the full dataset
+        // This ensures consistent tick count between initial load and pan/zoom
+        const allDataTimeBasedTickValues = calculateTimeBasedTickValues(chartState.allData, 20);
 
         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
         xAxisGroup.call(
-          createXAxis(calculations.transformedXScale, chartState.allData, 8, dynamicTickValues)
+          createXAxis(indexToTimeScale, chartState.allData, allDataTimeBasedTickValues)
         );
         applyAxisStyling(xAxisGroup);
       }
