@@ -356,13 +356,6 @@ const createChart = ({
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroup.empty()) {
-      console.log('🔄 APPLYING CHART CONTENT TRANSFORM:', {
-        transformString: calculations.transformString,
-        viewStart: calculations.viewStart,
-        viewEnd: calculations.viewEnd,
-        scaleDomain: calculations.transformedXScale.domain(),
-        scaleRange: calculations.transformedXScale.range(),
-      });
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
@@ -700,19 +693,7 @@ const renderCandlestickChart = (
     lastCandleIndex: actualEnd,
   });
 
-  // Use the transformed linear scale for candlestick positioning to match the zoom transform
-  // This ensures perfect alignment with the chart content group transform
-  console.log('🎨 Creating candlesticks with hover events:', {
-    visibleCandlesCount: visibleCandles.length,
-    actualStart,
-    actualEnd,
-    viewStart: calculations.viewStart,
-    viewEnd: calculations.viewEnd,
-    bufferSize,
-    scaleDomain: calculations.transformedXScale.domain(),
-    scaleRange: calculations.transformedXScale.range(),
-    transformString: calculations.transformString,
-  });
+  // Use the base linear scale for candlestick positioning since the chart content group already has the transform applied
 
   visibleCandles.forEach((d, localIndex) => {
     // Calculate the global data index for proper positioning
@@ -721,20 +702,6 @@ const renderCandlestickChart = (
     // Use the base linear scale for positioning since the chart content group already has the transform applied
     // This prevents double transformation (scale + group transform)
     const x = calculations.baseXScale(globalIndex);
-
-    // Debug positioning for first few candlesticks
-    if (localIndex < 5) {
-      console.log(`🎯 CANDLESTICK POSITIONING [${localIndex}]:`, {
-        globalIndex,
-        localIndex,
-        actualStart,
-        x,
-        time: d.time,
-        scaleDomain: calculations.transformedXScale.domain(),
-        scaleRange: calculations.transformedXScale.range(),
-        transformString: calculations.transformString,
-      });
-    }
 
     const isUp = d.close >= d.open;
     const color = isUp ? '#26a69a' : '#ef5350';
@@ -750,13 +717,6 @@ const renderCandlestickChart = (
       .attr('class', 'candlestick-hover-area')
       .style('cursor', 'pointer')
       .on('mouseover', function (event) {
-        console.log('🎯 CANDLESTICK HOVER:', {
-          O: d.open.toFixed(2),
-          H: d.high.toFixed(2),
-          L: d.low.toFixed(2),
-          C: d.close.toFixed(2),
-        });
-
         // Show tooltip with debugging info
         const tooltip = d3
           .select('body')
