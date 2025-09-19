@@ -1,12 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChartTimeframe } from '../types';
+import { ChartTimeframe, ChartDimensions } from '../types';
 import { CandlestickData } from '../utils/chartDataUtils';
-
-export interface ChartDimensions {
-  width: number;
-  height: number;
-  margin: { top: number; right: number; bottom: number; left: number };
-}
 
 export interface ChartTransform {
   x: number;
@@ -319,4 +313,3 @@ export const useChartStateManager = (
 
   return { state, actions, isInitialLoad: isInitialLoadRef.current };
 };
-

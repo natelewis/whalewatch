@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
-import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
+import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS, ChartDimensions } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { ChartData, useChartData } from '../hooks/useChartData';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
-import { ChartDimensions } from '../hooks/useChartDimensions';
 import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
 import {
