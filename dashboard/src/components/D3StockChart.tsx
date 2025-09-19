@@ -330,9 +330,9 @@ const createChart = ({
     // Check if current view is outside the current buffer range
     const currentBufferRange = bufferRangeRef.current;
 
-    // Use a more conservative margin (10% instead of 20%) to reduce spammy re-renders
-    // Also add a minimum margin to prevent re-renders on tiny movements
-    const marginSize = Math.max(5, Math.floor(bufferSize * 0.1));
+    // Use a fixed margin to prevent oscillation around the threshold
+    // Fixed margin is more stable than percentage-based margin
+    const marginSize = 10; // Fixed 10 data points margin
 
     // Smart buffer range logic that accounts for data boundaries
     let needsRerender = false;
@@ -342,8 +342,8 @@ const createChart = ({
       needsRerender = true;
     } else {
       // Check if we're at data boundaries and adjust margin accordingly
-      const atDataStart = currentViewStart <= 0;
-      const atDataEnd = currentViewEnd >= dataLength - marginSize; // Within margin of data end
+      const atDataStart = currentViewStart <= marginSize; // Within margin of data start
+      const atDataEnd = currentViewEnd >= dataLength - marginSize - 1; // Within margin of data end
 
       if (atDataStart && atDataEnd) {
         // At both boundaries - only re-render if view has changed significantly
@@ -351,7 +351,7 @@ const createChart = ({
           Math.abs(currentViewStart - currentBufferRange.start) > marginSize ||
           Math.abs(currentViewEnd - currentBufferRange.end) > marginSize;
       } else if (atDataStart) {
-        // At start boundary - only check end margin
+        // At start boundary - only check if we've moved forward significantly
         needsRerender = currentViewEnd > currentBufferRange.end - marginSize;
       } else if (atDataEnd) {
         // At end boundary - only check start margin
@@ -376,7 +376,7 @@ const createChart = ({
       renderCandlestickChart(svgElement, calculations);
 
       // Update buffer range tracking with smart boundary-aware buffer
-      const atDataStart = currentViewStart <= 0;
+      const atDataStart = currentViewStart <= marginSize; // Within margin of data start
       const atDataEnd = currentViewEnd >= dataLength - marginSize; // Within margin of data end
 
       let actualStart, actualEnd;
@@ -699,8 +699,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Update buffer range with smart boundary-aware buffer
       const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75));
       const dataLength = chartState.allData.length;
-      const marginSize = Math.max(5, Math.floor(bufferSize * 0.1));
-      const atDataStart = calculations.viewStart <= 0;
+      const marginSize = 10; // Fixed 10 data points margin
+      const atDataStart = calculations.viewStart <= marginSize; // Within margin of data start
       const atDataEnd = calculations.viewEnd >= dataLength - marginSize; // Within margin of data end
 
       let actualStart, actualEnd;
@@ -949,8 +949,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Set initial buffer range with smart boundary-aware buffer
       const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75));
       const dataLength = finalCalculations.allData.length;
-      const marginSize = Math.max(5, Math.floor(bufferSize * 0.1));
-      const atDataStart = finalCalculations.viewStart <= 0;
+      const marginSize = 10; // Fixed 10 data points margin
+      const atDataStart = finalCalculations.viewStart <= marginSize; // Within margin of data start
       const atDataEnd = finalCalculations.viewEnd >= dataLength - marginSize; // Within margin of data end
 
       let actualStart, actualEnd;
