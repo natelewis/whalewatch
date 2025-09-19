@@ -1450,7 +1450,80 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []); // Removed dependencies to prevent infinite loops
+  }, []); // No dependencies needed - just sets dimensions
+
+  // Separate effect to handle dimension changes and re-render chart
+  useEffect(() => {
+    if (
+      svgRef.current &&
+      chartState.chartLoaded &&
+      chartState.chartExists &&
+      chartState.allData.length > 0
+    ) {
+      console.log('🔄 Dimensions changed, re-rendering chart:', {
+        width: chartState.dimensions.width,
+        height: chartState.dimensions.height,
+      });
+
+      // Get current transform
+      const currentZoomTransform = d3.zoomTransform(svgRef.current);
+
+      // Calculate new chart state with updated dimensions
+      const calculations = calculateChartState({
+        dimensions: chartState.dimensions,
+        allChartData: chartState.allData,
+        transform: currentZoomTransform,
+        fixedYScaleDomain: chartState.fixedYScaleDomain,
+      });
+
+      // Update clip-path for new dimensions
+      updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
+
+      // Update X-axis with new dimensions
+      const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
+      if (!xAxisGroup.empty()) {
+        const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
+
+        // Create time-based scale that maps data indices to screen coordinates
+        if (chartState.allData.length > 0) {
+          const indexToTimeScale = createIndexToTimeScale(
+            calculations.transformedXScale,
+            chartState.allData
+          );
+          const timeBasedTickValues = calculateTimeBasedTickValues(chartState.allData, 20);
+
+          xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+          xAxisGroup.call(createXAxis(indexToTimeScale, chartState.allData, timeBasedTickValues));
+          applyAxisStyling(xAxisGroup);
+        }
+      }
+
+      // Update Y-axis with new dimensions
+      const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
+      if (!yAxisGroup.empty()) {
+        const { innerWidth: axisInnerWidth } = calculateInnerDimensions(chartState.dimensions);
+        yAxisGroup.attr('transform', `translate(${axisInnerWidth},0)`);
+        yAxisGroup.call(createYAxis(calculations.transformedYScale));
+        applyAxisStyling(yAxisGroup);
+      }
+
+      // Update chart content group transform
+      const chartContentGroup = d3.select(svgRef.current).select<SVGGElement>('.chart-content');
+      if (!chartContentGroup.empty()) {
+        chartContentGroup.attr('transform', calculations.transformString);
+      }
+
+      // Re-render candlesticks with new dimensions
+      renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
+
+      // Update overlay for new dimensions
+      const overlay = d3.select(svgRef.current).select<SVGRectElement>('.overlay');
+      if (!overlay.empty()) {
+        const { innerWidth, innerHeight } = calculateInnerDimensions(chartState.dimensions);
+        overlay.attr('width', innerWidth).attr('height', innerHeight);
+      }
+    }
+  }, [chartState.dimensions.width, chartState.dimensions.height]); // Trigger when dimensions change
 
   // Set initial view to show newest data when data loads
   useEffect(() => {
