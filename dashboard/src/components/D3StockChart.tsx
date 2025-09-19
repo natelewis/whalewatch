@@ -307,6 +307,9 @@ const createChart = ({
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(yAxisGroup);
     }
+
+    // Re-render candlesticks with the new view calculations
+    renderCandlestickChart(svgElement, calculations);
   };
 
   const handleZoomEnd = (): void => {
@@ -452,9 +455,17 @@ const renderCandlestickChart = (
 
   const candleWidth = Math.max(1, 4);
 
-  // Render ALL candles in the dataset using right-aligned scale
-  // This ensures perfect alignment between candles and X-axis labels while maintaining right-alignment
-  calculations.allData.forEach((d, globalIndex) => {
+  // Render only candles within the visible viewport for better performance
+  // This ensures we only render candles that are actually visible to the user
+  // Use safe bounds checking like in the debug area
+  const actualStart = Math.max(0, calculations.viewStart);
+  const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd);
+  const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
+
+  visibleCandles.forEach((d, localIndex) => {
+    // Calculate the global index for proper X-axis alignment
+    const globalIndex = actualStart + localIndex;
+
     // Use the right-aligned scale for perfect alignment with X-axis
     const x = calculations.baseXScale(globalIndex);
 
@@ -486,8 +497,9 @@ const renderCandlestickChart = (
       .attr('stroke-width', 1);
   });
 
-  console.log('🎨 Rendered ALL candles (RIGHT-ALIGNED WITH X-AXIS):', {
+  console.log('🎨 Rendered VISIBLE candles (OPTIMIZED FOR PERFORMANCE):', {
     allDataLength: calculations.allData.length,
+    visibleCandlesRendered: visibleCandles.length,
     visibleDataLength: calculations.visibleData.length,
     viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
     rightmostDataIndex: calculations.allData.length - 1,
@@ -690,7 +702,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     console.log('SVG element is ready:', svgRef.current);
   }, []);
 
-  // Centralized chart rendering - only re-render when data changes, not during panning
+  // Initial candlestick rendering when data first loads
   useEffect((): void => {
     if (!isValidData || !chartState.data.length) {
       return;
@@ -705,11 +717,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         fixedYScaleDomain: chartState.fixedYScaleDomain,
       });
 
+      // Only render candlesticks on initial data load
+      // Subsequent renders are handled by the zoom handler
       renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
     }
   }, [
-    chartState.data,
-    chartState.allData,
+    chartState.allData.length, // Only re-render when data length changes (new data loaded)
     chartState.dimensions,
     chartState.fixedYScaleDomain,
     isValidData,
