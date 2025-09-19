@@ -28,6 +28,24 @@ interface D3StockChartProps {
 // CONFIGURATION CONSTANTS - Modify these to adjust chart behavior
 // ============================================================================
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
+
+// Buffer and margin constants
+const BUFFER_SIZE_MULTIPLIER = 0.75; // Buffer size as percentage of chart data points
+const MIN_BUFFER_SIZE = 30; // Minimum buffer size in data points
+const MARGIN_SIZE = 10; // Fixed margin size in data points for re-render detection
+const LEGACY_BUFFER_SIZE_MULTIPLIER = 0.5; // Legacy buffer size for candlestick rendering
+const MIN_LEGACY_BUFFER_SIZE = 20; // Minimum legacy buffer size
+
+// Zoom and scale constants
+const ZOOM_SCALE_MIN = 0.5; // Minimum zoom scale
+const ZOOM_SCALE_MAX = 10; // Maximum zoom scale
+
+// UI and layout constants
+const MIN_CHART_HEIGHT = 400; // Minimum chart height in pixels
+const CHART_HEIGHT_OFFSET = 100; // Height offset for chart container
+const PRICE_PADDING_MULTIPLIER = 0.2; // Price range padding (20%)
+const DATA_PRELOAD_BUFFER = 100; // Buffer points for data preloading
+
 // ============================================================================
 
 // ============================================================================
@@ -253,7 +271,7 @@ const createChart = ({
 
   // Show all tick marks and labels
 
-  const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 10]);
+  const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([ZOOM_SCALE_MIN, ZOOM_SCALE_MAX]);
 
   // Store reference to zoom behavior for programmatic control
   if (stateCallbacks.setZoomBehavior) {
@@ -322,7 +340,10 @@ const createChart = ({
     }
 
     // Check if we need to re-render candlesticks due to panning outside buffer
-    const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75)); // Increased buffer size
+    const bufferSize = Math.max(
+      MIN_BUFFER_SIZE,
+      Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
+    );
     const currentViewStart = calculations.viewStart;
     const currentViewEnd = calculations.viewEnd;
     const dataLength = calculations.allData.length;
@@ -332,7 +353,7 @@ const createChart = ({
 
     // Use a fixed margin to prevent oscillation around the threshold
     // Fixed margin is more stable than percentage-based margin
-    const marginSize = 10; // Fixed 10 data points margin
+    const marginSize = MARGIN_SIZE;
 
     // Smart buffer range logic that accounts for data boundaries
     let needsRerender = false;
@@ -534,7 +555,10 @@ const renderCandlestickChart = (
 
   // Render candles with a buffer around the visible viewport for smooth panning
   // This provides a good balance between performance and smooth interaction
-  const bufferSize = Math.max(20, Math.floor(CHART_DATA_POINTS * 0.5)); // 50% buffer or minimum 20 candles
+  const bufferSize = Math.max(
+    MIN_LEGACY_BUFFER_SIZE,
+    Math.floor(CHART_DATA_POINTS * LEGACY_BUFFER_SIZE_MULTIPLIER)
+  );
   const actualStart = Math.max(0, calculations.viewStart - bufferSize);
   const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd + bufferSize);
   const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
@@ -697,9 +721,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
 
       // Update buffer range with smart boundary-aware buffer
-      const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75));
+      const bufferSize = Math.max(
+        MIN_BUFFER_SIZE,
+        Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
+      );
       const dataLength = chartState.allData.length;
-      const marginSize = 10; // Fixed 10 data points margin
+      const marginSize = MARGIN_SIZE;
       const atDataStart = calculations.viewStart <= marginSize; // Within margin of data start
       const atDataEnd = calculations.viewEnd >= dataLength - marginSize; // Within margin of data end
 
@@ -748,7 +775,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Chart data management
   const chartDataHook = useChartData({
     timeframes,
-    bufferPoints: 100, // Buffer for data preloading
+    bufferPoints: DATA_PRELOAD_BUFFER,
     onDataLoaded: (data: ChartData) => {
       // Update all chart data whenever new data is loaded
       chartActions.setAllData(data);
@@ -832,7 +859,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         chartActions.setDimensions({
           ...chartState.dimensions,
           width: rect.width,
-          height: Math.max(400, rect.height - 100),
+          height: Math.max(MIN_CHART_HEIGHT, rect.height - CHART_HEIGHT_OFFSET),
         });
       }
     };
@@ -920,7 +947,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         const initialYMin = d3.min(visibleData, (d) => d.low) as number;
         const initialYMax = d3.max(visibleData, (d) => d.high) as number;
         const priceRange = initialYMax - initialYMin;
-        const padding = priceRange * 0.2; // Add 20% padding above and below
+        const padding = priceRange * PRICE_PADDING_MULTIPLIER;
         fixedYScaleDomain = [initialYMin - padding, initialYMax + padding];
 
         // Set the fixed Y-scale domain for future renders
@@ -947,9 +974,12 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       renderCandlestickChart(svgRef.current as SVGSVGElement, finalCalculations);
 
       // Set initial buffer range with smart boundary-aware buffer
-      const bufferSize = Math.max(30, Math.floor(CHART_DATA_POINTS * 0.75));
+      const bufferSize = Math.max(
+        MIN_BUFFER_SIZE,
+        Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
+      );
       const dataLength = finalCalculations.allData.length;
-      const marginSize = 10; // Fixed 10 data points margin
+      const marginSize = MARGIN_SIZE;
       const atDataStart = finalCalculations.viewStart <= marginSize; // Within margin of data start
       const atDataEnd = finalCalculations.viewEnd >= dataLength - marginSize; // Within margin of data end
 
