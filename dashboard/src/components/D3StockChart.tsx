@@ -48,9 +48,7 @@ interface ChartCalculations {
   transformedXScale: d3.ScaleLinear<number, number>;
   transformedYScale: d3.ScaleLinear<number, number>;
 
-  // View calculations with buffer system
-  viewStart: number;
-  viewEnd: number;
+  // Buffer system calculations
   bufferedViewStart: number;
   bufferedViewEnd: number;
   visibleData: ChartData;
@@ -95,23 +93,17 @@ const calculateChartState = ({
     bufferedViewStart + actualBufferSize - 1
   );
 
-  // Actual visible area is the center portion, or what we can fit
-  const idealVisibleStart = bufferedViewStart + OUTSIDE_BUFFER;
-  const idealVisibleEnd = idealVisibleStart + CHART_DATA_POINTS - 1;
-
-  // Ensure we don't go out of bounds
-  const viewStart = Math.max(
-    0,
-    Math.min(idealVisibleStart, availableDataLength - CHART_DATA_POINTS)
+  // Calculate base scales for buffered data positioning
+  // Maps the visible portion of buffered data to screen coordinates
+  const visibleStartInBuffer = bufferedViewStart + OUTSIDE_BUFFER;
+  const visibleEndInBuffer = Math.min(
+    bufferedViewEnd,
+    visibleStartInBuffer + CHART_DATA_POINTS - 1
   );
-  const viewEnd = Math.min(
-    availableDataLength - 1,
-    Math.max(viewStart + CHART_DATA_POINTS - 1, idealVisibleEnd)
-  );
-
-  // Calculate base scales for full buffer positioning
-  // Maps global data indices to screen coordinates, with visible area at [0, innerWidth]
-  const baseXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
+  const baseXScale = d3
+    .scaleLinear()
+    .domain([visibleStartInBuffer, visibleEndInBuffer])
+    .range([0, innerWidth]);
 
   // Data is already sorted from chartDataUtils.processChartData
   const sortedData = allChartData;
@@ -136,8 +128,8 @@ const calculateChartState = ({
   const transformedXScale = transform.rescaleX(baseXScale);
   const transformedYScale = transform.rescaleY(baseYScale);
 
-  // Get visible data (center portion)
-  const calculatedVisibleData = sortedData.slice(viewStart, viewEnd + 1);
+  // Get visible data (use buffered data for rendering)
+  const calculatedVisibleData = calculatedBufferedData;
 
   // Ensure we have reasonable data lengths
   const actualVisibleData = calculatedVisibleData.length > 0 ? calculatedVisibleData : [];
@@ -151,8 +143,6 @@ const calculateChartState = ({
     baseYScale,
     transformedXScale,
     transformedYScale,
-    viewStart,
-    viewEnd,
     bufferedViewStart,
     bufferedViewEnd,
     visibleData: actualVisibleData,
@@ -305,12 +295,12 @@ const createChart = ({
       fixedYScaleDomain: chartState.fixedYScaleDomain,
     });
 
-    // Update view state using centralized calculations
+    // Update buffer state using centralized calculations
     if (stateCallbacks.setCurrentViewStart) {
-      stateCallbacks.setCurrentViewStart(calculations.viewStart);
+      stateCallbacks.setCurrentViewStart(calculations.bufferedViewStart);
     }
     if (stateCallbacks.setCurrentViewEnd) {
-      stateCallbacks.setCurrentViewEnd(calculations.viewEnd);
+      stateCallbacks.setCurrentViewEnd(calculations.bufferedViewEnd);
     }
 
     // Apply transform to the main chart content group (includes candlesticks)
@@ -527,27 +517,10 @@ const renderCandlestickChart = (
     bufferedDataLength: calculations.bufferedData.length,
     visibleDataLength: calculations.visibleData.length,
     bufferedRange: `${calculations.bufferedViewStart}-${calculations.bufferedViewEnd}`,
-    visibleRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-    bufferAvailable: `L:${calculations.viewStart - calculations.bufferedViewStart}, R:${
-      calculations.bufferedViewEnd - calculations.viewEnd
-    }`,
     scaleInfo: {
       domain: calculations.baseXScale.domain(),
       range: calculations.baseXScale.range(),
       totalWidth: calculations.baseXScale.range()[1] - calculations.baseXScale.range()[0],
-      bufferWidth: OUTSIDE_BUFFER * (calculations.innerWidth / CHART_DATA_POINTS),
-    },
-    positioning: {
-      firstBufferedX: calculations.baseXScale(0),
-      firstVisibleX: calculations.baseXScale(OUTSIDE_BUFFER),
-      lastVisibleX: calculations.baseXScale(OUTSIDE_BUFFER + CHART_DATA_POINTS - 1),
-      lastBufferedX: calculations.baseXScale(TOTAL_BUFFERED_POINTS - 1),
-    },
-    dataInfo: {
-      firstBufferedTime: calculations.bufferedData[0]?.time,
-      firstVisibleTime: calculations.bufferedData[OUTSIDE_BUFFER]?.time,
-      lastVisibleTime: calculations.bufferedData[OUTSIDE_BUFFER + CHART_DATA_POINTS - 1]?.time,
-      lastBufferedTime: calculations.bufferedData[calculations.bufferedData.length - 1]?.time,
     },
   });
 };
@@ -991,7 +964,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             <span>Visible: {CHART_DATA_POINTS}</span>
             <span>Buffer: {OUTSIDE_BUFFER * 2}</span>
             <span>
-              View:{' '}
+              Buffer:{' '}
               {(() => {
                 const actualStart = Math.max(0, chartState.currentViewStart);
                 const actualEnd = Math.min(
@@ -1055,9 +1028,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               <div>All Data Length: {chartState.allData.length}</div>
             </div>
             <div>
-              <div className="font-medium text-foreground mb-1">View State</div>
-              <div>View Start: {chartState.currentViewStart}</div>
-              <div>View End: {chartState.currentViewEnd}</div>
+              <div className="font-medium text-foreground mb-1">Buffer State</div>
+              <div>Buffer Start: {chartState.currentViewStart}</div>
+              <div>Buffer End: {chartState.currentViewEnd}</div>
               <div>At Right Edge: {isAtRightEdge ? '✓' : '✗'}</div>
               <div>Y-Scale Fixed: {chartState.fixedYScaleDomain ? '✓' : '✗'}</div>
             </div>
