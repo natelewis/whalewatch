@@ -10,10 +10,8 @@ import { apiService } from '../services/apiService';
 import {
   TimeframeConfig,
   applyAxisStyling,
-  createXAxis,
+  createCustomTimeAxis,
   createYAxis,
-  calculateTimeBasedTickValues,
-  createIndexToTimeScale,
   formatPrice,
   clampIndex,
   hasRequiredChartParams,
@@ -296,13 +294,11 @@ const createChart = ({
     console.warn('createIndexToTimeScale called with empty allChartData in initial render');
     return;
   }
-  const initialTimeScale = createIndexToTimeScale(xScale, allChartData);
-  const timeBasedTickValues = calculateTimeBasedTickValues(allChartData, 20);
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createXAxis(initialTimeScale, allChartData, timeBasedTickValues));
+    .call(createCustomTimeAxis(xScale, allChartData));
 
   // Create Y-axis
   const yAxis = g
@@ -390,16 +386,9 @@ const createChart = ({
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
 
-      // Create time-based scale that maps data indices to screen coordinates
-      const indexToTimeScale = createIndexToTimeScale(calculations.transformedXScale, currentData);
-
-      // Calculate time-based tick values (every 20 data points) for the full dataset
-      // This ensures consistent tick count between initial load and pan/zoom
-      const currentTimeBasedTickValues = calculateTimeBasedTickValues(currentData, 20);
-
-      // Use time-based scale with dynamic tick values
+      // Use custom time axis with proper positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(createXAxis(indexToTimeScale, currentData, currentTimeBasedTickValues));
+      xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
@@ -1122,22 +1111,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               chartState.dimensions
             );
 
-            // Create time-based scale that maps data indices to screen coordinates
-            // Add safety check to prevent error when formattedData is empty
-            if (formattedData.length === 0) {
-              console.warn('createIndexToTimeScale called with empty formattedData');
-              return;
-            }
-            const indexToTimeScale = createIndexToTimeScale(
-              calculations.transformedXScale,
-              formattedData
-            );
-
-            // Calculate time-based tick values (every 20 data points) for the new dataset
-            const newTimeBasedTickValues = calculateTimeBasedTickValues(formattedData, 20);
-
             xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-            xAxisGroup.call(createXAxis(indexToTimeScale, formattedData, newTimeBasedTickValues));
+            xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, formattedData));
             applyAxisStyling(xAxisGroup);
           }
 
@@ -1224,25 +1199,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       if (!xAxisGroup.empty()) {
         const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
 
-        // Create time-based scale that maps data indices to screen coordinates
-        // Add safety check to prevent error when allData is empty
-        if (chartState.allData.length === 0) {
-          console.warn('createIndexToTimeScale called with empty allData');
-          return;
-        }
-        const indexToTimeScale = createIndexToTimeScale(
-          calculations.transformedXScale,
-          chartState.allData
-        );
-
-        // Calculate time-based tick values (every 20 data points) for the full dataset
-        // This ensures consistent tick count between initial load and pan/zoom
-        const allDataTimeBasedTickValues = calculateTimeBasedTickValues(chartState.allData, 20);
-
         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-        xAxisGroup.call(
-          createXAxis(indexToTimeScale, chartState.allData, allDataTimeBasedTickValues)
-        );
+        xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
         applyAxisStyling(xAxisGroup);
       }
 
@@ -1458,17 +1416,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       }
     };
 
-    // Use a small delay to ensure container is properly sized
-    const timeoutId = setTimeout(() => {
-      handleResize();
-    }, 100);
-
-    // Also try again after a longer delay to catch any late container sizing
-    const fallbackTimeoutId = setTimeout(() => {
-      handleResize();
-    }, 500);
-
-    // Also use ResizeObserver for more accurate container size detection
+    // Use ResizeObserver for accurate container size detection
     let resizeObserver: ResizeObserver | null = null;
     if (containerRef.current && window.ResizeObserver) {
       resizeObserver = new ResizeObserver((entries) => {
@@ -1483,8 +1431,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     window.addEventListener('resize', handleResize);
     return () => {
-      clearTimeout(timeoutId);
-      clearTimeout(fallbackTimeoutId);
       window.removeEventListener('resize', handleResize);
       if (resizeObserver) {
         resizeObserver.disconnect();
@@ -1531,24 +1477,15 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
         // Create time-based scale that maps data indices to screen coordinates
         if (chartState.allData.length > 0) {
-          // Use the base X scale since the chart content group already has the transform applied
-          // This prevents double transformation (scale + group transform)
-          const indexToTimeScale = createIndexToTimeScale(
-            calculations.baseXScale, // Use base scale since transform is applied to content group
-            chartState.allData
-          );
-          const timeBasedTickValues = calculateTimeBasedTickValues(chartState.allData, 20);
-
           console.log('🔄 Updating X-axis on resize:', {
             innerWidth: calculations.innerWidth,
             bandWidth: calculations.innerWidth / CHART_DATA_POINTS,
             scaleDomain: calculations.baseXScale.domain(),
             scaleRange: calculations.baseXScale.range(),
-            tickCount: timeBasedTickValues.length,
           });
 
           xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-          xAxisGroup.call(createXAxis(indexToTimeScale, chartState.allData, timeBasedTickValues));
+          xAxisGroup.call(createCustomTimeAxis(calculations.baseXScale, chartState.allData));
           applyAxisStyling(xAxisGroup);
         }
       }
