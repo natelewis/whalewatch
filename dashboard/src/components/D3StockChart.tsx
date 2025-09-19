@@ -298,10 +298,13 @@ const createChart = ({
     const currentFixedYScaleDomain =
       stateCallbacks.getFixedYScaleDomain?.() || chartState.fixedYScaleDomain;
 
+    // Get the current data from the chart state instead of using captured sortedData
+    const currentData = stateCallbacks.getCurrentData?.() || sortedData;
+
     // Single source of truth for all calculations
     const calculations = calculateChartState({
       dimensions,
-      allChartData: sortedData,
+      allChartData: currentData,
       transform,
       fixedYScaleDomain: currentFixedYScaleDomain,
     });
@@ -326,7 +329,7 @@ const createChart = ({
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
       // Use transformedXScale with right-aligned positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(createXAxis(calculations.transformedXScale, allChartData));
+      xAxisGroup.call(createXAxis(calculations.transformedXScale, currentData));
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
@@ -541,6 +544,13 @@ const renderCandlestickChart = (
   svgElement: SVGSVGElement,
   calculations: ChartCalculations
 ): void => {
+  console.log('🎨 renderCandlestickChart called with:', {
+    allDataLength: calculations.allData.length,
+    viewStart: calculations.viewStart,
+    viewEnd: calculations.viewEnd,
+    stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n'),
+  });
+
   // Find the chart content group and remove existing candlesticks
   const chartContent = d3.select(svgElement).select('.chart-content');
   if (chartContent.empty()) {
@@ -564,6 +574,16 @@ const renderCandlestickChart = (
   const actualStart = Math.max(0, calculations.viewStart - bufferSize);
   const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd + bufferSize);
   const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
+
+  console.log('🎨 Rendering candlesticks:', {
+    allDataLength: calculations.allData.length,
+    viewStart: calculations.viewStart,
+    viewEnd: calculations.viewEnd,
+    actualStart,
+    actualEnd,
+    visibleCandlesCount: visibleCandles.length,
+    bufferSize,
+  });
 
   visibleCandles.forEach((d, localIndex) => {
     // Calculate the global index for proper X-axis alignment
@@ -639,6 +659,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Experiment mode state
   const [experimentDataPoints, setExperimentDataPoints] = useState(DEFAULT_CHART_DATA_POINTS);
+  const manualRenderInProgressRef = useRef(false);
 
   // Track current buffer range to know when to re-render (use ref to avoid stale closures)
   const currentBufferRangeRef = useRef<{ start: number; end: number } | null>(null);
@@ -648,6 +669,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Store reference to the fixed Y-scale domain to avoid stale closure issues
   const fixedYScaleDomainRef = useRef<[number, number] | null>(null);
+
+  // Store reference to the current data to avoid stale closure issues
+  const currentDataRef = useRef<ChartData>([]);
 
   // Function to fetch more historical data
   const fetchMoreData = (): void => {
@@ -671,11 +695,70 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       .getChartData(symbol, timeframe, newDataPoints, undefined, DATA_PRELOAD_BUFFER)
       .then((response) => {
         const { formattedData } = processChartData(response.bars);
+
+        console.log('📊 Before setAllData:', {
+          currentAllDataLength: chartState.allData.length,
+          newFormattedDataLength: formattedData.length,
+        });
+
         chartActions.setAllData(formattedData);
+
+        // Update the data ref immediately to avoid stale closure issues
+        currentDataRef.current = formattedData;
+
+        // Check state after a brief delay to see if it updates
+        setTimeout(() => {
+          console.log('📊 After setAllData (delayed):', {
+            currentAllDataLength: chartState.allData.length,
+            newFormattedDataLength: formattedData.length,
+            refDataLength: currentDataRef.current.length,
+          });
+        }, 100);
+
         console.log('✅ Successfully loaded more data:', {
           newDataLength: formattedData.length,
           dataPoints: newDataPoints,
         });
+
+        // Update the data and force a re-render with the fresh data
+        console.log('✅ New data loaded, forcing re-render with fresh data');
+        console.log('📊 Data update details:', {
+          oldDataLength: chartState.allData.length,
+          newDataLength: formattedData.length,
+          newDataAdded: formattedData.length - chartState.allData.length,
+        });
+
+        // Force a re-render with the fresh data immediately
+        if (svgRef.current && chartState.chartLoaded) {
+          console.log('🔄 Forcing immediate re-render with fresh data');
+
+          // Set flag to prevent React effect from overriding
+          manualRenderInProgressRef.current = true;
+
+          // Get current transform
+          const currentTransform = d3.zoomTransform(svgRef.current);
+
+          // Calculate chart state with the FRESH data
+          const calculations = calculateChartState({
+            dimensions: chartState.dimensions,
+            allChartData: formattedData, // Use the fresh data directly
+            transform: currentTransform,
+            fixedYScaleDomain: chartState.fixedYScaleDomain,
+          });
+
+          // Re-render with fresh data
+          renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
+
+          console.log('✅ Immediate re-render completed with fresh data:', {
+            allDataLength: calculations.allData.length,
+            viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+          });
+
+          // Reset flag after a delay
+          setTimeout(() => {
+            manualRenderInProgressRef.current = false;
+          }, 1000);
+        }
       })
       .catch((error) => {
         console.error('Failed to load more data:', error);
@@ -819,6 +902,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     onDataLoaded: (data: ChartData) => {
       // Update all chart data whenever new data is loaded
       chartActions.setAllData(data);
+      // Update the data ref to avoid stale closure issues
+      currentDataRef.current = data;
     },
   });
 
@@ -966,7 +1051,21 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Initial candlestick rendering when data first loads and chart is ready
   useEffect((): void => {
+    console.log('🔄 Data length change effect triggered:', {
+      isValidData,
+      dataLength: chartState.data.length,
+      allDataLength: chartState.allData.length,
+      chartLoaded: chartState.chartLoaded,
+      manualRenderInProgress: manualRenderInProgressRef.current,
+    });
+
+    if (manualRenderInProgressRef.current) {
+      console.log('⏭️ Skipping React effect - manual render in progress');
+      return;
+    }
+
     if (!isValidData || !chartState.data.length || !chartState.chartLoaded) {
+      console.log('❌ Early return from data length effect');
       return;
     }
     if (svgRef.current) {
@@ -1109,6 +1208,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               zoomBehaviorRef.current = behavior;
             },
             getFixedYScaleDomain: () => fixedYScaleDomainRef.current,
+            getCurrentData: () => currentDataRef.current,
           },
           chartState,
           bufferRangeRef: currentBufferRangeRef,
