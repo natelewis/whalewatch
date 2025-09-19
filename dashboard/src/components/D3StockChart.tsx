@@ -292,18 +292,18 @@ const createChart = ({
   // This ensures the same scale is used for both initial load and pan/zoom
 
   // Create X-axis using the same approach as pan/zoom for consistency
-  // Add safety check to prevent error when sortedData is empty
-  if (sortedData.length === 0) {
-    console.warn('createIndexToTimeScale called with empty sortedData in initial render');
+  // Add safety check to prevent error when allChartData is empty
+  if (allChartData.length === 0) {
+    console.warn('createIndexToTimeScale called with empty allChartData in initial render');
     return;
   }
-  const initialTimeScale = createIndexToTimeScale(xScale, sortedData);
-  const timeBasedTickValues = calculateTimeBasedTickValues(sortedData, 20);
+  const initialTimeScale = createIndexToTimeScale(xScale, allChartData);
+  const timeBasedTickValues = calculateTimeBasedTickValues(allChartData, 20);
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createXAxis(initialTimeScale, sortedData, timeBasedTickValues));
+    .call(createXAxis(initialTimeScale, allChartData, timeBasedTickValues));
 
   // Create Y-axis
   const yAxis = g
@@ -345,7 +345,7 @@ const createChart = ({
 
     // Get the current data from the callback to avoid stale closure issues
     const currentData = stateCallbacks.getCurrentData?.();
-    
+
     // Early return if no valid data - prevents errors during panning
     if (!currentData || currentData.length === 0) {
       console.warn('handleZoom called with empty currentData, skipping zoom processing', {
@@ -357,7 +357,7 @@ const createChart = ({
 
     // Get current dimensions from the callback to avoid stale closure issues
     const currentDimensions = stateCallbacks.getCurrentDimensions?.();
-    
+
     // Early return if no valid dimensions
     if (!currentDimensions) {
       console.warn('handleZoom called with no dimensions, skipping zoom processing');
@@ -389,7 +389,7 @@ const createChart = ({
     // Update X-axis using time-based scale that aligns with candlesticks
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
-      const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
+      const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
 
       // Create time-based scale that maps data indices to screen coordinates
       const indexToTimeScale = createIndexToTimeScale(calculations.transformedXScale, currentData);
@@ -947,7 +947,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     currentDimensionsRef.current = chartState.dimensions;
   }, [chartState.dimensions]);
-  
+
   // Update data ref when chart data changes
   useEffect(() => {
     currentDataRef.current = chartState.allData;
