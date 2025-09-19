@@ -33,8 +33,8 @@ const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 const BUFFER_SIZE_MULTIPLIER = 0.75; // Buffer size as percentage of chart data points
 const MIN_BUFFER_SIZE = 30; // Minimum buffer size in data points
 const MARGIN_SIZE = 10; // Fixed margin size in data points for re-render detection
-const LEGACY_BUFFER_SIZE_MULTIPLIER = 0.5; // Legacy buffer size for candlestick rendering
-const MIN_LEGACY_BUFFER_SIZE = 20; // Minimum legacy buffer size
+const CANDLESTICK_BUFFER_SIZE_MULTIPLIER = 30; // Buffer size for candlestick rendering
+const MIN_CANDLESTICK_BUFFER_SIZE = 10; // Minimum buffer size for candlestick rendering
 
 // Zoom and scale constants
 const ZOOM_SCALE_MIN = 0.5; // Minimum zoom scale
@@ -556,8 +556,8 @@ const renderCandlestickChart = (
   // Render candles with a buffer around the visible viewport for smooth panning
   // This provides a good balance between performance and smooth interaction
   const bufferSize = Math.max(
-    MIN_LEGACY_BUFFER_SIZE,
-    Math.floor(CHART_DATA_POINTS * LEGACY_BUFFER_SIZE_MULTIPLIER)
+    MIN_CANDLESTICK_BUFFER_SIZE,
+    Math.floor(CHART_DATA_POINTS * CANDLESTICK_BUFFER_SIZE_MULTIPLIER)
   );
   const actualStart = Math.max(0, calculations.viewStart - bufferSize);
   const actualEnd = Math.min(calculations.allData.length - 1, calculations.viewEnd + bufferSize);
