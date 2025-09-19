@@ -162,20 +162,6 @@ const calculateChartState = ({
 };
 // ============================================================================
 
-// Removed useChartScales - now using centralized calculateChartState
-
-// D3 state update callbacks - set by React component
-let d3StateCallbacks: {
-  setIsZooming?: (value: boolean) => void;
-  setCurrentViewStart?: (value: number) => void;
-  setCurrentViewEnd?: (value: number) => void;
-  setHoverData?: (value: any) => void;
-  setChartLoaded?: (value: boolean) => void;
-  setFixedYScaleDomain?: (value: [number, number] | null) => void;
-  setChartExists?: (value: boolean) => void;
-  forceRerender?: () => void;
-} = {};
-
 // Create D3 chart - Pure D3 function with no React dependencies
 const createChart = ({
   svgElement,
@@ -184,7 +170,6 @@ const createChart = ({
   yScale,
   visibleData,
   dimensions,
-  fixedYScaleDomain: _fixedYScaleDomain,
   stateCallbacks,
   chartState,
 }: {
@@ -194,15 +179,21 @@ const createChart = ({
   yScale: d3.ScaleLinear<number, number>;
   visibleData: ChartData;
   dimensions: ChartDimensions;
-  fixedYScaleDomain: [number, number] | null;
   stateCallbacks: {
     setIsZooming?: (value: boolean) => void;
     setCurrentViewStart?: (value: number) => void;
     setCurrentViewEnd?: (value: number) => void;
-    setHoverData?: (value: any) => void;
+    setHoverData?: (
+      value: {
+        x: number;
+        y: number;
+        data: { time: string; open: number; high: number; low: number; close: number };
+      } | null
+    ) => void;
     setChartLoaded?: (value: boolean) => void;
     setFixedYScaleDomain?: (value: [number, number] | null) => void;
     setChartExists?: (value: boolean) => void;
+    setCurrentTransform?: (value: d3.ZoomTransform) => void;
     forceRerender?: () => void;
   };
   chartState: {
@@ -235,9 +226,6 @@ const createChart = ({
     });
     return;
   }
-
-  // Set up state callbacks for D3 to communicate with React
-  d3StateCallbacks = stateCallbacks;
 
   if (stateCallbacks.setChartExists) {
     stateCallbacks.setChartExists(true);
@@ -304,6 +292,11 @@ const createChart = ({
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
     const { transform } = event;
 
+    // Update current transform for debugging
+    if (stateCallbacks.setCurrentTransform) {
+      stateCallbacks.setCurrentTransform(transform);
+    }
+
     // Single source of truth for all calculations
     const calculations = calculateChartState({
       dimensions,
@@ -326,10 +319,11 @@ const createChart = ({
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
-    // Update X-axis using the same transformed scale as candlesticks
+    // Update X-axis using transformedXScale but without additional transform
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(dimensions);
+      // Use transformedXScale and let it handle all positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       xAxisGroup.call(createXAxis(calculations.transformedXScale, allChartData));
 
@@ -416,17 +410,6 @@ const createChart = ({
 
       const clampedIndex = clampIndex(index, sortedChartData.length);
       const d = sortedChartData[clampedIndex];
-
-      // Debug logging to verify hover data is updating
-      console.log('Hover debug:', {
-        mouseX,
-        mouseIndex,
-        index,
-        clampedIndex,
-        dataPoint: d
-          ? { time: d.time, open: d.open, high: d.high, low: d.low, close: d.close }
-          : null,
-      });
 
       if (d) {
         // Update crosshair to follow cursor position exactly
@@ -585,6 +568,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Local state for timeframe management
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
+
+  // Local state for current transform (for debugging)
+  const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
 
   // Centralized calculations will be used instead of useChartScales
 
@@ -828,7 +814,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           yScale: calculations.baseYScale,
           visibleData: chartState.data,
           dimensions: chartState.dimensions,
-          fixedYScaleDomain: chartState.fixedYScaleDomain,
           stateCallbacks: {
             setIsZooming: chartActions.setIsZooming,
             setCurrentViewStart: chartActions.setCurrentViewStart,
@@ -837,6 +822,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             setChartLoaded: chartActions.setChartLoaded,
             setFixedYScaleDomain: chartActions.setFixedYScaleDomain,
             setChartExists: chartActions.setChartExists,
+            setCurrentTransform: setCurrentTransform,
             forceRerender,
           },
           chartState,
@@ -996,12 +982,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         )}
       </div>
 
-      {/* Chart Footer */}
+      {/* Chart Footer - Debug Information */}
       <div className="p-4 border-t border-border">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
-            <span>Total data: {chartState.allData.length}</span>
-            <span>Displaying: {CHART_DATA_POINTS} points</span>
+            {/* Data Information */}
+            <span>Total: {chartState.allData.length}</span>
+            <span>Visible: {CHART_DATA_POINTS}</span>
+            <span>Buffer: {OUTSIDE_BUFFER * 2}</span>
             <span>
               View:{' '}
               {(() => {
@@ -1011,27 +999,100 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                   chartState.currentViewEnd
                 );
                 const actualPoints = actualEnd - actualStart + 1;
-                return `${actualStart}-${actualEnd} (${actualPoints} points)`;
+                return `${Math.round(actualStart)}-${Math.round(actualEnd)} (${Math.round(
+                  actualPoints
+                )})`;
               })()}
             </span>
-            <span>Interval: {timeframe || 'Loading...'}</span>
+            <span>TF: {timeframe || 'Loading...'}</span>
+            <span>Pan: {Math.round(currentTransform?.x || 0)}px</span>
           </div>
-          <div className="flex items-center space-x-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                chartState.isLive ? 'bg-green-500' : 'bg-gray-500'
-              }`}
-            ></div>
-            <span>{chartState.isLive ? 'Live data (auto-enabled)' : 'Historical data'}</span>
+          <div className="flex items-center space-x-4">
+            {/* Chart State Information */}
+            <div className="flex items-center space-x-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  chartState.chartLoaded ? 'bg-green-500' : 'bg-gray-500'
+                }`}
+              ></div>
+              <span>{chartState.chartLoaded ? 'Chart Ready' : 'Loading...'}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  chartState.isLive ? 'bg-green-500' : 'bg-gray-500'
+                }`}
+              ></div>
+              <span>{chartState.isLive ? 'Live' : 'Historical'}</span>
+            </div>
+            {chartState.isZooming && (
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-blue-500">Zooming</span>
+              </div>
+            )}
             {isAtRightEdge && !chartState.isLive && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                <span className="text-xs text-yellow-500">Live mode will activate</span>
+                <span className="text-xs text-yellow-500">Auto-live</span>
               </div>
             )}
-            <span className="text-xs text-muted-foreground">(D3.js powered)</span>
+            <span className="text-xs text-muted-foreground">D3.js</span>
           </div>
         </div>
+
+        {/* Additional Debug Information - Collapsible */}
+        <details className="mt-2">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+            Debug Details
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-4 text-xs text-muted-foreground">
+            <div>
+              <div className="font-medium text-foreground mb-1">Data State</div>
+              <div>Valid Data: {isValidData ? '✓' : '✗'}</div>
+              <div>Chart Exists: {chartState.chartExists ? '✓' : '✗'}</div>
+              <div>Data Length: {chartState.data.length}</div>
+              <div>All Data Length: {chartState.allData.length}</div>
+            </div>
+            <div>
+              <div className="font-medium text-foreground mb-1">View State</div>
+              <div>View Start: {chartState.currentViewStart}</div>
+              <div>View End: {chartState.currentViewEnd}</div>
+              <div>At Right Edge: {isAtRightEdge ? '✓' : '✗'}</div>
+              <div>Y-Scale Fixed: {chartState.fixedYScaleDomain ? '✓' : '✗'}</div>
+            </div>
+            <div>
+              <div className="font-medium text-foreground mb-1">Buffer System</div>
+              <div>Outside Buffer: {OUTSIDE_BUFFER}</div>
+              <div>Total Buffered: {TOTAL_BUFFERED_POINTS}</div>
+              <div>Chart Points: {CHART_DATA_POINTS}</div>
+              <div>
+                Buffer Ratio: {(((OUTSIDE_BUFFER * 2) / CHART_DATA_POINTS) * 100).toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-foreground mb-1">Dimensions</div>
+              <div>Width: {Math.round(chartState.dimensions.width)}</div>
+              <div>Height: {Math.round(chartState.dimensions.height)}</div>
+              <div>
+                Inner W:{' '}
+                {Math.round(
+                  chartState.dimensions.width -
+                    chartState.dimensions.margin.left -
+                    chartState.dimensions.margin.right
+                )}
+              </div>
+              <div>
+                Inner H:{' '}
+                {Math.round(
+                  chartState.dimensions.height -
+                    chartState.dimensions.margin.top -
+                    chartState.dimensions.margin.bottom
+                )}
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   );
