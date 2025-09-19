@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import * as d3 from 'd3';
 import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS, ChartDimensions } from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
@@ -187,6 +187,8 @@ const createChart = ({
   stateCallbacks,
   chartState,
   bufferRangeRef,
+  isPanningRef,
+  onBufferedCandlesRendered,
 }: {
   svgElement: SVGSVGElement;
   allChartData: ChartData;
@@ -220,6 +222,8 @@ const createChart = ({
     chartLoaded: boolean;
   };
   bufferRangeRef: React.MutableRefObject<{ start: number; end: number } | null>;
+  isPanningRef: React.MutableRefObject<boolean>;
+  onBufferedCandlesRendered?: () => void;
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation');
@@ -317,6 +321,7 @@ const createChart = ({
     if (stateCallbacks.setIsZooming) {
       stateCallbacks.setIsZooming(true);
     }
+    isPanningRef.current = true;
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -488,6 +493,11 @@ const createChart = ({
       });
       renderCandlestickChart(svgElement, calculations);
 
+      // Trigger data loading callback when buffered candles are rendered during panning
+      if (onBufferedCandlesRendered) {
+        onBufferedCandlesRendered();
+      }
+
       // Update buffer range tracking with smart boundary-aware buffer
       const atDataStart = currentViewStart <= marginSize; // Within margin of data start
       const atDataEnd = currentViewEnd >= dataLength - marginSize; // Within margin of data end
@@ -526,6 +536,7 @@ const createChart = ({
     if (stateCallbacks.setIsZooming) {
       stateCallbacks.setIsZooming(false);
     }
+    isPanningRef.current = false;
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -862,6 +873,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Track current buffer range to know when to re-render (use ref to avoid stale closures)
   const currentBufferRangeRef = useRef<{ start: number; end: number } | null>(null);
 
+  // Track if we're currently in a panning operation to prevent infinite loops
+  const isPanningRef = useRef(false);
+
   // Store reference to the zoom behavior for programmatic control
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
@@ -882,6 +896,90 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     currentDimensionsRef.current = chartState.dimensions;
   }, [chartState.dimensions]);
+
+  // Function to automatically load more data when buffered candles are rendered
+  const loadMoreDataOnBufferedRender = useCallback((): void => {
+    if (timeframe === null) {
+      console.warn('Cannot auto-load more data: no timeframe selected');
+      return;
+    }
+
+    // Only load more data if we haven't reached the maximum yet
+    if (experimentDataPoints >= 500) {
+      console.log('📊 Max data points reached, skipping auto-load');
+      return;
+    }
+
+    const newDataPoints = Math.min(experimentDataPoints + 20, 500); // Increase by 20 points each time, max 500
+    setExperimentDataPoints(newDataPoints);
+
+    console.log('🔄 Auto-loading more historical data on buffered render:', {
+      currentPoints: experimentDataPoints,
+      newPoints: newDataPoints,
+      symbol,
+      timeframe,
+    });
+
+    // Use the API service directly with the increased data points
+    apiService
+      .getChartData(symbol, timeframe, newDataPoints, undefined, DATA_PRELOAD_BUFFER)
+      .then((response) => {
+        const { formattedData } = processChartData(response.bars);
+
+        console.log('📊 Auto-load before setAllData:', {
+          currentAllDataLength: chartState.allData.length,
+          newFormattedDataLength: formattedData.length,
+        });
+
+        chartActions.setAllData(formattedData);
+
+        // Update the data ref immediately to avoid stale closure issues
+        currentDataRef.current = formattedData;
+
+        console.log('✅ Successfully auto-loaded more data:', {
+          newDataLength: formattedData.length,
+          dataPoints: newDataPoints,
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to auto-load more data:', error);
+        // Revert the data points on error
+        setExperimentDataPoints(experimentDataPoints);
+      });
+  }, [timeframe, experimentDataPoints, symbol, chartState.allData.length, chartActions]);
+
+  // Wrapper function that renders candlesticks and triggers data loading for non-panning cases
+  const renderCandlestickChartWithCallback = useCallback(
+    (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
+      renderCandlestickChart(svgElement, calculations);
+
+      // For non-panning cases, only trigger data loading if viewing historical data
+      const totalDataLength = calculations.allData.length;
+      // 10 point buffer from right edge
+      const isViewingHistoricalData = calculations.viewEnd < totalDataLength - 10;
+      const isCurrentlyPanning = isPanningRef.current;
+
+      // Only auto-load for non-panning cases when viewing historical data
+      if (!isCurrentlyPanning && isViewingHistoricalData) {
+        console.log('🔄 Triggering auto-load for historical data view (non-panning):', {
+          viewEnd: calculations.viewEnd,
+          totalDataLength,
+          isViewingHistoricalData,
+          isCurrentlyPanning,
+        });
+        loadMoreDataOnBufferedRender();
+      } else {
+        console.log('⏭️ Skipping auto-load (non-panning):', {
+          viewEnd: calculations.viewEnd,
+          totalDataLength,
+          isViewingHistoricalData,
+          isCurrentlyPanning,
+          reason: isCurrentlyPanning ? 'panning (handled elsewhere)' : 'viewing recent data',
+        });
+      }
+    },
+    [loadMoreDataOnBufferedRender]
+  );
 
   // Function to fetch more historical data
   const fetchMoreData = (): void => {
@@ -981,7 +1079,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           }
 
           // Re-render with fresh data
-          renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
+          renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
 
           console.log('✅ Immediate re-render completed with fresh data:', {
             allDataLength: calculations.allData.length,
@@ -1088,7 +1186,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       }
 
       // Re-render candlesticks with the new view
-      renderCandlestickChart(svgRef.current as SVGSVGElement, calculations);
+      renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
 
       // Update buffer range with smart boundary-aware buffer
       const bufferSize = Math.max(
@@ -1367,7 +1465,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       // Only render candlesticks on initial data load
       // Subsequent renders are handled by the zoom handler
 
-      renderCandlestickChart(svgRef.current as SVGSVGElement, finalCalculations);
+      renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, finalCalculations);
 
       // Set initial buffer range with smart boundary-aware buffer
       const bufferSize = Math.max(
@@ -1480,6 +1578,8 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             chartLoaded: chartState.chartLoaded,
           },
           bufferRangeRef: currentBufferRangeRef,
+          isPanningRef: isPanningRef,
+          onBufferedCandlesRendered: loadMoreDataOnBufferedRender,
         });
       }
     }
