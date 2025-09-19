@@ -229,48 +229,6 @@ export const createIndexToTimeScale = (
 };
 
 /**
- * Get the average time step between data points
- * This is used to extrapolate time values beyond the actual data
- */
-const getAverageTimeStep = (allChartData: { time: string }[]): number => {
-  if (allChartData.length < 2) {
-    // If we have less than 2 data points, assume 1 minute intervals
-    return 60 * 1000; // 1 minute in milliseconds
-  }
-
-  const firstTime = new Date(allChartData[0].time).getTime();
-  const lastTime = new Date(allChartData[allChartData.length - 1].time).getTime();
-
-  // Calculate average time step in milliseconds
-  return (lastTime - firstTime) / (allChartData.length - 1);
-};
-
-/**
- * Interpolate time value at a fractional data index
- * This ensures precise mapping between data indices and time values
- */
-const interpolateTimeAtIndex = (allChartData: { time: string }[], index: number): Date => {
-  const floorIndex = Math.floor(index);
-  const ceilIndex = Math.ceil(index);
-
-  if (floorIndex === ceilIndex) {
-    // Exact index, return the time directly
-    return new Date(allChartData[floorIndex]?.time || allChartData[0].time);
-  }
-
-  // Interpolate between the two adjacent data points
-  const floorTime = new Date(allChartData[floorIndex]?.time || allChartData[0].time).getTime();
-  const ceilTime = new Date(
-    allChartData[ceilIndex]?.time || allChartData[allChartData.length - 1].time
-  ).getTime();
-
-  const fraction = index - floorIndex;
-  const interpolatedTime = floorTime + (ceilTime - floorTime) * fraction;
-
-  return new Date(interpolatedTime);
-};
-
-/**
  * Create X-axis with time-based scale configuration
  */
 export const createXAxis = (
