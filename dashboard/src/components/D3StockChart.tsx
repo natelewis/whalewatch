@@ -601,8 +601,8 @@ const createChart = ({
       const mouseIndex = transformedXScale.invert(mouseX);
       const index = Math.round(mouseIndex);
 
-      // Use the full data (already sorted from chartDataUtils.processChartData)
-      const sortedChartData = allChartData;
+      // Get fresh data from callback to avoid stale closure issues
+      const sortedChartData = stateCallbacks.getCurrentData?.() || allChartData;
 
       if (!isValidChartData(sortedChartData)) {
         return;
@@ -1358,6 +1358,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     if (timeframe !== null && !isLoadingDataRef.current) {
       chartActions.resetChart(); // Reset chart state for new symbol/timeframe
       chartActions.setTimeframe(timeframe);
+      chartCreatedRef.current = false; // Allow chart recreation for new timeframe
 
       console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
       isLoadingDataRef.current = true;
@@ -1698,7 +1699,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     if (
       isValidData &&
       chartState.currentViewEnd > 0 &&
-      chartState.data.length > 0 &&
       chartState.allData.length > 0 &&
       !chartState.chartExists
     ) {
@@ -1716,7 +1716,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     if (
       isValidData &&
       chartState.currentViewEnd > 0 &&
-      chartState.data.length > 0 &&
       chartState.allData.length > 0 &&
       !chartState.chartExists
     ) {
@@ -1788,7 +1787,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           allChartData: chartState.allData, // This will be updated via getCurrentData
           xScale: calculations.baseXScale,
           yScale: calculations.baseYScale,
-          visibleData: chartState.data,
+          visibleData: calculations.visibleData, // Use calculated visible data instead of chartState.data
           dimensions: dimensionsToUse,
           stateCallbacks: {
             setIsZooming: chartActions.setIsZooming,
@@ -1827,11 +1826,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     chartState.currentViewStart,
     chartState.currentViewEnd,
     chartState.dimensions,
-    chartState.data,
     chartState.fixedYScaleDomain,
     chartState.chartExists,
     isValidData,
-  ]); // Removed chartActions
+  ]); // Removed chartState.data and chartActions to prevent infinite loops
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
