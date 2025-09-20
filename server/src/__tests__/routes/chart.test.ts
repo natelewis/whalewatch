@@ -52,16 +52,17 @@ describe('Chart Routes', () => {
       },
     ];
 
-    it('should return chart data with both start_time and end_time', async () => {
+    it('should return chart data with start_time and direction', async () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       const response = await request(app)
-        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z')
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('symbol', 'AAPL');
       expect(response.body).toHaveProperty('interval', '1h');
+      expect(response.body).toHaveProperty('direction', 'past');
       expect(response.body).toHaveProperty('bars');
       expect(response.body).toHaveProperty('data_source', 'questdb');
       expect(response.body).toHaveProperty('success', true);
@@ -69,63 +70,49 @@ describe('Chart Routes', () => {
       expect(response.body.bars.length).toBeGreaterThan(0);
     });
 
-    it('should require both start_time and end_time parameters', async () => {
-      // Test missing start_time
-      const response1 = await request(app)
-        .get('/api/chart/AAPL?end_time=2024-01-01T12:00:00Z')
+    it('should use current time as default start_time when not provided', async () => {
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+
+      const response = await request(app)
+        .get('/api/chart/AAPL?direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
-      expect(response1.status).toBe(400);
-      expect(response1.body).toHaveProperty('error', 'start_time parameter is required');
-
-      // Test missing end_time
-      const response2 = await request(app)
-        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response2.status).toBe(400);
-      expect(response2.body).toHaveProperty('error', 'end_time parameter is required');
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('symbol', 'AAPL');
+      expect(response.body).toHaveProperty('direction', 'past');
     });
 
-    it('should validate that start_time is before end_time', async () => {
+    it('should validate direction parameter', async () => {
       const response = await request(app)
-        .get('/api/chart/AAPL?start_time=2024-01-01T12:00:00Z&end_time=2024-01-01T10:00:00Z')
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=invalid')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'start_time must be before end_time');
+      expect(response.body).toHaveProperty('error', 'direction must be either "past" or "future"');
     });
 
     it('should validate timestamp formats', async () => {
       // Test invalid start_time format
-      const response1 = await request(app)
-        .get('/api/chart/AAPL?start_time=invalid&end_time=2024-01-01T12:00:00Z')
+      const response = await request(app)
+        .get('/api/chart/AAPL?start_time=invalid&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
-      expect(response1.status).toBe(400);
-      expect(response1.body).toHaveProperty('error', 'start_time must be a valid ISO timestamp');
-
-      // Test invalid end_time format
-      const response2 = await request(app)
-        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=invalid')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response2.status).toBe(400);
-      expect(response2.body).toHaveProperty('error', 'end_time must be a valid ISO timestamp');
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'start_time must be a valid ISO timestamp');
     });
 
-    it('should use both start_time and end_time in QuestDB query', async () => {
+    it('should use calculated time range in QuestDB query based on direction', async () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       await request(app)
-        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z')
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&limit=100')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: '2024-01-01T10:00:00.000Z',
-          end_time: '2024-01-01T12:00:00.000Z',
+          start_time: expect.any(String),
+          end_time: '2024-01-01T10:00:00.000Z',
           order_by: 'timestamp',
           order_direction: 'ASC',
         })
@@ -137,9 +124,7 @@ describe('Chart Routes', () => {
 
       // Test 1 hour timeframe
       await request(app)
-        .get(
-          '/api/chart/AAPL?interval=1h&start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z'
-        )
+        .get('/api/chart/AAPL?interval=1h&start_time=2024-01-01T10:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
@@ -152,9 +137,7 @@ describe('Chart Routes', () => {
 
       // Test 1 week timeframe
       await request(app)
-        .get(
-          '/api/chart/AAPL?interval=1w&start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z'
-        )
+        .get('/api/chart/AAPL?interval=1w&start_time=2024-01-01T10:00:00Z&direction=future')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
@@ -166,20 +149,18 @@ describe('Chart Routes', () => {
       );
     });
 
-    it('should use provided start_time and end_time when available', async () => {
+    it('should use provided start_time when available', async () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       await request(app)
-        .get(
-          '/api/chart/AAPL?interval=1d&start_time=2024-01-01T00:00:00Z&end_time=2024-01-01T23:59:59Z'
-        )
+        .get('/api/chart/AAPL?interval=1d&start_time=2024-01-01T00:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: '2024-01-01T00:00:00.000Z',
-          end_time: '2024-01-01T23:59:59.000Z',
+          start_time: expect.any(String),
+          end_time: '2024-01-01T00:00:00.000Z',
         })
       );
     });
@@ -188,7 +169,7 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app)
-        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z')
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(500);
@@ -201,11 +182,11 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       const response = await request(app)
-        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z')
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body.bars).toHaveLength(2);
+      expect(response.body.bars).toHaveLength(1);
       expect(response.body.bars[0]).toEqual({
         t: '2024-01-01T10:00:00.000Z',
         o: 100.0,
@@ -259,9 +240,7 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(minuteBars as any);
 
       const response = await request(app)
-        .get(
-          '/api/chart/AAPL?interval=1h&start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z'
-        )
+        .get('/api/chart/AAPL?interval=1h&start_time=2024-01-01T10:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
@@ -281,7 +260,7 @@ describe('Chart Routes', () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       await request(app)
-        .get('/api/chart/aapl?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z')
+        .get('/api/chart/aapl?start_time=2024-01-01T10:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
@@ -295,7 +274,7 @@ describe('Chart Routes', () => {
 
       const response = await request(app)
         .get(
-          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=true&view_size=50'
+          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1h&limit=100&view_based_loading=true&view_size=50'
         )
         .set('Authorization', `Bearer ${authToken}`);
 
@@ -324,7 +303,7 @@ describe('Chart Routes', () => {
 
       const response = await request(app)
         .get(
-          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z&interval=1h&data_points=50&view_based_loading=true&view_size=50'
+          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1h&limit=50&view_based_loading=true&view_size=50'
         )
         .set('Authorization', `Bearer ${authToken}`);
 
@@ -337,7 +316,7 @@ describe('Chart Routes', () => {
     it('should validate view_size parameter', async () => {
       const response = await request(app)
         .get(
-          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=true&view_size=0'
+          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1h&limit=100&view_based_loading=true&view_size=0'
         )
         .set('Authorization', `Bearer ${authToken}`);
 
@@ -345,12 +324,12 @@ describe('Chart Routes', () => {
       expect(response.body).toHaveProperty('error', 'view_size must be a positive integer');
     });
 
-    it('should default view_size to data_points when not provided', async () => {
+    it('should default view_size to limit when not provided', async () => {
       mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
 
       const response = await request(app)
         .get(
-          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=true'
+          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1h&limit=100&view_based_loading=true'
         )
         .set('Authorization', `Bearer ${authToken}`);
 
@@ -363,14 +342,13 @@ describe('Chart Routes', () => {
 
       const response = await request(app)
         .get(
-          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&end_time=2024-01-01T12:00:00Z&interval=1h&data_points=100&view_based_loading=false&buffer_points=20'
+          '/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1h&limit=100&view_based_loading=false'
         )
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('view_based_loading', false);
-      expect(response.body).toHaveProperty('buffer_points', 20);
-      expect(response.body.bars).toHaveLength(2); // Only the mock data, no view-based expansion
+      expect(response.body.bars).toHaveLength(1); // Only the mock data, no view-based expansion
     });
   });
 });

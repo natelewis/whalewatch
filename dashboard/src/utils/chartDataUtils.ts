@@ -17,7 +17,7 @@ export interface DataRange {
 export interface TimeframeConfig {
   value: ChartTimeframe;
   label: string;
-  dataPoints: number;
+  limit: number;
 }
 
 /**
@@ -70,7 +70,7 @@ export const getDataPointsForTimeframe = (
   timeframes: TimeframeConfig[]
 ): number => {
   const timeframeConfig = timeframes.find((tf) => tf.value === timeframe);
-  return timeframeConfig?.dataPoints || DEFAULT_CHART_DATA_POINTS;
+  return timeframeConfig?.limit || DEFAULT_CHART_DATA_POINTS;
 };
 
 /**
@@ -250,7 +250,7 @@ export const createXAxis = (
     return axis.tickValues(customTickValues);
   } else {
     // Use the new time-based tick generation for better time distribution
-    const timeBasedTicks = generateTimeBasedTicks(allChartData, 8);
+    const timeBasedTicks = generateTimeBasedTicks(allChartData);
     return axis.tickValues(timeBasedTicks);
   }
 };

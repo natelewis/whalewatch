@@ -77,7 +77,14 @@ export interface ChartActions {
     symbol: string,
     timeframe: ChartTimeframe,
     dataPoints?: number,
-    bufferPoints?: number
+    startTime?: string,
+    direction?: 'past' | 'future'
+  ) => Promise<void>;
+  loadMoreData: (
+    symbol: string,
+    timeframe: ChartTimeframe,
+    direction: 'past' | 'future',
+    dataPoints?: number
   ) => Promise<void>;
   updateChartWithLiveData: (bar: any) => void; // AlpacaBar type
 
@@ -125,6 +132,23 @@ const DEFAULT_TRANSFORM: ChartTransform = {
 };
 
 const DEFAULT_DATA_POINTS = 80;
+
+/**
+ * Calculate buffer size based on chart dimensions and data points to show
+ */
+function calculateBufferSize(dataPointsToShow: number, chartWidth: number): number {
+  // Calculate how many data points fit in the visible area
+  const pointsPerPixel = dataPointsToShow / chartWidth;
+
+  // Add buffer for smooth scrolling - typically 1-2 screen widths worth of data
+  const bufferMultiplier = 2;
+  const bufferPoints = Math.ceil(chartWidth * pointsPerPixel * bufferMultiplier);
+
+  // Ensure minimum buffer size
+  const minBuffer = Math.max(50, dataPointsToShow);
+
+  return Math.max(bufferPoints, minBuffer);
+}
 
 /**
  * Consolidated chart state management hook
@@ -300,25 +324,24 @@ export const useChartStateManager = (
       symbol: string,
       timeframe: ChartTimeframe,
       dataPoints: number = DEFAULT_CHART_DATA_POINTS,
-      bufferPoints: number = 20
+      startTime?: string,
+      direction: 'past' | 'future' = 'past'
     ) => {
       try {
         setIsLoading(true);
         setError(null);
 
-        // Calculate start time based on timeframe and data points
-        const intervalMs = getIntervalMs(timeframe);
-        const endTime = new Date();
-        const startTime = new Date(endTime.getTime() - dataPoints * intervalMs);
+        // Calculate buffer size for smooth rendering
+        const bufferSize = calculateBufferSize(dataPoints, state.dimensions.width);
+        const totalDataPoints = dataPoints + bufferSize;
 
-        // Load chart data from API
+        // Load chart data from API with new parameters
         const response = await apiService.getChartData(
           symbol,
           timeframe,
-          dataPoints,
-          startTime.toISOString(),
-          endTime.toISOString(),
-          bufferPoints
+          totalDataPoints,
+          startTime, // If not provided, API will use current time
+          direction
         );
 
         // Process the data using utility functions
@@ -328,6 +351,7 @@ export const useChartStateManager = (
           symbol,
           timeframe,
           dataPoints,
+          direction,
           barsCount: response.bars?.length || 0,
           formattedDataLength: formattedData.length,
           dataRange,
@@ -338,8 +362,21 @@ export const useChartStateManager = (
         setDataPointsToShow(dataPoints);
         setSymbol(symbol);
         setTimeframe(timeframe);
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.error || 'Failed to load chart data';
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to load chart data';
+        if (err instanceof Error) {
+          if (
+            'response' in err &&
+            err.response &&
+            typeof err.response === 'object' &&
+            'data' in err.response
+          ) {
+            const responseData = err.response.data as { error?: string };
+            errorMessage = responseData.error || errorMessage;
+          } else {
+            errorMessage = err.message;
+          }
+        }
         setError(errorMessage);
         console.error('Error loading chart data:', errorMessage);
       } finally {
@@ -347,6 +384,107 @@ export const useChartStateManager = (
       }
     },
     [setIsLoading, setError, setAllData, setDataPointsToShow, setSymbol, setTimeframe]
+  );
+
+  const loadMoreData = useCallback(
+    async (
+      symbol: string,
+      timeframe: ChartTimeframe,
+      direction: 'past' | 'future',
+      dataPoints: number = DEFAULT_CHART_DATA_POINTS
+    ) => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Determine start time based on current data and direction
+        let startTime: string;
+        if (direction === 'past') {
+          // For past data, start from the earliest data point we have
+          const earliestData = state.allData[0];
+          if (!earliestData) {
+            throw new Error('No existing data to load more past data from');
+          }
+          startTime = earliestData.time;
+        } else {
+          // For future data, start from the latest data point we have
+          const latestData = state.allData[state.allData.length - 1];
+          if (!latestData) {
+            throw new Error('No existing data to load more future data from');
+          }
+          startTime = latestData.time;
+        }
+
+        // Calculate buffer size for smooth rendering
+        const bufferSize = calculateBufferSize(dataPoints, state.dimensions.width);
+        const totalDataPoints = dataPoints + bufferSize;
+
+        // Load more chart data from API
+        const response = await apiService.getChartData(
+          symbol,
+          timeframe,
+          totalDataPoints,
+          startTime,
+          direction
+        );
+
+        // Process the new data
+        const { formattedData } = processChartData(response.bars);
+
+        console.log('Loading more data:', {
+          symbol,
+          timeframe,
+          direction,
+          dataPoints,
+          newBarsCount: response.bars?.length || 0,
+          newFormattedDataLength: formattedData.length,
+        });
+
+        // Merge new data with existing data
+        let updatedAllData: CandlestickData[];
+        if (direction === 'past') {
+          // For past data, prepend to existing data
+          updatedAllData = [...formattedData, ...state.allData];
+        } else {
+          // For future data, append to existing data
+          updatedAllData = [...state.allData, ...formattedData];
+        }
+
+        // Remove duplicates based on timestamp
+        const uniqueData = updatedAllData.reduce((acc, current) => {
+          const existing = acc.find((item) => item.time === current.time);
+          if (!existing) {
+            acc.push(current);
+          }
+          return acc;
+        }, [] as CandlestickData[]);
+
+        // Sort by timestamp to maintain chronological order
+        uniqueData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        setAllData(uniqueData);
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to load more chart data';
+        if (err instanceof Error) {
+          if (
+            'response' in err &&
+            err.response &&
+            typeof err.response === 'object' &&
+            'data' in err.response
+          ) {
+            const responseData = err.response.data as { error?: string };
+            errorMessage = responseData.error || errorMessage;
+          } else {
+            errorMessage = err.message;
+          }
+        }
+        setError(errorMessage);
+        console.error('Error loading more chart data:', errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [state.allData, setIsLoading, setError, setAllData]
   );
 
   const updateChartWithLiveData = useCallback((bar: any) => {
@@ -402,6 +540,7 @@ export const useChartStateManager = (
     addDataPoint,
     updateData,
     loadChartData,
+    loadMoreData,
     updateChartWithLiveData,
     setTransform,
     updateTransform,

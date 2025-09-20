@@ -299,18 +299,18 @@ export interface ApiResponse<T> {
 export interface ChartDataResponse {
   symbol: string;
   interval: string;
-  data_points: number;
-  buffer_points?: number;
+  limit: number;
+  direction: 'past' | 'future';
   view_based_loading?: boolean;
   view_size?: number;
   bars: AlpacaBar[];
   data_source: string;
   success: boolean;
   query_params: {
-    end_time: string;
+    start_time: string;
+    direction: 'past' | 'future';
     interval: string;
-    requested_data_points: number;
-    buffer_points?: number;
+    requested_limit: number;
     view_based_loading?: boolean;
     view_size?: number;
   };

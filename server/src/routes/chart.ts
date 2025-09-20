@@ -26,12 +26,11 @@ export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
  */
 interface ChartQueryParams {
   startTime: string; // ISO timestamp
-  endTime: string; // ISO timestamp
+  direction: 'past' | 'future'; // Direction to load data from start_time
   interval: AggregationInterval;
-  dataPoints: number; // Number of data points to return
-  bufferPoints?: number; // Additional buffer points to load
+  limit: number; // Number of data points to return
   viewBasedLoading?: boolean; // Enable view-based preloading
-  viewSize?: number; // Size of one view (defaults to dataPoints)
+  viewSize?: number; // Size of one view (defaults to limit)
 }
 
 /**
@@ -54,7 +53,7 @@ function aggregateDataWithIntervals(
 
   const intervalMinutes = getIntervalMinutes(params.interval);
   const intervalMs = intervalMinutes * 60 * 1000;
-  const endTime = new Date(params.endTime).getTime();
+  const startTime = new Date(params.startTime).getTime();
 
   // Sort data by timestamp to ensure proper aggregation
   const sortedData = [...data].sort(
@@ -64,9 +63,25 @@ function aggregateDataWithIntervals(
   // For 1-minute intervals, no aggregation needed - just return the data
   if (intervalMinutes === 1) {
     const totalPointsToCollect = params.viewBasedLoading
-      ? (params.viewSize || params.dataPoints) * 3 // 1 view before + 1 current + 1 after
-      : params.dataPoints + (params.bufferPoints || 0);
-    return sortedData.slice(-totalPointsToCollect);
+      ? (params.viewSize || params.limit) * 3 // 1 view before + 1 current + 1 after
+      : params.limit;
+
+    // Filter data based on direction from start_time
+    const filteredData = sortedData.filter((item) => {
+      const itemTime = new Date(item.timestamp).getTime();
+      if (params.direction === 'past') {
+        return itemTime <= startTime;
+      } else {
+        return itemTime >= startTime;
+      }
+    });
+
+    // Return the appropriate slice based on direction
+    if (params.direction === 'past') {
+      return filteredData.slice(-totalPointsToCollect);
+    } else {
+      return filteredData.slice(0, totalPointsToCollect);
+    }
   }
 
   // Use time-based bucketing for proper aggregation
@@ -80,19 +95,32 @@ function aggregateDataWithIntervals(
     if (!buckets.has(bucketTime)) {
       buckets.set(bucketTime, []);
     }
-    buckets.get(bucketTime)!.push(item);
+    const bucket = buckets.get(bucketTime);
+    if (bucket) {
+      bucket.push(item);
+    }
   }
 
-  // Convert buckets to aggregated data, working backwards from end time
+  // Convert buckets to aggregated data based on direction
   const aggregatedData: QuestDBStockAggregate[] = [];
-  const sortedBuckets = Array.from(buckets.entries())
-    .sort(([a], [b]) => b - a) // Sort descending to work backwards from end time
-    .filter(([bucketTime]) => bucketTime <= endTime); // Only include buckets up to end time
+  let sortedBuckets: [number, QuestDBStockAggregate[]][];
+
+  if (params.direction === 'past') {
+    // For past direction, work backwards from start_time
+    sortedBuckets = Array.from(buckets.entries())
+      .sort(([a], [b]) => b - a) // Sort descending to work backwards
+      .filter(([bucketTime]) => bucketTime <= startTime); // Only include buckets up to start_time
+  } else {
+    // For future direction, work forwards from start_time
+    sortedBuckets = Array.from(buckets.entries())
+      .sort(([a], [b]) => a - b) // Sort ascending to work forwards
+      .filter(([bucketTime]) => bucketTime >= startTime); // Only include buckets from start_time onwards
+  }
 
   let dataPointsCollected = 0;
   const totalPointsToCollect = params.viewBasedLoading
-    ? (params.viewSize || params.dataPoints) * 3 // 1 view before + 1 current + 1 after
-    : params.dataPoints + (params.bufferPoints || 0);
+    ? (params.viewSize || params.limit) * 3 // 1 view before + 1 current + 1 after
+    : params.limit;
 
   for (const [bucketTime, bucketData] of sortedBuckets) {
     if (dataPointsCollected >= totalPointsToCollect) {
@@ -103,7 +131,12 @@ function aggregateDataWithIntervals(
       const aggregated = aggregateGroup(bucketData);
       // Use the bucket time as the timestamp for consistency
       aggregated.timestamp = new Date(bucketTime).toISOString();
-      aggregatedData.unshift(aggregated); // Add to beginning to maintain chronological order
+
+      if (params.direction === 'past') {
+        aggregatedData.unshift(aggregated); // Add to beginning to maintain chronological order
+      } else {
+        aggregatedData.push(aggregated); // Add to end for future direction
+      }
       dataPointsCollected++;
     }
   }
@@ -145,15 +178,15 @@ function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
 // Generate mock data for testing when database is empty
 function generateMockData(
   symbol: string,
-  dataPoints: number,
+  limit: number,
   interval: string
 ): QuestDBStockAggregate[] {
   const mockData: QuestDBStockAggregate[] = [];
   const now = new Date();
   const intervalMs = getIntervalMs(interval);
 
-  for (let i = 0; i < dataPoints; i++) {
-    const timestamp = new Date(now.getTime() - (dataPoints - i - 1) * intervalMs);
+  for (let i = 0; i < limit; i++) {
+    const timestamp = new Date(now.getTime() - (limit - i - 1) * intervalMs);
     const basePrice = 100 + Math.sin(i * 0.1) * 10 + Math.random() * 5;
 
     mockData.push({
@@ -195,10 +228,9 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     const { symbol } = req.params;
     const {
       start_time,
-      end_time,
+      direction = 'past',
       interval = '1h',
-      data_points = process.env.DEFAULT_CHART_DATA_POINTS || '80',
-      buffer_points,
+      limit = process.env.DEFAULT_CHART_DATA_POINTS || '1000',
       view_based_loading,
       view_size,
     } = req.query;
@@ -207,13 +239,9 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Symbol is required' });
     }
 
-    // Validate parameters - both start_time and end_time are required for reliability
-    if (!start_time) {
-      return res.status(400).json({ error: 'start_time parameter is required' });
-    }
-
-    if (!end_time) {
-      return res.status(400).json({ error: 'end_time parameter is required' });
+    // Validate direction parameter
+    if (direction !== 'past' && direction !== 'future') {
+      return res.status(400).json({ error: 'direction must be either "past" or "future"' });
     }
 
     const intervalKey = interval as AggregationInterval;
@@ -225,58 +253,57 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       });
     }
 
-    const dataPoints = parseInt(data_points as string, 10);
-    if (isNaN(dataPoints) || dataPoints <= 0) {
-      return res.status(400).json({ error: 'data_points must be a positive integer' });
-    }
-
-    const bufferPoints = buffer_points ? parseInt(buffer_points as string, 10) : 0;
-    if (bufferPoints < 0) {
-      return res.status(400).json({ error: 'buffer_points must be a non-negative integer' });
+    const limitValue = parseInt(limit as string, 10);
+    if (isNaN(limitValue) || limitValue <= 0) {
+      return res.status(400).json({ error: 'limit must be a positive integer' });
     }
 
     const viewBasedLoading = view_based_loading === 'true';
-    const viewSize = view_size ? parseInt(view_size as string, 10) : dataPoints;
+    const viewSize = view_size ? parseInt(view_size as string, 10) : limitValue;
     if (viewSize <= 0) {
       return res.status(400).json({ error: 'view_size must be a positive integer' });
     }
 
-    // Validate start_time and end_time formats
-    const startTime = new Date(start_time as string);
+    // Use current time as default start_time if not provided
+    const startTime = start_time ? new Date(start_time as string) : new Date();
     if (isNaN(startTime.getTime())) {
       return res.status(400).json({ error: 'start_time must be a valid ISO timestamp' });
     }
 
-    const endTime = new Date(end_time as string);
-    if (isNaN(endTime.getTime())) {
-      return res.status(400).json({ error: 'end_time must be a valid ISO timestamp' });
-    }
-
-    // Validate that start_time is before end_time
-    if (startTime >= endTime) {
-      return res.status(400).json({ error: 'start_time must be before end_time' });
-    }
-
     const chartParams: ChartQueryParams = {
       startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
+      direction: direction as 'past' | 'future',
       interval: intervalKey,
-      dataPoints: dataPoints,
-      bufferPoints: bufferPoints,
+      limit: limitValue,
       viewBasedLoading: viewBasedLoading,
       viewSize: viewSize,
     };
 
     console.log(
-      `🔍 DEBUG: Querying ${symbol} from ${startTime.toISOString()} to ${endTime.toISOString()} with ${intervalKey} intervals, requesting ${dataPoints} data points${
-        bufferPoints > 0 ? ` + ${bufferPoints} buffer points` : ''
-      }${viewBasedLoading ? ` (view-based loading: ${viewSize} per view)` : ''}`
+      `🔍 DEBUG: Querying ${symbol} from ${startTime.toISOString()} in ${direction} direction with ${intervalKey} intervals, requesting ${limitValue} data points${
+        viewBasedLoading ? ` (view-based loading: ${viewSize} per view)` : ''
+      }`
     );
 
-    // Get aggregates from QuestDB - use both start_time and end_time for reliable data retrieval
+    // Calculate time range for QuestDB query based on direction and limit
+    const intervalMs = getIntervalMinutes(intervalKey) * 60 * 1000;
+    const timeRange = limitValue * intervalMs;
+
+    let queryStartTime: string;
+    let queryEndTime: string;
+
+    if (direction === 'past') {
+      queryStartTime = new Date(startTime.getTime() - timeRange).toISOString();
+      queryEndTime = startTime.toISOString();
+    } else {
+      queryStartTime = startTime.toISOString();
+      queryEndTime = new Date(startTime.getTime() + timeRange).toISOString();
+    }
+
+    // Get aggregates from QuestDB
     const params: QuestDBQueryParams = {
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
+      start_time: queryStartTime,
+      end_time: queryEndTime,
       order_by: 'timestamp',
       order_direction: 'ASC', // Get data in chronological order
     };
@@ -287,13 +314,13 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     // If no data found in the specified time range, try to get the most recent available data
     if (aggregates.length === 0) {
       console.log(
-        `No data found for ${symbol} between ${startTime.toISOString()} and ${endTime.toISOString()}`
+        `No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`
       );
 
       // Query for the most recent available data without time restrictions
       const fallbackParams: QuestDBQueryParams = {
         order_by: 'timestamp',
-        order_direction: 'DESC',
+        order_direction: direction === 'past' ? 'DESC' : 'ASC',
         limit: 1000, // Get some recent data to work with
       };
 
@@ -318,7 +345,6 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
         // Update chart params with actual time range
         chartParams.startTime = actualStartTime.toISOString();
-        chartParams.endTime = actualEndTime.toISOString();
 
         // Query again with the actual time range
         const adjustedParams: QuestDBQueryParams = {
@@ -363,8 +389,8 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     if (aggregatedData.length === 0) {
       console.log('🔍 DEBUG: No data found, generating mock data for testing');
       const mockDataPoints = chartParams.viewBasedLoading
-        ? (chartParams.viewSize || chartParams.dataPoints) * 3
-        : chartParams.dataPoints + (chartParams.bufferPoints || 0);
+        ? (chartParams.viewSize || chartParams.limit) * 3
+        : chartParams.limit;
 
       aggregatedData = generateMockData(symbol, mockDataPoints, chartParams.interval);
     }
@@ -384,8 +410,8 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     return res.json({
       symbol: symbol.toUpperCase(),
       interval: intervalKey,
-      data_points: dataPoints,
-      buffer_points: bufferPoints,
+      limit: limitValue,
+      direction: chartParams.direction,
       view_based_loading: viewBasedLoading,
       view_size: viewSize,
       bars,
@@ -393,10 +419,9 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       success: true,
       query_params: {
         start_time: chartParams.startTime,
-        end_time: chartParams.endTime,
+        direction: chartParams.direction,
         interval: chartParams.interval,
-        requested_data_points: chartParams.dataPoints,
-        buffer_points: chartParams.bufferPoints,
+        requested_limit: chartParams.limit,
         view_based_loading: chartParams.viewBasedLoading,
         view_size: chartParams.viewSize,
       },
@@ -408,10 +433,11 @@ router.get('/:symbol', async (req: Request, res: Response) => {
             }
           : null,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching chart data from QuestDB:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return res.status(500).json({
-      error: `Failed to fetch chart data: ${error.message}`,
+      error: `Failed to fetch chart data: ${errorMessage}`,
       data_source: 'questdb',
       success: false,
     });

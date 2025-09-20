@@ -89,39 +89,25 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     async getChartData(
       symbol: string,
       interval: string = '1h',
-      dataPoints: number = DEFAULT_CHART_DATA_POINTS,
+      limit?: number,
       startTime?: string,
-      endTime?: string,
-      bufferPoints?: number,
+      direction: 'past' | 'future' = 'past',
       viewBasedLoading?: boolean,
       viewSize?: number
     ): Promise<ChartDataResponse> {
       const params: Record<string, string> = {
         interval,
-        data_points: dataPoints.toString(),
+        direction,
       };
+
+      if (limit !== undefined) {
+        params.limit = limit.toString();
+      }
 
       if (startTime) {
         params.start_time = startTime;
-      } else {
-        // Calculate start time based on interval and data points
-        const intervalMs = getIntervalMs(interval);
-        const calculatedStartTime = new Date(
-          (endTime ? new Date(endTime).getTime() : Date.now()) - dataPoints * intervalMs
-        );
-        params.start_time = calculatedStartTime.toISOString();
       }
-
-      if (endTime) {
-        params.end_time = endTime;
-      } else {
-        // Use current time as default end time
-        params.end_time = new Date().toISOString();
-      }
-
-      if (bufferPoints && bufferPoints > 0) {
-        params.buffer_points = bufferPoints.toString();
-      }
+      // If no startTime provided, API will use current time as default
 
       if (viewBasedLoading !== undefined) {
         params.view_based_loading = viewBasedLoading.toString();
@@ -202,39 +188,25 @@ export const apiService = {
   async getChartData(
     symbol: string,
     interval: string = '1h',
-    dataPoints: number = DEFAULT_CHART_DATA_POINTS,
+    limit?: number,
     startTime?: string,
-    endTime?: string,
-    bufferPoints?: number,
+    direction: 'past' | 'future' = 'past',
     viewBasedLoading?: boolean,
     viewSize?: number
   ): Promise<ChartDataResponse> {
     const params: Record<string, string> = {
       interval,
-      data_points: dataPoints.toString(),
+      direction,
     };
+
+    if (limit !== undefined) {
+      params.limit = limit.toString();
+    }
 
     if (startTime) {
       params.start_time = startTime;
-    } else {
-      // Calculate start time based on interval and data points
-      const intervalMs = getIntervalMs(interval);
-      const calculatedStartTime = new Date(
-        (endTime ? new Date(endTime).getTime() : Date.now()) - dataPoints * intervalMs
-      );
-      params.start_time = calculatedStartTime.toISOString();
     }
-
-    if (endTime) {
-      params.end_time = endTime;
-    } else {
-      // Use current time as default end time
-      params.end_time = new Date().toISOString();
-    }
-
-    if (bufferPoints && bufferPoints > 0) {
-      params.buffer_points = bufferPoints.toString();
-    }
+    // If no startTime provided, API will use current time as default
 
     if (viewBasedLoading !== undefined) {
       params.view_based_loading = viewBasedLoading.toString();
