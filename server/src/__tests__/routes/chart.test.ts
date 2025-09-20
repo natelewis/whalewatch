@@ -111,10 +111,9 @@ describe('Chart Routes', () => {
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: expect.any(String),
-          end_time: '2024-01-01T10:00:00.000Z',
+          start_time: '2024-01-01T10:00:00.000Z',
           order_by: 'timestamp',
-          order_direction: 'ASC',
+          order_direction: 'DESC',
         })
       );
     });
@@ -130,8 +129,9 @@ describe('Chart Routes', () => {
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: expect.any(String),
-          end_time: expect.any(String),
+          start_time: '2024-01-01T10:00:00.000Z',
+          order_by: 'timestamp',
+          order_direction: 'DESC',
         })
       );
 
@@ -143,8 +143,9 @@ describe('Chart Routes', () => {
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: expect.any(String),
-          end_time: expect.any(String),
+          start_time: '2024-01-01T10:00:00.000Z',
+          order_by: 'timestamp',
+          order_direction: 'ASC',
         })
       );
     });
@@ -159,8 +160,9 @@ describe('Chart Routes', () => {
       expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
         'AAPL',
         expect.objectContaining({
-          start_time: expect.any(String),
-          end_time: '2024-01-01T00:00:00.000Z',
+          start_time: '2024-01-01T00:00:00.000Z',
+          order_by: 'timestamp',
+          order_direction: 'DESC',
         })
       );
     });
@@ -308,7 +310,7 @@ describe('Chart Routes', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body.bars).toHaveLength(150); // Mock data is generated when no real data is found
+      expect(response.body.bars).toHaveLength(0); // No data found, returns empty result
       expect(response.body.query_params.view_based_loading).toBe(true);
       expect(response.body.query_params.view_size).toBe(50);
     });

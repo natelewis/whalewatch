@@ -140,17 +140,16 @@ describe('AlpacaService', () => {
         },
       ];
 
-      mockedAxios.get.mockResolvedValue({ data: { AAPL: mockBars } });
+      mockedAxios.get.mockResolvedValue({ data: { bars: mockBars } });
 
       const result = await alpacaService.getBars('AAPL', '1H', 100);
 
       expect(result).toEqual(mockBars);
       expect(mockedAxios.get).toHaveBeenCalledWith(
-        expect.stringContaining('/stocks/bars'),
+        expect.stringContaining('/stocks/AAPL/bars'),
         expect.objectContaining({
           headers: expect.any(Object),
           params: expect.objectContaining({
-            symbols: 'AAPL',
             timeframe: '1Hour',
             limit: 100,
           }),

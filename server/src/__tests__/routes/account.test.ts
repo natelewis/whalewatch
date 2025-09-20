@@ -17,13 +17,13 @@ describe('Account Routes', () => {
   let authToken: string;
 
   beforeAll(() => {
+    // Set JWT_SECRET for testing
+    process.env.JWT_SECRET = 'test-secret';
+
     // Create a test JWT token
-    const secret = process.env.JWT_SECRET || 'test-secret';
-    authToken = jwt.sign(
-      { userId: '1', email: 'test@example.com' },
-      secret,
-      { expiresIn: '1h' }
-    );
+    authToken = jwt.sign({ userId: '1', email: 'test@example.com' }, 'test-secret', {
+      expiresIn: '1h',
+    });
   });
 
   beforeEach(() => {
@@ -53,8 +53,7 @@ describe('Account Routes', () => {
     });
 
     it('should return 401 without token', async () => {
-      const response = await request(app)
-        .get('/api/account/info');
+      const response = await request(app).get('/api/account/info');
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error', 'Access token required');
@@ -97,8 +96,7 @@ describe('Account Routes', () => {
     });
 
     it('should return 401 without token', async () => {
-      const response = await request(app)
-        .get('/api/account/positions');
+      const response = await request(app).get('/api/account/positions');
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error', 'Access token required');
@@ -137,15 +135,11 @@ describe('Account Routes', () => {
         .get('/api/account/activity?start_date=2024-01-01&end_date=2024-01-31')
         .set('Authorization', `Bearer ${authToken}`);
 
-      expect(mockAlpacaService.getActivities).toHaveBeenCalledWith(
-        '2024-01-01',
-        '2024-01-31'
-      );
+      expect(mockAlpacaService.getActivities).toHaveBeenCalledWith('2024-01-01', '2024-01-31');
     });
 
     it('should return 401 without token', async () => {
-      const response = await request(app)
-        .get('/api/account/activity');
+      const response = await request(app).get('/api/account/activity');
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error', 'Access token required');
