@@ -32,7 +32,7 @@ interface D3StockChartProps {
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 
 // Buffer and margin constants
-const BUFFER_SIZE_MULTIPLIER = 0.5; // Buffer size as percentage of chart data points (40 points)
+const BUFFER_SIZE_MULTIPLIER = 1; // Buffer size as percentage of chart data points (40 points)
 const MIN_BUFFER_SIZE = 20; // Minimum buffer size in data points
 const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
 // Removed unused candlestick buffer constants since we now render only visible points

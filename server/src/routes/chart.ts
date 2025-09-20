@@ -270,84 +270,55 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       viewSize: viewSize,
     };
 
-    // Calculate time range for QuestDB query based on direction and limit
-    const intervalMs = getIntervalMinutes(intervalKey) * 60 * 1000;
-    const timeRange = limitValue * intervalMs;
-
-    let queryStartTime: string;
-    let queryEndTime: string;
-
-    if (direction === 'past') {
-      queryStartTime = new Date(startTime.getTime() - timeRange).toISOString();
-      queryEndTime = startTime.toISOString();
-    } else {
-      queryStartTime = startTime.toISOString();
-      queryEndTime = new Date(startTime.getTime() + timeRange).toISOString();
-    }
-
     console.log(
       `🔍 DEBUG: Querying ${symbol} from ${startTime.toISOString()} in ${direction} direction with ${intervalKey} intervals, requesting ${limitValue} data points${
         viewBasedLoading ? ` (view-based loading: ${viewSize} per view)` : ''
       }`
     );
 
-    // Get aggregates from QuestDB
+    // For past direction: get records <= startTime, ordered DESC (most recent first), limit to requested count
+    // For future direction: get records >= startTime, ordered ASC (earliest first), limit to requested count
     const params: QuestDBQueryParams = {
-      start_time: queryStartTime,
-      end_time: queryEndTime,
       order_by: 'timestamp',
-      order_direction: 'ASC', // Get data in chronological order
+      order_direction: direction === 'past' ? 'DESC' : 'ASC',
+      limit: limitValue,
     };
+
+    // Only set start_time for both directions
+    params.start_time = startTime.toISOString();
+
+    console.log(`🔍 DEBUG: Query params:`, params);
 
     let aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
     console.log(`🔍 DEBUG: Retrieved ${aggregates.length} raw aggregates for ${symbol}`);
 
-    // If no data found in the specified time range, try to get the most recent available data
+    if (aggregates.length > 0) {
+      console.log(
+        `🔍 DEBUG: Data range: ${aggregates[0].timestamp} to ${
+          aggregates[aggregates.length - 1].timestamp
+        }`
+      );
+      console.log(
+        `🔍 DEBUG: First few records:`,
+        aggregates.slice(0, 3).map((agg) => ({ timestamp: agg.timestamp, close: agg.close }))
+      );
+
+      // For past direction, we got data in DESC order (most recent first), but we need ASC order for display
+      if (direction === 'past') {
+        aggregates = aggregates.reverse();
+        console.log(
+          `🔍 DEBUG: Reversed order for past direction - now ${aggregates[0].timestamp} to ${
+            aggregates[aggregates.length - 1].timestamp
+          }`
+        );
+      }
+    }
+
+    // If no data found, return empty result
     if (aggregates.length === 0) {
       console.log(
         `No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`
       );
-
-      // Query for the most recent available data without time restrictions
-      const fallbackParams: QuestDBQueryParams = {
-        order_by: 'timestamp',
-        order_direction: direction === 'past' ? 'DESC' : 'ASC',
-        limit: 1000, // Get some recent data to work with
-      };
-
-      const recentData = await questdbService.getStockAggregates(
-        symbol.toUpperCase(),
-        fallbackParams
-      );
-
-      if (recentData.length > 0) {
-        const latestTimestamp = recentData[0].timestamp;
-        const earliestTimestamp = recentData[recentData.length - 1].timestamp;
-        console.log(
-          `Found most recent data for ${symbol} from ${earliestTimestamp} to ${latestTimestamp}`
-        );
-
-        // Use the available data range
-        const actualStartTime = new Date(earliestTimestamp);
-        const actualEndTime = new Date(latestTimestamp);
-        console.log(
-          `Using actual time range: ${actualStartTime.toISOString()} to ${actualEndTime.toISOString()}`
-        );
-
-        // Update chart params with actual time range
-        chartParams.startTime = actualStartTime.toISOString();
-
-        // Query again with the actual time range
-        const adjustedParams: QuestDBQueryParams = {
-          start_time: actualStartTime.toISOString(),
-          end_time: actualEndTime.toISOString(),
-          order_by: 'timestamp',
-          order_direction: 'ASC',
-        };
-
-        aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), adjustedParams);
-        console.log(`Found ${aggregates.length} records with actual time range`);
-      }
     }
 
     // Remove duplicates by timestamp and aggregate them properly
@@ -372,18 +343,13 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     }, [] as typeof aggregates);
 
     // Aggregate data using the new system that skips intervals without data
-    let aggregatedData = aggregateDataWithIntervals(uniqueAggregates, chartParams);
+    const aggregatedData = aggregateDataWithIntervals(uniqueAggregates, chartParams);
 
     console.log(`🔍 DEBUG: Aggregated to ${aggregatedData.length} data points for ${symbol}`);
 
-    // If no data is available, generate mock data for testing
+    // If no data is available, return empty result
     if (aggregatedData.length === 0) {
-      console.log('🔍 DEBUG: No data found, generating mock data for testing');
-      const mockDataPoints = chartParams.viewBasedLoading
-        ? (chartParams.viewSize || chartParams.limit) * 3
-        : chartParams.limit;
-
-      aggregatedData = generateMockData(symbol, mockDataPoints, chartParams.interval);
+      console.log('🔍 DEBUG: No data found, returning empty result');
     }
 
     // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility

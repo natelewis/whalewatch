@@ -158,7 +158,13 @@ export class QuestDBService {
     let query = `SELECT * FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
 
     if (start_time) {
-      query += ` AND timestamp >= '${start_time}'`;
+      // For past direction (DESC order), use <= to get data before start_time
+      // For future direction (ASC order), use >= to get data from start_time onwards
+      if (order_direction === 'DESC') {
+        query += ` AND timestamp <= '${start_time}'`;
+      } else {
+        query += ` AND timestamp >= '${start_time}'`;
+      }
     }
 
     if (end_time) {
@@ -172,7 +178,9 @@ export class QuestDBService {
       query += ` LIMIT ${limit}`;
     }
 
+    console.log(`🔍 DEBUG: QuestDB Query: ${query}`);
     const response = await this.executeQuery<QuestDBStockAggregate>(query);
+    console.log(`🔍 DEBUG: QuestDB returned ${response.dataset.length} rows`);
     return this.convertArrayToObject<QuestDBStockAggregate>(response.dataset, response.columns);
   }
 
@@ -370,7 +378,7 @@ export class QuestDBService {
       // Get all available tables first
       const tablesResponse = await this.executeQuery<{ table_name: string }>('SHOW TABLES');
       const availableTables = tablesResponse.dataset.map((row) => (row as any)[0]);
-      
+
       console.log('📊 Available tables:', availableTables);
 
       // Query each table if it exists
@@ -393,7 +401,9 @@ export class QuestDBService {
       for (const { table, key } of tableQueries) {
         if (availableTables.includes(table)) {
           try {
-            const result = await this.executeQuery<{ count: number }>(`SELECT COUNT(*) as count FROM ${table}`);
+            const result = await this.executeQuery<{ count: number }>(
+              `SELECT COUNT(*) as count FROM ${table}`
+            );
             stats[key as keyof typeof stats] = result.dataset[0]?.count || 0;
             console.log(`✅ ${table}: ${stats[key as keyof typeof stats]} records`);
           } catch (error: any) {
