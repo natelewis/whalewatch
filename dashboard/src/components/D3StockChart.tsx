@@ -1100,7 +1100,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     // Use the API service directly with the increased data points
     apiService
-      .getChartData(symbol, timeframe, undefined, undefined, endTime)
+      .getChartData(symbol, timeframe, bufferSize, endTime, 'past')
       .then((response) => {
         const { formattedData } = processChartData(response.bars);
 
@@ -1223,7 +1223,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     // Use the API service directly with the increased data points
     apiService
-      .getChartData(symbol, timeframe, undefined, undefined, endTime)
+      .getChartData(symbol, timeframe, bufferSize, endTime, 'past')
       .then((response) => {
         const { formattedData: newData } = processChartData(response.bars);
 
@@ -1362,9 +1362,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     });
 
     // Use the API service directly with the increased data points
-    // For right data, we don't specify endTime to get the most recent data
+    // For right data, we don't specify startTime to get the most recent data
     apiService
-      .getChartData(symbol, timeframe, undefined, undefined, undefined)
+      .getChartData(symbol, timeframe, bufferSize, undefined, 'future')
       .then((response) => {
         const { formattedData: newData } = processChartData(response.bars);
 
@@ -1656,9 +1656,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       console.log('🔄 Loading initial data for symbol:', { symbol, timeframe: savedTimeframe });
       isLoadingDataRef.current = true;
       initialDataLoadedRef.current = true;
-      chartActions.loadChartData(symbol, savedTimeframe, DEFAULT_CHART_DATA_POINTS).finally(() => {
-        isLoadingDataRef.current = false;
-      });
+      chartActions
+        .loadChartData(symbol, savedTimeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
+        .finally(() => {
+          isLoadingDataRef.current = false;
+        });
     } catch (error) {
       console.warn('Failed to load chart timeframe from localStorage:', error);
       setTimeframe('1h');
@@ -1667,9 +1669,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       console.log('🔄 Loading initial data with default timeframe:', { symbol, timeframe: '1h' });
       isLoadingDataRef.current = true;
       initialDataLoadedRef.current = true;
-      chartActions.loadChartData(symbol, '1h', DEFAULT_CHART_DATA_POINTS).finally(() => {
-        isLoadingDataRef.current = false;
-      });
+      chartActions
+        .loadChartData(symbol, '1h', DEFAULT_CHART_DATA_POINTS, undefined, 'past')
+        .finally(() => {
+          isLoadingDataRef.current = false;
+        });
     }
   }, [symbol]); // Removed chartActions to prevent infinite loops
 
@@ -1704,9 +1708,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
       console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
       isLoadingDataRef.current = true;
-      chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS).finally(() => {
-        isLoadingDataRef.current = false;
-      });
+      chartActions
+        .loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
+        .finally(() => {
+          isLoadingDataRef.current = false;
+        });
     }
   }, [symbol, timeframe]); // Removed chartActions to prevent infinite loops
 
@@ -2172,7 +2178,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               <button
                 onClick={() =>
                   timeframe &&
-                  chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS)
+                  chartActions.loadChartData(
+                    symbol,
+                    timeframe,
+                    DEFAULT_CHART_DATA_POINTS,
+                    undefined,
+                    'past'
+                  )
                 }
                 className="p-1 text-muted-foreground hover:text-foreground"
                 title="Refresh data"
@@ -2256,7 +2268,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               <button
                 onClick={() =>
                   timeframe &&
-                  chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS)
+                  chartActions.loadChartData(
+                    symbol,
+                    timeframe,
+                    DEFAULT_CHART_DATA_POINTS,
+                    undefined,
+                    'past'
+                  )
                 }
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               >

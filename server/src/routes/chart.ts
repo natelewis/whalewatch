@@ -66,21 +66,12 @@ function aggregateDataWithIntervals(
       ? (params.viewSize || params.limit) * 3 // 1 view before + 1 current + 1 after
       : params.limit;
 
-    // Filter data based on direction from start_time
-    const filteredData = sortedData.filter((item) => {
-      const itemTime = new Date(item.timestamp).getTime();
-      if (params.direction === 'past') {
-        return itemTime <= startTime;
-      } else {
-        return itemTime >= startTime;
-      }
-    });
-
-    // Return the appropriate slice based on direction
+    // For 1-minute intervals, the data is already filtered by the time range query
+    // Just return the appropriate slice based on direction
     if (params.direction === 'past') {
-      return filteredData.slice(-totalPointsToCollect);
+      return sortedData.slice(-totalPointsToCollect);
     } else {
-      return filteredData.slice(0, totalPointsToCollect);
+      return sortedData.slice(0, totalPointsToCollect);
     }
   }
 
@@ -279,12 +270,6 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       viewSize: viewSize,
     };
 
-    console.log(
-      `🔍 DEBUG: Querying ${symbol} from ${startTime.toISOString()} in ${direction} direction with ${intervalKey} intervals, requesting ${limitValue} data points${
-        viewBasedLoading ? ` (view-based loading: ${viewSize} per view)` : ''
-      }`
-    );
-
     // Calculate time range for QuestDB query based on direction and limit
     const intervalMs = getIntervalMinutes(intervalKey) * 60 * 1000;
     const timeRange = limitValue * intervalMs;
@@ -299,6 +284,12 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       queryStartTime = startTime.toISOString();
       queryEndTime = new Date(startTime.getTime() + timeRange).toISOString();
     }
+
+    console.log(
+      `🔍 DEBUG: Querying ${symbol} from ${startTime.toISOString()} in ${direction} direction with ${intervalKey} intervals, requesting ${limitValue} data points${
+        viewBasedLoading ? ` (view-based loading: ${viewSize} per view)` : ''
+      }`
+    );
 
     // Get aggregates from QuestDB
     const params: QuestDBQueryParams = {
