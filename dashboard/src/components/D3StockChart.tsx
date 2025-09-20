@@ -285,6 +285,7 @@ const createChart = ({
     getFixedYScaleDomain?: () => [number, number] | null;
     getCurrentData?: () => CandlestickData[];
     getCurrentDimensions?: () => ChartDimensions;
+    getCurrentCalculations?: () => ChartCalculations | null;
   };
   chartState: {
     fixedYScaleDomain: [number, number] | null;
@@ -665,12 +666,6 @@ const createChart = ({
       }
       const [mouseX, mouseY] = d3.pointer(event);
 
-      // Use the right-aligned scale for consistent positioning with candles and X-axis
-      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
-      const transformedXScale = currentTransform.rescaleX(xScale);
-      const mouseIndex = transformedXScale.invert(mouseX);
-      const index = Math.round(mouseIndex);
-
       // Get fresh data from callback to avoid stale closure issues
       const sortedChartData = stateCallbacks.getCurrentData?.() || allChartData;
 
@@ -678,8 +673,40 @@ const createChart = ({
         return;
       }
 
-      const clampedIndex = clampIndex(index, sortedChartData.length);
-      const d = sortedChartData[clampedIndex];
+      // Use the same scale approach as candle positioning for perfect alignment
+      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+      const transformedXScale = currentTransform.rescaleX(xScale);
+
+      // Get the current viewport calculations to match candle positioning exactly
+      const calculations = stateCallbacks.getCurrentCalculations?.();
+      let d: CandlestickData | undefined;
+
+      if (!calculations) {
+        // Fallback to simple scale inversion if calculations not available
+        const mouseIndex = transformedXScale.invert(mouseX);
+        const index = Math.round(Math.max(0, Math.min(mouseIndex, sortedChartData.length - 1)));
+        d = sortedChartData[index];
+      } else {
+        // Use the same positioning logic as candles: baseXScale(globalIndex)
+        // where globalIndex = actualStart + localIndex
+        const visibleCandles = calculations.visibleData;
+        let closestIndex = 0;
+        let minDistance = Infinity;
+
+        // Check each visible candle position to find the closest one to mouseX
+        for (let i = 0; i < visibleCandles.length; i++) {
+          const globalIndex = calculations.viewStart + i;
+          const candleX = calculations.baseXScale(globalIndex);
+          const distance = Math.abs(candleX - mouseX);
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestIndex = globalIndex;
+          }
+        }
+
+        d = sortedChartData[closestIndex];
+      }
 
       if (d) {
         // Update crosshair to follow cursor position exactly
@@ -1039,6 +1066,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     margin: { top: 0, right: 0, bottom: 0, left: 0 },
   });
 
+  // Store reference to the current calculations to avoid stale closure issues
+  const currentCalculationsRef = useRef<ChartCalculations | null>(null);
+
   // Update dimensions ref when dimensions change
   useEffect(() => {
     currentDimensionsRef.current = chartState.dimensions;
@@ -1070,6 +1100,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         transform: currentZoomTransform,
         fixedYScaleDomain: chartState.fixedYScaleDomain,
       });
+
+      // Update calculations ref for hover calculations
+      currentCalculationsRef.current = calculations;
 
       // Update clip-path to accommodate expanded dataset
       if (svgRef.current) {
@@ -1598,6 +1631,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       fixedYScaleDomain: chartState.fixedYScaleDomain,
     });
 
+    // Update calculations ref for hover calculations
+    currentCalculationsRef.current = calculations;
+
     // Update view state using centralized calculations
     chartActions.setCurrentViewStart(calculations.viewStart);
     chartActions.setCurrentViewEnd(calculations.viewEnd);
@@ -1907,6 +1943,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         fixedYScaleDomain: chartState.fixedYScaleDomain,
       });
 
+      // Update calculations ref for hover calculations
+      currentCalculationsRef.current = calculations;
+
       console.log('🔄 Dimensions changed, re-rendering chart:', {
         width: chartState.dimensions.width,
         height: chartState.dimensions.height,
@@ -2136,6 +2175,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           fixedYScaleDomain: chartState.fixedYScaleDomain,
         });
 
+        // Update calculations ref for hover calculations
+        currentCalculationsRef.current = calculations;
+        console.log('Updated calculations ref (initial):', {
+          visibleDataLength: calculations.visibleData.length,
+          viewStart: calculations.viewStart,
+          viewEnd: calculations.viewEnd,
+        });
+
         createChart({
           svgElement: svgRef.current as SVGSVGElement,
           allChartData: chartState.allData, // This will be updated via getCurrentData
@@ -2159,6 +2206,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             getFixedYScaleDomain: () => fixedYScaleDomainRef.current,
             getCurrentData: () => currentDataRef.current,
             getCurrentDimensions: () => currentDimensionsRef.current, // Add this to avoid stale dimensions
+            getCurrentCalculations: () => currentCalculationsRef.current,
           },
           chartState: {
             fixedYScaleDomain: chartState.fixedYScaleDomain,
