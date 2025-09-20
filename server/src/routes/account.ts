@@ -10,24 +10,24 @@ router.use(authenticateToken);
 router.use(requireAuth);
 
 // Get account information
-router.get('/info', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/info', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const account = await alpacaService.getAccount();
-    res.json({ account });
+    return res.json({ account });
   } catch (error) {
     console.error('Error fetching account info:', error);
-    res.status(500).json({ error: 'Failed to fetch account information' });
+    return res.status(500).json({ error: 'Failed to fetch account information' });
   }
 });
 
 // Get positions
-router.get('/positions', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/positions', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const positions = await alpacaService.getPositions();
-    res.json({ positions });
+    return res.json({ positions });
   } catch (error) {
     console.error('Error fetching positions:', error);
-    res.status(500).json({ error: 'Failed to fetch positions' });
+    return res.status(500).json({ error: 'Failed to fetch positions' });
   }
 });
 
@@ -38,10 +38,10 @@ router.get('/activity', async (req: AuthenticatedRequest, res: Response) => {
 
     const activities = await alpacaService.getActivities(start_date as string, end_date as string);
 
-    res.json({ activities });
+    return res.json({ activities });
   } catch (error) {
     console.error('Error fetching activities:', error);
-    res.status(500).json({ error: 'Failed to fetch activities' });
+    return res.status(500).json({ error: 'Failed to fetch activities' });
   }
 });
 

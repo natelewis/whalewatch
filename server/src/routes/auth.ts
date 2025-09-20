@@ -6,8 +6,8 @@ import { generateToken } from '../config/passport';
 const router = Router();
 
 // Test endpoint to check environment variables
-router.get('/test-env', (req: Request, res: Response) => {
-  res.json({
+router.get('/test-env', (_req: Request, res: Response) => {
+  return res.json({
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Missing',
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Missing',
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL || 'Using default',
@@ -15,27 +15,31 @@ router.get('/test-env', (req: Request, res: Response) => {
 });
 
 // Test endpoint to check if Google strategy is registered
-router.get('/test-strategy', (req: Request, res: Response) => {
-  const strategies = Object.keys(passport._strategies || {});
-  res.json({
+router.get('/test-strategy', (_req: Request, res: Response) => {
+  const strategies = Object.keys(passport.strategies || {});
+  return res.json({
     registeredStrategies: strategies,
     hasGoogleStrategy: strategies.includes('google'),
   });
 });
 
 // Google OAuth login endpoint
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
-}));
+router.get(
+  '/google',
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+  })
+);
 
 // Google OAuth callback endpoint
-router.get('/google/callback', 
+router.get(
+  '/google/callback',
   passport.authenticate('google', { failureRedirect: '/login' }),
   (req: Request, res: Response) => {
     try {
       const user = req.user as any;
       const token = generateToken(user);
-      
+
       // Redirect to frontend with token
       const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:5173';
       res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
@@ -59,10 +63,10 @@ router.get('/verify', (req: Request, res: Response) => {
     if (!secret) {
       throw new Error('JWT_SECRET not configured');
     }
-    
+
     const decoded = jwt.verify(token, secret) as any;
-    
-    res.json({
+
+    return res.json({
       user: {
         id: decoded.userId,
         email: decoded.email,
@@ -70,13 +74,13 @@ router.get('/verify', (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    return res.status(401).json({ error: 'Invalid token' });
   }
 });
 
 // Logout endpoint
-router.post('/logout', (req: Request, res: Response) => {
-  res.json({ message: 'Logged out successfully' });
+router.post('/logout', (_req: Request, res: Response) => {
+  return res.json({ message: 'Logged out successfully' });
 });
 
 export { router as authRoutes };

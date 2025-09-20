@@ -155,7 +155,7 @@ export class AlpacaService {
     }
   }
 
-  async getOptionsTrades(symbol: string, _hours: number = 1): Promise<AlpacaOptionsTrade[]> {
+  async getOptionsTrades(_symbol: string, _hours: number = 1): Promise<AlpacaOptionsTrade[]> {
     // This method is now handled by QuestDB routes
     // Keeping for backward compatibility but should not be used
     console.warn('getOptionsTrades called on AlpacaService - use QuestDB routes instead');
@@ -198,6 +198,10 @@ export class AlpacaService {
       '4H': '4Hour',
       '1D': '1Day',
       '1W': '1Week',
+      '3M': '3Month',
+      '6M': '6Month',
+      '1Y': '1Year',
+      ALL: '1Year',
     };
     return mapping[timeframe];
   }

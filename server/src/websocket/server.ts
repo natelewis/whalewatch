@@ -225,7 +225,7 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
       volume: message.data.volume,
       timestamp: message.data.timestamp,
     });
-    
+
     const barData = {
       symbol: message.symbol,
       bar: {
@@ -239,7 +239,7 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
         vw: message.data.vwap,
       },
     };
-    
+
     console.log('📡 Broadcasting to chart_quote subscribers:', barData);
     broadcastToSubscribers(wss, 'chart_quote', barData, message.symbol);
   });
@@ -261,9 +261,9 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
 };
 
 const broadcastToSubscribers = (
-  wss: WebSocketServer, 
-  channel: string, 
-  data: any, 
+  wss: WebSocketServer,
+  channel: string,
+  data: any,
   symbol?: string
 ): void => {
   const message: WebSocketMessage = {
@@ -272,11 +272,15 @@ const broadcastToSubscribers = (
     timestamp: new Date().toISOString(),
   };
 
-  wss.clients.forEach((client: AuthenticatedWebSocket) => {
+  wss.clients.forEach((client) => {
+    const authenticatedClient = client as AuthenticatedWebSocket;
     if (client.readyState === WebSocket.OPEN) {
       const subscriptionKey = symbol ? `${channel}:${symbol}` : channel;
-      
-      if (client.subscriptions.has(subscriptionKey) || client.subscriptions.has(channel)) {
+
+      if (
+        authenticatedClient.subscriptions.has(subscriptionKey) ||
+        authenticatedClient.subscriptions.has(channel)
+      ) {
         client.send(JSON.stringify(message));
       }
     }

@@ -1,5 +1,5 @@
 import { AlpacaService } from '../../services/alpacaService';
-import { AlpacaApi } from '@alpacahq/alpaca-trade-api';
+import AlpacaApi from '@alpacahq/alpaca-trade-api';
 
 // Mock the Alpaca API
 jest.mock('@alpacahq/alpaca-trade-api');

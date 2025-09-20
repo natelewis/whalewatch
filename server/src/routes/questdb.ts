@@ -8,9 +8,9 @@ const router = Router();
 router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { 
-      start_time, 
-      end_time, 
+    const {
+      start_time,
+      end_time,
       limit = '1000',
       order_by = 'timestamp',
       order_direction = 'DESC',
@@ -44,7 +44,7 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching stock trades from QuestDB:', error);
-    res.status(500).json({ 
+    return res.status(500).json({
       error: `Failed to fetch stock trades: ${error.message}`,
       data_source: 'questdb',
       success: false,
@@ -56,9 +56,9 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
 router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { 
-      start_time, 
-      end_time, 
+    const {
+      start_time,
+      end_time,
       limit = '1000',
       order_by = 'timestamp',
       order_direction = 'ASC',
@@ -92,7 +92,7 @@ router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching stock aggregates from QuestDB:', error);
-    res.status(500).json({ 
+    return res.status(500).json({
       error: `Failed to fetch stock aggregates: ${error.message}`,
       data_source: 'questdb',
       success: false,
@@ -104,11 +104,7 @@ router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
 router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Response) => {
   try {
     const { underlying_ticker } = req.params;
-    const { 
-      limit = '1000',
-      order_by = 'created_at',
-      order_direction = 'DESC',
-    } = req.query;
+    const { limit = '1000', order_by = 'created_at', order_direction = 'DESC' } = req.query;
 
     if (!underlying_ticker) {
       return res.status(400).json({ error: 'Underlying ticker is required' });
@@ -125,7 +121,10 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
       order_direction: order_direction as 'ASC' | 'DESC',
     };
 
-    const contracts = await questdbService.getOptionContracts(underlying_ticker.toUpperCase(), params);
+    const contracts = await questdbService.getOptionContracts(
+      underlying_ticker.toUpperCase(),
+      params
+    );
 
     return res.json({
       underlying_ticker: underlying_ticker.toUpperCase(),
@@ -136,7 +135,7 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
     });
   } catch (error: any) {
     console.error('Error fetching option contracts from QuestDB:', error);
-    res.status(500).json({ 
+    return res.status(500).json({
       error: `Failed to fetch option contracts: ${error.message}`,
       data_source: 'questdb',
       success: false,
@@ -147,11 +146,11 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
 // Get option trades
 router.get('/option-trades', async (req: Request, res: Response) => {
   try {
-    const { 
+    const {
       ticker,
       underlying_ticker,
-      start_time, 
-      end_time, 
+      start_time,
+      end_time,
       limit = '1000',
       order_by = 'timestamp',
       order_direction = 'DESC',
@@ -190,7 +189,7 @@ router.get('/option-trades', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching option trades from QuestDB:', error);
-    res.status(500).json({ 
+    return res.status(500).json({
       error: `Failed to fetch option trades: ${error.message}`,
       data_source: 'questdb',
       success: false,
@@ -201,11 +200,11 @@ router.get('/option-trades', async (req: Request, res: Response) => {
 // Get option quotes
 router.get('/option-quotes', async (req: Request, res: Response) => {
   try {
-    const { 
+    const {
       ticker,
       underlying_ticker,
-      start_time, 
-      end_time, 
+      start_time,
+      end_time,
       limit = '1000',
       order_by = 'timestamp',
       order_direction = 'DESC',
@@ -244,7 +243,7 @@ router.get('/option-quotes', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching option quotes from QuestDB:', error);
-    res.status(500).json({ 
+    return res.status(500).json({
       error: `Failed to fetch option quotes: ${error.message}`,
       data_source: 'questdb',
       success: false,
@@ -260,7 +259,7 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
     const config = questdbService.getConfig();
 
     if (isConnected) {
-      res.json({
+      return res.json({
         success: true,
         message: 'QuestDB connection successful',
         data_source: 'questdb',
@@ -268,7 +267,7 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
         config,
       });
     } else {
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'QuestDB connection failed',
         data_source: 'questdb',
@@ -276,7 +275,7 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
     }
   } catch (error: any) {
     console.error('QuestDB connection test failed:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: `QuestDB connection test failed: ${error.message}`,
       data_source: 'questdb',
@@ -288,14 +287,14 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const stats = await questdbService.getDatabaseStats();
-    res.json({
+    return res.json({
       success: true,
       stats,
       data_source: 'questdb',
     });
   } catch (error: any) {
     console.error('Error fetching QuestDB stats:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: `Failed to fetch database statistics: ${error.message}`,
       data_source: 'questdb',

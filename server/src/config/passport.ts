@@ -36,7 +36,7 @@ if (
 
   try {
     passport.use(
-      new GoogleStrategy(googleConfig, async (accessToken, refreshToken, profile, done) => {
+      new GoogleStrategy(googleConfig, async (_accessToken, _refreshToken, profile, done) => {
         try {
           console.log('🔍 Google OAuth callback received:', profile.id);
           const googleId = profile.id;
@@ -55,7 +55,9 @@ if (
             // Update existing user
             user.email = email;
             user.name = name;
-            user.picture = picture;
+            if (picture) {
+              user.picture = picture;
+            }
             return done(null, user);
           }
 
@@ -65,7 +67,7 @@ if (
             googleId,
             email,
             name,
-            picture,
+            ...(picture && { picture }),
           };
 
           users.push(newUser);
@@ -108,7 +110,7 @@ export const generateToken = (user: any): string => {
       googleId: user.googleId,
     },
     secret,
-    { expiresIn: secretValidator.getSecret('JWT_EXPIRES_IN') || '24h' }
+    { expiresIn: '24h' }
   );
 };
 

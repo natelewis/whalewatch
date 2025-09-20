@@ -42,13 +42,13 @@ router.post(
 
       const order = await alpacaService.createOrder(orderData);
 
-      res.status(201).json({
+      return res.status(201).json({
         message: 'Order created successfully',
         order,
       });
     } catch (error) {
       console.error('Error creating sell order:', error);
-      res.status(500).json({ error: 'Failed to create order' });
+      return res.status(500).json({ error: 'Failed to create order' });
     }
   }
 );
@@ -81,18 +81,18 @@ router.post(
         side: 'buy' as const,
         type: type as 'market' | 'limit' | 'stop' | 'stop_limit',
         time_in_force: time_in_force as 'day' | 'gtc' | 'ioc' | 'fok',
-        limit_price: limit_price ? parseFloat(limit_price) : undefined,
+        ...(limit_price && { limit_price: parseFloat(limit_price) }),
       };
 
       const order = await alpacaService.createOrder(orderData);
 
-      res.status(201).json({
+      return res.status(201).json({
         message: 'Order created successfully',
         order,
       });
     } catch (error) {
       console.error('Error creating buy order:', error);
-      res.status(500).json({ error: 'Failed to create order' });
+      return res.status(500).json({ error: 'Failed to create order' });
     }
   }
 );

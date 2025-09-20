@@ -275,10 +275,8 @@ export interface Auth0User {
   picture?: string;
 }
 
-// Request with Auth
-export interface AuthenticatedRequest extends Request {
-  user?: JWTPayload;
-}
+// Request with Auth - now handled by express.d.ts
+export type { AuthenticatedRequest } from './express';
 
 // Whale Detection Configuration
 export interface WhaleConfig {
@@ -289,7 +287,18 @@ export interface WhaleConfig {
 }
 
 // Chart Timeframe
-export type ChartTimeframe = '1H' | '4H' | '1D' | '1W' | '3M' | '6M' | '1Y' | 'ALL';
+export type ChartTimeframe =
+  | '1m'
+  | '5m'
+  | '15m'
+  | '1H'
+  | '4H'
+  | '1D'
+  | '1W'
+  | '3M'
+  | '6M'
+  | '1Y'
+  | 'ALL';
 
 // Chart Type
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
