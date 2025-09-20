@@ -198,10 +198,7 @@ export type ChartTimeframe = '1m' | '5m' | '30m' | '1h' | '2h' | '4h' | '1d' | '
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 
 // Chart Constants
-export const DEFAULT_CHART_DATA_POINTS = parseInt(
-  import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '500',
-  10
-);
+export { DEFAULT_CHART_DATA_POINTS } from '../constants';
 
 // Technical Indicators
 export interface MovingAverage {

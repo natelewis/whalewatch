@@ -1,5 +1,15 @@
 import * as d3 from 'd3';
-import { BUFFER_SIZE, CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
+import React from 'react';
+import {
+  BUFFER_SIZE,
+  CANDLE_UP_COLOR,
+  CANDLE_DOWN_COLOR,
+  CHART_DATA_POINTS,
+  MARGIN_SIZE,
+  ZOOM_SCALE_MIN,
+  ZOOM_SCALE_MAX,
+  PRICE_PADDING_MULTIPLIER,
+} from '../constants';
 import { ChartDimensions } from '../types';
 import { CandlestickData } from '../utils/chartDataUtils';
 import {
@@ -13,19 +23,8 @@ import {
 } from '../utils/chartDataUtils';
 
 // ============================================================================
-// CONFIGURATION CONSTANTS - Modify these to adjust chart behavior
+// CONFIGURATION CONSTANTS - imported from centralized constants
 // ============================================================================
-const CHART_DATA_POINTS = 80; // Number of data points to display on chart
-
-// Buffer and margin constants
-const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
-
-// Zoom and scale constants
-const ZOOM_SCALE_MIN = 0.5; // Minimum zoom scale
-const ZOOM_SCALE_MAX = 10; // Maximum zoom scale
-
-// UI and layout constants
-const PRICE_PADDING_MULTIPLIER = 0.2; // Price range padding (20%)
 
 // ============================================================================
 // TYPES

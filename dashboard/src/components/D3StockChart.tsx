@@ -23,7 +23,15 @@ import {
   updateClipPath,
   calculateChartState,
 } from './ChartRenderer';
-import { BUFFER_SIZE } from '../constants';
+import {
+  BUFFER_SIZE,
+  MIN_CHART_HEIGHT,
+  CHART_HEIGHT_OFFSET,
+  CHART_DATA_POINTS,
+  MARGIN_SIZE,
+  RIGHT_EDGE_CHECK_INTERVAL,
+  PRICE_PADDING_MULTIPLIER,
+} from '../constants';
 import {
   BarChart3,
   Settings,
@@ -41,14 +49,7 @@ interface D3StockChartProps {
 }
 
 // ============================================================================
-// UI and layout constants
-// ============================================================================
-const MIN_CHART_HEIGHT = 400; // Minimum chart height in pixels
-const CHART_HEIGHT_OFFSET = 100; // Height offset for chart container
-
-// Chart constants (matching ChartRenderer)
-const CHART_DATA_POINTS = 80; // Number of data points to display on chart
-const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
+// Constants are now imported from centralized constants
 // ============================================================================
 
 // Chart calculation types (matching ChartRenderer)
@@ -83,7 +84,7 @@ const calculateYScaleDomain = (
   const minPrice = d3.min(data, (d) => d.low) as number;
   const maxPrice = d3.max(data, (d) => d.high) as number;
   const priceRange = maxPrice - minPrice;
-  const padding = priceRange * 0.2; // 20% padding
+  const padding = priceRange * PRICE_PADDING_MULTIPLIER;
   const domain: [number, number] = [minPrice - padding, maxPrice + padding];
 
   console.log('📊 Calculated Y-scale domain:', {
@@ -1128,7 +1129,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Auto-enable live mode when user pans to the rightmost edge
   const [isAtRightEdge, setIsAtRightEdge] = useState(false);
   const lastRightEdgeCheckRef = useRef<number>(0);
-  const RIGHT_EDGE_CHECK_INTERVAL = 1000; // Check every 1 second to prevent rapid toggling
+  const RIGHT_EDGE_CHECK_INTERVAL_LOCAL = RIGHT_EDGE_CHECK_INTERVAL; // alias for local usage
 
   useEffect(() => {
     const dataLength = chartState.allData.length;
@@ -1137,7 +1138,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const timeSinceLastCheck = now - lastRightEdgeCheckRef.current;
 
     // Only check for right edge changes if enough time has passed
-    if (timeSinceLastCheck >= RIGHT_EDGE_CHECK_INTERVAL) {
+    if (timeSinceLastCheck >= RIGHT_EDGE_CHECK_INTERVAL_LOCAL) {
       lastRightEdgeCheckRef.current = now;
       setIsAtRightEdge(atRightEdge);
 

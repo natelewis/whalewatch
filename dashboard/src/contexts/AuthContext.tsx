@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, AuthContextType } from '../types';
 import { authService } from '../services/authService';
+import { API_BASE_URL } from '../constants';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -35,19 +36,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const loginWithGoogle = () => {
     // Redirect to backend Google OAuth endpoint
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth/google`;
+    window.location.href = `${API_BASE_URL}/api/auth/google`;
   };
 
   const handleOAuthCallback = async (token: string) => {
     try {
       // Store the token
       localStorage.setItem('token', token);
-      
+
       // Verify the token and get user data
       const userData = await authService.verifyToken();
       setUser(userData.user);
       setIsAuthenticated(true);
-      
+
       return { success: true };
     } catch (error) {
       console.error('OAuth callback error:', error);
@@ -71,11 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {

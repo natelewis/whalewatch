@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS } from '../types';
+import { CHART_DATA_POINTS } from '../constants';
 import { CandlestickData, processChartData, DataRange } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 
@@ -135,8 +136,8 @@ const DEFAULT_TRANSFORM: ChartTransform = {
  * Calculate buffer size based on chart dimensions
  */
 function calculateBufferSize(chartWidth: number): number {
-  // Use a fixed number of visible points (80) for buffer calculation
-  const visiblePoints = 80;
+  // Use centralized number of visible points for buffer calculation
+  const visiblePoints = CHART_DATA_POINTS;
   const pointsPerPixel = visiblePoints / chartWidth;
 
   // Add buffer for smooth scrolling - typically 1-2 screen widths worth of data
@@ -522,8 +523,8 @@ export const useChartStateManager = (
     if (state.allData.length > 0 && isInitialLoadRef.current) {
       const totalDataLength = state.allData.length;
       const newEndIndex = totalDataLength - 1;
-      // Use a reasonable default view size (80 points) instead of tracking dataPointsToShow
-      const newStartIndex = Math.max(0, newEndIndex - 80 + 1);
+      // Use centralized default view size
+      const newStartIndex = Math.max(0, newEndIndex - CHART_DATA_POINTS + 1);
 
       setState((prev) => ({
         ...prev,

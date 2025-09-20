@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import { ChartTimeframe, ChartDimensions } from '../types';
+import { CHART_DATA_POINTS } from '../constants';
 
 export interface ChartDataPoint {
   time: string;
@@ -107,7 +108,7 @@ export interface ChartActions {
   getTransformedYScale: () => d3.ScaleLinear<number, number>;
 }
 
-const DEFAULT_DATA_POINTS = 80;
+const DEFAULT_DATA_POINTS = CHART_DATA_POINTS;
 const DEFAULT_DIMENSIONS: ChartDimensions = {
   width: 800,
   height: 400,
@@ -172,7 +173,7 @@ export const useChartState = (
 
     const { width, height, margin } = state.dimensions;
     const innerWidth = width - margin.left - margin.right;
-    const bandWidth = innerWidth / 80;
+    const bandWidth = innerWidth / CHART_DATA_POINTS;
 
     // Calculate visible range based on transform
     const xScale = d3
@@ -204,25 +205,25 @@ export const useChartState = (
       currentViewStart: startIndex,
       currentViewEnd: endIndex,
     }));
-  }, [state.sortedData, state.transform, state.dimensions, 80]);
+  }, [state.sortedData, state.transform, state.dimensions, CHART_DATA_POINTS]);
 
   // Handle initial data load
   useEffect(() => {
     if (state.sortedData.length > 0 && isInitialLoadRef.current) {
       const totalDataLength = state.sortedData.length;
       const newEndIndex = totalDataLength - 1;
-      const newStartIndex = Math.max(0, newEndIndex - 80 + 1);
+      const newStartIndex = Math.max(0, newEndIndex - CHART_DATA_POINTS + 1);
 
       // Set initial transform to show the most recent data
       const { width, margin } = state.dimensions;
       const innerWidth = width - margin.left - margin.right;
-      const bandWidth = innerWidth / 80;
+      const bandWidth = innerWidth / CHART_DATA_POINTS;
       const xScale = d3
         .scaleLinear()
         .domain([0, totalDataLength - 1])
         .range([0, (totalDataLength - 1) * bandWidth]);
 
-      const startOfViewIndex = totalDataLength - 80;
+      const startOfViewIndex = totalDataLength - CHART_DATA_POINTS;
       const initialTranslateX = startOfViewIndex > 0 ? -xScale(startOfViewIndex) : 0;
 
       setState((prev) => ({

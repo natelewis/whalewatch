@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebSocketMessage } from '../types';
+import { WS_BASE_URL } from '../constants';
 
 interface UseWebSocketOptions {
   onOpen?: () => void;
@@ -19,10 +20,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const connect = () => {
     const token = localStorage.getItem('token');
     if (!token) {
-return;
-}
+      return;
+    }
 
-    const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:3001'}/ws?token=${token}`;
+    const wsUrl = `${WS_BASE_URL}/ws?token=${token}`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -41,9 +42,11 @@ return;
       if (reconnectAttempts.current < maxReconnectAttempts) {
         reconnectAttempts.current++;
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-        
+
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log(`Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`);
+          console.log(
+            `Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`
+          );
           connect();
         }, delay);
       }
