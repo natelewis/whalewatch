@@ -48,7 +48,7 @@ const CHART_HEIGHT_OFFSET = 100; // Height offset for chart container
 // Chart constants (matching ChartRenderer)
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 const MIN_BUFFER_SIZE = 20; // Minimum buffer size in data points
-const BUFFER_SIZE_MULTIPLIER = 1; // Buffer size as percentage of chart data points
+const BUFFER_SIZE = 80; // Static buffer size in data points
 const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
 // ============================================================================
 
@@ -257,10 +257,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       }
 
       // Update buffer range
-      const bufferSize = Math.max(
-        MIN_BUFFER_SIZE,
-        Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-      );
+      const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
       const dataLength = chartState.allData.length;
       const marginSize = MARGIN_SIZE;
       const atDataStart = calculations.viewStart <= marginSize;
@@ -318,10 +315,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Calculate buffer size the same way as in renderCandlestickChart
-    const bufferSize = Math.max(
-      MIN_BUFFER_SIZE,
-      Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-    );
+    const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
 
     // Add the same amount of data that we're rendering in the buffer
     const newDataPoints = Math.min(chartState.allData.length + bufferSize, 1000);
@@ -443,10 +437,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Calculate buffer size the same way as in auto-loading
-    const bufferSize = Math.max(
-      MIN_BUFFER_SIZE,
-      Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-    );
+    const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
 
     // Add the same amount of data that we're rendering in the buffer
     const newDataPoints = Math.min(chartState.allData.length + bufferSize, 1000);
@@ -581,10 +572,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Calculate buffer size the same way as in auto-loading
-    const bufferSize = Math.max(
-      MIN_BUFFER_SIZE,
-      Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-    );
+    const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
 
     // Add the same amount of data that we're rendering in the buffer
     const newDataPoints = Math.min(chartState.allData.length + bufferSize, 500);
@@ -784,10 +772,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
 
       // Update buffer range with smart boundary-aware buffer
-      const bufferSize = Math.max(
-        MIN_BUFFER_SIZE,
-        Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-      );
+      const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
       const dataLength = chartState.allData.length;
       const marginSize = MARGIN_SIZE;
       const atDataStart = calculations.viewStart <= marginSize; // Within margin of data start
@@ -1358,10 +1343,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, finalCalculations);
 
           // Set initial buffer range
-          const bufferSize = Math.max(
-            MIN_BUFFER_SIZE,
-            Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-          );
+          const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
           const dataLength = finalCalculations.allData.length;
           const marginSize = MARGIN_SIZE;
           const atDataStart = finalCalculations.viewStart <= marginSize;

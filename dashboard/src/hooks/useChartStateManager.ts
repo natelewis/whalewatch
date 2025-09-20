@@ -131,8 +131,6 @@ const DEFAULT_TRANSFORM: ChartTransform = {
   k: 1,
 };
 
-const DEFAULT_DATA_POINTS = 80;
-
 /**
  * Calculate buffer size based on chart dimensions
  */

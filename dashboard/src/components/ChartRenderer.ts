@@ -17,7 +17,7 @@ import {
 const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 
 // Buffer and margin constants
-const BUFFER_SIZE_MULTIPLIER = 1; // Buffer size as percentage of chart data points (40 points)
+const BUFFER_SIZE = 80; // Static buffer size in data points
 const MIN_BUFFER_SIZE = 20; // Minimum buffer size in data points
 const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
 
@@ -424,10 +424,7 @@ export const createChart = ({
     }
 
     // Check if we need to re-render candlesticks due to panning outside buffer
-    const bufferSize = Math.max(
-      MIN_BUFFER_SIZE,
-      Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-    );
+    const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
     const currentViewStart = calculations.viewStart;
     const currentViewEnd = calculations.viewEnd;
     const dataLength = calculations.allData.length;
@@ -659,10 +656,7 @@ export const renderCandlestickChart = (
 
   // Render candles with a buffer around the visible viewport for smooth panning
   // This provides a good balance between performance and smooth interaction
-  const bufferSize = Math.max(
-    MIN_BUFFER_SIZE,
-    Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
-  );
+  const bufferSize = Math.max(MIN_BUFFER_SIZE, BUFFER_SIZE);
   // Convert fractional view indices to integers for proper array slicing
   const actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
   const actualEnd = Math.min(
