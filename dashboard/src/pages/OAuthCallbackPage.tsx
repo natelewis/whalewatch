@@ -31,7 +31,7 @@ export const OAuthCallbackPage: React.FC = () => {
         }
 
         const result = await handleOAuthCallback(token);
-        
+
         if (result.success) {
           setStatus('success');
           setTimeout(() => {
@@ -56,8 +56,8 @@ export const OAuthCallbackPage: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary-foreground">W</span>
+            <div className="flex items-center space-x-3">
+              <img src="/whale-logo.png" alt="Whale Watch Logo" className="w-16 h-16" />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Whale Watch</h1>

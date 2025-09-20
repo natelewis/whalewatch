@@ -46,7 +46,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-center h-16 px-4 border-b border-border">
-            <h1 className="text-xl font-bold text-primary">Whale Watch</h1>
+            <div className="flex items-center space-x-3">
+              <img src="/whale-logo.png" alt="Whale Watch Logo" className="w-8 h-8" />
+              <h1 className="text-xl font-bold text-primary">Whale Watch</h1>
+            </div>
           </div>
 
           {/* Navigation */}

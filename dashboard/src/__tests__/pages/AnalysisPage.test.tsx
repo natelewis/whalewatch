@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { AnalysisPage } from '../../pages/AnalysisPage';
 import { BrowserRouter } from 'react-router-dom';
 
-// Mock the D3StockChart component
-jest.mock('../../components/D3StockChart', () => ({
+// Mock the StockChart component
+jest.mock('../../components/StockChart', () => ({
   __esModule: true,
   default: ({
     symbol,
@@ -13,8 +13,8 @@ jest.mock('../../components/D3StockChart', () => ({
     symbol: string;
     onSymbolChange: (symbol: string) => void;
   }) => (
-    <div data-testid="d3-stock-chart">
-      <span>D3 Chart for {symbol}</span>
+    <div data-testid="stock-chart">
+      <span>Stock Chart for {symbol}</span>
       <button onClick={() => onSymbolChange('AAPL')}>Change to AAPL</button>
     </div>
   ),
@@ -35,8 +35,8 @@ describe('AnalysisPage', () => {
   it('renders the chart analysis section', () => {
     renderWithRouter(<AnalysisPage />);
 
-    expect(screen.getByText('D3 Stock Chart')).toBeInTheDocument();
-    expect(screen.getByTestId('d3-stock-chart')).toBeInTheDocument();
+    expect(screen.getByText('Stock Chart')).toBeInTheDocument();
+    expect(screen.getByTestId('stock-chart')).toBeInTheDocument();
   });
 
   it('displays the default symbol in the chart', () => {
