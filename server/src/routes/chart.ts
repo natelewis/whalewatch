@@ -166,53 +166,6 @@ function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
   };
 }
 
-// Generate mock data for testing when database is empty
-function generateMockData(
-  symbol: string,
-  limit: number,
-  interval: string
-): QuestDBStockAggregate[] {
-  const mockData: QuestDBStockAggregate[] = [];
-  const now = new Date();
-  const intervalMs = getIntervalMs(interval);
-
-  for (let i = 0; i < limit; i++) {
-    const timestamp = new Date(now.getTime() - (limit - i - 1) * intervalMs);
-    const basePrice = 100 + Math.sin(i * 0.1) * 10 + Math.random() * 5;
-
-    mockData.push({
-      symbol: symbol.toUpperCase(),
-      timestamp: timestamp.toISOString(),
-      open: basePrice,
-      high: basePrice + Math.random() * 2,
-      low: basePrice - Math.random() * 2,
-      close: basePrice + (Math.random() - 0.5) * 2,
-      volume: Math.floor(Math.random() * 1000) + 100,
-      transaction_count: Math.floor(Math.random() * 100) + 10,
-      vwap: basePrice + (Math.random() - 0.5) * 1,
-    });
-  }
-
-  return mockData;
-}
-
-// Helper function to get interval in milliseconds
-function getIntervalMs(interval: string): number {
-  const intervalMap: { [key: string]: number } = {
-    '1m': 60 * 1000,
-    '5m': 5 * 60 * 1000,
-    '30m': 30 * 60 * 1000,
-    '1h': 60 * 60 * 1000,
-    '2h': 2 * 60 * 60 * 1000,
-    '4h': 4 * 60 * 60 * 1000,
-    '1d': 24 * 60 * 60 * 1000,
-    '1w': 7 * 24 * 60 * 60 * 1000,
-    '1M': 30 * 24 * 60 * 60 * 1000,
-  };
-
-  return intervalMap[interval] || 60 * 60 * 1000; // Default to 1 hour
-}
-
 // Get chart data for a symbol from QuestDB with new parameters
 router.get('/:symbol', async (req: Request, res: Response) => {
   try {
@@ -249,7 +202,9 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'limit must be a positive integer' });
     }
 
+    // eslint-disable-next-line camelcase
     const viewBasedLoading = view_based_loading === 'true';
+    // eslint-disable-next-line camelcase
     const viewSize = view_size ? parseInt(view_size as string, 10) : limitValue;
     if (viewSize <= 0) {
       return res.status(400).json({ error: 'view_size must be a positive integer' });

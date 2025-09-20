@@ -17,13 +17,14 @@ module.exports = {
       'error',
       {
         argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
       },
     ],
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-member-access': 'off',
     '@typescript-eslint/no-unsafe-call': 'off',
     '@typescript-eslint/no-unsafe-return': 'off',
-    '@typescript-eslint/explicit-function-return-type': 'warn',
+    '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-non-null-assertion': 'warn',
     '@typescript-eslint/no-shadow': [
       'error',
@@ -115,6 +116,13 @@ module.exports = {
     'eol-last': ['error', 'always'],
     'brace-style': ['error', '1tbs'],
     'spaced-comment': 'warn',
+    'no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+      },
+    ],
   },
   env: {
     browser: true,

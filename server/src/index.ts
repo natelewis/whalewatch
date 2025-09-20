@@ -6,7 +6,6 @@ import express from 'express';
 import { secretValidator } from './utils/secretValidator';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import session from 'express-session';
 import passport from 'passport';

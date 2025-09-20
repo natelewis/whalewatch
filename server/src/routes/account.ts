@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { authenticateToken, requireAuth } from '../middleware/auth';
 import { alpacaService } from '../services/alpacaService';
 import { AuthenticatedRequest } from '../types';
@@ -35,12 +35,9 @@ router.get('/positions', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/activity', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { start_date, end_date } = req.query;
-    
-    const activities = await alpacaService.getActivities(
-      start_date as string,
-      end_date as string
-    );
-    
+
+    const activities = await alpacaService.getActivities(start_date as string, end_date as string);
+
     res.json({ activities });
   } catch (error) {
     console.error('Error fetching activities:', error);

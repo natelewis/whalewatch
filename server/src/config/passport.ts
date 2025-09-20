@@ -3,9 +3,6 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import jwt from 'jsonwebtoken';
 import { secretValidator } from '../utils/secretValidator';
 
-// Validate all secrets using the processing array pattern
-const validationResult = secretValidator.validateSecrets();
-
 // Google OAuth configuration
 const googleConfig = {
   clientID: secretValidator.getSecret('GOOGLE_CLIENT_ID') || 'your_google_client_id_here',

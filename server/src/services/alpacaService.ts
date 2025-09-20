@@ -52,11 +52,11 @@ export class AlpacaService {
     try {
       const params: any = {};
       if (startDate) {
-params.start = startDate;
-}
+        params.start = startDate;
+      }
       if (endDate) {
-params.end = endDate;
-}
+        params.end = endDate;
+      }
 
       const response = await axios.get(`${this.baseUrl}/account/activities`, {
         headers: this.headers,
@@ -155,7 +155,7 @@ params.end = endDate;
     }
   }
 
-  async getOptionsTrades(symbol: string, hours: number = 1): Promise<AlpacaOptionsTrade[]> {
+  async getOptionsTrades(symbol: string, _hours: number = 1): Promise<AlpacaOptionsTrade[]> {
     // This method is now handled by QuestDB routes
     // Keeping for backward compatibility but should not be used
     console.warn('getOptionsTrades called on AlpacaService - use QuestDB routes instead');
