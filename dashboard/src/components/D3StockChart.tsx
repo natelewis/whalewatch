@@ -1042,6 +1042,102 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     currentDataRef.current = chartState.allData;
   }, [chartState.allData]);
 
+  // Trigger chart re-render when allData changes (for data loading)
+  useEffect(() => {
+    if (chartState.chartLoaded && chartState.chartExists && chartState.allData.length > 0) {
+      console.log('🔄 allData changed, triggering chart re-render:', {
+        allDataLength: chartState.allData.length,
+        chartLoaded: chartState.chartLoaded,
+        chartExists: chartState.chartExists,
+      });
+
+      // Get current transform to preserve view position
+      const currentZoomTransform = svgRef.current
+        ? d3.zoomTransform(svgRef.current)
+        : d3.zoomIdentity;
+
+      // Calculate new chart state with updated data
+      const calculations = calculateChartState({
+        dimensions: chartState.dimensions,
+        allChartData: chartState.allData,
+        transform: currentZoomTransform,
+        fixedYScaleDomain: chartState.fixedYScaleDomain,
+      });
+
+      // Update clip-path to accommodate expanded dataset
+      if (svgRef.current) {
+        updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
+      }
+
+      // Update X-axis with new data
+      if (svgRef.current) {
+        const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
+        if (!xAxisGroup.empty()) {
+          const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
+          xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+          xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
+          applyAxisStyling(xAxisGroup);
+        }
+      }
+
+      // Update Y-axis
+      if (svgRef.current) {
+        const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
+        if (!yAxisGroup.empty()) {
+          yAxisGroup.call(createYAxis(calculations.transformedYScale));
+          applyAxisStyling(yAxisGroup);
+        }
+      }
+
+      // Update chart content group transform
+      if (svgRef.current) {
+        const chartContentGroup = d3.select(svgRef.current).select<SVGGElement>('.chart-content');
+        if (!chartContentGroup.empty()) {
+          chartContentGroup.attr('transform', calculations.transformString);
+        }
+      }
+
+      // Re-render candlesticks with updated data
+      if (svgRef.current) {
+        renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
+      }
+
+      // Update buffer range
+      const bufferSize = Math.max(
+        MIN_BUFFER_SIZE,
+        Math.floor(CHART_DATA_POINTS * BUFFER_SIZE_MULTIPLIER)
+      );
+      const dataLength = chartState.allData.length;
+      const marginSize = MARGIN_SIZE;
+      const atDataStart = calculations.viewStart <= marginSize;
+      const atDataEnd = calculations.viewEnd >= dataLength - marginSize;
+
+      let actualStart, actualEnd;
+
+      if (atDataStart && atDataEnd) {
+        actualStart = 0;
+        actualEnd = dataLength - 1;
+      } else if (atDataStart) {
+        actualStart = 0;
+        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
+      } else if (atDataEnd) {
+        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
+        actualEnd = dataLength - 1;
+      } else {
+        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
+        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
+      }
+
+      currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+
+      console.log('✅ Chart re-rendered with updated data:', {
+        allDataLength: calculations.allData.length,
+        viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+        bufferRange: `${actualStart}-${actualEnd}`,
+      });
+    }
+  }, [chartState.allData.length]); // Only trigger when data length changes
+
   // Update fixed Y-scale domain ref when it changes
   useEffect(() => {
     console.log('🔍 Fixed Y-scale domain changed:', {
@@ -1105,13 +1201,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
         const { formattedData } = processChartData(response.bars);
 
         console.log('📊 Auto-load before setAllData (preserving current view):', {
-          currentAllDataLength: chartState.allData.length,
+          currentAllDataLength: currentDataRef.current.length,
           newFormattedDataLength: formattedData.length,
         });
 
-        // For auto-load during panning, preserve the current view position
-        // by just updating the data without changing the transform
-        chartActions.setAllData(formattedData);
+        // For auto-load during panning, merge new data with existing data
+        // to preserve all previously loaded data points
+        const mergedData = mergeHistoricalData(currentDataRef.current, formattedData);
+        chartActions.setAllData(mergedData);
 
         console.log('✅ Successfully auto-loaded more data (view preserved):', {
           newDataLength: formattedData.length,
@@ -2152,9 +2249,10 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     chartState.dimensions,
     chartState.fixedYScaleDomain,
     chartState.chartExists,
+    chartState.allData.length, // Include allData.length to trigger chart updates
     isValidData,
     svgRef.current, // Re-run when SVG element becomes available
-  ]); // Removed chartState.allData.length to prevent Y-scale recalculation on data addition
+  ]);
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
