@@ -69,7 +69,6 @@ const calculateYScaleDomain = (
   fixedDomain: [number, number] | null = null
 ): [number, number] => {
   if (fixedDomain) {
-    console.log('🔒 Using FIXED Y-scale domain:', fixedDomain);
     return fixedDomain;
   }
 

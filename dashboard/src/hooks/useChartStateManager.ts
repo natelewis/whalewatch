@@ -167,7 +167,7 @@ export const useChartStateManager = (
     currentViewStart: 0,
     currentViewEnd: 0,
     isLive: false,
-    isWebSocketEnabled: true,
+    isWebSocketEnabled: false,
     isZooming: false,
     isLoading: false,
     error: null,
@@ -304,7 +304,8 @@ export const useChartStateManager = (
       currentViewStart: 0,
       currentViewEnd: 0,
       isLive: false,
-      isWebSocketEnabled: true,
+      // Preserve isWebSocketEnabled state when resetting chart
+      // isWebSocketEnabled: prev.isWebSocketEnabled,
       isZooming: false,
       isLoading: false,
       error: null,
