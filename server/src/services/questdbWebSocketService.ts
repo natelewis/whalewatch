@@ -1,13 +1,10 @@
 import { EventEmitter } from 'events';
 import { questdbService } from './questdbService';
-import {
-  QuestDBWebSocketMessage,
-  QuestDBSubscription,
-} from '../types/questdb';
+import { QuestDBWebSocketMessage, QuestDBSubscription } from '../types/questdb';
 
 export class QuestDBWebSocketService extends EventEmitter {
   private isStreaming: boolean = false;
-  private streamingInterval: NodeJS.Timeout | null = null;
+  private streamingInterval: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Map<string, QuestDBSubscription> = new Map();
   private lastTimestamps: Map<string, string> = new Map();
   private streamingIntervalMs: number = 1000; // Poll every second
@@ -66,7 +63,7 @@ export class QuestDBWebSocketService extends EventEmitter {
   subscribe(subscription: QuestDBSubscription): void {
     const key = this.getSubscriptionKey(subscription);
     this.subscriptions.set(key, subscription);
-    
+
     console.log(`✅ Subscribed to QuestDB data:`, {
       key,
       type: subscription.type,
@@ -84,7 +81,7 @@ export class QuestDBWebSocketService extends EventEmitter {
     const key = this.getSubscriptionKey(subscription);
     this.subscriptions.delete(key);
     this.lastTimestamps.delete(key);
-    
+
     console.log(`Unsubscribed from QuestDB data:`, subscription);
     this.emit('unsubscription_confirmed', { subscription });
   }
@@ -105,7 +102,8 @@ export class QuestDBWebSocketService extends EventEmitter {
       return;
     }
 
-    console.log(`🔍 Polling ${this.subscriptions.size} active subscriptions:`, 
+    console.log(
+      `🔍 Polling ${this.subscriptions.size} active subscriptions:`,
       Array.from(this.subscriptions.entries()).map(([key, sub]) => ({
         key,
         type: sub.type,
@@ -125,7 +123,10 @@ export class QuestDBWebSocketService extends EventEmitter {
   /**
    * Poll data for a specific subscription
    */
-  private async pollSubscriptionData(key: string, subscription: QuestDBSubscription): Promise<void> {
+  private async pollSubscriptionData(
+    key: string,
+    subscription: QuestDBSubscription
+  ): Promise<void> {
     const lastTimestamp = this.lastTimestamps.get(key);
     const now = new Date().toISOString();
 
@@ -163,8 +164,8 @@ export class QuestDBWebSocketService extends EventEmitter {
     currentTimestamp: string
   ): Promise<void> {
     if (!subscription.symbol) {
-return;
-}
+      return;
+    }
 
     const trades = await questdbService.getStockTrades(subscription.symbol, {
       start_time: lastTimestamp || undefined,
@@ -176,17 +177,17 @@ return;
       // Apply filters if specified
       if (subscription.filters) {
         if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
-continue;
-}
+          continue;
+        }
         if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
-continue;
-}
+          continue;
+        }
         if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
-continue;
-}
+          continue;
+        }
         if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
-continue;
-}
+          continue;
+        }
       }
 
       const message: QuestDBWebSocketMessage = {
@@ -222,17 +223,17 @@ continue;
       // Apply filters if specified
       if (subscription.filters) {
         if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
-continue;
-}
+          continue;
+        }
         if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
-continue;
-}
+          continue;
+        }
         if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
-continue;
-}
+          continue;
+        }
         if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
-continue;
-}
+          continue;
+        }
       }
 
       const message: QuestDBWebSocketMessage = {
@@ -294,7 +295,9 @@ continue;
     console.log(`🔍 Polling stock aggregates for ${subscription.symbol}:`, {
       lastTimestamp: lastTimestamp || 'none (first poll)',
       currentTimestamp,
-      timeRange: lastTimestamp ? `${lastTimestamp} to ${currentTimestamp}` : `up to ${currentTimestamp}`,
+      timeRange: lastTimestamp
+        ? `${lastTimestamp} to ${currentTimestamp}`
+        : `up to ${currentTimestamp}`,
     });
 
     const aggregates = await questdbService.getStockAggregates(subscription.symbol, {

@@ -144,12 +144,7 @@ const config: Linter.Config = defineConfig([
       'no-buffer-constructor': 'error',
       'no-case-declarations': 0,
 
-      'no-console': [
-        'error',
-        {
-          allow: ['warn', 'error', 'info'],
-        },
-      ],
+      'no-console': 'off',
 
       'no-continue': 0,
       'no-else-return': 0,

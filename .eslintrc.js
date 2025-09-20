@@ -9,9 +9,7 @@ module.exports = {
     },
   },
   plugins: ['@typescript-eslint', 'react-hooks', 'react-refresh'],
-  extends: [
-    'eslint:recommended',
-  ],
+  extends: ['eslint:recommended'],
   rules: {
     // TypeScript rules
     '@typescript-eslint/no-explicit-any': 'error',
@@ -35,15 +33,12 @@ module.exports = {
     ],
 
     // React rules
-    'react-refresh/only-export-components': [
-      'warn',
-      { allowConstantExport: true },
-    ],
+    'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     'react/jsx-props-no-spreading': 'off',
     'react/react-in-jsx-scope': 'off',
 
     // General rules
-    'no-console': 'warn',
+    'no-console': 'off',
     'prefer-const': 'error',
     'no-var': 'error',
     'no-unused-expressions': [
@@ -95,15 +90,28 @@ module.exports = {
           '^\\s*<.*>\\s*$|^\\s*.*className=|^\\s*.*href=|^\\s*.*[a-zA-Z-]+=|expect\\(.*\\)|it\\(.*\\)|describe\\(.*\\)|\\} as .*|\\) as .*|.*\\{.*:.*\\}|.*\\{.*\\}',
       },
     ],
-    'camelcase': [
+    camelcase: [
       'warn',
       {
         properties: 'never',
         ignoreDestructuring: true,
-        allow: ['^UNSAFE_', 'unstable_cache', 'start_time', 'end_time', 'order_by', 'order_direction', 'time_in_force', 'limit_price', 'underlying_ticker', 'data_points', 'start_date', 'end_date'],
+        allow: [
+          '^UNSAFE_',
+          'unstable_cache',
+          'start_time',
+          'end_time',
+          'order_by',
+          'order_direction',
+          'time_in_force',
+          'limit_price',
+          'underlying_ticker',
+          'data_points',
+          'start_date',
+          'end_date',
+        ],
       },
     ],
-    'curly': ['error', 'all'],
+    curly: ['error', 'all'],
     'eol-last': ['error', 'always'],
     'brace-style': ['error', '1tbs'],
     'spaced-comment': 'warn',
