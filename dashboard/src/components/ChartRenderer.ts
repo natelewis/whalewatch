@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { BUFFER_SIZE } from '../constants';
+import { BUFFER_SIZE, CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import { ChartDimensions } from '../types';
 import { CandlestickData } from '../utils/chartDataUtils';
 import {
@@ -715,7 +715,7 @@ export const renderCandlestickChart = (
     const x = calculations.baseXScale(globalIndex);
 
     const isUp = d.close >= d.open;
-    const color = isUp ? '#26a69a' : '#ef5350';
+    const color = isUp ? CANDLE_UP_COLOR : CANDLE_DOWN_COLOR;
 
     // Add invisible hover area for easier interaction
     candleSticks
@@ -790,8 +790,8 @@ export const renderCandlestickChart = (
       .attr('y2', lowY)
       .attr('stroke', color)
       .attr('stroke-width', 1)
-      .attr('class', 'candlestick-line')
-      .style('opacity', 1);
+      .attr('class', 'candlestick-line');
+    // .style('opacity', 1);
 
     // Open-Close rectangle
     candleSticks
@@ -803,11 +803,11 @@ export const renderCandlestickChart = (
         'height',
         Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1
       )
-      .attr('fill', isUp ? color : 'none')
+      .attr('fill', color)
       .attr('stroke', color)
       .attr('stroke-width', 1)
-      .attr('class', 'candlestick-rect')
-      .style('opacity', 0.8);
+      .attr('class', 'candlestick-rect');
+    // .style('opacity', 0.8);
   });
 
   console.log('🎨 Rendered BUFFERED candles (SMOOTH PANNING):', {
