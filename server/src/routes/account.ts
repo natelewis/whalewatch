@@ -1,7 +1,6 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { authenticateToken, requireAuth } from '../middleware/auth';
 import { alpacaService } from '../services/alpacaService';
-import { AuthenticatedRequest } from '../types';
 
 const router = Router();
 
@@ -10,7 +9,7 @@ router.use(authenticateToken);
 router.use(requireAuth);
 
 // Get account information
-router.get('/info', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/info', async (_req: Request, res: Response) => {
   try {
     const account = await alpacaService.getAccount();
     return res.json({ account });
@@ -21,7 +20,7 @@ router.get('/info', async (_req: AuthenticatedRequest, res: Response) => {
 });
 
 // Get positions
-router.get('/positions', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/positions', async (_req: Request, res: Response) => {
   try {
     const positions = await alpacaService.getPositions();
     return res.json({ positions });
@@ -32,7 +31,7 @@ router.get('/positions', async (_req: AuthenticatedRequest, res: Response) => {
 });
 
 // Get account activity
-router.get('/activity', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/activity', async (req: Request, res: Response) => {
   try {
     const { start_date, end_date } = req.query;
 

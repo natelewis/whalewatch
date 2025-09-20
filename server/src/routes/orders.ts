@@ -1,8 +1,7 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticateToken, requireAuth } from '../middleware/auth';
 import { alpacaService } from '../services/alpacaService';
-import { AuthenticatedRequest } from '../types';
 
 const router = Router();
 
@@ -19,7 +18,7 @@ router.post(
     body('limit_price').isNumeric().isFloat({ min: 0.01 }),
     body('time_in_force').optional().isIn(['day', 'gtc', 'ioc', 'fok']),
   ],
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -63,7 +62,7 @@ router.post(
     body('type').optional().isIn(['market', 'limit', 'stop', 'stop_limit']),
     body('time_in_force').optional().isIn(['day', 'gtc', 'ioc', 'fok']),
   ],
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

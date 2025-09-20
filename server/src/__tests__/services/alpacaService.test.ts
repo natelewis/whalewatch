@@ -1,18 +1,16 @@
 import { AlpacaService } from '../../services/alpacaService';
-import AlpacaApi from '@alpacahq/alpaca-trade-api';
+import axios from 'axios';
 
-// Mock the Alpaca API
-jest.mock('@alpacahq/alpaca-trade-api');
+// Mock axios
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('AlpacaService', () => {
   let alpacaService: AlpacaService;
-  let mockAlpacaApi: jest.Mocked<AlpacaApi>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
     alpacaService = new AlpacaService();
-    mockAlpacaApi = new AlpacaApi({}) as jest.Mocked<AlpacaApi>;
-    (alpacaService as any).alpaca = mockAlpacaApi;
+    jest.clearAllMocks();
   });
 
   describe('getAccount', () => {
@@ -26,20 +24,23 @@ describe('AlpacaService', () => {
         portfolio_value: '50000.00',
       };
 
-      mockAlpacaApi.getAccount.mockResolvedValue(mockAccount as any);
+      mockedAxios.get.mockResolvedValue({ data: mockAccount });
 
       const result = await alpacaService.getAccount();
 
       expect(result).toEqual(mockAccount);
-      expect(mockAlpacaApi.getAccount).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/account'),
+        expect.objectContaining({
+          headers: expect.any(Object),
+        })
+      );
     });
 
     it('should throw error on API failure', async () => {
-      mockAlpacaApi.getAccount.mockRejectedValue(new Error('API Error'));
+      mockedAxios.get.mockRejectedValue(new Error('API Error'));
 
-      await expect(alpacaService.getAccount()).rejects.toThrow(
-        'Failed to fetch account information'
-      );
+      await expect(alpacaService.getAccount()).rejects.toThrow('Failed to fetch account');
     });
   });
 
@@ -47,24 +48,28 @@ describe('AlpacaService', () => {
     it('should return positions', async () => {
       const mockPositions = [
         {
-          asset_id: 'asset-1',
+          asset_id: 'test-asset-id',
           symbol: 'AAPL',
-          qty: '10',
-          side: 'long',
-          market_value: '1500.00',
+          qty: '100',
+          market_value: '15000.00',
         },
       ];
 
-      mockAlpacaApi.getPositions.mockResolvedValue(mockPositions as any);
+      mockedAxios.get.mockResolvedValue({ data: mockPositions });
 
       const result = await alpacaService.getPositions();
 
       expect(result).toEqual(mockPositions);
-      expect(mockAlpacaApi.getPositions).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/positions'),
+        expect.objectContaining({
+          headers: expect.any(Object),
+        })
+      );
     });
 
     it('should throw error on API failure', async () => {
-      mockAlpacaApi.getPositions.mockRejectedValue(new Error('API Error'));
+      mockedAxios.get.mockRejectedValue(new Error('API Error'));
 
       await expect(alpacaService.getPositions()).rejects.toThrow('Failed to fetch positions');
     });
@@ -74,134 +79,114 @@ describe('AlpacaService', () => {
     it('should return activities without date filters', async () => {
       const mockActivities = [
         {
-          id: 'activity-1',
+          id: 'test-activity-id',
           activity_type: 'FILL',
-          transaction_time: '2024-01-01T10:00:00Z',
+          symbol: 'AAPL',
+          qty: '10',
+          price: '150.00',
         },
       ];
 
-      mockAlpacaApi.getActivities.mockResolvedValue(mockActivities as any);
+      mockedAxios.get.mockResolvedValue({ data: mockActivities });
 
       const result = await alpacaService.getActivities();
 
       expect(result).toEqual(mockActivities);
-      expect(mockAlpacaApi.getActivities).toHaveBeenCalledWith({});
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/account/activities'),
+        expect.objectContaining({
+          headers: expect.any(Object),
+          params: {},
+        })
+      );
     });
 
     it('should return activities with date filters', async () => {
       const mockActivities: any[] = [];
-      mockAlpacaApi.getActivities.mockResolvedValue(mockActivities);
+      mockedAxios.get.mockResolvedValue({ data: mockActivities });
 
       const result = await alpacaService.getActivities('2024-01-01', '2024-01-31');
 
       expect(result).toEqual(mockActivities);
-      expect(mockAlpacaApi.getActivities).toHaveBeenCalledWith({
-        start: '2024-01-01',
-        end: '2024-01-31',
-      });
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/account/activities'),
+        expect.objectContaining({
+          headers: expect.any(Object),
+          params: {
+            start: '2024-01-01',
+            end: '2024-01-31',
+          },
+        })
+      );
     });
 
     it('should throw error on API failure', async () => {
-      mockAlpacaApi.getActivities.mockRejectedValue(new Error('API Error'));
+      mockedAxios.get.mockRejectedValue(new Error('API Error'));
 
       await expect(alpacaService.getActivities()).rejects.toThrow('Failed to fetch activities');
     });
   });
 
-  // Polygon conversion tests removed - now using QuestDB
-
   describe('getBars', () => {
-    it('should return bars for 1D timeframe', async () => {
+    it('should return bars for valid symbol and timeframe', async () => {
       const mockBars = [
         {
-          Timestamp: '2024-01-01T00:00:00Z',
-          OpenPrice: 100,
-          HighPrice: 105,
-          LowPrice: 95,
-          ClosePrice: 102,
-          Volume: 1000000,
-          TradeCount: 5000,
-          VWAP: 101,
+          t: '2024-01-01T10:00:00Z',
+          o: 100.0,
+          h: 105.0,
+          l: 99.0,
+          c: 104.0,
+          v: 1000,
         },
       ];
 
-      mockAlpacaApi.getBarsV2.mockResolvedValue({
-        AAPL: mockBars,
-      } as any);
+      mockedAxios.get.mockResolvedValue({ data: { AAPL: mockBars } });
 
-      const result = await alpacaService.getBars('AAPL', '1D', 100);
+      const result = await alpacaService.getBars('AAPL', '1H', 100);
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        t: '2024-01-01T00:00:00Z',
-        o: 100,
-        h: 105,
-        l: 95,
-        c: 102,
-        v: 1000000,
-        n: 5000,
-        vw: 101,
-      });
+      expect(result).toEqual(mockBars);
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/stocks/bars'),
+        expect.objectContaining({
+          headers: expect.any(Object),
+          params: expect.objectContaining({
+            symbols: 'AAPL',
+            timeframe: '1Hour',
+            limit: 100,
+          }),
+        })
+      );
     });
 
-    it('should return empty array when no bars', async () => {
-      mockAlpacaApi.getBarsV2.mockResolvedValue({} as any);
+    it('should return empty array when no data', async () => {
+      mockedAxios.get.mockResolvedValue({ data: {} });
 
-      const result = await alpacaService.getBars('AAPL', '1D', 100);
+      const result = await alpacaService.getBars('AAPL', '1H', 100);
 
       expect(result).toEqual([]);
     });
 
     it('should throw error on API failure', async () => {
-      mockAlpacaApi.getBarsV2.mockRejectedValue(new Error('API Error'));
+      mockedAxios.get.mockRejectedValue(new Error('API Error'));
 
-      await expect(alpacaService.getBars('AAPL', '1D', 100)).rejects.toThrow(
+      await expect(alpacaService.getBars('AAPL', '1H', 100)).rejects.toThrow(
         'Failed to fetch chart data'
       );
     });
   });
 
-  describe('createOrder', () => {
-    it('should create a limit order', async () => {
-      const mockOrder = {
-        id: 'order-123',
-        symbol: 'AAPL',
-        qty: '10',
-        side: 'buy',
-        type: 'limit',
-        status: 'new',
-      };
+  describe('getOptionsTrades', () => {
+    it('should return empty array and log warning', async () => {
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      mockAlpacaApi.createOrder.mockResolvedValue(mockOrder as any);
+      const result = await alpacaService.getOptionsTrades('AAPL', 1);
 
-      const orderData = {
-        symbol: 'AAPL',
-        qty: 10,
-        side: 'buy' as const,
-        type: 'limit' as const,
-        time_in_force: 'day' as const,
-        limit_price: 150,
-      };
+      expect(result).toEqual([]);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'getOptionsTrades called on AlpacaService - use QuestDB routes instead'
+      );
 
-      const result = await alpacaService.createOrder(orderData);
-
-      expect(result).toEqual(mockOrder);
-      expect(mockAlpacaApi.createOrder).toHaveBeenCalledWith(orderData);
-    });
-
-    it('should throw error on API failure', async () => {
-      mockAlpacaApi.createOrder.mockRejectedValue(new Error('API Error'));
-
-      const orderData = {
-        symbol: 'AAPL',
-        qty: 10,
-        side: 'buy' as const,
-        type: 'limit' as const,
-        time_in_force: 'day' as const,
-        limit_price: 150,
-      };
-
-      await expect(alpacaService.createOrder(orderData)).rejects.toThrow('Failed to create order');
+      consoleSpy.mockRestore();
     });
   });
 });
