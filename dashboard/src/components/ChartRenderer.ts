@@ -566,48 +566,59 @@ export const createChart = ({
       }
     })
     .on('mousemove', (event) => {
-      if (!xScale || !yScale) {
-        return;
-      }
       const [mouseX, mouseY] = d3.pointer(event);
 
-      // Use the right-aligned scale for consistent positioning with candles and X-axis
+      // Always recompute scales using the latest data and dimensions to avoid stale closures
       const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
-      const transformedXScale = currentTransform.rescaleX(xScale);
+      const currentData = stateCallbacks.getCurrentData?.() || allChartData;
+      const currentDimensions = stateCallbacks.getCurrentDimensions?.() || dimensions;
+
+      if (!isValidChartData(currentData)) {
+        return;
+      }
+
+      const { innerWidth: currInnerWidth, innerHeight: currInnerHeight } =
+        calculateInnerDimensions(currentDimensions);
+
+      // Recreate the right-aligned base scale for the current dataset length
+      const bandWidth = currInnerWidth / CHART_DATA_POINTS;
+      const totalDataWidth = currentData.length * bandWidth;
+      const rightmostX = currInnerWidth;
+      const leftmostX = rightmostX - totalDataWidth;
+      const currentBaseXScale = d3
+        .scaleLinear()
+        .domain([0, currentData.length - 1])
+        .range([leftmostX, rightmostX]);
+
+      const transformedXScale = currentTransform.rescaleX(currentBaseXScale);
       const mouseIndex = transformedXScale.invert(mouseX);
       const index = Math.round(mouseIndex);
 
-      // Get fresh data from callback to avoid stale closure issues
-      const sortedChartData = stateCallbacks.getCurrentData?.() || allChartData;
-
-      if (!isValidChartData(sortedChartData)) {
-        return;
-      }
-
-      const clampedIndex = clampIndex(index, sortedChartData.length);
-      const d = sortedChartData[clampedIndex];
+      const clampedIndex = clampIndex(index, currentData.length);
+      const d = currentData[clampedIndex];
 
       if (d) {
-        // Update crosshair to follow cursor position exactly
+        // Update crosshair to follow cursor position exactly (with latest dimensions)
         crosshair
           .select('.crosshair-x')
           .attr('x1', mouseX)
           .attr('x2', mouseX)
           .attr('y1', 0)
-          .attr('y2', innerHeight);
+          .attr('y2', currInnerHeight);
 
         crosshair
           .select('.crosshair-y')
           .attr('x1', 0)
-          .attr('x2', innerWidth)
+          .attr('x2', currInnerWidth)
           .attr('y1', mouseY)
           .attr('y2', mouseY);
 
-        // Update hover data (still use closest bar data for tooltip)
+        // Update hover data (use current dimensions' margin for accurate positioning)
         if (stateCallbacks.setHoverData) {
+          const currentMargin = currentDimensions.margin;
           stateCallbacks.setHoverData({
-            x: mouseX + margin.left,
-            y: mouseY + margin.top,
+            x: mouseX + currentMargin.left,
+            y: mouseY + currentMargin.top,
             data: {
               time: d.time,
               open: d.open,
