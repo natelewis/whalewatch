@@ -335,6 +335,10 @@ export const createChart = ({
       stateCallbacks.setIsZooming(true);
     }
     isPanningRef.current = true;
+
+    // Hide crosshairs during panning
+    crosshair.select('.crosshair-x').style('opacity', 0);
+    crosshair.select('.crosshair-y').style('opacity', 0);
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -521,6 +525,9 @@ export const createChart = ({
       stateCallbacks.setIsZooming(false);
     }
     isPanningRef.current = false;
+
+    // Show crosshairs again if mouse is still over the chart
+    // We'll let the mousemove event handle showing them at the correct position
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -596,20 +603,25 @@ export const createChart = ({
       const d = currentData[clampedIndex];
 
       if (d) {
-        // Update crosshair to follow cursor position exactly (with latest dimensions)
-        crosshair
-          .select('.crosshair-x')
-          .attr('x1', mouseX)
-          .attr('x2', mouseX)
-          .attr('y1', 0)
-          .attr('y2', currInnerHeight);
+        // Only show crosshairs if not currently panning
+        if (!isPanningRef.current) {
+          // Update crosshair to follow cursor position exactly (with latest dimensions)
+          crosshair
+            .select('.crosshair-x')
+            .attr('x1', mouseX)
+            .attr('x2', mouseX)
+            .attr('y1', 0)
+            .attr('y2', currInnerHeight)
+            .style('opacity', 1);
 
-        crosshair
-          .select('.crosshair-y')
-          .attr('x1', 0)
-          .attr('x2', currInnerWidth)
-          .attr('y1', mouseY)
-          .attr('y2', mouseY);
+          crosshair
+            .select('.crosshair-y')
+            .attr('x1', 0)
+            .attr('x2', currInnerWidth)
+            .attr('y1', mouseY)
+            .attr('y2', mouseY)
+            .style('opacity', 1);
+        }
 
         // Update hover data (use current dimensions' margin for accurate positioning)
         if (stateCallbacks.setHoverData) {
@@ -853,13 +865,5 @@ export const updateClipPath = (
       .attr('y', -bufferSpace)
       .attr('width', innerWidth + bufferSpace * 2)
       .attr('height', innerHeight + bufferSpace * 2);
-
-    console.log('🔄 Updated clip-path for expanded dataset:', {
-      dataLength: allChartData.length,
-      totalDataWidth,
-      bufferSpace,
-      clipWidth: innerWidth + bufferSpace * 2,
-      clipHeight: innerHeight + bufferSpace * 2,
-    });
   }
 };
