@@ -19,7 +19,16 @@ import {
   isValidChartData,
   processChartData,
 } from '../utils/chartDataUtils';
-import { BarChart3, Settings, Play, Pause, RotateCcw, ArrowRight } from 'lucide-react';
+import {
+  BarChart3,
+  Settings,
+  Play,
+  Pause,
+  RotateCcw,
+  ArrowRight,
+  Wifi,
+  WifiOff,
+} from 'lucide-react';
 
 interface D3StockChartProps {
   symbol: string;
@@ -1692,6 +1701,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // WebSocket for real-time data
   const chartWebSocket = useChartWebSocket({
     symbol,
+    isEnabled: chartState.isWebSocketEnabled,
     onChartData: (bar) => {
       if (chartState.isLive) {
         // Create a unique key for this data point to prevent duplicate processing
@@ -1824,14 +1834,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     lastProcessedDataRef.current = null; // Reset WebSocket data tracking
   }, [symbol]);
 
-  // Subscribe to WebSocket when live mode is enabled
+  // Subscribe to WebSocket when live mode is enabled and WebSocket is enabled
   useEffect(() => {
-    if (chartState.isLive) {
+    if (chartState.isLive && chartState.isWebSocketEnabled) {
       chartWebSocket.subscribeToChartData();
     } else {
       chartWebSocket.unsubscribeFromChartData();
     }
-  }, [chartState.isLive]); // Removed chartWebSocket from dependencies
+  }, [chartState.isLive, chartState.isWebSocketEnabled]); // Removed chartWebSocket from dependencies
 
   // Handle container resize
   useEffect(() => {
@@ -2265,6 +2275,22 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
               >
                 {chartState.isLive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                 {chartState.isLive ? 'Live' : 'Paused'}
+              </button>
+              <button
+                onClick={() => chartActions.setIsWebSocketEnabled(!chartState.isWebSocketEnabled)}
+                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
+                  chartState.isWebSocketEnabled
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+                title={chartState.isWebSocketEnabled ? 'Disable WebSocket' : 'Enable WebSocket'}
+              >
+                {chartState.isWebSocketEnabled ? (
+                  <Wifi className="h-3 w-3" />
+                ) : (
+                  <WifiOff className="h-3 w-3" />
+                )}
+                {chartState.isWebSocketEnabled ? 'WebSocket' : 'No WS'}
               </button>
               <button
                 onClick={() =>

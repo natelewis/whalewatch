@@ -5,6 +5,7 @@ import { AlpacaBar } from '../types';
 interface UseChartWebSocketProps {
   symbol: string;
   onChartData?: (bar: AlpacaBar) => void;
+  isEnabled?: boolean;
 }
 
 interface UseChartWebSocketReturn {
@@ -16,42 +17,46 @@ interface UseChartWebSocketReturn {
 export const useChartWebSocket = ({
   symbol,
   onChartData,
+  isEnabled = true,
 }: UseChartWebSocketProps): UseChartWebSocketReturn => {
   const { lastMessage, sendMessage, isConnected } = useWebSocket();
 
   // Handle incoming chart data messages
-  const handleChartData = useCallback((bar: AlpacaBar) => {
-    if (onChartData) {
-      onChartData(bar);
-    }
-  }, [onChartData]);
+  const handleChartData = useCallback(
+    (bar: AlpacaBar) => {
+      if (onChartData) {
+        onChartData(bar);
+      }
+    },
+    [onChartData]
+  );
 
   // Subscribe to chart data for the current symbol
   const subscribeToChartData = useCallback(() => {
-    if (isConnected) {
+    if (isEnabled && isConnected) {
       sendMessage({
         type: 'subscribe',
         data: { channel: 'chart_quote', symbol },
       });
     }
-  }, [sendMessage, symbol, isConnected]);
+  }, [sendMessage, symbol, isConnected, isEnabled]);
 
   // Unsubscribe from chart data
   const unsubscribeFromChartData = useCallback(() => {
-    if (isConnected) {
+    if (isEnabled && isConnected) {
       sendMessage({
         type: 'unsubscribe',
         data: { channel: 'chart_quote', symbol },
       });
     }
-  }, [sendMessage, symbol, isConnected]);
+  }, [sendMessage, symbol, isConnected, isEnabled]);
 
   // Process incoming messages
   useEffect(() => {
-    if (lastMessage?.type === 'chart_quote' && lastMessage.data.symbol === symbol) {
+    if (isEnabled && lastMessage?.type === 'chart_quote' && lastMessage.data.symbol === symbol) {
       handleChartData(lastMessage.data.bar);
     }
-  }, [lastMessage, symbol, handleChartData]);
+  }, [lastMessage, symbol, handleChartData, isEnabled]);
 
   return {
     subscribeToChartData,

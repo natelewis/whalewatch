@@ -163,6 +163,8 @@ const mockUseChartStateManager = {
     isLoading: false,
     error: null,
     isLive: false,
+    isWebSocketEnabled: true,
+    isZooming: false,
     chartLoaded: false,
     chartExists: false,
     currentViewStart: 0,
@@ -180,6 +182,7 @@ const mockUseChartStateManager = {
     setAllData: vi.fn(),
     setData: vi.fn(),
     setIsLive: vi.fn(),
+    setIsWebSocketEnabled: vi.fn(),
     setError: vi.fn(),
     setIsLoading: vi.fn(),
     resetChart: vi.fn(),
@@ -205,6 +208,7 @@ const mockUseChartStateManager = {
 const mockUseChartWebSocket = {
   subscribeToChartData: vi.fn(),
   unsubscribeFromChartData: vi.fn(),
+  isConnected: true,
 };
 
 describe('D3StockChart', () => {
@@ -229,6 +233,8 @@ describe('D3StockChart', () => {
       state: {
         ...mockUseChartStateManager.state,
         isLoading: true,
+        isWebSocketEnabled: true,
+        isZooming: false,
       },
     });
 
@@ -242,6 +248,8 @@ describe('D3StockChart', () => {
       state: {
         ...mockUseChartStateManager.state,
         error: 'Failed to load data',
+        isWebSocketEnabled: true,
+        isZooming: false,
       },
     });
 
@@ -426,6 +434,8 @@ describe('D3StockChart', () => {
         ...mockUseChartStateManager.state,
         data: [],
         allData: [],
+        isWebSocketEnabled: true,
+        isZooming: false,
       },
     });
 
