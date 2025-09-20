@@ -58,7 +58,6 @@ export interface ChartState {
   // Configuration
   timeframe: ChartTimeframe | null;
   symbol: string;
-  dataPointsToShow: number;
 }
 
 export interface ChartActions {
@@ -148,7 +147,6 @@ export const useChartState = (
     hoverData: null,
     timeframe: initialTimeframe,
     symbol: initialSymbol,
-    dataPointsToShow: DEFAULT_DATA_POINTS,
   });
 
   // Refs for tracking previous values
@@ -174,7 +172,7 @@ export const useChartState = (
 
     const { width, height, margin } = state.dimensions;
     const innerWidth = width - margin.left - margin.right;
-    const bandWidth = innerWidth / state.dataPointsToShow;
+    const bandWidth = innerWidth / 80;
 
     // Calculate visible range based on transform
     const xScale = d3
@@ -206,25 +204,25 @@ export const useChartState = (
       currentViewStart: startIndex,
       currentViewEnd: endIndex,
     }));
-  }, [state.sortedData, state.transform, state.dimensions, state.dataPointsToShow]);
+  }, [state.sortedData, state.transform, state.dimensions, 80]);
 
   // Handle initial data load
   useEffect(() => {
     if (state.sortedData.length > 0 && isInitialLoadRef.current) {
       const totalDataLength = state.sortedData.length;
       const newEndIndex = totalDataLength - 1;
-      const newStartIndex = Math.max(0, newEndIndex - state.dataPointsToShow + 1);
+      const newStartIndex = Math.max(0, newEndIndex - 80 + 1);
 
       // Set initial transform to show the most recent data
       const { width, margin } = state.dimensions;
       const innerWidth = width - margin.left - margin.right;
-      const bandWidth = innerWidth / state.dataPointsToShow;
+      const bandWidth = innerWidth / 80;
       const xScale = d3
         .scaleLinear()
         .domain([0, totalDataLength - 1])
         .range([0, (totalDataLength - 1) * bandWidth]);
 
-      const startOfViewIndex = totalDataLength - state.dataPointsToShow;
+      const startOfViewIndex = totalDataLength - 80;
       const initialTranslateX = startOfViewIndex > 0 ? -xScale(startOfViewIndex) : 0;
 
       setState((prev) => ({
@@ -238,7 +236,7 @@ export const useChartState = (
 
       isInitialLoadRef.current = false;
     }
-  }, [state.sortedData.length, state.dataPointsToShow, state.dimensions]);
+  }, [state.sortedData.length, 80, state.dimensions]);
 
   // Data actions
   const setData = useCallback((data: ChartDataPoint[]) => {
@@ -306,7 +304,7 @@ export const useChartState = (
 
       const { width, margin } = state.dimensions;
       const innerWidth = width - margin.left - margin.right;
-      const bandWidth = innerWidth / state.dataPointsToShow;
+      const bandWidth = innerWidth / 80;
       const xScale = d3
         .scaleLinear()
         .domain([0, state.sortedData.length - 1])
@@ -318,7 +316,7 @@ export const useChartState = (
         transform: { ...prev.transform, x: targetX },
       }));
     },
-    [state.sortedData.length, state.dimensions, state.dataPointsToShow]
+    [state.sortedData.length, state.dimensions, 80]
   );
 
   const panBy = useCallback((deltaX: number, deltaY: number) => {
@@ -416,13 +414,13 @@ export const useChartState = (
 
     const { width, margin } = state.dimensions;
     const innerWidth = width - margin.left - margin.right;
-    const bandWidth = innerWidth / state.dataPointsToShow;
+    const bandWidth = innerWidth / 80;
 
     return d3
       .scaleLinear()
       .domain([0, state.sortedData.length - 1])
       .range([0, (state.sortedData.length - 1) * bandWidth]);
-  }, [state.sortedData.length, state.dimensions, state.dataPointsToShow]);
+  }, [state.sortedData.length, state.dimensions, 80]);
 
   const getYScale = useCallback(() => {
     if (state.viewport.visibleData.length === 0) {

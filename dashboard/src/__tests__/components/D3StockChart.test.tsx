@@ -172,7 +172,6 @@ const mockUseChartStateManager = {
     hoverData: null,
     timeframe: '1h',
     symbol: 'TSLA',
-    dataPointsToShow: 100,
     fixedYScaleDomain: null,
   },
   actions: {
@@ -196,7 +195,6 @@ const mockUseChartStateManager = {
     resetTransform: vi.fn(),
     setSymbol: vi.fn(),
     setDimensions: vi.fn(),
-    setDataPointsToShow: vi.fn(),
     setFixedYScaleDomain: vi.fn(),
     addDataPoint: vi.fn(),
     updateData: vi.fn(),

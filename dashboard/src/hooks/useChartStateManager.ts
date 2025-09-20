@@ -59,7 +59,6 @@ export interface ChartState {
   // Configuration
   timeframe: ChartTimeframe | null;
   symbol: string;
-  dataPointsToShow: number;
 
   // Y-scale management
   fixedYScaleDomain: [number, number] | null;
@@ -111,7 +110,6 @@ export interface ChartActions {
   setTimeframe: (timeframe: ChartTimeframe) => void;
   setSymbol: (symbol: string) => void;
   setDimensions: (dimensions: ChartDimensions) => void;
-  setDataPointsToShow: (points: number) => void;
   setFixedYScaleDomain: (domain: [number, number] | null) => void;
 
   // Utility actions
@@ -134,18 +132,19 @@ const DEFAULT_TRANSFORM: ChartTransform = {
 const DEFAULT_DATA_POINTS = 80;
 
 /**
- * Calculate buffer size based on chart dimensions and data points to show
+ * Calculate buffer size based on chart dimensions
  */
-function calculateBufferSize(dataPointsToShow: number, chartWidth: number): number {
-  // Calculate how many data points fit in the visible area
-  const pointsPerPixel = dataPointsToShow / chartWidth;
+function calculateBufferSize(chartWidth: number): number {
+  // Use a fixed number of visible points (80) for buffer calculation
+  const visiblePoints = 80;
+  const pointsPerPixel = visiblePoints / chartWidth;
 
   // Add buffer for smooth scrolling - typically 1-2 screen widths worth of data
   const bufferMultiplier = 2;
   const bufferPoints = Math.ceil(chartWidth * pointsPerPixel * bufferMultiplier);
 
   // Ensure minimum buffer size
-  const minBuffer = Math.max(50, dataPointsToShow);
+  const minBuffer = Math.max(50, visiblePoints);
 
   return Math.max(bufferPoints, minBuffer);
 }
@@ -174,7 +173,6 @@ export const useChartStateManager = (
     hoverData: null,
     timeframe: initialTimeframe,
     symbol: initialSymbol,
-    dataPointsToShow: DEFAULT_DATA_POINTS,
     fixedYScaleDomain: null,
   });
 
@@ -285,10 +283,6 @@ export const useChartStateManager = (
     setState((prev) => ({ ...prev, dimensions }));
   }, []);
 
-  const setDataPointsToShow = useCallback((points: number) => {
-    setState((prev) => ({ ...prev, dataPointsToShow: points }));
-  }, []);
-
   const setFixedYScaleDomain = useCallback((domain: [number, number] | null) => {
     setState((prev) => ({ ...prev, fixedYScaleDomain: domain }));
   }, []);
@@ -332,7 +326,7 @@ export const useChartStateManager = (
         setError(null);
 
         // Calculate buffer size for smooth rendering
-        const bufferSize = calculateBufferSize(dataPoints, state.dimensions.width);
+        const bufferSize = calculateBufferSize(state.dimensions.width);
         const totalDataPoints = dataPoints + bufferSize;
 
         // Load chart data from API with new parameters
@@ -359,7 +353,6 @@ export const useChartStateManager = (
 
         // Update state with new data
         setAllData(formattedData);
-        setDataPointsToShow(dataPoints);
         setSymbol(symbol);
         setTimeframe(timeframe);
       } catch (err: unknown) {
@@ -383,7 +376,7 @@ export const useChartStateManager = (
         setIsLoading(false);
       }
     },
-    [setIsLoading, setError, setAllData, setDataPointsToShow, setSymbol, setTimeframe]
+    [setIsLoading, setError, setAllData, setSymbol, setTimeframe]
   );
 
   const loadMoreData = useCallback(
@@ -416,7 +409,7 @@ export const useChartStateManager = (
         }
 
         // Calculate buffer size for smooth rendering
-        const bufferSize = calculateBufferSize(dataPoints, state.dimensions.width);
+        const bufferSize = calculateBufferSize(state.dimensions.width);
         const totalDataPoints = dataPoints + bufferSize;
 
         // Load more chart data from API
@@ -522,7 +515,8 @@ export const useChartStateManager = (
     if (state.allData.length > 0 && isInitialLoadRef.current) {
       const totalDataLength = state.allData.length;
       const newEndIndex = totalDataLength - 1;
-      const newStartIndex = Math.max(0, newEndIndex - state.dataPointsToShow + 1);
+      // Use a reasonable default view size (80 points) instead of tracking dataPointsToShow
+      const newStartIndex = Math.max(0, newEndIndex - 80 + 1);
 
       setState((prev) => ({
         ...prev,
@@ -532,7 +526,7 @@ export const useChartStateManager = (
 
       isInitialLoadRef.current = false;
     }
-  }, [state.allData.length, state.dataPointsToShow]);
+  }, [state.allData.length]);
 
   const actions: ChartActions = {
     setData,
@@ -558,7 +552,6 @@ export const useChartStateManager = (
     setTimeframe,
     setSymbol,
     setDimensions,
-    setDataPointsToShow,
     setFixedYScaleDomain,
     resetChart,
     updateMultiple,

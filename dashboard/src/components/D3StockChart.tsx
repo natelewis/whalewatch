@@ -985,8 +985,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
   // Local state for current transform (for debugging)
   const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
 
-  // Experiment mode state
-  const [experimentDataPoints, setExperimentDataPoints] = useState(DEFAULT_CHART_DATA_POINTS);
+  // Data points are now managed through chart state
   const manualRenderInProgressRef = useRef(false);
 
   // Track current buffer range to know when to re-render (use ref to avoid stale closures)
@@ -1158,7 +1157,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Only load more data if we haven't reached the maximum yet
-    if (experimentDataPoints >= 1000) {
+    if (chartState.allData.length >= 1000) {
       console.log('📊 Max data points reached, skipping auto-load');
       return;
     }
@@ -1170,8 +1169,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     );
 
     // Add the same amount of data that we're rendering in the buffer
-    const newDataPoints = Math.min(experimentDataPoints + bufferSize, 1000);
-    setExperimentDataPoints(newDataPoints);
+    const newDataPoints = Math.min(chartState.allData.length + bufferSize, 1000);
 
     // Calculate endTime based on the oldest data point we currently have
     // Use ref to avoid stale closure issues
@@ -1182,7 +1180,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     console.log(
       '🔄 Auto-loading more historical data on buffered render (preserving current view):',
       {
-        currentPoints: experimentDataPoints,
+        currentPoints: chartState.allData.length,
         newPoints: newDataPoints,
         bufferSize,
         pointsToAdd: bufferSize,
@@ -1196,7 +1194,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     // Use the API service directly with the increased data points
     apiService
-      .getChartData(symbol, timeframe, bufferSize, endTime, 'past')
+      .getChartData(symbol, timeframe, newDataPoints, endTime, 'past')
       .then((response) => {
         const { formattedData } = processChartData(response.bars);
 
@@ -1217,10 +1215,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       })
       .catch((error) => {
         console.error('Failed to auto-load more data:', error);
-        // Revert the data points on error
-        setExperimentDataPoints(experimentDataPoints);
+        // No need to revert - data points are managed by allData.length
       });
-  }, [timeframe, experimentDataPoints, symbol, chartState.allData.length, chartActions]);
+  }, [timeframe, chartState.allData.length, symbol, chartActions]);
 
   // Wrapper function that renders candlesticks and triggers data loading for non-panning cases
   const renderCandlestickChartWithCallback = useCallback(
@@ -1285,7 +1282,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Only load more data if we haven't reached the maximum yet
-    if (experimentDataPoints >= 1000) {
+    if (chartState.allData.length >= 1000) {
       console.log('📊 Max data points reached, skipping left data load');
       return;
     }
@@ -1297,8 +1294,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     );
 
     // Add the same amount of data that we're rendering in the buffer
-    const newDataPoints = Math.min(experimentDataPoints + bufferSize, 1000);
-    setExperimentDataPoints(newDataPoints);
+    const newDataPoints = Math.min(chartState.allData.length + bufferSize, 1000);
 
     // Calculate endTime based on the oldest data point we currently have
     // Use ref to avoid stale closure issues
@@ -1307,7 +1303,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const endTime = oldestDataPoint ? oldestDataPoint.time : undefined;
 
     console.log('🔄 Loading more data to the LEFT (historical):', {
-      currentPoints: experimentDataPoints,
+      currentPoints: chartState.allData.length,
       newPoints: newDataPoints,
       bufferSize,
       pointsToAdd: bufferSize,
@@ -1320,7 +1316,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     // Use the API service directly with the increased data points
     apiService
-      .getChartData(symbol, timeframe, bufferSize, endTime, 'past')
+      .getChartData(symbol, timeframe, newDataPoints, endTime, 'past')
       .then((response) => {
         const { formattedData: newData } = processChartData(response.bars);
 
@@ -1412,8 +1408,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       })
       .catch((error) => {
         console.error('Failed to load more data to the left:', error);
-        // Revert the data points on error
-        setExperimentDataPoints(experimentDataPoints);
+        // No need to revert - data points are managed by allData.length
       });
   };
 
@@ -1425,7 +1420,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     }
 
     // Only load more data if we haven't reached the maximum yet
-    if (experimentDataPoints >= 500) {
+    if (chartState.allData.length >= 500) {
       console.log('📊 Max data points reached, skipping right data load');
       return;
     }
@@ -1437,8 +1432,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     );
 
     // Add the same amount of data that we're rendering in the buffer
-    const newDataPoints = Math.min(experimentDataPoints + bufferSize, 500);
-    setExperimentDataPoints(newDataPoints);
+    const newDataPoints = Math.min(chartState.allData.length + bufferSize, 500);
 
     // For right data loading, we want to get data from the newest point forward
     // Use ref to avoid stale closure issues
@@ -1447,7 +1441,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const startTime = newestDataPoint ? newestDataPoint.time : undefined;
 
     console.log('🔄 Loading more data to the RIGHT (future):', {
-      currentPoints: experimentDataPoints,
+      currentPoints: chartState.allData.length,
       newPoints: newDataPoints,
       bufferSize,
       pointsToAdd: bufferSize,
@@ -1461,7 +1455,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     // Use the API service directly with the increased data points
     // For right data, we don't specify startTime to get the most recent data
     apiService
-      .getChartData(symbol, timeframe, bufferSize, undefined, 'future')
+      .getChartData(symbol, timeframe, newDataPoints, undefined, 'future')
       .then((response) => {
         const { formattedData: newData } = processChartData(response.bars);
 
@@ -1553,8 +1547,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       })
       .catch((error) => {
         console.error('Failed to load more data to the right:', error);
-        // Revert the data points on error
-        setExperimentDataPoints(experimentDataPoints);
+        // No need to revert - data points are managed by allData.length
       });
   };
 
@@ -2454,7 +2447,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             {/* Data Information */}
             <span>Total: {chartState.allData.length}</span>
             <span>Visible: {CHART_DATA_POINTS}</span>
-            <span>Data Points: {experimentDataPoints}</span>
             <span>
               View:{' '}
               {(() => {
@@ -2502,11 +2494,11 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
                 <span className="text-xs text-yellow-500">Auto-live</span>
               </div>
             )}
-            {experimentDataPoints > DEFAULT_CHART_DATA_POINTS && (
+            {chartState.allData.length > DEFAULT_CHART_DATA_POINTS && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                 <span className="text-xs text-orange-500">
-                  Extended ({experimentDataPoints} pts)
+                  Extended ({chartState.allData.length} pts)
                 </span>
               </div>
             )}
