@@ -106,6 +106,12 @@ const createYScale = (
     range: [innerHeight, 0],
     usingFixed: !!fixedDomain,
     dataLength: data.length,
+    domainMin: domain[0],
+    domainMax: domain[1],
+    rangeMin: innerHeight,
+    rangeMax: 0,
+    innerHeightValue: innerHeight,
+    stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n'),
   });
 
   return scale;
@@ -160,6 +166,17 @@ const calculateChartState = ({
   const rightmostDataIndex = availableDataLength - 1;
   const viewEnd = Math.min(rightmostDataIndex, rightmostDataIndex - panOffsetDataPoints);
   const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
+
+  console.log('📊 View calculation:', {
+    availableDataLength,
+    rightmostDataIndex,
+    panOffsetDataPoints,
+    panOffsetPixels: transform.x,
+    viewStart,
+    viewEnd,
+    viewSize: viewEnd - viewStart + 1,
+    bandWidth,
+  });
 
   // Create base X scale that maps data indices to screen coordinates
   // The scale should always map the full dataset to a fixed range that shows 80 points
@@ -417,6 +434,14 @@ const createChart = ({
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroup.empty()) {
+      console.log('🔄 Updating chart content group transform:', {
+        transformString: calculations.transformString,
+        transformX: transform.x,
+        transformY: transform.y,
+        transformK: transform.k,
+        yScaleDomain: calculations.baseYScale.domain(),
+        yScaleRange: calculations.baseYScale.range(),
+      });
       chartContentGroup.attr('transform', calculations.transformString);
     }
 
@@ -743,6 +768,8 @@ const renderCandlestickChart = (
     bufferSize,
     scaleDomain: calculations.baseXScale.domain(),
     scaleRange: calculations.baseXScale.range(),
+    yScaleDomain: calculations.baseYScale.domain(),
+    yScaleRange: calculations.baseYScale.range(),
     firstCandleTime:
       visibleCandles.length > 0 ? new Date(visibleCandles[0].time).toLocaleString() : 'none',
     lastCandleTime:
@@ -751,6 +778,12 @@ const renderCandlestickChart = (
         : 'none',
     firstCandleIndex: actualStart,
     lastCandleIndex: actualEnd,
+    firstCandleY:
+      visibleCandles.length > 0 ? calculations.baseYScale(visibleCandles[0].close) : 'none',
+    lastCandleY:
+      visibleCandles.length > 0
+        ? calculations.baseYScale(visibleCandles[visibleCandles.length - 1].close)
+        : 'none',
   });
 
   // Use the base linear scale for candlestick positioning since the chart content group
@@ -813,12 +846,31 @@ const renderCandlestickChart = (
       });
 
     // High-Low line
+    const highY = calculations.baseYScale(d.high);
+    const lowY = calculations.baseYScale(d.low);
+
+    // Debug logging for first few candles
+    if (localIndex < 3) {
+      console.log(`🕯️ Candle ${localIndex} Y positions:`, {
+        globalIndex,
+        time: d.time,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+        highY,
+        lowY,
+        closeY: calculations.baseYScale(d.close),
+        yScaleDomain: calculations.baseYScale.domain(),
+        yScaleRange: calculations.baseYScale.range(),
+      });
+    }
+
     candleSticks
       .append('line')
       .attr('x1', x)
       .attr('x2', x)
-      .attr('y1', calculations.baseYScale(d.high))
-      .attr('y2', calculations.baseYScale(d.low))
+      .attr('y1', highY)
+      .attr('y2', lowY)
       .attr('stroke', color)
       .attr('stroke-width', 1)
       .attr('class', 'candlestick-line')
@@ -994,6 +1046,13 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
   // Update fixed Y-scale domain ref when it changes
   useEffect(() => {
+    console.log('🔍 Fixed Y-scale domain changed:', {
+      oldDomain: fixedYScaleDomainRef.current,
+      newDomain: chartState.fixedYScaleDomain,
+      changed:
+        JSON.stringify(fixedYScaleDomainRef.current) !==
+        JSON.stringify(chartState.fixedYScaleDomain),
+    });
     fixedYScaleDomainRef.current = chartState.fixedYScaleDomain;
   }, [chartState.fixedYScaleDomain]);
 
@@ -1026,17 +1085,20 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     const oldestDataPoint = currentData[0];
     const endTime = oldestDataPoint ? oldestDataPoint.time : undefined;
 
-    console.log('🔄 Auto-loading more historical data on buffered render:', {
-      currentPoints: experimentDataPoints,
-      newPoints: newDataPoints,
-      bufferSize,
-      pointsToAdd: bufferSize,
-      symbol,
-      timeframe,
-      currentDataLength: currentData.length,
-      endTime: endTime ? new Date(endTime).toISOString() : 'current time',
-      oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.time).toISOString() : 'none',
-    });
+    console.log(
+      '🔄 Auto-loading more historical data on buffered render (preserving current view):',
+      {
+        currentPoints: experimentDataPoints,
+        newPoints: newDataPoints,
+        bufferSize,
+        pointsToAdd: bufferSize,
+        symbol,
+        timeframe,
+        currentDataLength: currentData.length,
+        endTime: endTime ? new Date(endTime).toISOString() : 'current time',
+        oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.time).toISOString() : 'none',
+      }
+    );
 
     // Use the API service directly with the increased data points
     apiService
@@ -1044,14 +1106,16 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
       .then((response) => {
         const { formattedData } = processChartData(response.bars);
 
-        console.log('📊 Auto-load before setAllData:', {
+        console.log('📊 Auto-load before setAllData (preserving current view):', {
           currentAllDataLength: chartState.allData.length,
           newFormattedDataLength: formattedData.length,
         });
 
+        // For auto-load during panning, preserve the current view position
+        // by just updating the data without changing the transform
         chartActions.setAllData(formattedData);
 
-        console.log('✅ Successfully auto-loaded more data:', {
+        console.log('✅ Successfully auto-loaded more data (view preserved):', {
           newDataLength: formattedData.length,
           dataPoints: newDataPoints,
         });
@@ -1096,6 +1160,28 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     [loadMoreDataOnBufferedRender]
   );
 
+  // Function to merge new historical data with existing data
+  const mergeHistoricalData = (
+    existingData: CandlestickData[],
+    newData: CandlestickData[]
+  ): CandlestickData[] => {
+    // Combine all data and deduplicate by timestamp
+    const combinedData = [...existingData, ...newData];
+    const uniqueData = combinedData.reduce((acc, current) => {
+      const existingIndex = acc.findIndex((item) => item.time === current.time);
+      if (existingIndex === -1) {
+        acc.push(current);
+      } else {
+        // If duplicate timestamp, keep the newer data (from newData)
+        acc[existingIndex] = current;
+      }
+      return acc;
+    }, [] as CandlestickData[]);
+
+    // Sort by time to ensure chronological order
+    return uniqueData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  };
+
   // Function to fetch more historical data
   const fetchMoreData = (): void => {
     if (timeframe === null) {
@@ -1126,48 +1212,59 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     apiService
       .getChartData(symbol, timeframe, newDataPoints, endTime, DATA_PRELOAD_BUFFER)
       .then((response) => {
-        const { formattedData } = processChartData(response.bars);
+        const { formattedData: newData } = processChartData(response.bars);
 
-        console.log('📊 Before setAllData:', {
+        console.log('📊 Before merging data:', {
           currentAllDataLength: chartState.allData.length,
-          newFormattedDataLength: formattedData.length,
+          newDataLength: newData.length,
         });
 
-        chartActions.setAllData(formattedData);
+        // Merge new data with existing data instead of replacing it
+        const mergedData = mergeHistoricalData(chartState.allData, newData);
+
+        console.log('📊 After merging data:', {
+          originalDataLength: chartState.allData.length,
+          newDataLength: newData.length,
+          mergedDataLength: mergedData.length,
+          dataAdded: mergedData.length - chartState.allData.length,
+        });
+
+        chartActions.setAllData(mergedData);
 
         // Check state after a brief delay to see if it updates
         setTimeout(() => {
           console.log('📊 After setAllData (delayed):', {
             currentAllDataLength: chartState.allData.length,
-            newFormattedDataLength: formattedData.length,
+            mergedDataLength: mergedData.length,
             refDataLength: currentDataRef.current.length,
           });
         }, 100);
 
         console.log('✅ Successfully loaded more data:', {
-          newDataLength: formattedData.length,
+          mergedDataLength: mergedData.length,
           dataPoints: newDataPoints,
+          dataAdded: mergedData.length - chartState.allData.length,
         });
 
-        // Update the data and force a re-render with the fresh data
-        console.log('✅ New data loaded, forcing re-render with fresh data');
+        // Update the data and force a re-render with the merged data
+        console.log('✅ New data loaded, forcing re-render with merged data');
         console.log('📊 Data update details:', {
           oldDataLength: chartState.allData.length,
-          newDataLength: formattedData.length,
-          newDataAdded: formattedData.length - chartState.allData.length,
+          mergedDataLength: mergedData.length,
+          newDataAdded: mergedData.length - chartState.allData.length,
         });
 
-        // Force a re-render with the fresh data immediately
+        // Force a re-render with the merged data immediately
         if (svgRef.current && chartState.chartLoaded) {
-          console.log('🔄 Forcing immediate re-render with fresh data');
+          console.log('🔄 Forcing immediate re-render with merged data');
 
           // Set flag to prevent React effect from overriding
           manualRenderInProgressRef.current = true;
 
-          // Get current transform
+          // Get current transform to preserve the current view position
           const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
-          // Calculate chart state with the FRESH data
+          // Calculate chart state with the MERGED data
           // Use the locked Y-scale domain from ref to prevent price level shifting
           const lockedYScaleDomain = fixedYScaleDomainRef.current;
 
@@ -1176,20 +1273,20 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             fromState: chartState.fixedYScaleDomain,
             areEqual:
               JSON.stringify(lockedYScaleDomain) === JSON.stringify(chartState.fixedYScaleDomain),
-            newDataLength: formattedData.length,
+            mergedDataLength: mergedData.length,
           });
 
           const calculations = calculateChartState({
             dimensions: chartState.dimensions,
-            allChartData: formattedData, // Use the fresh data directly
-            transform: currentZoomTransform,
+            allChartData: mergedData, // Use the merged data
+            transform: currentZoomTransform, // Preserve current view position
             fixedYScaleDomain: lockedYScaleDomain, // Use the LOCKED domain, never recalculate
           });
 
           // Update clip-path to accommodate the expanded dataset
-          updateClipPath(svgRef.current as SVGSVGElement, formattedData, chartState.dimensions);
+          updateClipPath(svgRef.current as SVGSVGElement, mergedData, chartState.dimensions);
 
-          // Update X-axis with the new data
+          // Update X-axis with the merged data
           const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
           if (!xAxisGroup.empty()) {
             const { innerHeight: axisInnerHeight } = calculateInnerDimensions(
@@ -1197,7 +1294,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             );
 
             xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-            xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, formattedData));
+            xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, mergedData));
             applyAxisStyling(xAxisGroup);
           }
 
@@ -1219,12 +1316,14 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
             });
           }
 
-          // Re-render with fresh data
+          // Re-render with merged data (preserving current view position)
           renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
 
-          console.log('✅ Immediate re-render completed with fresh data:', {
+          console.log('✅ Immediate re-render completed with merged data (view preserved):', {
             allDataLength: calculations.allData.length,
             viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+            currentTransformX: currentZoomTransform.x,
+            currentTransformY: currentZoomTransform.y,
           });
 
           // Reset flag after a delay
@@ -1865,8 +1964,9 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
           });
 
           // Calculate the fixed Y-scale domain using centralized calculation
-          let fixedYScaleDomain: [number, number] | null = null;
-          if (isValidChartData(calculationsForRender.visibleData)) {
+          // Only calculate if we don't already have a fixed domain (first time only)
+          let fixedYScaleDomain: [number, number] | null = chartState.fixedYScaleDomain;
+          if (!fixedYScaleDomain && isValidChartData(calculationsForRender.visibleData)) {
             // Use centralized Y-scale domain calculation
             fixedYScaleDomain = calculateYScaleDomain(calculationsForRender.visibleData);
 
@@ -1925,7 +2025,6 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
 
     return undefined; // Explicit return for linter
   }, [
-    chartState.allData.length,
     chartState.currentViewStart,
     chartState.currentViewEnd,
     chartState.dimensions,
@@ -1933,7 +2032,7 @@ const D3StockChart: React.FC<D3StockChartProps> = ({ symbol }) => {
     chartState.chartExists,
     isValidData,
     svgRef.current, // Re-run when SVG element becomes available
-  ]); // Removed chartState.data and chartActions to prevent infinite loops
+  ]); // Removed chartState.allData.length to prevent Y-scale recalculation on data addition
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
