@@ -276,12 +276,32 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       }`
     );
 
-    // For past direction: get records <= startTime, ordered DESC (most recent first), limit to requested count
-    // For future direction: get records >= startTime, ordered ASC (earliest first), limit to requested count
+    // Calculate how much raw data we need to fetch for proper aggregation
+    const intervalMinutes = getIntervalMinutes(intervalKey);
+    let rawDataLimit: number;
+
+    if (intervalMinutes === 1) {
+      // For 1-minute intervals, we need exactly the requested limit
+      rawDataLimit = limitValue;
+    } else {
+      // For larger intervals, we need more raw data to create the requested number of aggregated bars
+      // Add a buffer to account for potential gaps in data (e.g., weekends, market hours)
+      const multiplier = Math.ceil(intervalMinutes * 2); // 2x buffer for safety
+      rawDataLimit = limitValue * multiplier;
+    }
+
+    console.log(
+      `🔍 DEBUG: Interval: ${intervalMinutes}min, Requested: ${limitValue} bars, Fetching: ${rawDataLimit} raw records`
+    );
+
+    // For past direction: get records <= startTime, ordered DESC (most recent first),
+    // limit to calculated raw data count
+    // For future direction: get records >= startTime, ordered ASC (earliest first),
+    // limit to calculated raw data count
     const params: QuestDBQueryParams = {
       order_by: 'timestamp',
       order_direction: direction === 'past' ? 'DESC' : 'ASC',
-      limit: limitValue,
+      limit: rawDataLimit,
     };
 
     // Only set start_time for both directions
