@@ -25,6 +25,7 @@ export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
  * Chart query parameters for the new system
  */
 interface ChartQueryParams {
+  startTime: string; // ISO timestamp
   endTime: string; // ISO timestamp
   interval: AggregationInterval;
   dataPoints: number; // Number of data points to return
@@ -193,6 +194,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
     const {
+      start_time,
       end_time,
       interval = '1h',
       data_points = process.env.DEFAULT_CHART_DATA_POINTS || '80',
@@ -205,7 +207,11 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Symbol is required' });
     }
 
-    // Validate parameters
+    // Validate parameters - both start_time and end_time are required for reliability
+    if (!start_time) {
+      return res.status(400).json({ error: 'start_time parameter is required' });
+    }
+
     if (!end_time) {
       return res.status(400).json({ error: 'end_time parameter is required' });
     }
@@ -235,13 +241,24 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'view_size must be a positive integer' });
     }
 
-    // Validate end_time format
+    // Validate start_time and end_time formats
+    const startTime = new Date(start_time as string);
+    if (isNaN(startTime.getTime())) {
+      return res.status(400).json({ error: 'start_time must be a valid ISO timestamp' });
+    }
+
     const endTime = new Date(end_time as string);
     if (isNaN(endTime.getTime())) {
       return res.status(400).json({ error: 'end_time must be a valid ISO timestamp' });
     }
 
+    // Validate that start_time is before end_time
+    if (startTime >= endTime) {
+      return res.status(400).json({ error: 'start_time must be before end_time' });
+    }
+
     const chartParams: ChartQueryParams = {
+      startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       interval: intervalKey,
       dataPoints: dataPoints,
@@ -251,24 +268,27 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     };
 
     console.log(
-      `🔍 DEBUG: Querying ${symbol} up to ${endTime.toISOString()} with ${intervalKey} intervals, requesting ${dataPoints} data points${
+      `🔍 DEBUG: Querying ${symbol} from ${startTime.toISOString()} to ${endTime.toISOString()} with ${intervalKey} intervals, requesting ${dataPoints} data points${
         bufferPoints > 0 ? ` + ${bufferPoints} buffer points` : ''
       }${viewBasedLoading ? ` (view-based loading: ${viewSize} per view)` : ''}`
     );
 
-    // Get aggregates from QuestDB - only specify end_time, let QuestDB return all available data up to that point
+    // Get aggregates from QuestDB - use both start_time and end_time for reliable data retrieval
     const params: QuestDBQueryParams = {
+      start_time: startTime.toISOString(),
       end_time: endTime.toISOString(),
       order_by: 'timestamp',
-      order_direction: 'DESC', // Get most recent data first
+      order_direction: 'ASC', // Get data in chronological order
     };
 
     let aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
     console.log(`🔍 DEBUG: Retrieved ${aggregates.length} raw aggregates for ${symbol}`);
 
-    // If no data found, try to get the most recent available data
+    // If no data found in the specified time range, try to get the most recent available data
     if (aggregates.length === 0) {
-      console.log(`No data found for ${symbol} up to ${endTime.toISOString()}`);
+      console.log(
+        `No data found for ${symbol} between ${startTime.toISOString()} and ${endTime.toISOString()}`
+      );
 
       // Query for the most recent available data without time restrictions
       const fallbackParams: QuestDBQueryParams = {
@@ -284,24 +304,32 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
       if (recentData.length > 0) {
         const latestTimestamp = recentData[0].timestamp;
-        console.log(`Found most recent data for ${symbol} at: ${latestTimestamp}`);
+        const earliestTimestamp = recentData[recentData.length - 1].timestamp;
+        console.log(
+          `Found most recent data for ${symbol} from ${earliestTimestamp} to ${latestTimestamp}`
+        );
 
-        // Use the most recent data as the end time
+        // Use the available data range
+        const actualStartTime = new Date(earliestTimestamp);
         const actualEndTime = new Date(latestTimestamp);
-        console.log(`Using actual end time: ${actualEndTime.toISOString()}`);
+        console.log(
+          `Using actual time range: ${actualStartTime.toISOString()} to ${actualEndTime.toISOString()}`
+        );
 
-        // Update chart params with actual end time
+        // Update chart params with actual time range
+        chartParams.startTime = actualStartTime.toISOString();
         chartParams.endTime = actualEndTime.toISOString();
 
-        // Query again with just the end time
+        // Query again with the actual time range
         const adjustedParams: QuestDBQueryParams = {
+          start_time: actualStartTime.toISOString(),
           end_time: actualEndTime.toISOString(),
           order_by: 'timestamp',
-          order_direction: 'DESC',
+          order_direction: 'ASC',
         };
 
         aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), adjustedParams);
-        console.log(`Found ${aggregates.length} records with actual end time`);
+        console.log(`Found ${aggregates.length} records with actual time range`);
       }
     }
 
@@ -364,6 +392,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       data_source: 'questdb',
       success: true,
       query_params: {
+        start_time: chartParams.startTime,
         end_time: chartParams.endTime,
         interval: chartParams.interval,
         requested_data_points: chartParams.dataPoints,

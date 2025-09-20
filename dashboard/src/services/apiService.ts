@@ -13,6 +13,23 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Helper function to get interval in milliseconds
+function getIntervalMs(interval: string): number {
+  const intervalMap: { [key: string]: number } = {
+    '1m': 60 * 1000,
+    '5m': 5 * 60 * 1000,
+    '30m': 30 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '2h': 2 * 60 * 60 * 1000,
+    '4h': 4 * 60 * 60 * 1000,
+    '1d': 24 * 60 * 60 * 1000,
+    '1w': 7 * 24 * 60 * 60 * 1000,
+    '1M': 30 * 24 * 60 * 60 * 1000,
+  };
+
+  return intervalMap[interval] || 60 * 60 * 1000; // Default to 1 hour
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -58,11 +75,11 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     ): Promise<{ activities: AlpacaActivity[] }> {
       const params = new URLSearchParams();
       if (startDate) {
-params.append('start_date', startDate);
-}
+        params.append('start_date', startDate);
+      }
       if (endDate) {
-params.append('end_date', endDate);
-}
+        params.append('end_date', endDate);
+      }
 
       const response = await api.get(`/api/account/activity?${params.toString()}`);
       return response.data;
@@ -73,6 +90,7 @@ params.append('end_date', endDate);
       symbol: string,
       interval: string = '1h',
       dataPoints: number = DEFAULT_CHART_DATA_POINTS,
+      startTime?: string,
       endTime?: string,
       bufferPoints?: number,
       viewBasedLoading?: boolean,
@@ -82,6 +100,17 @@ params.append('end_date', endDate);
         interval,
         data_points: dataPoints.toString(),
       };
+
+      if (startTime) {
+        params.start_time = startTime;
+      } else {
+        // Calculate start time based on interval and data points
+        const intervalMs = getIntervalMs(interval);
+        const calculatedStartTime = new Date(
+          (endTime ? new Date(endTime).getTime() : Date.now()) - dataPoints * intervalMs
+        );
+        params.start_time = calculatedStartTime.toISOString();
+      }
 
       if (endTime) {
         params.end_time = endTime;
@@ -159,11 +188,11 @@ export const apiService = {
   ): Promise<{ activities: AlpacaActivity[] }> {
     const params = new URLSearchParams();
     if (startDate) {
-params.append('start_date', startDate);
-}
+      params.append('start_date', startDate);
+    }
     if (endDate) {
-params.append('end_date', endDate);
-}
+      params.append('end_date', endDate);
+    }
 
     const response = await api.get(`/api/account/activity?${params.toString()}`);
     return response.data;
@@ -174,6 +203,7 @@ params.append('end_date', endDate);
     symbol: string,
     interval: string = '1h',
     dataPoints: number = DEFAULT_CHART_DATA_POINTS,
+    startTime?: string,
     endTime?: string,
     bufferPoints?: number,
     viewBasedLoading?: boolean,
@@ -183,6 +213,17 @@ params.append('end_date', endDate);
       interval,
       data_points: dataPoints.toString(),
     };
+
+    if (startTime) {
+      params.start_time = startTime;
+    } else {
+      // Calculate start time based on interval and data points
+      const intervalMs = getIntervalMs(interval);
+      const calculatedStartTime = new Date(
+        (endTime ? new Date(endTime).getTime() : Date.now()) - dataPoints * intervalMs
+      );
+      params.start_time = calculatedStartTime.toISOString();
+    }
 
     if (endTime) {
       params.end_time = endTime;
