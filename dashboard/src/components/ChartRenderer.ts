@@ -397,18 +397,24 @@ export const createChart = ({
 
       const { innerWidth: currInnerWidth, innerHeight: currInnerHeight } = calculateInnerDimensions(currentDimensions);
 
-      // Recreate the right-aligned base scale for the current dataset length
-      const bandWidth = currInnerWidth / CHART_DATA_POINTS;
-      const totalDataWidth = currentData.length * bandWidth;
-      const rightmostX = currInnerWidth;
-      const leftmostX = rightmostX - totalDataWidth;
-      const currentBaseXScale = d3
-        .scaleLinear()
-        .domain([0, currentData.length - 1])
-        .range([leftmostX, rightmostX]);
+      // Use the same scale calculation as candlestick positioning for proper synchronization
+      // This ensures hover data matches the actual candlestick positions
+      const currentViewStart = stateCallbacks.getCurrentViewStart?.() || 0;
+      const currentViewEnd = stateCallbacks.getCurrentViewEnd?.() || currentData.length - 1;
 
-      const transformedXScale = currentTransform.rescaleX(currentBaseXScale);
-      const mouseIndex = transformedXScale.invert(mouseX);
+      const desiredWindow = Math.max(1, CHART_DATA_POINTS - 1);
+      let safeViewStart = Math.max(0, Math.floor(currentViewStart));
+      let safeViewEnd = Math.min(currentData.length - 1, Math.ceil(currentViewEnd));
+      if (safeViewEnd - safeViewStart < desiredWindow) {
+        safeViewEnd = Math.min(currentData.length - 1, safeViewStart + desiredWindow);
+        if (safeViewEnd - safeViewStart < desiredWindow) {
+          safeViewStart = Math.max(0, safeViewEnd - desiredWindow);
+        }
+      }
+
+      // Create the same scale used for candlestick positioning
+      const xScaleForHover = d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, currInnerWidth]);
+      const mouseIndex = xScaleForHover.invert(mouseX);
       const index = Math.round(mouseIndex);
 
       const clampedIndex = clampIndex(index, currentData.length);
@@ -665,12 +671,6 @@ export const createChart = ({
 
 export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
   const renderStartTime = performance.now();
-  /* console.log('renderCandlestickChart called with:', {
-    allDataLength: calculations.allData.length,
-    viewStart: calculations.viewStart,
-    viewEnd: calculations.viewEnd,
-    stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n'),
-  }); */
 
   // Find the chart content group and remove existing candlesticks
   const chartContent = d3.select(svgElement).select('.chart-content');
@@ -678,8 +678,6 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     console.warn('Chart content group not found, cannot render candlesticks');
     return;
   }
-
-  // Removed transform debug logging
 
   // Create or reuse the candles layer for idempotent rendering
   let candleSticks = chartContent.select<SVGGElement>('.candle-sticks');
@@ -713,40 +711,6 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   const padRight: typeof core = rightFill ? Array.from({ length: padRightCount }, () => rightFill) : [];
   const visibleCandles = [...padLeft, ...core, ...padRight];
 
-  // Removed visual debug markers/guide lines used during development
-  /* console.log('debug positions:', {
-    xFirst,
-    xLast,
-    clipLeft: x0,
-    clipRight: xW,
-    contentTransform: currentContentTransform,
-  }); */
-
-  /* console.log('Rendering candlesticks:', {
-    allDataLength: calculations.allData.length,
-    viewStart: calculations.viewStart,
-    viewEnd: calculations.viewEnd,
-    actualStart,
-    actualEnd,
-    visibleCandlesCount: visibleCandles.length,
-    scaleDomain: calculations.baseXScale.domain(),
-    scaleRange: calculations.baseXScale.range(),
-    yScaleDomain: calculations.baseYScale.domain(),
-    yScaleRange: calculations.baseYScale.range(),
-    firstCandleTime: visibleCandles.length > 0 ? new Date(visibleCandles[0].timestamp).toLocaleString() : 'none',
-    lastCandleTime:
-      visibleCandles.length > 0
-        ? new Date(visibleCandles[visibleCandles.length - 1].timestamp).toLocaleString()
-        : 'none',
-    firstCandleIndex: actualStart,
-    lastCandleIndex: actualEnd,
-    firstCandleY: visibleCandles.length > 0 ? calculations.transformedYScale(visibleCandles[0].close) : 'none',
-    lastCandleY:
-      visibleCandles.length > 0
-        ? calculations.transformedYScale(visibleCandles[visibleCandles.length - 1].close)
-        : 'none',
-  }); */
-
   // Build safe viewport X scale; avoid collapsed domains at drop
   const desiredWindow = Math.max(1, CHART_DATA_POINTS - 1);
   let safeViewStart = Math.max(0, Math.floor(calculations.viewStart));
@@ -758,12 +722,6 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     }
   }
   const xScaleForPosition = d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, calculations.innerWidth]);
-  /* console.log('baseXScale domain/range:', {
-    domain: calculations.baseXScale.domain(),
-    range: calculations.baseXScale.range(),
-    innerWidth: calculations.innerWidth,
-    innerHeight: calculations.innerHeight,
-  }); */
 
   const candlestickRenderStartTime = performance.now();
   visibleCandles.forEach((d, localIndex) => {
@@ -802,7 +760,6 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
       .attr('stroke', color)
       .attr('stroke-width', 1)
       .attr('class', 'candlestick-line');
-    // .style('opacity', 1);
 
     // Open-Close rectangle
     candleSticks
@@ -815,32 +772,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
       .attr('stroke', color)
       .attr('stroke-width', 1)
       .attr('class', 'candlestick-rect');
-    // .style('opacity', 0.8);
   });
-
-  const candlestickRenderEndTime = performance.now();
-  const totalRenderTime = candlestickRenderEndTime - renderStartTime;
-  const candlestickLoopTime = candlestickRenderEndTime - candlestickRenderStartTime;
-
-  /* console.log('Rendered all candles:', {
-    allDataLength: calculations.allData.length,
-    candlesRendered: visibleCandles.length,
-    visibleDataLength: calculations.visibleData.length,
-    viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-    bufferRange: `${actualStart}-${actualEnd}`,
-    rightmostDataIndex: calculations.allData.length - 1,
-    rightmostX: calculations.innerWidth,
-    scaleInfo: {
-      domain: calculations.baseXScale.domain(),
-      range: calculations.baseXScale.range(),
-      totalWidth: calculations.baseXScale.range()[1] - calculations.baseXScale.range()[0],
-    },
-    performance: {
-      totalRenderTime: `${totalRenderTime.toFixed(2)}ms`,
-      candlestickLoopTime: `${candlestickLoopTime.toFixed(2)}ms`,
-      candlesPerMs: visibleCandles.length > 0 ? (visibleCandles.length / candlestickLoopTime).toFixed(2) : '0',
-    },
-  }); */
 };
 
 // Function to update clip-path when data changes
