@@ -50,7 +50,7 @@ export class AlpacaService {
 
   async getActivities(startDate?: string, endDate?: string): Promise<AlpacaActivity[]> {
     try {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (startDate) {
         params.start = startDate;
       }
@@ -119,7 +119,7 @@ export class AlpacaService {
       });
 
       return (
-        response.data.bars?.map((bar: any) => ({
+        response.data.bars?.map((bar: AlpacaBar) => ({
           t: bar.t,
           o: bar.o,
           h: bar.h,
@@ -130,12 +130,17 @@ export class AlpacaService {
           vw: bar.vw,
         })) || []
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching bars:', error);
 
       // Handle specific Alpaca API errors
-      if (error.response?.status === 403) {
-        if (error.response.data?.message?.includes('subscription does not permit')) {
+      const isAxiosError = error && typeof error === 'object' && 'response' in error;
+      const response = isAxiosError
+        ? (error as { response?: { status?: number; data?: { message?: string } } }).response
+        : null;
+
+      if (response?.status === 403) {
+        if (response.data?.message?.includes('subscription does not permit')) {
           throw new Error(
             'API subscription does not support real-time data. Please upgrade your Alpaca account or use delayed data.'
           );
@@ -143,15 +148,18 @@ export class AlpacaService {
         throw new Error('Access denied. Please check your API credentials.');
       }
 
-      if (error.response?.status === 401) {
+      if (response?.status === 401) {
         throw new Error('Invalid API credentials. Please check your Alpaca API key and secret.');
       }
 
-      if (error.response?.status === 429) {
+      if (response?.status === 429) {
         throw new Error('Rate limit exceeded. Please try again later.');
       }
 
-      throw new Error('Failed to fetch chart data');
+      // Generic error handling
+      const errorMessage =
+        response?.data?.message || (error instanceof Error ? error.message : 'Unknown error');
+      throw new Error(errorMessage || 'Failed to fetch chart data');
     }
   }
 

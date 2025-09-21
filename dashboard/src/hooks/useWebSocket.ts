@@ -80,7 +80,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     }
   };
 
-  const sendMessage = (message: any) => {
+  const sendMessage = (message: WebSocketMessage) => {
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(message));
     } else {

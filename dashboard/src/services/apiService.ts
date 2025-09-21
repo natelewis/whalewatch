@@ -7,6 +7,7 @@ import {
   AlpacaOptionsTrade,
   AlpacaOptionsContract,
   CreateOrderRequest,
+  CreateOrderResponse,
   ChartDataResponse,
 } from '../types';
 
@@ -123,12 +124,16 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     },
 
     // Order endpoints
-    async createSellOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: any }> {
+    async createSellOrder(
+      orderData: CreateOrderRequest
+    ): Promise<{ message: string; order: CreateOrderResponse }> {
       const response = await api.post('/api/orders/sell', orderData);
       return response.data;
     },
 
-    async createBuyOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: any }> {
+    async createBuyOrder(
+      orderData: CreateOrderRequest
+    ): Promise<{ message: string; order: CreateOrderResponse }> {
       const response = await api.post('/api/orders/buy', orderData);
       return response.data;
     },
@@ -222,12 +227,16 @@ export const apiService = {
   },
 
   // Order endpoints
-  async createSellOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: any }> {
+  async createSellOrder(
+    orderData: CreateOrderRequest
+  ): Promise<{ message: string; order: CreateOrderResponse }> {
     const response = await api.post('/api/orders/sell', orderData);
     return response.data;
   },
 
-  async createBuyOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: any }> {
+  async createBuyOrder(
+    orderData: CreateOrderRequest
+  ): Promise<{ message: string; order: CreateOrderResponse }> {
     const response = await api.post('/api/orders/buy', orderData);
     return response.data;
   },

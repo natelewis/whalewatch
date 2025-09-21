@@ -2,6 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import jwt from 'jsonwebtoken';
 import { secretValidator } from '../utils/secretValidator';
+import { User } from '../types';
 
 // Google OAuth configuration
 const googleConfig = {
@@ -86,7 +87,7 @@ if (
 }
 
 // Serialize user for session
-passport.serializeUser((user: any, done) => {
+passport.serializeUser((user: User, done) => {
   done(null, user.id);
 });
 
@@ -97,7 +98,7 @@ passport.deserializeUser((id: string, done) => {
 });
 
 // Generate JWT token for user
-export const generateToken = (user: any): string => {
+export const generateToken = (user: User): string => {
   const secret = secretValidator.getSecret('JWT_SECRET');
   if (!secret) {
     throw new Error('JWT_SECRET not configured');

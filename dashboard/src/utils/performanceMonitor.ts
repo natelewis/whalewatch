@@ -93,7 +93,7 @@ export const logPerformanceSummary = (): void => {
 /**
  * Performance decorator for functions
  */
-export const withPerformanceTracking = <T extends (...args: any[]) => any>(
+export const withPerformanceTracking = <T extends (...args: unknown[]) => unknown>(
   functionName: string,
   fn: T
 ): T => {

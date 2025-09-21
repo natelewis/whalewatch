@@ -164,7 +164,7 @@ vi.mock('d3', () => ({
 
 // Mock localStorage
 const localStorageMock = {
-  getItem: vi.fn(() => null), // Default to null for all tests
+  getItem: vi.fn((): string | null => null), // Default to null for all tests
   setItem: vi.fn(),
   removeItem: vi.fn(),
   clear: vi.fn(),

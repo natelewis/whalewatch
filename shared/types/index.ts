@@ -244,6 +244,9 @@ export interface WebSocketMessage {
     | 'connection'
     | 'subscription_confirmed'
     | 'unsubscription_confirmed'
+    | 'subscribe'
+    | 'unsubscribe'
+    | 'ping'
     | 'pong';
   data: unknown;
   timestamp: string;

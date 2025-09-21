@@ -4,6 +4,7 @@ import { WhaleFinderPage } from '../../pages/WhaleFinderPage';
 import { BrowserRouter } from 'react-router-dom';
 import { apiService } from '../../services/apiService';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { AlpacaOptionsTrade } from '../../types';
 
 // Mock the apiService
 jest.mock('../../services/apiService', () => ({
@@ -26,7 +27,7 @@ jest.mock('../../components/WhaleWatchFeed', () => ({
     isLoading,
     error,
   }: {
-    trades: any[];
+    trades: AlpacaOptionsTrade[];
     selectedSymbol: string;
     onSymbolChange: (symbol: string) => void;
     isLoading: boolean;

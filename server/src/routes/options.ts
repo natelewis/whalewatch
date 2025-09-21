@@ -59,10 +59,13 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
       data_source: 'questdb',
       success: true,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching options contracts from QuestDB:', error);
 
-    if (error.message.includes('connection refused') || error.message.includes('ENOTFOUND')) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('connection refused') || error.message.includes('ENOTFOUND'))
+    ) {
       return res.status(503).json({
         error: 'Unable to connect to QuestDB. Please check if QuestDB is running.',
         data_source: 'questdb',
@@ -70,7 +73,7 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
       });
     }
 
-    if (error.message.includes('No options contracts found')) {
+    if (error instanceof Error && error.message.includes('No options contracts found')) {
       return res.status(404).json({
         error: `No options contracts found for ${req.params.symbol.toUpperCase()}. This symbol may not have active options trading.`,
         data_source: 'questdb',
@@ -79,7 +82,9 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
     }
 
     return res.status(500).json({
-      error: `Failed to fetch options contracts data: ${error.message}`,
+      error: `Failed to fetch options contracts data: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
       data_source: 'questdb',
       success: false,
     });
@@ -145,10 +150,12 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       data_source: 'questdb',
       success: true,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching options trades from QuestDB:', error);
     return res.status(500).json({
-      error: `Failed to fetch options trades: ${error.message}`,
+      error: `Failed to fetch options trades: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
       data_source: 'questdb',
       success: false,
     });
@@ -175,11 +182,13 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
         data_source: 'questdb',
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('QuestDB connection test failed:', error);
     return res.status(500).json({
       success: false,
-      message: `QuestDB connection test failed: ${error.message}`,
+      message: `QuestDB connection test failed: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
       data_source: 'questdb',
     });
   }

@@ -72,30 +72,44 @@ export class QuestDBService {
       }
 
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isAxiosError = error && typeof error === 'object' && 'response' in error;
+      const response = isAxiosError
+        ? (error as { response?: { status?: number; data?: { error?: string } } }).response
+        : null;
+
       console.error('QuestDB query execution failed:', {
         query,
-        error: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
+        error: errorMessage,
+        status: response?.status,
+        data: response?.data,
       });
 
-      if (error.response?.data?.error) {
-        const questdbError: QuestDBError = error.response.data;
+      if (response?.data?.error) {
+        const questdbError: QuestDBError = {
+          error: response.data.error,
+          position: 0,
+          query: query,
+          timestamp: new Date().toISOString(),
+        };
         throw new Error(
           `QuestDB error: ${questdbError.error} at position ${questdbError.position}`
         );
       }
 
-      if (error.code === 'ECONNREFUSED') {
-        throw new Error('QuestDB connection refused - check if QuestDB is running');
+      if (error instanceof Error && 'code' in error) {
+        const errorWithCode = error as Error & { code: string };
+        if (errorWithCode.code === 'ECONNREFUSED') {
+          throw new Error('QuestDB connection refused - check if QuestDB is running');
+        }
+
+        if (errorWithCode.code === 'ENOTFOUND') {
+          throw new Error('QuestDB host not found - check QUESTDB_HOST configuration');
+        }
       }
 
-      if (error.code === 'ENOTFOUND') {
-        throw new Error('QuestDB host not found - check QUESTDB_HOST configuration');
-      }
-
-      throw new Error(`Failed to execute QuestDB query: ${error.message}`);
+      throw new Error(`Failed to execute QuestDB query: ${errorMessage}`);
     }
   }
 
@@ -103,11 +117,14 @@ export class QuestDBService {
    * Convert QuestDB array data to object format
    */
   private convertArrayToObject<T>(
-    data: any[],
+    data: unknown[],
     columns: Array<{ name: string; type: string }>
   ): T[] {
-    return data.map((row: any[]) => {
-      const obj: any = {};
+    return data.map((row: unknown) => {
+      if (!Array.isArray(row)) {
+        throw new Error('Expected array data from QuestDB');
+      }
+      const obj: Record<string, unknown> = {};
       columns.forEach((column, index) => {
         obj[column.name] = row[index];
       });
@@ -358,8 +375,9 @@ export class QuestDBService {
       await this.executeQuery(query);
       console.log('✅ QuestDB connection successful');
       return true;
-    } catch (error: any) {
-      console.error('❌ QuestDB connection failed:', error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ QuestDB connection failed:', errorMessage);
       return false;
     }
   }
@@ -406,8 +424,9 @@ export class QuestDBService {
             );
             stats[key as keyof typeof stats] = result.dataset[0]?.count || 0;
             console.log(`✅ ${table}: ${stats[key as keyof typeof stats]} records`);
-          } catch (error: any) {
-            console.warn(`⚠️ Failed to count ${table}:`, error.message);
+          } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.warn(`⚠️ Failed to count ${table}:`, errorMessage);
             stats[key as keyof typeof stats] = 0;
           }
         } else {
@@ -417,8 +436,9 @@ export class QuestDBService {
       }
 
       return stats;
-    } catch (error: any) {
-      console.error('Failed to get database stats:', error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Failed to get database stats:', errorMessage);
       throw new Error('Failed to retrieve database statistics');
     }
   }

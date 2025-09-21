@@ -3,6 +3,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { accountRoutes } from '../../routes/account';
 import { alpacaService } from '../../services/alpacaService';
+import { AlpacaActivity } from '../../types';
 
 // Mock the alpaca service
 jest.mock('../../services/alpacaService');
@@ -128,7 +129,7 @@ describe('Account Routes', () => {
     });
 
     it('should pass date filters to service', async () => {
-      const mockActivities: any[] = [];
+      const mockActivities: AlpacaActivity[] = [];
       mockAlpacaService.getActivities.mockResolvedValue(mockActivities);
 
       await request(app)

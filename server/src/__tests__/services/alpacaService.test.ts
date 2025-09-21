@@ -1,5 +1,6 @@
 import { AlpacaService } from '../../services/alpacaService';
 import axios from 'axios';
+import { AlpacaActivity } from '../../types';
 
 // Mock axios
 jest.mock('axios');
@@ -102,7 +103,7 @@ describe('AlpacaService', () => {
     });
 
     it('should return activities with date filters', async () => {
-      const mockActivities: any[] = [];
+      const mockActivities: AlpacaActivity[] = [];
       mockedAxios.get.mockResolvedValue({ data: mockActivities });
 
       const result = await alpacaService.getActivities('2024-01-01', '2024-01-31');

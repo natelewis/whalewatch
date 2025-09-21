@@ -37,6 +37,7 @@ export const useChartWebSocket = ({
       sendMessage({
         type: 'subscribe',
         data: { channel: 'chart_quote', symbol },
+        timestamp: new Date().toISOString(),
       });
     }
   }, [sendMessage, symbol, isConnected, isEnabled]);
@@ -47,6 +48,7 @@ export const useChartWebSocket = ({
       sendMessage({
         type: 'unsubscribe',
         data: { channel: 'chart_quote', symbol },
+        timestamp: new Date().toISOString(),
       });
     }
   }, [sendMessage, symbol, isConnected, isEnabled]);

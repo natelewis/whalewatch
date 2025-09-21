@@ -61,10 +61,23 @@ export const AccountPage: React.FC = () => {
         sendMessage({
           type: 'subscribe',
           data: { channel: 'account_quote', symbols },
+          timestamp: new Date().toISOString(),
         });
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load account data');
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error &&
+        'response' in err &&
+        typeof err.response === 'object' &&
+        err.response !== null &&
+        'data' in err.response &&
+        typeof err.response.data === 'object' &&
+        err.response.data !== null &&
+        'error' in err.response.data &&
+        typeof err.response.data.error === 'string'
+          ? err.response.data.error
+          : 'Failed to load account data';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

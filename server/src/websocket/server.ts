@@ -74,15 +74,23 @@ export const setupWebSocketServer = (server: Server): void => {
   initializeQuestDBConnection(wss);
 };
 
-const handleClientMessage = (ws: AuthenticatedWebSocket, message: any): void => {
+const handleClientMessage = (ws: AuthenticatedWebSocket, message: WebSocketMessage): void => {
   const { type, data } = message;
 
   switch (type) {
     case 'subscribe':
-      handleSubscription(ws, data);
+      if (typeof data === 'object' && data !== null && 'channel' in data) {
+        handleSubscription(ws, data as { channel: string; symbol?: string });
+      } else {
+        sendError(ws, 'Invalid subscription data');
+      }
       break;
     case 'unsubscribe':
-      handleUnsubscription(ws, data);
+      if (typeof data === 'object' && data !== null && 'channel' in data) {
+        handleUnsubscription(ws, data as { channel: string; symbol?: string });
+      } else {
+        sendError(ws, 'Invalid unsubscription data');
+      }
       break;
     case 'ping':
       sendMessage(ws, { type: 'pong', data: {}, timestamp: new Date().toISOString() });
@@ -92,7 +100,10 @@ const handleClientMessage = (ws: AuthenticatedWebSocket, message: any): void => 
   }
 };
 
-const handleSubscription = (ws: AuthenticatedWebSocket, data: any): void => {
+const handleSubscription = (
+  ws: AuthenticatedWebSocket,
+  data: { channel: string; symbol?: string }
+): void => {
   const { channel, symbol } = data;
 
   if (!channel) {
@@ -137,7 +148,10 @@ const handleSubscription = (ws: AuthenticatedWebSocket, data: any): void => {
   });
 };
 
-const handleUnsubscription = (ws: AuthenticatedWebSocket, data: any): void => {
+const handleUnsubscription = (
+  ws: AuthenticatedWebSocket,
+  data: { channel: string; symbol?: string }
+): void => {
   const { channel, symbol } = data;
 
   if (!channel) {
@@ -263,11 +277,11 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
 const broadcastToSubscribers = (
   wss: WebSocketServer,
   channel: string,
-  data: any,
+  data: unknown,
   symbol?: string
 ): void => {
   const message: WebSocketMessage = {
-    type: channel as any,
+    type: channel as WebSocketMessage['type'],
     data,
     timestamp: new Date().toISOString(),
   };

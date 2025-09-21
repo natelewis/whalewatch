@@ -14,7 +14,7 @@ export const LoginPage: React.FC = () => {
     setError(null);
     try {
       loginWithGoogle();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to initiate Google login');
       setIsLoading(false);
     }

@@ -14,6 +14,14 @@ import { User } from '@shared/types';
 
 declare global {
   namespace Express {
+    interface User {
+      id: string;
+      email: string;
+      name: string;
+      googleId?: string;
+      auth0Id?: string;
+      picture?: string;
+    }
     interface Request {
       user?: User;
     }
