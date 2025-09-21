@@ -21,6 +21,7 @@ import {
   createCustomTimeAxis,
   createYAxis,
   applyAxisStyling,
+  createViewportXScale,
 } from '../utils/chartDataUtils';
 import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 
@@ -402,18 +403,8 @@ export const createChart = ({
       const currentViewStart = stateCallbacks.getCurrentViewStart?.() || 0;
       const currentViewEnd = stateCallbacks.getCurrentViewEnd?.() || currentData.length - 1;
 
-      const desiredWindow = Math.max(1, CHART_DATA_POINTS - 1);
-      let safeViewStart = Math.max(0, Math.floor(currentViewStart));
-      let safeViewEnd = Math.min(currentData.length - 1, Math.ceil(currentViewEnd));
-      if (safeViewEnd - safeViewStart < desiredWindow) {
-        safeViewEnd = Math.min(currentData.length - 1, safeViewStart + desiredWindow);
-        if (safeViewEnd - safeViewStart < desiredWindow) {
-          safeViewStart = Math.max(0, safeViewEnd - desiredWindow);
-        }
-      }
-
       // Create the same scale used for candlestick positioning
-      const xScaleForHover = d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, currInnerWidth]);
+      const xScaleForHover = createViewportXScale(currentViewStart, currentViewEnd, currentData.length, currInnerWidth);
       const mouseIndex = xScaleForHover.invert(mouseX);
       const index = Math.round(mouseIndex);
 
@@ -712,16 +703,12 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   const visibleCandles = [...padLeft, ...core, ...padRight];
 
   // Build safe viewport X scale; avoid collapsed domains at drop
-  const desiredWindow = Math.max(1, CHART_DATA_POINTS - 1);
-  let safeViewStart = Math.max(0, Math.floor(calculations.viewStart));
-  let safeViewEnd = Math.min(calculations.allData.length - 1, Math.ceil(calculations.viewEnd));
-  if (safeViewEnd - safeViewStart < desiredWindow) {
-    safeViewEnd = Math.min(calculations.allData.length - 1, safeViewStart + desiredWindow);
-    if (safeViewEnd - safeViewStart < desiredWindow) {
-      safeViewStart = Math.max(0, safeViewEnd - desiredWindow);
-    }
-  }
-  const xScaleForPosition = d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, calculations.innerWidth]);
+  const xScaleForPosition = createViewportXScale(
+    calculations.viewStart,
+    calculations.viewEnd,
+    calculations.allData.length,
+    calculations.innerWidth
+  );
 
   const candlestickRenderStartTime = performance.now();
   visibleCandles.forEach((d, localIndex) => {

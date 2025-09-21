@@ -15,6 +15,7 @@ import {
   TimeframeConfig,
   DataRange,
 } from '../types';
+import { CHART_DATA_POINTS } from '../constants';
 
 /**
  * Remove duplicate entries by timestamp and sort by time
@@ -371,4 +372,28 @@ export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTime
   }
 
   return filledData;
+};
+
+/**
+ * Creates a viewport X scale for consistent positioning between candlesticks and hover data
+ * This ensures that hover data stays synchronized with candlestick positions
+ */
+export const createViewportXScale = (
+  viewStart: number,
+  viewEnd: number,
+  dataLength: number,
+  innerWidth: number
+): d3.ScaleLinear<number, number> => {
+  const desiredWindow = Math.max(1, CHART_DATA_POINTS - 1);
+  let safeViewStart = Math.max(0, Math.floor(viewStart));
+  let safeViewEnd = Math.min(dataLength - 1, Math.ceil(viewEnd));
+
+  if (safeViewEnd - safeViewStart < desiredWindow) {
+    safeViewEnd = Math.min(dataLength - 1, safeViewStart + desiredWindow);
+    if (safeViewEnd - safeViewStart < desiredWindow) {
+      safeViewStart = Math.max(0, safeViewEnd - desiredWindow);
+    }
+  }
+
+  return d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, innerWidth]);
 };
