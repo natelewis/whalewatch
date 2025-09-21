@@ -157,11 +157,55 @@ export const createChart = ({
     );
 
   // Create Y-axis
-  const yAxis = g
-    .append('g')
-    .attr('class', 'y-axis')
-    .attr('transform', `translate(${chartInnerWidth},0)`)
-    .call(createYAxis(yScale));
+  const yAxis = g.append('g').attr('class', 'y-axis').attr('transform', `translate(${chartInnerWidth},0)`);
+
+  // Helper: draw custom Y axis (domain line, ticks, labels) without d3.axis
+  const drawCustomYAxis = (
+    axisGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
+    scale: d3.ScaleLinear<number, number>,
+    height: number
+  ): void => {
+    axisGroup.selectAll('*').remove();
+    // Domain line at x=0 spanning full height
+    axisGroup
+      .append('line')
+      .attr('x1', 0)
+      .attr('x2', 0)
+      .attr('y1', 0)
+      .attr('y2', height)
+      .attr('stroke', '#666')
+      .attr('stroke-width', 1);
+
+    const ticks = scale.ticks(10);
+    const tickG = axisGroup
+      .selectAll<SVGGElement, number>('g.tick')
+      .data(ticks)
+      .enter()
+      .append('g')
+      .attr('class', 'tick')
+      .attr('transform', d => `translate(0,${scale(d)})`);
+
+    tickG
+      .append('line')
+      .attr('x1', 0)
+      .attr('x2', 6)
+      .attr('y1', 0)
+      .attr('y2', 0)
+      .attr('stroke', '#666')
+      .attr('stroke-width', 1);
+
+    tickG
+      .append('text')
+      .attr('x', -8)
+      .attr('dy', '0.32em')
+      .attr('text-anchor', 'end')
+      .style('font-size', '12px')
+      .style('fill', '#666')
+      .text(d => d3.format('.2f')(d));
+  };
+
+  // Initial Y axis render
+  drawCustomYAxis(yAxis, yScale, chartInnerHeight);
 
   // Apply consistent styling to both axes
   applyAxisStyling(xAxis);
@@ -440,8 +484,9 @@ export const createChart = ({
     }
   };
 
-  zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
-  svg.call(zoom);
+  // Disable d3.zoom binding to avoid conflicts; panning/zooming handled by custom handlers
+  // zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
+  // svg.call(zoom);
 
   // Add crosshair
   const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
@@ -562,6 +607,8 @@ export const createChart = ({
   let panStartYLocal = 0;
   let panStartTransformY = 0;
   let panStartTransformK = 1;
+  let currentTransformY = 0;
+  let currentTransformK = 1;
 
   const getWindowSize = (): number => CHART_DATA_POINTS;
 
@@ -591,9 +638,9 @@ export const createChart = ({
       }
       panStartCenterLocal = Math.floor((startIdx + endIdx) / 2);
       // Capture starting Y-transform and scale for vertical pan
-      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
-      panStartTransformY = currentTransform.y;
-      panStartTransformK = currentTransform.k;
+      // Capture starting transform from our internal state (not d3.zoom)
+      panStartTransformY = currentTransformY;
+      panStartTransformK = currentTransformK;
       // Debug: snapshot pan start
       const { innerWidth: iw } = calculateInnerDimensions(dims);
       const bw = iw / CHART_DATA_POINTS;
@@ -635,7 +682,12 @@ export const createChart = ({
       // Render live
       // Apply vertical pan by adjusting the Y-transform based on pointer dy (zoom level preserved)
       const newTransformY = panStartTransformY + dy;
-      const currentTransform = d3.zoomIdentity.translate(0, newTransformY).scale(panStartTransformK);
+      currentTransformY = newTransformY;
+      currentTransformK = panStartTransformK;
+      const currentTransform = d3.zoomIdentity.translate(0, currentTransformY).scale(currentTransformK);
+      if (stateCallbacks.setCurrentTransform) {
+        stateCallbacks.setCurrentTransform(currentTransform);
+      }
       const baseCalcs = calculateChartState({
         dimensions: dims,
         allChartData: data,
@@ -649,11 +701,28 @@ export const createChart = ({
         visibleData: data.slice(Math.max(0, newStart), Math.min(data.length - 1, newEnd) + 1),
       } as ChartCalculations;
       renderCandlestickChart(svgElement, calculations);
-      // Update Y-axis during vertical pan for live feedback
-      const yAxisGroup = d3.select(svgElement).select<SVGGElement>('.y-axis');
+      // Update axes during pan for live feedback
+      const svgSel2 = d3.select(svgElement);
+      const yAxisGroup = svgSel2.select<SVGGElement>('.y-axis');
       if (!yAxisGroup.empty()) {
-        yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
-        applyAxisStyling(yAxisGroup);
+        drawCustomYAxis(yAxisGroup, baseCalcs.transformedYScale, baseCalcs.innerHeight);
+      }
+      const xAxisGroup = svgSel2.select<SVGGElement>('.x-axis');
+      if (!xAxisGroup.empty()) {
+        const { innerHeight: axisInnerHeight, innerWidth: axisInnerWidth } = calculateInnerDimensions(dims);
+        xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+        const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, axisInnerWidth]);
+        const visibleSlice = data.slice(Math.max(0, newStart), Math.min(total - 1, newEnd) + 1);
+        xAxisGroup.call(
+          createCustomTimeAxis(
+            viewportXScale as unknown as d3.ScaleLinear<number, number>,
+            data,
+            X_AXIS_MARKER_INTERVAL,
+            X_AXIS_MARKER_DATA_POINT_INTERVAL,
+            visibleSlice
+          )
+        );
+        applyAxisStyling(xAxisGroup);
       }
       // Debug: live pan state
       console.log('PAN_DEBUG move', { dx, dy, deltaIdx, center, newStart, newEnd, total });
