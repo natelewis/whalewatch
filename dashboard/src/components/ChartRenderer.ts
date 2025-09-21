@@ -260,30 +260,19 @@ export const createChart = ({
       const axisStartTime = performance.now();
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
 
-      // Only update X-axis if we're not in the middle of a rapid pan operation
-      // or if the view has changed significantly (more than 10% of visible range)
-      const viewRange = calculations.viewEnd - calculations.viewStart;
-      const viewChangeThreshold = viewRange * 0.1; // 10% of visible range
-      const shouldUpdateAxis =
-        !isPanningRef.current ||
-        Math.abs(calculations.viewStart - (xAxisGroup.attr('data-last-view-start') || 0)) > viewChangeThreshold;
+      // Use custom time axis with proper positioning
+      xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+      xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
 
-      if (shouldUpdateAxis) {
-        // Use custom time axis with proper positioning
-        xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-        xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
+      // Apply consistent styling to maintain consistency with initial load
+      applyAxisStyling(xAxisGroup);
 
-        // Apply consistent styling to maintain consistency with initial load
-        applyAxisStyling(xAxisGroup);
-
-        // Store current view for next comparison
-        xAxisGroup.attr('data-last-view-start', calculations.viewStart);
-      }
+      // Store current view for next comparison
+      xAxisGroup.attr('data-last-view-start', calculations.viewStart);
 
       const axisEndTime = performance.now();
       console.log(
-        `⏱️ X-axis update took: ${(axisEndTime - axisStartTime).toFixed(2)}ms (${
-          shouldUpdateAxis ? 'updated' : 'skipped'
+        `⏱️ X-axis update took: ${(axisEndTime - axisStartTime).toFixed(2)}ms
         })`
       );
     }
