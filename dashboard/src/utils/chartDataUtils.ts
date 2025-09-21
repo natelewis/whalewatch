@@ -2,6 +2,7 @@ import * as d3 from 'd3';
 import {
   memoizedMapTicksToPositions,
   memoizedGenerateTimeBasedTicks,
+  memoizedGenerateVisibleTimeBasedTicks,
   memoizedFormatTime,
   memoizedApplyAxisStyling,
   memoizedCreateYAxis,
@@ -123,9 +124,15 @@ export const calculateTimeBasedTickValues = (allChartData: { timestamp: string }
 /**
  * Generate time-based ticks that account for actual time distribution
  * This creates ticks that make sense for the data's time pattern
- * Now uses memoized version for better performance
+ * Now uses memoized version for better performance with configurable intervals
  */
-export const generateTimeBasedTicks = memoizedGenerateTimeBasedTicks;
+export const generateTimeBasedTicks = (
+  allChartData: { timestamp: string }[],
+  markerIntervalMinutes?: number,
+  dataPointInterval?: number
+): Date[] => {
+  return memoizedGenerateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
+};
 
 /**
  * Create unified time-based scale that works with transformed linear scale
@@ -226,13 +233,22 @@ export const createXAxis = (
  * Create a custom X-axis that properly handles time compression
  * This function creates an axis that positions ticks based on data indices
  * rather than actual time values, ensuring proper alignment with candlesticks
+ * Now supports configurable marker intervals and uses visible data for consistent tick display
  */
 export const createCustomTimeAxis = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
-  allChartData: { timestamp: string }[]
+  allChartData: { timestamp: string }[],
+  markerIntervalMinutes?: number,
+  dataPointInterval?: number,
+  visibleData?: { timestamp: string }[]
 ): d3.Axis<number | Date> => {
-  // Generate time-based ticks that make sense for the data
-  const timeTicks = generateTimeBasedTicks(allChartData);
+  // Use visible data if provided, otherwise fall back to all data
+  const dataForTicks = visibleData && visibleData.length > 0 ? visibleData : allChartData;
+  
+  // Generate time-based ticks that make sense for the visible data with configurable intervals
+  const timeTicks = visibleData && visibleData.length > 0 
+    ? memoizedGenerateVisibleTimeBasedTicks(visibleData, markerIntervalMinutes)
+    : generateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
 
   // Create a custom axis function that positions ticks based on data indices
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {

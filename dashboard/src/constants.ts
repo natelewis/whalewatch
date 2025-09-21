@@ -30,5 +30,12 @@ export const CHART_HEIGHT_OFFSET = 100; // Height offset for chart container
 // Timing configuration
 export const RIGHT_EDGE_CHECK_INTERVAL = 1000; // ms
 
+// X-axis marker configuration
+// To change marker intervals, modify these values:
+// X_AXIS_MARKER_INTERVAL: Minutes between major markers (30 = every 30 minutes, 15 = every 15 minutes, etc.)
+// X_AXIS_MARKER_DATA_POINT_INTERVAL: Data points to check between markers (20 = check every 20 data points)
+export const X_AXIS_MARKER_INTERVAL = 30; // Show 1-minute markers every 30 minutes (3:30, 4:00, etc.)
+export const X_AXIS_MARKER_DATA_POINT_INTERVAL = 20; // Data points between major markers (for 1m data, 20 = 20 minutes)
+
 // Defaults sourced from environment
 export const DEFAULT_CHART_DATA_POINTS = parseInt(import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '500', 10);

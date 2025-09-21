@@ -1,6 +1,11 @@
 import * as d3 from 'd3';
 import { CandlestickData, ChartDimensions } from '../types';
-import { CHART_DATA_POINTS, PRICE_PADDING_MULTIPLIER } from '../constants';
+import {
+  CHART_DATA_POINTS,
+  PRICE_PADDING_MULTIPLIER,
+  X_AXIS_MARKER_INTERVAL,
+  X_AXIS_MARKER_DATA_POINT_INTERVAL,
+} from '../constants';
 
 // Types for cache values
 type YScaleDomain = [number, number];
@@ -264,10 +269,16 @@ export const getCacheStats = () => {
 };
 
 /**
- * Memoized time-based tick generation
+ * Memoized time-based tick generation with configurable intervals
  * This is called on every axis update and can be expensive with large datasets
+ * Now supports showing 1-minute markers only on specific intervals (e.g., 30-minute boundaries)
+ * Uses a more dynamic approach to ensure all visible 30-minute boundaries are shown
  */
-export const memoizedGenerateTimeBasedTicks = (allChartData: { timestamp: string }[]): Date[] => {
+export const memoizedGenerateTimeBasedTicks = (
+  allChartData: { timestamp: string }[],
+  markerIntervalMinutes: number = X_AXIS_MARKER_INTERVAL,
+  dataPointInterval: number = X_AXIS_MARKER_DATA_POINT_INTERVAL
+): Date[] => {
   if (!allChartData || allChartData.length === 0) {
     return [];
   }
@@ -275,18 +286,97 @@ export const memoizedGenerateTimeBasedTicks = (allChartData: { timestamp: string
   const dataKey = `${allChartData.length}-${allChartData[0]?.timestamp}-${
     allChartData[allChartData.length - 1]?.timestamp
   }`;
-  const cacheKey = `timeTicks-${dataKey}`;
+  const cacheKey = `timeTicks-${dataKey}-${markerIntervalMinutes}-${dataPointInterval}`;
 
   if (calculationCache.has(cacheKey)) {
     return calculationCache.get(cacheKey) as Date[];
   }
 
-  // Generate ticks every 20 data points
-  const dataPointInterval = 20;
   const ticks: Date[] = [];
 
-  for (let i = 0; i < allChartData.length; i += dataPointInterval) {
-    ticks.push(new Date(allChartData[i].timestamp));
+  // More intelligent approach: Generate ticks based on time intervals rather than data point intervals
+  // This ensures we don't miss any 30-minute boundaries regardless of data density
+  const startTime = new Date(allChartData[0].timestamp);
+  const endTime = new Date(allChartData[allChartData.length - 1].timestamp);
+
+  // Round start time down to the nearest marker interval
+  const startMinutes = startTime.getMinutes();
+  const roundedStartMinutes = Math.floor(startMinutes / markerIntervalMinutes) * markerIntervalMinutes;
+  const roundedStartTime = new Date(startTime);
+  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0, 0);
+
+  // Generate ticks at regular intervals from the rounded start time
+  let currentTime = new Date(roundedStartTime);
+  while (currentTime <= endTime) {
+    // Check if this time exists in our data (within a reasonable tolerance)
+    const timeInData = allChartData.some(d => {
+      const dataTime = new Date(d.timestamp);
+      const timeDiff = Math.abs(dataTime.getTime() - currentTime.getTime());
+      return timeDiff < 60000; // Within 1 minute tolerance
+    });
+
+    if (timeInData) {
+      ticks.push(new Date(currentTime));
+    }
+
+    // Move to next marker interval
+    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
+  }
+
+  calculationCache.set(cacheKey, ticks);
+  cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
+  return ticks;
+};
+
+/**
+ * Generate time-based ticks for visible data range only
+ * This ensures consistent tick display when panning/zooming
+ */
+export const memoizedGenerateVisibleTimeBasedTicks = (
+  visibleData: { timestamp: string }[],
+  markerIntervalMinutes: number = X_AXIS_MARKER_INTERVAL
+): Date[] => {
+  if (!visibleData || visibleData.length === 0) {
+    return [];
+  }
+
+  const dataKey = `${visibleData.length}-${visibleData[0]?.timestamp}-${
+    visibleData[visibleData.length - 1]?.timestamp
+  }`;
+  const cacheKey = `visibleTimeTicks-${dataKey}-${markerIntervalMinutes}`;
+
+  if (calculationCache.has(cacheKey)) {
+    return calculationCache.get(cacheKey) as Date[];
+  }
+
+  const ticks: Date[] = [];
+
+  // Generate ticks based on the visible data range
+  const startTime = new Date(visibleData[0].timestamp);
+  const endTime = new Date(visibleData[visibleData.length - 1].timestamp);
+
+  // Round start time down to the nearest marker interval
+  const startMinutes = startTime.getMinutes();
+  const roundedStartMinutes = Math.floor(startMinutes / markerIntervalMinutes) * markerIntervalMinutes;
+  const roundedStartTime = new Date(startTime);
+  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0, 0);
+
+  // Generate ticks at regular intervals from the rounded start time
+  let currentTime = new Date(roundedStartTime);
+  while (currentTime <= endTime) {
+    // Check if this time exists in our visible data (within a reasonable tolerance)
+    const timeInData = visibleData.some(d => {
+      const dataTime = new Date(d.timestamp);
+      const timeDiff = Math.abs(dataTime.getTime() - currentTime.getTime());
+      return timeDiff < 60000; // Within 1 minute tolerance
+    });
+
+    if (timeInData) {
+      ticks.push(new Date(currentTime));
+    }
+
+    // Move to next marker interval
+    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
   }
 
   calculationCache.set(cacheKey, ticks);

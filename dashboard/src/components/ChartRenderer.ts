@@ -8,6 +8,8 @@ import {
   MARGIN_SIZE,
   ZOOM_SCALE_MIN,
   ZOOM_SCALE_MAX,
+  X_AXIS_MARKER_INTERVAL,
+  X_AXIS_MARKER_DATA_POINT_INTERVAL,
 } from '../constants';
 import { ChartDimensions, CandlestickData } from '../types';
 import {
@@ -151,7 +153,7 @@ export const createChart = ({
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createCustomTimeAxis(xScale, allChartData));
+    .call(createCustomTimeAxis(xScale, allChartData, X_AXIS_MARKER_INTERVAL, X_AXIS_MARKER_DATA_POINT_INTERVAL, visibleData));
 
   // Create Y-axis
   const yAxis = g
@@ -262,7 +264,14 @@ export const createChart = ({
 
       // Use custom time axis with proper positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
+      xAxisGroup.call(
+        createCustomTimeAxis(
+          calculations.transformedXScale,
+          currentData,
+          X_AXIS_MARKER_INTERVAL,
+          X_AXIS_MARKER_DATA_POINT_INTERVAL
+        )
+      );
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
