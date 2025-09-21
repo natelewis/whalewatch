@@ -68,17 +68,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Local state for timeframe management
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
 
-  // Debug logging for data state
-  useEffect(() => {
-    console.log('Chart data state:', {
-      allDataLength: chartState.allData.length,
-      isValidData,
-      isLoading: chartState.isLoading,
-      error: chartState.error,
-      symbol,
-      timeframe,
-    });
-  }, [chartState.allData.length, isValidData, chartState.isLoading, chartState.error, symbol, timeframe]);
+  // Keep major logs only; removed verbose data-state debug logging
 
   // Local state for current transform (for debugging)
   const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
@@ -152,91 +142,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     currentViewEndRef.current = chartState.currentViewEnd;
   }, [chartState.currentViewStart, chartState.currentViewEnd]);
 
-  // Trigger chart re-render when allData changes (for data loading)
-  // useEffect(() => {
-  //   if (chartState.chartLoaded && chartState.chartExists && chartState.allData.length > 0) {
-  //     console.log('🔄 allData changed, triggering chart re-render:', {
-  //       allDataLength: chartState.allData.length,
-  //       chartLoaded: chartState.chartLoaded,
-  //       chartExists: chartState.chartExists,
-  //     });
-
-  //     // Always use the latest zoom transform from the chart to avoid stale transforms
-  //     const currentZoomTransform = svgRef.current ? d3.zoomTransform(svgRef.current) : d3.zoomIdentity;
-
-  //     // Calculate new chart state with updated data
-  //     const calculations = calculateChartState({
-  //       dimensions: chartState.dimensions,
-  //       allChartData: chartState.allData,
-  //       transform: currentZoomTransform,
-  //       fixedYScaleDomain: chartState.fixedYScaleDomain,
-  //     });
-
-  //     // Update clip-path to accommodate expanded dataset
-  //     if (svgRef.current) {
-  //       updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
-  //     }
-
-  //     // Update X-axis with new data
-  //     if (svgRef.current) {
-  //       const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
-  //       if (!xAxisGroup.empty()) {
-  //         const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
-  //         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-  //         xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
-  //         applyAxisStyling(xAxisGroup);
-  //       }
-  //     }
-
-  //     // Update Y-axis
-  //     if (svgRef.current) {
-  //       const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
-  //       if (!yAxisGroup.empty()) {
-  //         yAxisGroup.call(createYAxis(calculations.transformedYScale));
-  //         applyAxisStyling(yAxisGroup);
-  //       }
-  //     }
-
-  //     // Chart content transform handled by renderer (using transformed scales)
-
-  //     // Re-render candlesticks with updated data
-  //     if (svgRef.current) {
-  //       renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
-  //     }
-
-  //     // Update buffer range
-  //     const bufferSize = BUFFER_SIZE;
-  //     const dataLength = chartState.allData.length;
-  //     const marginSize = MARGIN_SIZE;
-  //     const atDataStart = calculations.viewStart <= marginSize;
-  //     const atDataEnd = calculations.viewEnd >= dataLength - marginSize;
-
-  //     let actualStart, actualEnd;
-
-  //     if (atDataStart && atDataEnd) {
-  //       actualStart = 0;
-  //       actualEnd = dataLength - 1;
-  //     } else if (atDataStart) {
-  //       actualStart = 0;
-  //       actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
-  //     } else if (atDataEnd) {
-  //       actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-  //       actualEnd = dataLength - 1;
-  //     } else {
-  //       actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-  //       actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
-  //     }
-
-  //     currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
-
-  //     console.log('✅ Chart re-rendered with updated data:', {
-  //       allDataLength: calculations.allData.length,
-  //       viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-  //       bufferRange: `${actualStart}-${actualEnd}`,
-  //     });
-  //   }
-  // }, [chartState.allData.length]); // Only trigger when data length changes
-
   // Update fixed Y-scale domain ref when it changes
   useEffect(() => {
     console.log('🔍 Fixed Y-scale domain changed:', {
@@ -251,7 +156,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const loadMoreDataOnBufferedRender = useCallback(
     (direction: 'past' | 'future' = 'past'): void => {
       const dataLoadStartTime = performance.now();
-      console.log('🔄 loadMoreDataOnBufferedRender called during panning', { direction });
 
       if (timeframe === null) {
         console.warn('Cannot auto-load more data: no timeframe selected');
@@ -274,14 +178,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       const anchorTimestamp =
         direction === 'past' ? currentData[0]?.timestamp : currentData[currentData.length - 1]?.timestamp;
 
-      console.log('🔄 Auto-loading more data on buffered render (direction-aware):', {
-        direction,
-        currentPoints: chartState.allData.length,
-        fetchPoints,
-        symbol,
-        timeframe,
-        anchorTime: anchorTimestamp ? new Date(anchorTimestamp).toISOString() : 'none',
-      });
+      // Keep auto-load success/timing logs only; removed verbose pre-load logging
 
       // Prevent multiple in-flight loads
       if (isLoadingDataRef.current) {
@@ -342,7 +239,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           chartActions.setAllData(prunedData);
           chartActions.setViewport(anchoredStart, anchoredEnd);
 
-          console.log('✅ Successfully auto-loaded data (direction-aware):', {
+          console.log('✅ Successfully auto-loaded data:', {
             direction,
             fetched: formattedData.length,
             requested: fetchPoints,
@@ -366,8 +263,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const renderCandlestickChartWithCallback = useCallback(
     (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
       renderCandlestickChart(svgElement, calculations);
-
-      // Non-panning auto-load is no longer needed with fixed chunk logic
     },
     []
   );
@@ -436,20 +331,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       .then(response => {
         const { formattedData: newData } = processChartData(response.bars);
 
-        console.log('📊 Before merging left data:', {
-          currentAllDataLength: chartState.allData.length,
-          newDataLength: newData.length,
-        });
-
         // Merge new data with existing data instead of replacing it
         const mergedData = mergeHistoricalData(chartState.allData, newData);
-
-        console.log('📊 After merging left data:', {
-          originalDataLength: chartState.allData.length,
-          newDataLength: newData.length,
-          mergedDataLength: mergedData.length,
-          dataAdded: mergedData.length - chartState.allData.length,
-        });
 
         // Preserve viewport by anchoring the same visible window after left-side insertion
         const prevStart = chartState.currentViewStart;
@@ -472,7 +355,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         chartActions.setAllData(mergedData);
         chartActions.setViewport(anchoredStart, anchoredEnd);
 
-        console.log('✅ Successfully loaded more data to the LEFT:', {
+        console.log('✅ Loaded more data to the LEFT:', {
           mergedDataLength: mergedData.length,
           limit: newDataPoints,
           dataAdded: mergedData.length - chartState.allData.length,
@@ -509,18 +392,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     const newestDataPoint = currentData[currentData.length - 1];
     const startTime = newestDataPoint ? newestDataPoint.timestamp : undefined;
 
-    console.log('🔄 Loading more data to the RIGHT (future):', {
-      currentPoints: chartState.allData.length,
-      newPoints: newDataPoints,
-      bufferSize,
-      pointsToAdd: bufferSize,
-      symbol,
-      timeframe,
-      currentDataLength: currentData.length,
-      startTime: startTime ? new Date(startTime).toISOString() : 'current time',
-      newestDataTime: newestDataPoint ? new Date(newestDataPoint.timestamp).toISOString() : 'none',
-    });
-
     // Use the API service directly with the increased data points
     // For right data, we don't specify startTime to get the most recent data
     apiService
@@ -528,24 +399,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       .then(response => {
         const { formattedData: newData } = processChartData(response.bars);
 
-        console.log('📊 Before merging right data:', {
-          currentAllDataLength: chartState.allData.length,
-          newDataLength: newData.length,
-        });
-
         // Merge new data with existing data instead of replacing it
         const mergedData = mergeHistoricalData(chartState.allData, newData);
 
-        console.log('📊 After merging right data:', {
-          originalDataLength: chartState.allData.length,
-          newDataLength: newData.length,
-          mergedDataLength: mergedData.length,
-          dataAdded: mergedData.length - chartState.allData.length,
-        });
-
         chartActions.setAllData(mergedData);
 
-        console.log('✅ Successfully loaded more data to the RIGHT:', {
+        console.log('✅ Loaded more data to the RIGHT:', {
           mergedDataLength: mergedData.length,
           limit: newDataPoints,
           dataAdded: mergedData.length - chartState.allData.length,
@@ -553,8 +412,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
         // Force a re-render with the merged data immediately
         if (svgRef.current && chartState.chartLoaded) {
-          console.log('🔄 Forcing immediate re-render with right data');
-
           // Set flag to prevent React effect from overriding
           manualRenderInProgressRef.current = true;
 
@@ -609,13 +466,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     const newEndIndex = totalDataLength - 1;
     const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
-    console.log('🎯 Moving to rightmost position:', {
-      totalDataLength,
-      newStartIndex,
-      newEndIndex,
-      rangeSize: newEndIndex - newStartIndex + 1,
-    });
-
     // Calculate the transform needed to show the rightmost data
     const { innerWidth } = calculateInnerDimensions(chartState.dimensions);
     const bandWidth = innerWidth / CHART_DATA_POINTS;
@@ -651,10 +501,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         svg.call(zoomBehaviorRef.current.transform, transform);
       }
 
-      // Chart content transform handled by renderer (using transformed scales)
-
-      // Legacy D3 axis updates removed
-
       // Re-render candlesticks with the new view
       renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
 
@@ -686,13 +532,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       }
 
       currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
-
-      console.log('🔄 Buffer range updated in moveToRightmost:', {
-        newBufferRange: `${actualStart}-${actualEnd}`,
-        viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-        bufferSize,
-        dataLength,
-      });
     }
   };
 
@@ -732,7 +571,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
     // Update axes
     const svg = d3.select(svgRef.current);
-    // Legacy D3 axis updates removed
 
     // Render candles for the new viewport
     const finalCalcs: ChartCalculations = {
@@ -779,7 +617,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         }
 
         lastProcessedDataRef.current = dataKey;
-        console.log('📊 Received WebSocket data:', bar);
         chartActions.updateChartWithLiveData(bar);
       }
     },
@@ -796,7 +633,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Load saved timeframe from localStorage and load initial data
   useEffect(() => {
     if (isLoadingDataRef.current || initialDataLoadedRef.current) {
-      console.log('🔄 Data loading already in progress or completed, skipping duplicate request');
+      console.log('🔄 Data load already in progress or completed; skipping duplicate request');
       return;
     }
 
@@ -915,15 +752,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           height: Math.max(MIN_CHART_HEIGHT, rect.height - CHART_HEIGHT_OFFSET),
         };
 
-        console.log('🔄 Resize detected:', {
-          containerWidth: rect.width,
-          containerHeight: rect.height,
-          newWidth: newDimensions.width,
-          newHeight: newDimensions.height,
-          currentWidth: chartState.dimensions.width,
-          currentHeight: chartState.dimensions.height,
-        });
-
         chartActions.setDimensions(newDimensions);
       }
     };
@@ -964,22 +792,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         fixedYScaleDomain: chartState.fixedYScaleDomain,
       });
 
-      console.log('🔄 Dimensions changed, re-rendering chart:', {
-        width: chartState.dimensions.width,
-        height: chartState.dimensions.height,
-        innerWidth: calculations.innerWidth,
-        innerHeight: calculations.innerHeight,
-        bandWidth: calculations.innerWidth / CHART_DATA_POINTS,
-        baseXScaleDomain: calculations.baseXScale.domain(),
-        baseXScaleRange: calculations.baseXScale.range(),
-      });
+      // Removed verbose dimension-change logging
 
       // Update clip-path for new dimensions
       updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
-
-      // Legacy D3 axis updates removed
-
-      // Chart content transform handled by renderer (using transformed scales)
 
       // Re-render candlesticks with new dimensions
       // Note: candlesticks will use base scales since transform is applied to chart content group
@@ -1036,13 +852,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
-        console.log('Initial load - setting view indices:', {
-          totalDataLength,
-          CHART_DATA_POINTS,
-          newStartIndex,
-          newEndIndex,
-          rangeSize: newEndIndex - newStartIndex + 1,
-        });
+        // Removed verbose initial view index logging
 
         chartActions.setViewport(newStartIndex, newEndIndex);
         initialViewSetRef.current = true;
@@ -1076,11 +886,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     }
   }, [chartState.currentViewEnd, chartState.allData.length, chartState.isLive]); // Removed chartActions
 
-  useEffect((): void => {
-    // svgRef.current now points to the <svg> element in the DOM
-    console.log('SVG element is ready:', svgRef.current);
-  }, []);
-
   // Reset refs on mount to handle hot reload
   useEffect(() => {
     chartCreatedRef.current = false;
@@ -1090,8 +895,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     lastProcessedDataRef.current = null;
   }, []); // Only run on mount
 
-  // Data length effect removed - chart creation effect now handles both chart creation and initial rendering
-
   // Create chart when data is available and view is properly set
   useEffect(() => {
     // Only create chart if it hasn't been created yet and we have valid data
@@ -1099,24 +902,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       return; // Chart already created, skip
     }
 
-    // Debug logging for chart creation conditions
     const gElementExists = svgRef.current ? !d3.select(svgRef.current).select('g').empty() : false;
     const shouldCreate =
       isValidData && chartState.allData.length > 0 && svgRef.current && (!chartState.chartExists || !gElementExists);
-
-    console.log('Chart creation effect conditions:', {
-      isValidData,
-      currentViewEnd: chartState.currentViewEnd,
-      dataLength: chartState.data.length,
-      allDataLength: chartState.allData.length,
-      isLoading: chartState.isLoading,
-      error: chartState.error,
-      chartExists: chartState.chartExists,
-      chartCreatedRef: chartCreatedRef.current,
-      svgElementAvailable: !!svgRef.current,
-      gElementExists,
-      shouldCreate,
-    });
+    // Removed verbose chart creation condition logging
 
     // Set viewport if it's not set yet
     if (isValidData && chartState.allData.length > 0 && chartState.currentViewEnd === 0) {
@@ -1291,8 +1080,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         }
       }
     }
-
-    return undefined; // Explicit return for linter
   }, [
     chartState.currentViewStart,
     chartState.currentViewEnd,
@@ -1353,15 +1140,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartActions.setAllData(newAllData);
       chartActions.setViewport(newViewStart, newViewEnd);
 
-      console.log('🧹 Pruned off-chart data:', {
-        originalLength: total,
-        newLength: newAllData.length,
-        leftPruned: keepStart,
-        rightPruned: total - 1 - keepEnd,
-        viewBefore: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
-        viewAfter: `${newViewStart}-${newViewEnd}`,
-        bufferRange: `${newBufferStart}-${newBufferEnd}`,
-      });
+      // Removed verbose pruning log
     }, 200);
 
     return () => {

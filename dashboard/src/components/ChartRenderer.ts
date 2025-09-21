@@ -274,8 +274,6 @@ export const createChart = ({
       transform: transformForCalc,
       fixedYScaleDomain: currentFixedYScaleDomain,
     });
-    const calcEndTime = performance.now();
-    console.log(`⏱️ Chart state calculation took: ${(calcEndTime - calcStartTime).toFixed(2)}ms`);
 
     // Compute viewport indices from pixel delta
     const { innerWidth: currInnerWidth } = calculateInnerDimensions(currentDimensions);
@@ -342,102 +340,7 @@ export const createChart = ({
       visibleData: currentData.slice(newStart, newEnd + 1),
     } as ChartCalculations;
     renderCandlestickChart(svgElement, calculations);
-
-    // Auto-load is handled on pan end only to avoid recursive storms
-
-    const zoomEndTime = performance.now();
-    console.log(`⏱️ Total handleZoom took: ${(zoomEndTime - zoomStartTime).toFixed(2)}ms`);
   };
-
-  const handleZoomEnd = (): void => {
-    if (stateCallbacks.setIsZooming) {
-      stateCallbacks.setIsZooming(false);
-    }
-    isPanningRef.current = false;
-
-    // Show crosshairs again if mouse is still over the chart
-    // We'll let the mousemove event handle showing them at the correct position
-
-    // Reset content transform and re-render at the settled viewport
-    const contentGroup = g.select<SVGGElement>('.chart-content');
-    if (!contentGroup.empty()) {
-      contentGroup.attr('transform', null);
-    }
-
-    // After pan/zoom ends, decide if we need to auto-load more data based on edge proximity
-    const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
-    const currentData = stateCallbacks.getCurrentData?.();
-    const currentDimensions = stateCallbacks.getCurrentDimensions?.();
-    if (!currentData || !currentDimensions) {
-      return;
-    }
-
-    const dataLength = currentData.length;
-    const threshold = LOAD_EDGE_TRIGGER;
-    const curStart = Math.floor(chartState.currentViewStart);
-    const curEnd = Math.floor(chartState.currentViewEnd);
-    const distanceLeft = Math.max(0, curStart);
-    const distanceRight = Math.max(0, dataLength - 1 - curEnd);
-
-    let loadDirection: 'past' | 'future' | null = null;
-    if (distanceLeft <= threshold) {
-      loadDirection = 'past';
-    } else if (distanceRight <= threshold) {
-      loadDirection = 'future';
-    }
-
-    if (onBufferedCandlesRendered && loadDirection) {
-      console.log('🔄 Auto-loading on pan end due to edge threshold...', {
-        loadDirection,
-        distanceLeft,
-        distanceRight,
-        threshold,
-      });
-      // Trigger load on next tick to avoid racing a final stray handleZoom
-      setTimeout(() => onBufferedCandlesRendered(loadDirection as 'past' | 'future'), 0);
-    }
-
-    // Do not re-render here; the last pan render is already at the settled viewport
-    const { innerWidth: w, innerHeight: h } = calculateInnerDimensions(currentDimensions);
-    // Use baseCalcs equivalent at pan end to preserve locked Y and re-render
-    const endCalcs = calculateChartState({
-      dimensions: currentDimensions,
-      allChartData: currentData,
-      transform: d3.zoomIdentity.translate(0, currentTransform.y).scale(currentTransform.k),
-      fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
-    });
-    const finalCalcs = {
-      ...endCalcs,
-      viewStart: curStart,
-      viewEnd: curEnd,
-      visibleData: currentData.slice(curStart, curEnd + 1),
-    } as ChartCalculations;
-    const viewX = d3.scaleLinear().domain([curStart, curEnd]).range([0, endCalcs.innerWidth]);
-    const xAxisGroup = g.select<SVGGElement>('.x-axis');
-    if (!xAxisGroup.empty()) {
-      xAxisGroup.attr('transform', `translate(0,${endCalcs.innerHeight})`);
-      xAxisGroup.call(
-        createCustomTimeAxis(
-          viewX as unknown as d3.ScaleLinear<number, number>,
-          currentData,
-          X_AXIS_MARKER_INTERVAL,
-          X_AXIS_MARKER_DATA_POINT_INTERVAL,
-          currentData.slice(curStart, curEnd + 1)
-        )
-      );
-      applyAxisStyling(xAxisGroup);
-    }
-    const yAxisGroup = g.select<SVGGElement>('.y-axis');
-    if (!yAxisGroup.empty()) {
-      yAxisGroup.call(createYAxis(endCalcs.transformedYScale));
-      applyAxisStyling(yAxisGroup);
-    }
-    renderCandlestickChart(svgElement, finalCalcs);
-  };
-
-  // Disable d3.zoom binding to avoid conflicts; panning/zooming handled by custom handlers
-  // zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
-  // svg.call(zoom);
 
   // Add crosshair
   const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
@@ -757,7 +660,7 @@ export const createChart = ({
   if (stateCallbacks.setChartLoaded) {
     stateCallbacks.setChartLoaded(true);
   }
-  console.log('🎯 CHART LOADED - Axes can now be created');
+  console.log('🎯 CHART LOADED - Axes ready');
 };
 
 export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
@@ -776,9 +679,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     return;
   }
 
-  // Debug: log current transform on content group
-  const currentContentTransform = chartContent.attr('transform');
-  // console.log('content transform:', currentContentTransform);
+  // Removed transform debug logging
 
   // Create or reuse the candles layer for idempotent rendering
   let candleSticks = chartContent.select<SVGGElement>('.candle-sticks');
@@ -812,36 +713,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   const padRight: typeof core = rightFill ? Array.from({ length: padRightCount }, () => rightFill) : [];
   const visibleCandles = [...padLeft, ...core, ...padRight];
 
-  // Debug markers: show clip edges and first/last candle x positions (inside chart-content so they move with pan)
-  let dbg = chartContent.select<SVGGElement>('.debug-layer');
-  if (dbg.empty()) {
-    dbg = chartContent.append('g').attr('class', 'debug-layer').style('pointer-events', 'none');
-  }
-  dbg.selectAll('*').remove();
-  const x0 = 0;
-  const xW = calculations.innerWidth;
-  const xFirst = calculations.baseXScale(0);
-  const xLast = calculations.baseXScale(actualEnd);
-  dbg
-    .append('line')
-    .attr('x1', x0)
-    .attr('x2', x0)
-    .attr('y1', 0)
-    .attr('y2', calculations.innerHeight)
-    .attr('stroke', '#ff00ff')
-    .attr('stroke-width', 1)
-    .attr('opacity', 0.5);
-  dbg
-    .append('line')
-    .attr('x1', xW)
-    .attr('x2', xW)
-    .attr('y1', 0)
-    .attr('y2', calculations.innerHeight)
-    .attr('stroke', '#ff00ff')
-    .attr('stroke-width', 1)
-    .attr('opacity', 0.5);
-  dbg.append('circle').attr('cx', xFirst).attr('cy', 10).attr('r', 3).attr('fill', '#00c853');
-  dbg.append('circle').attr('cx', xLast).attr('cy', 10).attr('r', 3).attr('fill', '#d50000');
+  // Removed visual debug markers/guide lines used during development
   /* console.log('debug positions:', {
     xFirst,
     xLast,
@@ -914,37 +786,8 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
       .attr('fill', 'transparent')
       .attr('class', 'candlestick-hover-area')
       .style('cursor', 'pointer')
-      .on('mouseover', function (event) {
-        // Show tooltip with debugging info
-        const tooltip = d3.select('body').selectAll<HTMLDivElement, number>('.candlestick-tooltip').data([1]);
-        tooltip
-          .enter()
-          .append('div')
-          .attr('class', 'candlestick-tooltip')
-          .style('position', 'absolute')
-          .style('background', 'rgba(0, 0, 0, 0.8)')
-          .style('color', 'white')
-          .style('padding', '8px')
-          .style('border-radius', '4px')
-          .style('font-size', '12px')
-          .style('pointer-events', 'none')
-          .style('z-index', '1000')
-          .merge(tooltip)
-          .html(
-            `
-            <div><strong>Time:</strong> ${new Date(d.timestamp).toLocaleString()}</div>
-            <div><strong>O:</strong> ${d.open.toFixed(2)}</div>
-            <div><strong>H:</strong> ${d.high.toFixed(2)}</div>
-            <div><strong>L:</strong> ${d.low.toFixed(2)}</div>
-            <div><strong>C:</strong> ${d.close.toFixed(2)}</div>
-          `
-          )
-          .style('left', `${event.pageX + 10}px`)
-          .style('top', `${event.pageY - 10}px`);
-      })
-      .on('mouseout', function () {
-        d3.select('body').selectAll('.candlestick-tooltip').remove();
-      });
+      .on('mouseover', function () {})
+      .on('mouseout', function () {});
 
     // High-Low line
     const highY = calculations.transformedYScale(d.high);

@@ -106,19 +106,7 @@ export const calculateInnerDimensions = (dimensions: {
  */
 export const applyAxisStyling = memoizedApplyAxisStyling;
 
-/**
- * Calculate dynamic tick values for time-based scale (every 20 data points)
- */
-export const calculateTimeBasedTickValues = (allChartData: { timestamp: string }[], interval: number = 20): Date[] => {
-  const tickValues: Date[] = [];
-
-  // Generate ticks every 'interval' data points
-  for (let i = 0; i < allChartData.length; i += interval) {
-    tickValues.push(new Date(allChartData[i].timestamp));
-  }
-
-  return tickValues;
-};
+// Removed legacy calculateTimeBasedTickValues (unused)
 
 /**
  * Generate time-based ticks that account for actual time distribution
@@ -137,28 +125,7 @@ export const generateTimeBasedTicks = (
  * Create unified time-based scale that works with transformed linear scale
  * This ensures perfect alignment between X-axis and candlesticks
  */
-export const createUnifiedTimeScale = (
-  transformedLinearScale: d3.ScaleLinear<number, number>,
-  allChartData: { timestamp: string }[]
-): d3.ScaleTime<Date, number> => {
-  // Get the domain from the transformed linear scale (data indices)
-  const [domainStart, domainEnd] = transformedLinearScale.domain();
-
-  // Use exact data indices to map to time values for perfect alignment
-  const startIndex = Math.max(0, Math.floor(domainStart));
-  const endIndex = Math.min(allChartData.length - 1, Math.ceil(domainEnd));
-
-  const startTime = new Date(allChartData[startIndex]?.timestamp || allChartData[0].timestamp);
-  const endTime = new Date(allChartData[endIndex]?.timestamp || allChartData[allChartData.length - 1].timestamp);
-
-  // Create time-based scale with the same range as the transformed linear scale
-  // This ensures perfect alignment with the linear scale's positioning
-  const range = transformedLinearScale.range();
-  const scale = d3.scaleTime();
-  scale.domain([startTime, endTime]);
-  scale.range([range[0], range[1]]);
-  return scale as unknown as d3.ScaleTime<Date, number>;
-};
+// Removed unused createUnifiedTimeScale (not used by renderer)
 
 /**
  * Create a time-based scale that maps data indices to screen coordinates
@@ -201,32 +168,7 @@ export const createIndexToTimeScale = (
 /**
  * Create X-axis with time-based scale configuration
  */
-export const createXAxis = (
-  scale: d3.AxisScale<Date | number>,
-  allChartData: { timestamp: string }[],
-  customTickValues?: Date[]
-): d3.Axis<number | Date> => {
-  // Create a custom axis that positions ticks based on data indices
-  const axis = d3
-    .axisBottom(scale)
-    .tickSizeOuter(0)
-    .tickFormat(d => {
-      const date = d as Date;
-      return date.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    });
-
-  // Use custom tick values if provided, otherwise use the new time-based tick generation
-  if (customTickValues) {
-    return axis.tickValues(customTickValues) as d3.Axis<number | Date>;
-  } else {
-    // Use the new time-based tick generation for better time distribution
-    const timeBasedTicks = generateTimeBasedTicks(allChartData);
-    return axis.tickValues(timeBasedTicks) as d3.Axis<number | Date>;
-  }
-};
+// Removed unused createXAxis (custom axis implementation in use)
 
 /**
  * Create a custom X-axis that properly handles time compression
