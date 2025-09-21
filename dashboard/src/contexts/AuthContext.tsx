@@ -1,10 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { User, AuthContextType } from '../types';
 import { authService } from '../services/authService';
 import { API_BASE_URL } from '../constants';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from './AuthContextDefinition';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -81,12 +80,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

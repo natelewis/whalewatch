@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { OAuthCallbackPage } from '../../pages/OAuthCallbackPage';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 // Mock the auth context
 jest.mock('../../contexts/AuthContext');

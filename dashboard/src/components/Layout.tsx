@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { BarChart3, Eye, Search, LogOut, Moon, Sun, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 

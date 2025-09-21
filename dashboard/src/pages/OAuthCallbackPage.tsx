@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { Sun, Moon } from 'lucide-react';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 
