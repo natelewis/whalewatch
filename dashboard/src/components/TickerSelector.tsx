@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
-import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 
 interface TickerSelectorProps {
   selectedSymbol: string;

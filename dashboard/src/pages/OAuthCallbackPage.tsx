@@ -17,9 +17,9 @@ export const OAuthCallbackPage: React.FC = () => {
     const processCallback = async () => {
       const result = await safeCallAsync(async () => {
         const token = searchParams.get('token');
-        const error = searchParams.get('error');
+        const authError = searchParams.get('error');
 
-        if (error) {
+        if (authError) {
           throw new Error('Authentication failed. Please try again.');
         }
 

@@ -1,26 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData, DataRange } from '../types';
+import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData } from '../types';
 import { CHART_DATA_POINTS } from '../constants';
 import { processChartData } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
-
-// Helper function to get interval in milliseconds
-function getIntervalMs(interval: string): number {
-  const intervalMap: { [key: string]: number } = {
-    '1m': 60 * 1000,
-    '5m': 5 * 60 * 1000,
-    '30m': 30 * 60 * 1000,
-    '1h': 60 * 60 * 1000,
-    '2h': 2 * 60 * 60 * 1000,
-    '4h': 4 * 60 * 60 * 1000,
-    '1d': 24 * 60 * 60 * 1000,
-    '1w': 7 * 24 * 60 * 60 * 1000,
-    '1M': 30 * 24 * 60 * 60 * 1000,
-  };
-
-  return intervalMap[interval] || 60 * 60 * 1000; // Default to 1 hour
-}
 
 // Import types from centralized location
 import { HoverData, ChartState, ChartTransform } from '../types';

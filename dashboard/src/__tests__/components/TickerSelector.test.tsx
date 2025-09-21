@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { TickerSelector } from '../../components/TickerSelector';
@@ -156,7 +156,6 @@ describe('TickerSelector', () => {
     const user = userEvent.setup();
     render(<TickerSelector selectedSymbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
 
     // Input is already AAPL, so submitting should not call onSymbolChange

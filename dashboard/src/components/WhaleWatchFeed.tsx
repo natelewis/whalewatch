@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlpacaOptionsContract } from '../types';
-import { Search, Calendar, DollarSign, Target } from 'lucide-react';
+import { Search, Target } from 'lucide-react';
 import { LoadingSpinner } from './LoadingSpinner';
 
 interface WhaleWatchFeedProps {
@@ -34,13 +34,6 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
     }
   };
 
-  const formatCurrency = (value: number): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value);
-  };
-
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: '2-digit',
@@ -57,16 +50,6 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
     } else {
       return <div className="h-4 w-4 rounded-full bg-gray-400" />;
     }
-  };
-
-  const getContractColor = (contractType: string): string => {
-    if (contractType === 'call') {
-      return 'text-green-500';
-    }
-    if (contractType === 'put') {
-      return 'text-red-500';
-    }
-    return 'text-gray-500';
   };
 
   const isNearMoney = (contract: AlpacaOptionsContract, currentPrice?: number): boolean => {

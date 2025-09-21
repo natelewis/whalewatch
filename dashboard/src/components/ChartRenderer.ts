@@ -8,7 +8,6 @@ import {
   MARGIN_SIZE,
   ZOOM_SCALE_MIN,
   ZOOM_SCALE_MAX,
-  PRICE_PADDING_MULTIPLIER,
 } from '../constants';
 import { ChartDimensions, CandlestickData } from '../types';
 import {
@@ -20,7 +19,7 @@ import {
   clampIndex,
   isValidChartData,
 } from '../utils/chartDataUtils';
-import { memoizedCalculateYScaleDomain, memoizedCalculateChartState } from '../utils/memoizedChartUtils';
+import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 
 // ============================================================================
 // CONFIGURATION CONSTANTS - imported from centralized constants
@@ -50,25 +49,6 @@ import { ChartStateCallbacks, ChartState } from '../types';
 // ============================================================================
 // CENTRALIZED CALCULATIONS - Single source of truth for all chart math
 // ============================================================================
-
-/**
- * Centralized Y-scale domain calculation using memoized function
- * This is the single source of truth for all Y-scale domain calculations
- */
-const calculateYScaleDomain = memoizedCalculateYScaleDomain;
-
-/**
- * Centralized Y-scale creation
- * This ensures all Y-scales are created consistently
- */
-const createYScale = (
-  data: CandlestickData[],
-  innerHeight: number,
-  fixedDomain: [number, number] | null = null
-): d3.ScaleLinear<number, number> => {
-  const domain = calculateYScaleDomain(data, fixedDomain);
-  return d3.scaleLinear().domain(domain).range([innerHeight, 0]);
-};
 
 /**
  * Centralized chart state calculation using memoized function
