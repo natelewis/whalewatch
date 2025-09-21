@@ -172,7 +172,7 @@ export const createUnifiedTimeScale = (
   const scale = d3.scaleTime();
   scale.domain([startTime, endTime]);
   scale.range([range[0], range[1]]);
-  return scale as d3.ScaleTime<Date, number>;
+  return scale as unknown as d3.ScaleTime<Date, number>;
 };
 
 /**
@@ -212,7 +212,7 @@ export const createIndexToTimeScale = (
   scale.domain([startTime, endTime]);
   scale.range(transformedLinearScale.range());
 
-  return scale as d3.ScaleTime<Date, number>;
+  return scale as unknown as d3.ScaleTime<Date, number>;
 };
 
 /**
@@ -382,7 +382,7 @@ export const clampIndex = (index: number, arrayLength: number): number => {
  */
 export const hasRequiredChartParams = (params: {
   allChartData?: CandlestickData[];
-  xScale?: d3.ScaleTime<Date, number>;
+  xScale?: d3.ScaleLinear<number, number>;
   yScale?: d3.ScaleLinear<number, number>;
   visibleData?: CandlestickData[];
 }): boolean => {

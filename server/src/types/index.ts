@@ -36,7 +36,7 @@ export interface AuthenticatedRequest extends Request {
 // QUESTDB TYPES
 // ============================================================================
 
-export interface QuestDBStockTrade extends Record<string, unknown> {
+export interface QuestDBStockTrade {
   symbol: string;
   timestamp: string; // ISO timestamp
   price: number;
@@ -47,7 +47,7 @@ export interface QuestDBStockTrade extends Record<string, unknown> {
   trade_id: string;
 }
 
-export interface QuestDBStockAggregate extends Record<string, unknown> {
+export interface QuestDBStockAggregate {
   symbol: string;
   timestamp: string; // ISO timestamp
   open: number;
@@ -59,7 +59,7 @@ export interface QuestDBStockAggregate extends Record<string, unknown> {
   transaction_count: number;
 }
 
-export interface QuestDBOptionContract extends Record<string, unknown> {
+export interface QuestDBOptionContract {
   ticker: string;
   contract_type: string;
   exercise_style: string;
@@ -70,7 +70,7 @@ export interface QuestDBOptionContract extends Record<string, unknown> {
   created_at: string; // ISO timestamp
 }
 
-export interface QuestDBOptionTrade extends Record<string, unknown> {
+export interface QuestDBOptionTrade {
   ticker: string;
   underlying_ticker: string;
   timestamp: string; // ISO timestamp
@@ -82,7 +82,7 @@ export interface QuestDBOptionTrade extends Record<string, unknown> {
   sequence_number: number;
 }
 
-export interface QuestDBOptionQuote extends Record<string, unknown> {
+export interface QuestDBOptionQuote {
   ticker: string;
   underlying_ticker: string;
   timestamp: string; // ISO timestamp
@@ -95,7 +95,7 @@ export interface QuestDBOptionQuote extends Record<string, unknown> {
   sequence_number: number;
 }
 
-export interface QuestDBSyncState extends Record<string, unknown> {
+export interface QuestDBSyncState {
   ticker: string;
   last_trade_timestamp: string; // ISO timestamp
   last_aggregate_timestamp: string; // ISO timestamp

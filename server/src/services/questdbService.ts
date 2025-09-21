@@ -116,7 +116,7 @@ export class QuestDBService {
   /**
    * Convert QuestDB array data to object format
    */
-  private convertArrayToObject<T extends Record<string, unknown>>(
+  private convertArrayToObject<T>(
     data: unknown[],
     columns: Array<{ name: string; type: string }>
   ): T[] {

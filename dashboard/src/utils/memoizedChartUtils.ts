@@ -3,13 +3,31 @@ import { CandlestickData, ChartDimensions } from '../types';
 import { CHART_DATA_POINTS, PRICE_PADDING_MULTIPLIER } from '../constants';
 import { calculateInnerDimensions } from './chartDataUtils';
 
+// Types for cache values
+type YScaleDomain = [number, number];
+type PriceRange = { minPrice: number; maxPrice: number };
+type ChartState = {
+  innerWidth: number;
+  innerHeight: number;
+  baseXScale: d3.ScaleLinear<number, number>;
+  baseYScale: d3.ScaleLinear<number, number>;
+  transformedXScale: d3.ScaleLinear<number, number>;
+  transformedYScale: d3.ScaleLinear<number, number>;
+  viewStart: number;
+  viewEnd: number;
+  visibleData: CandlestickData[];
+  allData: CandlestickData[];
+  transformString: string;
+};
+type CacheValue = YScaleDomain | PriceRange | ChartState | CandlestickData[];
+
 // Memoization cache for expensive calculations
-const calculationCache = new Map<string, any>();
+const calculationCache = new Map<string, CacheValue>();
 const Y_SCALE_CACHE_SIZE = 100;
 const CHART_STATE_CACHE_SIZE = 200;
 
 // Cache cleanup function to prevent memory leaks
-const cleanupCache = (cache: Map<string, any>, maxSize: number) => {
+const cleanupCache = (cache: Map<string, CacheValue>, maxSize: number) => {
   if (cache.size > maxSize) {
     const entries = Array.from(cache.entries());
     // Remove oldest 25% of entries
@@ -27,7 +45,7 @@ const cleanupCache = (cache: Map<string, any>, maxSize: number) => {
 export const memoizedCalculateYScaleDomain = (
   data: CandlestickData[],
   fixedDomain: [number, number] | null = null
-): [number, number] => {
+): YScaleDomain => {
   // Create cache key based on data length, first/last prices, and fixed domain
   const dataKey =
     data.length > 0
@@ -40,7 +58,7 @@ export const memoizedCalculateYScaleDomain = (
   }`;
 
   if (calculationCache.has(cacheKey)) {
-    return calculationCache.get(cacheKey);
+    return calculationCache.get(cacheKey) as YScaleDomain;
   }
 
   // Calculate the domain
@@ -79,7 +97,7 @@ export const memoizedCalculateChartState = ({
   allChartData: CandlestickData[];
   transform: d3.ZoomTransform;
   fixedYScaleDomain: [number, number] | null;
-}) => {
+}): ChartState => {
   // Create cache key based on all inputs
   const dataKey =
     allChartData.length > 0
@@ -98,7 +116,7 @@ export const memoizedCalculateChartState = ({
   const cacheKey = `chartState-${dataKey}-${transformKey}-${dimensionsKey}-${fixedDomainKey}`;
 
   if (calculationCache.has(cacheKey)) {
-    return calculationCache.get(cacheKey);
+    return calculationCache.get(cacheKey) as ChartState;
   }
 
   // Calculate the chart state (original logic from ChartRenderer.ts)
@@ -164,14 +182,16 @@ export const memoizedCalculateChartState = ({
  * Memoized price range calculation
  * Used for Y-axis scaling and price validation
  */
-export const memoizedGetPriceRange = (data: CandlestickData[]) => {
-  if (!data || data.length === 0) return null;
+export const memoizedGetPriceRange = (data: CandlestickData[]): PriceRange | null => {
+  if (!data || data.length === 0) {
+    return null;
+  }
 
   const dataKey = `${data.length}-${data[0]?.timestamp}-${data[data.length - 1]?.timestamp}`;
   const cacheKey = `priceRange-${dataKey}`;
 
   if (calculationCache.has(cacheKey)) {
-    return calculationCache.get(cacheKey);
+    return calculationCache.get(cacheKey) as PriceRange;
   }
 
   const prices = data.flatMap((d) => [d.open, d.high, d.low, d.close]);
@@ -194,13 +214,15 @@ export const memoizedGetVisibleData = (
   startIndex: number,
   endIndex: number
 ): CandlestickData[] => {
-  if (!data || data.length === 0) return [];
+  if (!data || data.length === 0) {
+    return [];
+  }
 
   const dataKey = `${data.length}-${data[0]?.timestamp}-${data[data.length - 1]?.timestamp}`;
   const cacheKey = `visibleData-${dataKey}-${startIndex}-${endIndex}`;
 
   if (calculationCache.has(cacheKey)) {
-    return calculationCache.get(cacheKey);
+    return calculationCache.get(cacheKey) as CandlestickData[];
   }
 
   const clampedStart = Math.max(0, startIndex);

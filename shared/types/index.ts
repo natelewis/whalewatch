@@ -257,7 +257,7 @@ export type WebSocketMessageData =
   | { status: string; message?: string }
   | { channel: string; symbol?: string }
   | { message: string } // For connection messages
-  | Record<string, unknown>; // For flexible data structures
+  | { [key: string]: string | number | boolean | null | undefined | string[] }; // For flexible data structures
 
 export interface WebSocketMessage {
   type:
@@ -411,7 +411,7 @@ export interface ErrorContext {
   source?: string;
   userId?: string;
   requestId?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, string | number | boolean>;
 }
 
 export interface ParsedError {
@@ -420,7 +420,7 @@ export interface ParsedError {
   status?: number;
   code?: string;
   context?: ErrorContext;
-  originalError?: unknown;
+  originalError?: Error | string | object;
   isRetryable?: boolean;
   isUserFriendly?: boolean;
 }
@@ -432,15 +432,15 @@ export interface AxiosErrorResponse {
     error?: string;
     message?: string;
     code?: string;
-    details?: unknown;
+    details?: string | number | boolean | object;
   };
 }
 
 export interface AxiosError extends Error {
   response?: AxiosErrorResponse;
-  request?: unknown;
+  request?: object;
   code?: string;
-  config?: unknown;
+  config?: object;
 }
 
 // Error severity levels

@@ -52,28 +52,35 @@ export const AccountPage: React.FC = () => {
     ]);
 
     // Check if any failed
-    const errors = [accountResult, positionsResult, activitiesResult]
-      .filter((result) => result.isErr())
-      .map((result) => result.error);
-
-    if (errors.length > 0) {
-      const userMessage = createUserFriendlyMessage(errors[0]);
+    if (accountResult.isErr()) {
+      const userMessage = createUserFriendlyMessage(accountResult.error);
       setError(userMessage);
-    } else {
-      // All succeeded
-      setAccount(accountResult.value.account);
-      setPositions(positionsResult.value.positions);
-      setActivities(activitiesResult.value.activities);
+      return;
+    }
+    if (positionsResult.isErr()) {
+      const userMessage = createUserFriendlyMessage(positionsResult.error);
+      setError(userMessage);
+      return;
+    }
+    if (activitiesResult.isErr()) {
+      const userMessage = createUserFriendlyMessage(activitiesResult.error);
+      setError(userMessage);
+      return;
+    }
 
-      // Subscribe to real-time quotes for positions
-      if (positionsResult.value.positions.length > 0) {
-        const symbols = positionsResult.value.positions.map((p) => p.symbol);
-        sendMessage({
-          type: 'subscribe',
-          data: { channel: 'account_quote', symbols },
-          timestamp: new Date().toISOString(),
-        });
-      }
+    // All succeeded
+    setAccount(accountResult.value.account);
+    setPositions(positionsResult.value.positions);
+    setActivities(activitiesResult.value.activities);
+
+    // Subscribe to real-time quotes for positions
+    if (positionsResult.value.positions.length > 0) {
+      const symbols = positionsResult.value.positions.map((p: AlpacaPosition) => p.symbol);
+      sendMessage({
+        type: 'subscribe',
+        data: { channel: 'account_quote', symbols },
+        timestamp: new Date().toISOString(),
+      });
     }
 
     setIsLoading(false);
