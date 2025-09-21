@@ -122,6 +122,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     margin: { top: 0, right: 0, bottom: 0, left: 0 },
   });
 
+  // Store reference to chart cleanup function
+  const chartCleanupRef = useRef<(() => void) | null>(null);
+
   // Store reference to current view indices to avoid stale closures in D3 event handlers
   const currentViewStartRef = useRef<number>(0);
   const currentViewEndRef = useRef<number>(0);
@@ -719,6 +722,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     return () => {
       isLoadingDataRef.current = false;
       chartCreatedRef.current = false;
+      // Clean up chart event listeners
+      if (chartCleanupRef.current) {
+        chartCleanupRef.current();
+        chartCleanupRef.current = null;
+      }
     };
   }, []);
 
@@ -975,7 +983,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           fixedYScaleDomain: chartState.fixedYScaleDomain,
         });
 
-        createChart({
+        // Clean up previous chart if it exists
+        if (chartCleanupRef.current) {
+          chartCleanupRef.current();
+          chartCleanupRef.current = null;
+        }
+
+        chartCleanupRef.current = createChart({
           svgElement: svgRef.current as SVGSVGElement,
           allChartData: chartState.allData, // This will be updated via getCurrentData
           xScale: calculations.baseXScale,

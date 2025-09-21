@@ -91,10 +91,10 @@ export const createChart = ({
   bufferRangeRef: React.MutableRefObject<{ start: number; end: number } | null>;
   isPanningRef: React.MutableRefObject<boolean>;
   onBufferedCandlesRendered?: (direction: 'past' | 'future') => void;
-}): void => {
+}): (() => void) => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation (SVG element not mounted yet)');
-    return;
+    return () => {}; // Return empty cleanup function
   }
 
   // Check if DOM element exists (for hot reload scenarios)
@@ -106,7 +106,7 @@ export const createChart = ({
     !allChartData ||
     allChartData.length === 0
   ) {
-    return;
+    return () => {}; // Return empty cleanup function
   }
 
   if (stateCallbacks.setChartExists) {
@@ -147,7 +147,7 @@ export const createChart = ({
   // Add safety check to prevent error when allChartData is empty
   if (allChartData.length === 0) {
     console.warn('createIndexToTimeScale called with empty allChartData in initial render');
-    return;
+    return () => {}; // Return empty cleanup function
   }
   const xAxis = g
     .append('g')
@@ -645,18 +645,23 @@ export const createChart = ({
       loadRequestedRight = false;
       lastLoadDataLengthLeft = null;
       lastLoadDataLengthRight = null;
-    })
-    .on('mouseleave', () => {
-      // Drop pan if mouse leaves the page during panning
-      if (isPointerDown) {
-        isPointerDown = false;
-        isPanningRef.current = false;
-        loadRequestedLeft = false;
-        loadRequestedRight = false;
-        lastLoadDataLengthLeft = null;
-        lastLoadDataLengthRight = null;
-      }
     });
+
+  // Add global pointerup event listener to catch mouse release outside chart area
+  const handleGlobalPointerUp = (): void => {
+    // End pan if mouse is released anywhere (including outside chart area)
+    if (isPointerDown) {
+      isPointerDown = false;
+      isPanningRef.current = false;
+      loadRequestedLeft = false;
+      loadRequestedRight = false;
+      lastLoadDataLengthLeft = null;
+      lastLoadDataLengthRight = null;
+    }
+  };
+
+  // Add global event listener to catch pointerup anywhere on the page
+  document.addEventListener('pointerup', handleGlobalPointerUp);
 
   // Fixed Y-scale domain is now set during initial rendering to ensure consistency
 
@@ -664,6 +669,11 @@ export const createChart = ({
     stateCallbacks.setChartLoaded(true);
   }
   console.log('🎯 CHART LOADED - Axes ready');
+
+  // Return cleanup function to remove event listeners
+  return () => {
+    document.removeEventListener('pointerup', handleGlobalPointerUp);
+  };
 };
 
 export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
