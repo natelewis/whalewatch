@@ -228,7 +228,7 @@ export const createCustomTimeAxis = (
         .attr('dy', '0.71em')
         .attr('text-anchor', 'middle')
         .style('font-size', '12px')
-        .style('fill', '#666')
+        .style('fill', 'white')
         .text(d => memoizedFormatTime(d.timestamp));
     });
   };

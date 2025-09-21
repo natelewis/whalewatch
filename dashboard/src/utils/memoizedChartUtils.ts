@@ -446,7 +446,13 @@ export const memoizedApplyAxisStyling = (axis: d3.Selection<SVGGElement, unknown
 
   // Check if we've already applied this exact styling
   if (calculationCache.has(cacheKey)) {
-    return; // Already styled, skip
+    // Even if cached, ensure font-size and color are consistently applied to prevent size variations
+    axis
+      .selectAll('.tick text')
+      .style('font-size', '12px')
+      .style('font-family', 'system-ui, -apple-system, sans-serif')
+      .style('fill', 'hsl(var(--muted-foreground))');
+    return; // Already styled, skip other operations
   }
 
   // Apply the styling
@@ -455,7 +461,14 @@ export const memoizedApplyAxisStyling = (axis: d3.Selection<SVGGElement, unknown
 
   // Style tick lines to be gray, keep labels white
   axis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-  axis.selectAll('.tick text').style('font-size', '12px');
+
+  // Always apply consistent font-size to prevent size variations during re-renders
+  // Use CSS custom property for muted-foreground color (HSL format)
+  axis
+    .selectAll('.tick text')
+    .style('font-size', '12px')
+    .style('font-family', 'system-ui, -apple-system, sans-serif')
+    .style('fill', 'hsl(var(--muted-foreground))');
 
   // Mark as styled
   calculationCache.set(cacheKey, true);
