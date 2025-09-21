@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
-import { JWTPayload, WebSocketMessage } from '../types';
+import { JWTPayload, WebSocketMessage, WebSocketMessageData } from '../types';
 import { questdbWebSocketService } from '../services/questdbWebSocketService';
 
 interface AuthenticatedWebSocket extends WebSocket {
@@ -277,7 +277,7 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
 const broadcastToSubscribers = (
   wss: WebSocketServer,
   channel: string,
-  data: unknown,
+  data: WebSocketMessageData,
   symbol?: string
 ): void => {
   const message: WebSocketMessage = {

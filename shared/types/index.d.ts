@@ -227,6 +227,16 @@ export interface ApiResponse<T> {
   error?: string;
   message?: string;
 }
+export type WebSocketMessageData =
+  | AlpacaOptionsTrade
+  | AlpacaOptionsContract
+  | { symbol: string; price: number; timestamp: string }
+  | { symbol: string; bar: AlpacaBar }
+  | { error: string; message?: string }
+  | { status: string; message?: string }
+  | { channel: string; symbol?: string }
+  | Record<string, never>; // For pong and other empty messages
+
 export interface WebSocketMessage {
   type:
     | 'options_whale'
@@ -238,7 +248,7 @@ export interface WebSocketMessage {
     | 'subscription_confirmed'
     | 'unsubscription_confirmed'
     | 'pong';
-  data: unknown;
+  data: WebSocketMessageData;
   timestamp: string;
 }
 export interface OptionsWhaleMessage extends WebSocketMessage {

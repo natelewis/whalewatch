@@ -346,7 +346,28 @@ export const formatPrice = (price: number): string => {
  * Validate that chart data is valid and non-empty
  */
 export const isValidChartData = (data: unknown): data is CandlestickData[] => {
-  return !!(data && Array.isArray(data) && data.length > 0);
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return false;
+  }
+
+  // Check if all items have the required CandlestickData properties
+  return data.every(
+    (item) =>
+      typeof item === 'object' &&
+      item !== null &&
+      'timestamp' in item &&
+      'open' in item &&
+      'high' in item &&
+      'low' in item &&
+      'close' in item &&
+      'volume' in item &&
+      typeof (item as any).timestamp === 'string' &&
+      typeof (item as any).open === 'number' &&
+      typeof (item as any).high === 'number' &&
+      typeof (item as any).low === 'number' &&
+      typeof (item as any).close === 'number' &&
+      typeof (item as any).volume === 'number'
+  );
 };
 
 /**
