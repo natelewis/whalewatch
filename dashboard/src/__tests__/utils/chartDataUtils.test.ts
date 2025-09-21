@@ -102,8 +102,8 @@ describe('chartDataUtils', () => {
 
   describe('getDataPointsForTimeframe', () => {
     const timeframes = [
-      { value: '1m' as ChartTimeframe, label: '1m', dataPoints: 100 },
-      { value: '1h' as ChartTimeframe, label: '1h', dataPoints: 200 },
+      { value: '1m' as ChartTimeframe, label: '1m', limit: 100, dataPoints: 100 },
+      { value: '1h' as ChartTimeframe, label: '1h', limit: 200, dataPoints: 200 },
     ];
 
     it('should return correct data points for timeframe', () => {

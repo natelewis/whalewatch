@@ -21,7 +21,8 @@ export const WhaleFinderPage: React.FC = () => {
 
   useEffect(() => {
     if (lastMessage?.type === 'options_contract') {
-      setOptionsContracts((prev) => [lastMessage.data, ...prev.slice(0, 99)]); // Keep last 100 contracts
+      const contractData = lastMessage.data as AlpacaOptionsContract;
+      setOptionsContracts((prev) => [contractData, ...prev.slice(0, 99)]); // Keep last 100 contracts
       setHasRealTimeData(true);
     }
   }, [lastMessage]);

@@ -24,13 +24,14 @@ export const AccountPage: React.FC = () => {
   useEffect(() => {
     if (lastMessage?.type === 'account_quote') {
       // Update position prices in real-time
-      setPositions(prevPositions => 
-        prevPositions.map(position => {
-          if (position.symbol === lastMessage.data.symbol) {
+      const accountData = lastMessage.data as { symbol: string; price: number; timestamp: string };
+      setPositions((prevPositions) =>
+        prevPositions.map((position) => {
+          if (position.symbol === accountData.symbol) {
             return {
               ...position,
-              current_price: lastMessage.data.price.toString(),
-              market_value: (parseFloat(position.qty) * lastMessage.data.price).toString(),
+              current_price: accountData.price.toString(),
+              market_value: (parseFloat(position.qty) * accountData.price).toString(),
             };
           }
           return position;
@@ -56,7 +57,7 @@ export const AccountPage: React.FC = () => {
 
       // Subscribe to real-time quotes for positions
       if (positionsResponse.positions.length > 0) {
-        const symbols = positionsResponse.positions.map(p => p.symbol);
+        const symbols = positionsResponse.positions.map((p) => p.symbol);
         sendMessage({
           type: 'subscribe',
           data: { channel: 'account_quote', symbols },
@@ -99,9 +100,7 @@ export const AccountPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Account Dashboard</h1>
-          <p className="text-muted-foreground">
-            Monitor your portfolio and trading activity
-          </p>
+          <p className="text-muted-foreground">Monitor your portfolio and trading activity</p>
         </div>
         <button
           onClick={handleRefresh}

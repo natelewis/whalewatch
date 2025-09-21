@@ -16,9 +16,12 @@ describe('useChartWebSocket', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseWebSocket.mockReturnValue({
+      socket: null,
       lastMessage: null,
       sendMessage: mockSendMessage,
       isConnected: true,
+      connect: jest.fn(),
+      disconnect: jest.fn(),
     });
   });
 
@@ -82,15 +85,19 @@ describe('useChartWebSocket', () => {
     };
 
     mockUseWebSocket.mockReturnValue({
+      socket: null,
       lastMessage: {
         type: 'chart_quote',
         data: {
           symbol: 'AAPL',
           bar: mockBar,
         },
+        timestamp: '2023-01-01T00:00:00Z',
       },
       sendMessage: mockSendMessage,
       isConnected: true,
+      connect: jest.fn(),
+      disconnect: jest.fn(),
     });
 
     renderHook(() =>
@@ -114,15 +121,19 @@ describe('useChartWebSocket', () => {
     };
 
     mockUseWebSocket.mockReturnValue({
+      socket: null,
       lastMessage: {
         type: 'chart_quote',
         data: {
           symbol: 'MSFT', // Different symbol
           bar: mockBar,
         },
+        timestamp: '2023-01-01T00:00:00Z',
       },
       sendMessage: mockSendMessage,
       isConnected: true,
+      connect: jest.fn(),
+      disconnect: jest.fn(),
     });
 
     renderHook(() =>
@@ -137,15 +148,34 @@ describe('useChartWebSocket', () => {
 
   it('should not call onChartData when receiving non-chart_quote message', () => {
     mockUseWebSocket.mockReturnValue({
+      socket: null,
       lastMessage: {
-        type: 'other_message',
+        type: 'options_whale',
         data: {
+          id: 'test-id',
           symbol: 'AAPL',
-          someData: 'test',
+          timestamp: '2023-01-01T00:00:00Z',
+          price: 100,
+          size: 10,
+          side: 'buy' as const,
+          conditions: [],
+          exchange: 'NASDAQ',
+          tape: 'A',
+          contract: {
+            symbol: 'AAPL240115C00150000',
+            underlying_symbol: 'AAPL',
+            exercise_style: 'american',
+            expiration_date: '2024-01-15',
+            strike_price: 150,
+            option_type: 'call' as const,
+          },
         },
+        timestamp: '2023-01-01T00:00:00Z',
       },
       sendMessage: mockSendMessage,
       isConnected: true,
+      connect: jest.fn(),
+      disconnect: jest.fn(),
     });
 
     renderHook(() =>
@@ -160,9 +190,12 @@ describe('useChartWebSocket', () => {
 
   it('should not call onChartData when lastMessage is null', () => {
     mockUseWebSocket.mockReturnValue({
+      socket: null,
       lastMessage: null,
       sendMessage: mockSendMessage,
       isConnected: true,
+      connect: jest.fn(),
+      disconnect: jest.fn(),
     });
 
     renderHook(() =>
@@ -211,9 +244,12 @@ describe('useChartWebSocket', () => {
 
   it('should reflect connection status from useWebSocket', () => {
     mockUseWebSocket.mockReturnValue({
+      socket: null,
       lastMessage: null,
       sendMessage: mockSendMessage,
       isConnected: false,
+      connect: jest.fn(),
+      disconnect: jest.fn(),
     });
 
     const { result } = renderHook(() =>

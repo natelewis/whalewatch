@@ -17,11 +17,7 @@ jest.mock('react-router-dom', () => ({
 }));
 
 const renderWithRouter = (component: React.ReactElement) => {
-  return render(
-    <BrowserRouter>
-      {component}
-    </BrowserRouter>
-  );
+  return render(<BrowserRouter>{component}</BrowserRouter>);
 };
 
 describe('OAuthCallbackPage', () => {
@@ -31,7 +27,6 @@ describe('OAuthCallbackPage', () => {
     jest.clearAllMocks();
     mockUseAuth.mockReturnValue({
       user: null,
-      token: null,
       isAuthenticated: false,
       isLoading: false,
       loginWithGoogle: jest.fn(),

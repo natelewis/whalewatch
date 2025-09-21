@@ -56,10 +56,10 @@ describe('localStorage utilities', () => {
       const originalWindow = global.window;
       // @ts-ignore
       delete global.window;
-      
+
       const result = getLocalStorageItem('test-key', 'default');
       expect(result).toBe('default');
-      
+
       global.window = originalWindow;
     });
   });
@@ -68,7 +68,7 @@ describe('localStorage utilities', () => {
     it('should store value in localStorage', () => {
       const testData = { name: 'test', value: 123 };
       setLocalStorageItem('test-key', testData);
-      
+
       const stored = localStorageMock.getItem('test-key');
       expect(stored).toBe(JSON.stringify(testData));
     });
@@ -77,11 +77,11 @@ describe('localStorage utilities', () => {
       const originalWindow = global.window;
       // @ts-ignore
       delete global.window;
-      
+
       expect(() => {
         setLocalStorageItem('test-key', 'value');
       }).toThrow(LocalStorageError);
-      
+
       global.window = originalWindow;
     });
 
@@ -89,8 +89,7 @@ describe('localStorage utilities', () => {
       // Mock localStorage.setItem to throw quota exceeded error
       const originalSetItem = localStorageMock.setItem;
       localStorageMock.setItem = vi.fn(() => {
-        const error = new DOMException('QuotaExceededError');
-        error.name = 'QuotaExceededError';
+        const error = new DOMException('QuotaExceededError', 'QuotaExceededError');
         throw error;
       });
 
@@ -106,7 +105,7 @@ describe('localStorage utilities', () => {
     it('should remove item from localStorage', () => {
       localStorageMock.setItem('test-key', 'test-value');
       removeLocalStorageItem('test-key');
-      
+
       const result = localStorageMock.getItem('test-key');
       expect(result).toBeNull();
     });
@@ -115,11 +114,11 @@ describe('localStorage utilities', () => {
       const originalWindow = global.window;
       // @ts-ignore
       delete global.window;
-      
+
       expect(() => {
         removeLocalStorageItem('test-key');
       }).not.toThrow();
-      
+
       global.window = originalWindow;
     });
   });
@@ -133,9 +132,9 @@ describe('localStorage utilities', () => {
       const originalWindow = global.window;
       // @ts-ignore
       delete global.window;
-      
+
       expect(isLocalStorageAvailable()).toBe(false);
-      
+
       global.window = originalWindow;
     });
 

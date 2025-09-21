@@ -53,8 +53,11 @@ export const useChartWebSocket = ({
 
   // Process incoming messages
   useEffect(() => {
-    if (isEnabled && lastMessage?.type === 'chart_quote' && lastMessage.data.symbol === symbol) {
-      handleChartData(lastMessage.data.bar);
+    if (isEnabled && lastMessage?.type === 'chart_quote') {
+      const chartData = lastMessage.data as { symbol: string; bar: AlpacaBar };
+      if (chartData.symbol === symbol) {
+        handleChartData(chartData.bar);
+      }
     }
   }, [lastMessage, symbol, handleChartData, isEnabled]);
 

@@ -5,53 +5,87 @@ import StockChart from '../../components/StockChart';
 // Removed useChartData import - now using useChartStateManager
 import { useChartStateManager } from '../../hooks/useChartStateManager';
 import { useChartWebSocket } from '../../hooks/useChartWebSocket';
+import { ChartTimeframe } from '../../types';
 
 // Mock the hooks
 vi.mock('../../hooks/useChartStateManager');
 vi.mock('../../hooks/useChartWebSocket');
 
 // Mock D3
-const createMockD3Element = () => ({
+interface MockD3Element {
+  attr: ReturnType<typeof vi.fn>;
+  style: ReturnType<typeof vi.fn>;
+  call: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  datum: ReturnType<typeof vi.fn>;
+  empty: ReturnType<typeof vi.fn>;
+  append: () => MockD3Element;
+  select: () => MockD3Element;
+  selectAll: () => MockD3Element;
+  node: ReturnType<typeof vi.fn>;
+  transition: () => {
+    duration: ReturnType<typeof vi.fn>;
+    call: ReturnType<typeof vi.fn>;
+  };
+}
+
+const createMockD3Element = (): MockD3Element => ({
   attr: vi.fn().mockReturnThis(),
   style: vi.fn().mockReturnThis(),
   call: vi.fn().mockReturnThis(),
   on: vi.fn().mockReturnThis(),
   datum: vi.fn().mockReturnThis(),
-  empty: vi.fn(() => false), // Add empty method
-  append: vi.fn(() => createMockD3Element()),
-  select: vi.fn(() => createMockD3Element()),
-  selectAll: vi.fn(() => ({
+  empty: vi.fn().mockReturnValue(false),
+  append: vi.fn().mockReturnValue(createMockD3Element()),
+  select: vi.fn().mockReturnValue(createMockD3Element()),
+  selectAll: vi.fn().mockReturnValue({
     remove: vi.fn(),
     attr: vi.fn().mockReturnThis(),
     style: vi.fn().mockReturnThis(),
     call: vi.fn().mockReturnThis(),
     on: vi.fn().mockReturnThis(),
     datum: vi.fn().mockReturnThis(),
-    empty: vi.fn(() => false), // Add empty method
-    append: vi.fn(() => createMockD3Element()),
-  })),
-  node: vi.fn(() => ({})),
-  transition: vi.fn(() => ({
+    empty: vi.fn().mockReturnValue(false),
+    append: vi.fn().mockReturnValue(createMockD3Element()),
+  }),
+  node: vi.fn().mockReturnValue({}),
+  transition: vi.fn().mockReturnValue({
     duration: vi.fn().mockReturnThis(),
     call: vi.fn().mockReturnThis(),
-  })),
+  }),
 });
+
+interface MockD3Scale {
+  (value: number): number;
+  domain: ReturnType<typeof vi.fn>;
+  range: ReturnType<typeof vi.fn>;
+  invert: ReturnType<typeof vi.fn>;
+  nice?: ReturnType<typeof vi.fn>;
+}
 
 vi.mock('d3', () => ({
   select: vi.fn(() => createMockD3Element()),
-  scaleTime: vi.fn(() => {
-    const scale = vi.fn((value) => value * 10); // Mock function call behavior
-    scale.domain = vi.fn().mockReturnThis();
-    scale.range = vi.fn().mockReturnThis();
-    scale.invert = vi.fn();
+  scaleTime: vi.fn((): MockD3Scale => {
+    const scale = Object.assign(
+      vi.fn((value: number) => value * 10),
+      {
+        domain: vi.fn().mockReturnThis(),
+        range: vi.fn().mockReturnThis(),
+        invert: vi.fn(),
+      }
+    ) as MockD3Scale;
     return scale;
   }),
-  scaleLinear: vi.fn(() => {
-    const scale = vi.fn((value) => value * 10); // Mock function call behavior
-    scale.domain = vi.fn().mockReturnThis();
-    scale.range = vi.fn().mockReturnThis();
-    scale.nice = vi.fn().mockReturnThis();
-    scale.invert = vi.fn();
+  scaleLinear: vi.fn((): MockD3Scale => {
+    const scale = Object.assign(
+      vi.fn((value: number) => value * 10),
+      {
+        domain: vi.fn().mockReturnThis(),
+        range: vi.fn().mockReturnThis(),
+        nice: vi.fn().mockReturnThis(),
+        invert: vi.fn(),
+      }
+    ) as MockD3Scale;
     return scale;
   }),
   extent: vi.fn(() => [new Date('2023-01-01'), new Date('2023-01-02')]),
@@ -141,18 +175,20 @@ Object.defineProperty(window, 'localStorage', {
 
 const mockChartData = [
   {
-    time: '2023-01-01T00:00:00Z',
+    timestamp: '2023-01-01T00:00:00Z',
     open: 100,
     high: 110,
     low: 95,
     close: 105,
+    volume: 1000,
   },
   {
-    time: '2023-01-02T00:00:00Z',
+    timestamp: '2023-01-02T00:00:00Z',
     open: 105,
     high: 115,
     low: 100,
     close: 110,
+    volume: 1200,
   },
 ];
 
@@ -172,17 +208,25 @@ const mockUseChartStateManager = {
     dimensions: { width: 800, height: 400, margin: { top: 20, right: 60, bottom: 40, left: 0 } },
     transform: { x: 0, y: 0, k: 1 },
     hoverData: null,
-    timeframe: '1h',
+    timeframe: '1h' as const,
     symbol: 'TSLA',
     fixedYScaleDomain: null,
   },
   actions: {
-    loadChartData: vi.fn(),
+    loadChartData: vi.fn() as (
+      symbol: string,
+      timeframe: ChartTimeframe,
+      dataPoints?: number,
+      startTime?: string,
+      direction?: 'past' | 'future'
+    ) => Promise<void>,
+    loadMoreData: vi.fn(),
     updateChartWithLiveData: vi.fn(),
     setAllData: vi.fn(),
     setData: vi.fn(),
     setIsLive: vi.fn(),
     setIsWebSocketEnabled: vi.fn(),
+    setIsZooming: vi.fn(),
     setError: vi.fn(),
     setIsLoading: vi.fn(),
     resetChart: vi.fn(),
@@ -213,7 +257,10 @@ const mockUseChartWebSocket = {
 
 describe('StockChart', () => {
   beforeEach(() => {
-    vi.mocked(useChartStateManager).mockReturnValue(mockUseChartStateManager);
+    vi.mocked(useChartStateManager).mockReturnValue({
+      ...mockUseChartStateManager,
+      isInitialLoad: false,
+    });
     vi.mocked(useChartWebSocket).mockReturnValue(mockUseChartWebSocket);
     localStorageMock.getItem.mockReturnValue('1h');
   });
@@ -230,6 +277,7 @@ describe('StockChart', () => {
   it('displays loading state when data is loading', () => {
     vi.mocked(useChartStateManager).mockReturnValue({
       ...mockUseChartStateManager,
+      isInitialLoad: false,
       state: {
         ...mockUseChartStateManager.state,
         isLoading: true,
@@ -245,6 +293,7 @@ describe('StockChart', () => {
   it('displays error state when there is an error', () => {
     vi.mocked(useChartStateManager).mockReturnValue({
       ...mockUseChartStateManager,
+      isInitialLoad: false,
       state: {
         ...mockUseChartStateManager.state,
         error: 'Failed to load data',
@@ -315,7 +364,10 @@ describe('StockChart', () => {
     const refreshButton = screen.getByTitle('Refresh data');
     fireEvent.click(refreshButton);
 
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '1h');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
+      'TSLA',
+      '1h' as const
+    );
   });
 
   it('resets zoom when reset button is clicked', () => {
@@ -389,7 +441,10 @@ describe('StockChart', () => {
 
     expect(localStorageMock.getItem).toHaveBeenCalledWith('chartTimeframe');
     // The component uses the saved timeframe from localStorage
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '5m');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
+      'TSLA',
+      '5m' as const
+    );
   });
 
   it('saves timeframe to localStorage when changed', () => {
@@ -430,10 +485,12 @@ describe('StockChart', () => {
   it('handles missing chart data gracefully', () => {
     vi.mocked(useChartStateManager).mockReturnValue({
       ...mockUseChartStateManager,
+      isInitialLoad: false,
       state: {
         ...mockUseChartStateManager.state,
         data: [],
         allData: [],
+        timeframe: null,
         isWebSocketEnabled: true,
         isZooming: false,
       },
@@ -466,6 +523,9 @@ describe('StockChart', () => {
     rerender(<StockChart symbol="AAPL" onSymbolChange={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'AAPL' })).toBeInTheDocument();
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('AAPL', '1h');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
+      'AAPL',
+      '1h' as const
+    );
   });
 });
