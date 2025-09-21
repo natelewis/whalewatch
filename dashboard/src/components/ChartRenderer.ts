@@ -169,6 +169,9 @@ export const createChart = ({
   // Show all tick marks and labels
 
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([ZOOM_SCALE_MIN, ZOOM_SCALE_MAX]);
+  let panStartX = 0;
+  let panStartViewStart = 0;
+  let panStartViewEnd = CHART_DATA_POINTS - 1;
 
   // Store reference to zoom behavior for programmatic control
   if (stateCallbacks.setZoomBehavior) {
@@ -176,6 +179,21 @@ export const createChart = ({
   }
 
   const handleZoomStart = (): void => {
+    const startTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+    panStartX = startTransform.x;
+    // Derive start viewport from current data/dimensions to avoid stale chartState
+    const startData = stateCallbacks.getCurrentData?.();
+    const startDimensions = stateCallbacks.getCurrentDimensions?.();
+    if (startData && startData.length > 0 && startDimensions) {
+      const calcAtStart = calculateChartState({
+        dimensions: startDimensions,
+        allChartData: startData,
+        transform: startTransform,
+        fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
+      });
+      panStartViewStart = Math.floor(calcAtStart.viewStart);
+      panStartViewEnd = Math.ceil(calcAtStart.viewEnd);
+    }
     if (stateCallbacks.setIsZooming) {
       stateCallbacks.setIsZooming(true);
     }
@@ -241,82 +259,86 @@ export const createChart = ({
     }
 
     // Single source of truth for all calculations
+    // Build calculations ignoring transform.x (index-based panning)
+    const transformForCalc = d3.zoomIdentity.translate(0, transform.y).scale(transform.k);
     const calcStartTime = performance.now();
-    const calculations = calculateChartState({
+    const baseCalcs = calculateChartState({
       dimensions: currentDimensions,
       allChartData: currentData,
-      transform,
+      transform: transformForCalc,
       fixedYScaleDomain: currentFixedYScaleDomain,
     });
     const calcEndTime = performance.now();
     console.log(`⏱️ Chart state calculation took: ${(calcEndTime - calcStartTime).toFixed(2)}ms`);
 
-    // Update view state using centralized calculations
+    // Compute viewport indices from pixel delta
+    const { innerWidth: currInnerWidth } = calculateInnerDimensions(currentDimensions);
+    const bandWidth = currInnerWidth / CHART_DATA_POINTS;
+    const sourceEvent: unknown = event.sourceEvent;
+    const sourceType = (sourceEvent as { type?: string } | undefined)?.type;
+    const isWheel = sourceType === 'wheel' || (sourceEvent as { deltaY?: number } | undefined)?.deltaY !== undefined;
+    const windowSize = Math.max(1, CHART_DATA_POINTS - 1);
+    let newStart = panStartViewStart;
+    if (!isWheel) {
+      const dx = transform.x - panStartX;
+      const deltaIdx = dx / bandWidth;
+      newStart = Math.max(0, Math.min(currentData.length - windowSize - 1, Math.round(panStartViewStart - deltaIdx)));
+    }
+    // Enforce exact viewport window size = CHART_DATA_POINTS
+    const newEndMutable = Math.min(currentData.length - 1, newStart + windowSize);
+    // If clamped at data end, shift start left to keep window size
+    if (newEndMutable - newStart + 1 < windowSize + 1) {
+      newStart = Math.max(0, newEndMutable - windowSize);
+    }
+    const newEnd = newEndMutable;
+
     if (stateCallbacks.setCurrentViewStart) {
-      stateCallbacks.setCurrentViewStart(calculations.viewStart);
+      stateCallbacks.setCurrentViewStart(newStart);
     }
     if (stateCallbacks.setCurrentViewEnd) {
-      stateCallbacks.setCurrentViewEnd(calculations.viewEnd);
+      stateCallbacks.setCurrentViewEnd(newEnd);
     }
 
-    // Do not apply transform to the content group; we use transformed scales for positioning
+    // Do not apply group transform; we'll re-render during pan for accurate axes and candles
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroup.empty()) {
-      const transformStartTime = performance.now();
       chartContentGroup.attr('transform', null);
-      const transformEndTime = performance.now();
-      console.log(`⏱️ Transform clear took: ${(transformEndTime - transformStartTime).toFixed(2)}ms`);
     }
 
-    // Update X-axis using time-based scale that aligns with candlesticks
-    // Throttle X-axis updates during panning to improve performance
+    // Update X-axis using live viewport scale during pan
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
-      const axisStartTime = performance.now();
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
-
-      // Use custom time axis with proper positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+      const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, currInnerWidth]);
+      const visibleSlice = currentData.slice(newStart, newEnd + 1);
       xAxisGroup.call(
         createCustomTimeAxis(
-          calculations.transformedXScale,
+          viewportXScale as unknown as d3.ScaleLinear<number, number>,
           currentData,
           X_AXIS_MARKER_INTERVAL,
           X_AXIS_MARKER_DATA_POINT_INTERVAL,
-          calculations.visibleData
+          visibleSlice
         )
       );
-
-      // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
-
-      // Store current view for next comparison
-      xAxisGroup.attr('data-last-view-start', calculations.viewStart);
-
-      const axisEndTime = performance.now();
-      console.log(
-        `⏱️ X-axis update took: ${(axisEndTime - axisStartTime).toFixed(2)}ms
-        })`
-      );
     }
 
-    // Update Y-axis using centralized calculations
+    // Update Y-axis using locked domain during pan
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
-      const yAxisStartTime = performance.now();
-      yAxisGroup.call(createYAxis(calculations.transformedYScale));
-
-      // Apply consistent styling to maintain consistency with initial load
+      yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
       applyAxisStyling(yAxisGroup);
-      const yAxisEndTime = performance.now();
-      console.log(`⏱️ Y-axis update took: ${(yAxisEndTime - yAxisStartTime).toFixed(2)}ms`);
     }
 
-    // Always re-render all candles on pan (simplicity over optimization)
-    const rerenderStartTime = performance.now();
+    // Re-render candles during pan for real-time visuals
+    const calculations = {
+      ...baseCalcs,
+      viewStart: newStart,
+      viewEnd: newEnd,
+      visibleData: currentData.slice(newStart, newEnd + 1),
+    } as ChartCalculations;
     renderCandlestickChart(svgElement, calculations);
-    const rerenderEndTime = performance.now();
-    console.log(`⏱️ Candlestick re-render (pan) took: ${(rerenderEndTime - rerenderStartTime).toFixed(2)}ms`);
 
     // Auto-load is handled on pan end only to avoid recursive storms
 
@@ -333,6 +355,12 @@ export const createChart = ({
     // Show crosshairs again if mouse is still over the chart
     // We'll let the mousemove event handle showing them at the correct position
 
+    // Reset content transform and re-render at the settled viewport
+    const contentGroup = g.select<SVGGElement>('.chart-content');
+    if (!contentGroup.empty()) {
+      contentGroup.attr('transform', null);
+    }
+
     // After pan/zoom ends, decide if we need to auto-load more data based on edge proximity
     const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
     const currentData = stateCallbacks.getCurrentData?.();
@@ -341,17 +369,12 @@ export const createChart = ({
       return;
     }
 
-    const endCalculations = calculateChartState({
-      dimensions: currentDimensions,
-      allChartData: currentData,
-      transform: currentTransform,
-      fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
-    });
-
-    const dataLength = endCalculations.allData.length;
+    const dataLength = currentData.length;
     const threshold = Math.max(0, BUFFER_SIZE - CHART_DATA_POINTS);
-    const distanceLeft = Math.max(0, Math.floor(endCalculations.viewStart));
-    const distanceRight = Math.max(0, Math.floor(dataLength - 1 - endCalculations.viewEnd));
+    const curStart = Math.floor(chartState.currentViewStart);
+    const curEnd = Math.floor(chartState.currentViewEnd);
+    const distanceLeft = Math.max(0, curStart);
+    const distanceRight = Math.max(0, dataLength - 1 - curEnd);
 
     let loadDirection: 'past' | 'future' | null = null;
     if (distanceLeft <= threshold) {
@@ -369,9 +392,43 @@ export const createChart = ({
       });
       onBufferedCandlesRendered(loadDirection);
     }
-    // Unlock Y-scale after pan ends so future operations can re-fit if desired
-    if (stateCallbacks.setFixedYScaleDomain) {
-      stateCallbacks.setFixedYScaleDomain(null);
+
+    // Re-render with the final viewport and update axes now that pan settled
+    const { innerWidth: w, innerHeight: h } = calculateInnerDimensions(currentDimensions);
+    const viewX = d3.scaleLinear().domain([chartState.currentViewStart, chartState.currentViewEnd]).range([0, w]);
+    const xAxisGroup = g.select<SVGGElement>('.x-axis');
+    if (!xAxisGroup.empty()) {
+      xAxisGroup.attr('transform', `translate(0,${h})`);
+      xAxisGroup.call(
+        createCustomTimeAxis(
+          viewX as unknown as d3.ScaleLinear<number, number>,
+          currentData,
+          X_AXIS_MARKER_INTERVAL,
+          X_AXIS_MARKER_DATA_POINT_INTERVAL,
+          currentData.slice(curStart, curEnd + 1)
+        )
+      );
+      applyAxisStyling(xAxisGroup);
+    }
+
+    const yAxisGroup = g.select<SVGGElement>('.y-axis');
+    if (!yAxisGroup.empty()) {
+      // Use baseCalcs equivalent at pan end to preserve locked Y
+      const endCalcs = calculateChartState({
+        dimensions: currentDimensions,
+        allChartData: currentData,
+        transform: d3.zoomIdentity.translate(0, currentTransform.y).scale(currentTransform.k),
+        fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
+      });
+      yAxisGroup.call(createYAxis(endCalcs.transformedYScale));
+      applyAxisStyling(yAxisGroup);
+      const finalCalcs = {
+        ...endCalcs,
+        viewStart: curStart,
+        viewEnd: curEnd,
+        visibleData: currentData.slice(curStart, curEnd + 1),
+      } as ChartCalculations;
+      renderCandlestickChart(svgElement, finalCalcs);
     }
   };
 
@@ -496,12 +553,12 @@ export const createChart = ({
 
 export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
   const renderStartTime = performance.now();
-  console.log('🎨 renderCandlestickChart called with:', {
+  /* console.log('renderCandlestickChart called with:', {
     allDataLength: calculations.allData.length,
     viewStart: calculations.viewStart,
     viewEnd: calculations.viewEnd,
     stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n'),
-  });
+  }); */
 
   // Find the chart content group and remove existing candlesticks
   const chartContent = d3.select(svgElement).select('.chart-content');
@@ -512,7 +569,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
 
   // Debug: log current transform on content group
   const currentContentTransform = chartContent.attr('transform');
-  console.log('🧭 chart-content transform:', currentContentTransform);
+  // console.log('content transform:', currentContentTransform);
 
   // Create or reuse the candles layer for idempotent rendering
   let candleSticks = chartContent.select<SVGGElement>('.candle-sticks');
@@ -562,13 +619,13 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     .attr('opacity', 0.5);
   dbg.append('circle').attr('cx', xFirst).attr('cy', 10).attr('r', 3).attr('fill', '#00c853');
   dbg.append('circle').attr('cx', xLast).attr('cy', 10).attr('r', 3).attr('fill', '#d50000');
-  console.log('🧭 debug positions:', {
+  /* console.log('debug positions:', {
     xFirst,
     xLast,
     clipLeft: x0,
     clipRight: xW,
     contentTransform: currentContentTransform,
-  });
+  }); */
 
   console.log('🎨 Rendering candlesticks:', {
     allDataLength: calculations.allData.length,
@@ -595,14 +652,17 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
         : 'none',
   });
 
-  // Use the TRANSFORMED X scale for positioning so candles follow pan/zoom without group transform
-  const xScaleForPosition = calculations.transformedXScale;
-  console.log('🧮 baseXScale domain/range:', {
+  // Build viewport X scale from viewStart/viewEnd so we draw only the viewport slice
+  const xScaleForPosition = d3
+    .scaleLinear()
+    .domain([calculations.viewStart, calculations.viewEnd])
+    .range([0, calculations.innerWidth]);
+  /* console.log('baseXScale domain/range:', {
     domain: calculations.baseXScale.domain(),
     range: calculations.baseXScale.range(),
     innerWidth: calculations.innerWidth,
     innerHeight: calculations.innerHeight,
-  });
+  }); */
 
   const candlestickRenderStartTime = performance.now();
   visibleCandles.forEach((d, localIndex) => {
@@ -690,7 +750,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   const totalRenderTime = candlestickRenderEndTime - renderStartTime;
   const candlestickLoopTime = candlestickRenderEndTime - candlestickRenderStartTime;
 
-  console.log('🎨 Rendered all candles:', {
+  /* console.log('Rendered all candles:', {
     allDataLength: calculations.allData.length,
     candlesRendered: visibleCandles.length,
     visibleDataLength: calculations.visibleData.length,
@@ -708,7 +768,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
       candlestickLoopTime: `${candlestickLoopTime.toFixed(2)}ms`,
       candlesPerMs: visibleCandles.length > 0 ? (visibleCandles.length / candlestickLoopTime).toFixed(2) : '0',
     },
-  });
+  }); */
 };
 
 // Function to update clip-path when data changes
