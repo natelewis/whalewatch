@@ -25,7 +25,14 @@
     "exactOptionalPropertyTypes": true,
 
     /* Vite */
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+
+    /* Path mapping */
+    "baseUrl": ".",
+    "paths": {
+      "@shared": ["../shared/types/index.ts"],
+      "@shared/*": ["../shared/*"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

@@ -10,8 +10,7 @@ import {
   ZOOM_SCALE_MAX,
   PRICE_PADDING_MULTIPLIER,
 } from '../constants';
-import { ChartDimensions } from '../types';
-import { CandlestickData } from '../utils/chartDataUtils';
+import { ChartDimensions, CandlestickData } from '../types';
 import {
   applyAxisStyling,
   createCustomTimeAxis,
@@ -44,32 +43,8 @@ export interface ChartCalculations {
   transformString: string;
 }
 
-export interface ChartStateCallbacks {
-  setIsZooming?: (value: boolean) => void;
-  setCurrentViewStart?: (value: number) => void;
-  setCurrentViewEnd?: (value: number) => void;
-  setHoverData?: (
-    value: {
-      x: number;
-      y: number;
-      data: { time: string; open: number; high: number; low: number; close: number };
-    } | null
-  ) => void;
-  setChartLoaded?: (value: boolean) => void;
-  setFixedYScaleDomain?: (value: [number, number] | null) => void;
-  setChartExists?: (value: boolean) => void;
-  setCurrentTransform?: (value: d3.ZoomTransform) => void;
-  forceRerender?: () => void;
-  setZoomBehavior?: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => void;
-  getFixedYScaleDomain?: () => [number, number] | null;
-  getCurrentData?: () => CandlestickData[];
-  getCurrentDimensions?: () => ChartDimensions;
-}
-
-export interface ChartState {
-  fixedYScaleDomain: [number, number] | null;
-  chartLoaded: boolean;
-}
+// Import types from centralized location
+import { ChartStateCallbacks, ChartState } from '../types';
 
 // ============================================================================
 // CENTRALIZED CALCULATIONS - Single source of truth for all chart math
@@ -155,16 +130,16 @@ export const calculateChartState = ({
   const viewEnd = Math.min(rightmostDataIndex, rightmostDataIndex - panOffsetDataPoints);
   const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
 
-  console.log('📊 View calculation:', {
-    availableDataLength,
-    rightmostDataIndex,
-    panOffsetDataPoints,
-    panOffsetPixels: transform.x,
-    viewStart,
-    viewEnd,
-    viewSize: viewEnd - viewStart + 1,
-    bandWidth,
-  });
+  // console.log('📊 View calculation:', {
+  //   availableDataLength,
+  //   rightmostDataIndex,
+  //   panOffsetDataPoints,
+  //   panOffsetPixels: transform.x,
+  //   viewStart,
+  //   viewEnd,
+  //   viewSize: viewEnd - viewStart + 1,
+  //   bandWidth,
+  // });
 
   // Create base X scale that maps data indices to screen coordinates
   // The scale should always map the full dataset to a fixed range that shows 80 points
@@ -392,14 +367,14 @@ export const createChart = ({
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroup.empty()) {
-      console.log('🔄 Updating chart content group transform:', {
-        transformString: calculations.transformString,
-        transformX: transform.x,
-        transformY: transform.y,
-        transformK: transform.k,
-        yScaleDomain: calculations.baseYScale.domain(),
-        yScaleRange: calculations.baseYScale.range(),
-      });
+      // console.log('🔄 Updating chart content group transform:', {
+      //   transformString: calculations.transformString,
+      //   transformX: transform.x,
+      //   transformY: transform.y,
+      //   transformK: transform.k,
+      //   yScaleDomain: calculations.baseYScale.domain(),
+      //   yScaleRange: calculations.baseYScale.range(),
+      // });
       chartContentGroup.attr('transform', calculations.transformString);
     }
 

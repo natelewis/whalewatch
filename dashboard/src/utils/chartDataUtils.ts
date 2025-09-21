@@ -1,24 +1,12 @@
 import * as d3 from 'd3';
-import { AlpacaBar, ChartTimeframe, DEFAULT_CHART_DATA_POINTS } from '../types';
-
-export interface CandlestickData {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
-export interface DataRange {
-  earliest: string;
-  latest: string;
-}
-
-export interface TimeframeConfig {
-  value: ChartTimeframe;
-  label: string;
-  limit: number;
-}
+import {
+  AlpacaBar,
+  ChartTimeframe,
+  DEFAULT_CHART_DATA_POINTS,
+  CandlestickData,
+  TimeframeConfig,
+  DataRange,
+} from '../types';
 
 /**
  * Remove duplicate entries by timestamp and sort by time
@@ -40,11 +28,13 @@ export const deduplicateAndSortBars = (bars: AlpacaBar[]): AlpacaBar[] => {
  */
 export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[] => {
   return bars.map((bar) => ({
-    time: bar.t,
+    timestamp: bar.t,
+    time: bar.t, // back-compat field used by UI
     open: bar.o,
     high: bar.h,
     low: bar.l,
     close: bar.c,
+    volume: bar.v,
   }));
 };
 
@@ -57,8 +47,8 @@ export const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
   }
 
   return {
-    earliest: bars[0].t,
-    latest: bars[bars.length - 1].t,
+    start: new Date(bars[0].t).getTime(),
+    end: new Date(bars[bars.length - 1].t).getTime(),
   };
 };
 
@@ -180,10 +170,10 @@ export const createUnifiedTimeScale = (
   // Create time-based scale with the same range as the transformed linear scale
   // This ensures perfect alignment with the linear scale's positioning
   const range = transformedLinearScale.range();
-  const scale = d3.scaleTime<Date, number>();
+  const scale = d3.scaleTime();
   scale.domain([startTime, endTime]);
-  (scale as any).range([range[0], range[1]]);
-  return scale;
+  scale.range([range[0], range[1]]);
+  return scale as unknown as d3.ScaleTime<Date, number>;
 };
 
 /**
@@ -199,46 +189,42 @@ export const createIndexToTimeScale = (
   if (!allChartData || allChartData.length === 0) {
     console.warn('createIndexToTimeScale called with empty or undefined allChartData');
     // Return a default scale that won't cause errors
-    const defaultScale = d3.scaleTime<Date, number>();
+    const defaultScale = d3.scaleTime();
     defaultScale.domain([new Date(), new Date()]);
-    (defaultScale as any).range([0, 1]);
-    return defaultScale;
+    defaultScale.range([0, 1]);
+    return defaultScale as unknown as d3.ScaleTime<Date, number>;
   }
 
   if (!allChartData[0] || !allChartData[0].time) {
     console.warn('createIndexToTimeScale called with invalid chart data - missing time property');
-    const defaultScale = d3.scaleTime<Date, number>();
+    const defaultScale = d3.scaleTime();
     defaultScale.domain([new Date(), new Date()]);
-    (defaultScale as any).range([0, 1]);
-    return defaultScale;
+    defaultScale.range([0, 1]);
+    return defaultScale as unknown as d3.ScaleTime<Date, number>;
   }
-
-  // Get the domain from the transformed linear scale (data indices)
-  const [domainStart, domainEnd] = transformedLinearScale.domain();
-  const range = transformedLinearScale.range();
 
   // Create a time-based scale with the actual time domain
   const startTime = new Date(allChartData[0].time);
   const endTime = new Date(allChartData[allChartData.length - 1].time);
 
-  const scale = d3.scaleTime<Date, number>();
+  const scale = d3.scaleTime();
   scale.domain([startTime, endTime]);
-  (scale as any).range(range);
+  scale.range(transformedLinearScale.range());
 
-  return scale;
+  return scale as unknown as d3.ScaleTime<Date, number>;
 };
 
 /**
  * Create X-axis with time-based scale configuration
  */
 export const createXAxis = (
-  scale: d3.ScaleTime<Date, number> | d3.ScaleTime<number, number>,
+  scale: d3.AxisScale<Date | number>,
   allChartData: { time: string }[],
   customTickValues?: Date[]
-): d3.Axis<d3.NumberValue> => {
+): d3.Axis<number | Date> => {
   // Create a custom axis that positions ticks based on data indices
   const axis = d3
-    .axisBottom(scale as d3.AxisScale<Date | d3.NumberValue>)
+    .axisBottom(scale)
     .tickSizeOuter(0)
     .tickFormat((d) => {
       const date = d as Date;
@@ -247,11 +233,11 @@ export const createXAxis = (
 
   // Use custom tick values if provided, otherwise use the new time-based tick generation
   if (customTickValues) {
-    return axis.tickValues(customTickValues);
+    return axis.tickValues(customTickValues) as unknown as d3.Axis<number | Date>;
   } else {
     // Use the new time-based tick generation for better time distribution
     const timeBasedTicks = generateTimeBasedTicks(allChartData);
-    return axis.tickValues(timeBasedTicks);
+    return axis.tickValues(timeBasedTicks) as unknown as d3.Axis<number | Date>;
   }
 };
 
@@ -263,7 +249,7 @@ export const createXAxis = (
 export const createCustomTimeAxis = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
   allChartData: { time: string }[]
-): d3.Axis<d3.NumberValue> => {
+): d3.Axis<number | Date> => {
   // Generate time-based ticks that make sense for the data
   const timeTicks = generateTimeBasedTicks(allChartData);
 
@@ -311,7 +297,7 @@ export const createCustomTimeAxis = (
 
       // Add tick marks and labels
       const tickSelection = context
-        .selectAll('.tick')
+        .selectAll<SVGGElement, { time: Date; position: number }>('g.tick')
         .data(tickData)
         .enter()
         .append('g')
@@ -333,13 +319,7 @@ export const createCustomTimeAxis = (
     });
   };
 
-  // Add the necessary methods to make it work like a D3 axis
-  (customAxis as any).scale = () => transformedLinearScale;
-  (customAxis as any).ticks = () => timeTicks;
-  (customAxis as any).tickFormat = () => (d: Date) =>
-    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-  return customAxis as any;
+  return customAxis as unknown as d3.Axis<number | Date>;
 };
 
 /**
@@ -412,13 +392,22 @@ export const fillMissingMinutes = (
     const intervalMap: Record<ChartTimeframe, number> = {
       '1m': 60 * 1000, // 1 minute
       '5m': 5 * 60 * 1000, // 5 minutes
+      '15m': 15 * 60 * 1000, // 15 minutes
       '30m': 30 * 60 * 1000, // 30 minutes
       '1h': 60 * 60 * 1000, // 1 hour
+      '1H': 60 * 60 * 1000, // 1 hour (alternative)
       '2h': 2 * 60 * 60 * 1000, // 2 hours
       '4h': 4 * 60 * 60 * 1000, // 4 hours
+      '4H': 4 * 60 * 60 * 1000, // 4 hours (alternative)
       '1d': 24 * 60 * 60 * 1000, // 1 day
+      '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
       '1w': 7 * 24 * 60 * 60 * 1000, // 1 week
+      '1W': 7 * 24 * 60 * 60 * 1000, // 1 week (alternative)
+      '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
+      '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
+      '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
       '1M': 30 * 24 * 60 * 60 * 1000, // 1 month (30 days)
+      ALL: 0, // All data
     };
     return intervalMap[tf] || 60 * 60 * 1000; // Default to 1 hour
   };
@@ -431,8 +420,8 @@ export const fillMissingMinutes = (
 
     // Check if there's a gap to the next data point
     if (i < data.length - 1) {
-      const currentTime = new Date(data[i].time).getTime();
-      const nextTime = new Date(data[i + 1].time).getTime();
+      const currentTime = new Date(data[i].time || data[i].timestamp).getTime();
+      const nextTime = new Date(data[i + 1].time || data[i + 1].timestamp).getTime();
       const gapMs = nextTime - currentTime;
 
       // If gap is more than 2 intervals but less than maxGapMultiplier, fill with last known price
@@ -443,11 +432,13 @@ export const fillMissingMinutes = (
         for (let j = 1; j <= missingIntervals; j++) {
           const fillTime = new Date(currentTime + j * intervalMs).toISOString();
           filledData.push({
+            timestamp: fillTime,
             time: fillTime,
             open: lastPrice,
             high: lastPrice,
             low: lastPrice,
             close: lastPrice,
+            volume: 0,
           });
         }
       }

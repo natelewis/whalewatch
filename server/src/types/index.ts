@@ -1,307 +1,215 @@
-// Alpaca API Types
-export interface AlpacaAccount {
-  id: string;
-  account_number: string;
-  status: string;
-  currency: string;
-  buying_power: string;
-  regt_buying_power: string;
-  daytrading_buying_power: string;
-  non_marginable_buying_power: string;
-  cash: string;
-  accrued_fees: string;
-  pending_transfer_out: string;
-  pending_transfer_in: string;
-  portfolio_value: string;
-  pattern_day_trader: boolean;
-  trading_blocked: boolean;
-  transfers_blocked: boolean;
-  account_blocked: boolean;
-  created_at: string;
-  trade_suspended_by_user: boolean;
-  multiplier: string;
-  shorting_enabled: boolean;
-  equity: string;
-  last_equity: string;
-  long_market_value: string;
-  short_market_value: string;
-  initial_margin: string;
-  maintenance_margin: string;
-  last_maintenance_margin: string;
-  sma: string;
-  daytrade_count: number;
+// ============================================================================
+// SERVER-SPECIFIC TYPES
+// ============================================================================
+
+// Re-export shared types
+export * from '@shared/types';
+
+// ============================================================================
+// EXPRESS TYPES
+// ============================================================================
+
+import { Request } from 'express';
+import { User } from '@shared/types';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
 }
 
-export interface AlpacaPosition {
-  asset_id: string;
+export interface AuthenticatedRequest extends Request {
+  user?: User;
+}
+
+// ============================================================================
+// QUESTDB TYPES
+// ============================================================================
+
+export interface QuestDBStockTrade {
   symbol: string;
-  exchange: string;
-  asset_class: string;
-  qty: string;
-  side: string;
-  market_value: string;
-  cost_basis: string;
-  unrealized_pl: string;
-  unrealized_plpc: string;
-  unrealized_intraday_pl: string;
-  unrealized_intraday_plpc: string;
-  current_price: string;
-  lastday_price: string;
-  change_today: string;
-}
-
-export interface AlpacaActivity {
-  id: string;
-  account_id: string;
-  activity_type: string;
-  transaction_time: string;
-  type: string;
-  qty?: string;
-  side?: string;
-  price?: string;
-  leaves_qty?: string;
-  order_id?: string;
-  cum_qty?: string;
-  order_status?: string;
-  symbol?: string;
-  asset_id?: string;
-  asset_class?: string;
-  notional?: string;
-  net_amount?: string;
-  per_share_amount?: string;
-  qty_transacted?: string;
-  status?: string;
-  date?: string;
-  net_value?: string;
-  description?: string;
-  symbol_code?: string;
-  symbol_prefix?: string;
-  symbol_suffix?: string;
-  cusip?: string;
-  fees?: string;
-  quantity?: string;
-  price_per_share?: string;
-  shares?: string;
-  gross_amount?: string;
-  net_amount_after_tax?: string;
-  withholding?: string;
-  additional_fees?: string;
-  additional_tax?: string;
-  additional_withholding?: string;
-  additional_net_amount?: string;
-  additional_gross_amount?: string;
-  additional_quantity?: string;
-  additional_price_per_share?: string;
-  additional_shares?: string;
-  additional_fees_after_tax?: string;
-  additional_net_amount_after_tax?: string;
-  additional_withholding_after_tax?: string;
-  additional_additional_fees?: string;
-  additional_additional_tax?: string;
-  additional_additional_withholding?: string;
-  additional_additional_net_amount?: string;
-  additional_additional_gross_amount?: string;
-  additional_additional_quantity?: string;
-  additional_additional_price_per_share?: string;
-  additional_additional_shares?: string;
-  additional_additional_fees_after_tax?: string;
-  additional_additional_net_amount_after_tax?: string;
-  additional_additional_withholding_after_tax?: string;
-}
-
-export interface AlpacaBar {
-  t: string; // timestamp
-  o: number; // open
-  h: number; // high
-  l: number; // low
-  c: number; // close
-  v: number; // volume
-  n?: number; // trade count
-  vw?: number; // volume weighted average price
-}
-
-export interface AlpacaOptionsTrade {
-  id: string;
-  symbol: string;
-  timestamp: string;
+  timestamp: string; // ISO timestamp
   price: number;
   size: number;
-  side: 'buy' | 'sell' | 'unknown';
-  conditions: string[];
-  exchange: string;
-  tape: string;
-  contract: {
-    symbol: string;
-    underlying_symbol: string;
-    exercise_style: string;
-    expiration_date: string;
-    strike_price: number;
-    option_type: 'call' | 'put';
-  };
-  // Price history for gain calculation (only available if real data provides it)
-  previous_price?: number;
-  open_price?: number;
-  gain_percentage?: number;
+  conditions: string;
+  exchange: number;
+  tape: number;
+  trade_id: string;
 }
 
-// API Request/Response Types
-export interface CreateOrderRequest {
+export interface QuestDBStockAggregate {
   symbol: string;
-  qty: number;
-  side: 'buy' | 'sell';
-  type: 'market' | 'limit' | 'stop' | 'stop_limit';
-  time_in_force: 'day' | 'gtc' | 'ioc' | 'fok';
-  limit_price?: number;
-  stop_price?: number;
+  timestamp: string; // ISO timestamp
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  vwap: number;
+  transaction_count: number;
 }
 
-export interface CreateOrderResponse {
-  id: string;
-  client_order_id: string;
-  created_at: string;
-  updated_at: string;
-  submitted_at: string;
-  filled_at?: string;
-  expired_at?: string;
-  canceled_at?: string;
-  failed_at?: string;
-  replaced_at?: string;
-  replaced_by?: string;
-  replaces?: string;
-  asset_id: string;
-  symbol: string;
-  asset_class: string;
-  notional?: string;
-  qty: string;
-  filled_qty: string;
-  filled_avg_price?: string;
-  order_class: string;
-  order_type: string;
-  type: string;
-  side: string;
-  time_in_force: string;
-  limit_price?: string;
-  stop_price?: string;
-  status: string;
-  extended_hours: boolean;
-  legs?: any[];
-  trail_percent?: string;
-  trail_price?: string;
-  hwm?: string;
+export interface QuestDBOptionContract {
+  ticker: string;
+  contract_type: string;
+  exercise_style: string;
+  expiration_date: string;
+  shares_per_contract: number;
+  strike_price: number;
+  underlying_ticker: string;
+  created_at: string; // ISO timestamp
 }
 
-export interface AccountInfoResponse {
-  account: AlpacaAccount;
+export interface QuestDBOptionTrade {
+  ticker: string;
+  underlying_ticker: string;
+  timestamp: string; // ISO timestamp
+  price: number;
+  size: number;
+  conditions: string;
+  exchange: number;
+  tape: number;
+  sequence_number: number;
 }
 
-export interface PositionsResponse {
-  positions: AlpacaPosition[];
+export interface QuestDBOptionQuote {
+  ticker: string;
+  underlying_ticker: string;
+  timestamp: string; // ISO timestamp
+  bid_price: number;
+  bid_size: number;
+  ask_price: number;
+  ask_size: number;
+  bid_exchange: number;
+  ask_exchange: number;
+  sequence_number: number;
 }
 
-export interface ActivityResponse {
-  activities: AlpacaActivity[];
+export interface QuestDBSyncState {
+  ticker: string;
+  last_trade_timestamp: string; // ISO timestamp
+  last_aggregate_timestamp: string; // ISO timestamp
+  last_sync: string; // ISO timestamp
+  is_streaming: boolean;
 }
 
-export interface ChartDataResponse {
-  bars: AlpacaBar[];
-  symbol: string;
-  timeframe: string;
+// Query parameters for QuestDB queries
+export interface QuestDBQueryParams {
+  symbol?: string | undefined;
+  underlying_ticker?: string | undefined;
+  start_time?: string | undefined; // ISO timestamp
+  end_time?: string | undefined; // ISO timestamp
+  limit?: number | undefined;
+  offset?: number | undefined;
+  order_by?: string | undefined;
+  order_direction?: 'ASC' | 'DESC' | undefined;
 }
 
-export interface OptionsTradesResponse {
-  trades: AlpacaOptionsTrade[];
-  symbol: string;
+// QuestDB response wrapper
+export interface QuestDBResponse<T> {
+  query: string;
+  columns: Array<{
+    name: string;
+    type: string;
+  }>;
+  dataset: T[];
+  count: number;
+  execution_time_ms: number;
 }
 
-// WebSocket Message Types
-export interface WebSocketMessage {
+// WebSocket message types for real-time data
+export interface QuestDBWebSocketMessage {
   type:
-    | 'options_whale'
-    | 'account_quote'
-    | 'chart_quote'
+    | 'stock_trade'
+    | 'option_trade'
+    | 'option_quote'
+    | 'stock_aggregate'
     | 'error'
-    | 'connection'
-    | 'subscription_confirmed'
-    | 'unsubscription_confirmed'
-    | 'pong';
-  data: any;
+    | 'connected'
+    | 'disconnected';
+  data:
+    | QuestDBStockTrade
+    | QuestDBOptionTrade
+    | QuestDBOptionQuote
+    | QuestDBStockAggregate
+    | string;
+  timestamp: string;
+  symbol?: string;
+  underlying_ticker?: string;
+}
+
+// Subscription types for WebSocket
+export interface QuestDBSubscription {
+  type: 'stock_trades' | 'option_trades' | 'option_quotes' | 'stock_aggregates';
+  symbol?: string | undefined;
+  underlying_ticker?: string | undefined;
+  ticker?: string | undefined;
+  filters?:
+    | {
+        min_price?: number | undefined;
+        max_price?: number | undefined;
+        min_size?: number | undefined;
+        max_size?: number | undefined;
+      }
+    | undefined;
+}
+
+// QuestDB connection configuration
+export interface QuestDBConfig {
+  host: string;
+  port: number;
+  username?: string | undefined;
+  password?: string | undefined;
+  database?: string | undefined;
+  ssl?: boolean | undefined;
+  timeout?: number | undefined;
+  max_connections?: number | undefined;
+}
+
+// Error types
+export interface QuestDBError {
+  error: string;
+  position: number;
+  query: string;
   timestamp: string;
 }
 
-export interface OptionsWhaleMessage extends WebSocketMessage {
-  type: 'options_whale';
-  data: AlpacaOptionsTrade;
+// ============================================================================
+// WEBSOCKET SERVER TYPES
+// ============================================================================
+
+import { WebSocket } from 'ws';
+
+export interface AuthenticatedWebSocket extends WebSocket {
+  user?: User;
+  subscriptions: Set<string>;
 }
 
-export interface AccountQuoteMessage extends WebSocketMessage {
-  type: 'account_quote';
-  data: {
-    symbol: string;
-    price: number;
-    timestamp: string;
-  };
+// ============================================================================
+// CHART ROUTE TYPES
+// ============================================================================
+
+export const AGGREGATION_INTERVALS = {
+  '1m': 1,
+  '5m': 5,
+  '30m': 30,
+  '1h': 60,
+  '2h': 120,
+  '4h': 240,
+  '1d': 1440,
+  '1w': 10080,
+  '1M': 43200, // 30 days
+} as const;
+
+export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
+
+export interface ChartQueryParams {
+  startTime: string; // ISO timestamp
+  direction: 'past' | 'future'; // Direction to load data from start_time
+  interval: AggregationInterval;
+  limit: number; // Number of data points to return
+  viewBasedLoading?: boolean; // Enable view-based preloading
+  viewSize?: number; // Size of one view (defaults to limit)
 }
-
-export interface ChartQuoteMessage extends WebSocketMessage {
-  type: 'chart_quote';
-  data: {
-    symbol: string;
-    bar: AlpacaBar;
-  };
-}
-
-// Error Types
-export interface ApiError {
-  message: string;
-  status: number;
-  code?: string;
-}
-
-// JWT Payload
-export interface JWTPayload {
-  userId: string;
-  email: string;
-  auth0Id?: string;
-  iat?: number;
-  exp?: number;
-}
-
-// Auth0 Types
-export interface Auth0User {
-  id: string;
-  auth0Id: string;
-  email: string;
-  name: string;
-  picture?: string;
-}
-
-// Request with Auth - now handled by express.d.ts
-export type { AuthenticatedRequest } from './express';
-
-// Whale Detection Configuration
-export interface WhaleConfig {
-  minPremium: number;
-  minVolume: number;
-  minSize: number;
-  symbols?: string[];
-}
-
-// Chart Timeframe
-export type ChartTimeframe =
-  | '1m'
-  | '5m'
-  | '15m'
-  | '1H'
-  | '4H'
-  | '1D'
-  | '1W'
-  | '3M'
-  | '6M'
-  | '1Y'
-  | 'ALL';
-
-// Chart Type
-export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
-
-// QuestDB Types
-export * from './questdb';

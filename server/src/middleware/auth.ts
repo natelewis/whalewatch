@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { JWTPayload, AuthenticatedRequest } from '../types';
+import { User, AuthenticatedRequest } from '../types';
 
 export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
@@ -17,7 +17,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
       throw new Error('JWT_SECRET not configured');
     }
 
-    const decoded = jwt.verify(token, secret) as JWTPayload;
+    const decoded = jwt.verify(token, secret) as User;
     (req as AuthenticatedRequest).user = decoded;
     next();
   } catch (error) {

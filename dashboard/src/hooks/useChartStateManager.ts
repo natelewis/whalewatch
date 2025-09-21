@@ -1,7 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS } from '../types';
+import {
+  ChartTimeframe,
+  ChartDimensions,
+  DEFAULT_CHART_DATA_POINTS,
+  CandlestickData,
+  DataRange,
+} from '../types';
 import { CHART_DATA_POINTS } from '../constants';
-import { CandlestickData, processChartData, DataRange } from '../utils/chartDataUtils';
+import { processChartData } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 
 // Helper function to get interval in milliseconds
@@ -21,50 +27,11 @@ function getIntervalMs(interval: string): number {
   return intervalMap[interval] || 60 * 60 * 1000; // Default to 1 hour
 }
 
-export interface ChartTransform {
-  x: number;
-  y: number;
-  k: number; // scale factor
-}
+// Import types from centralized location
+import { HoverData, ChartState, ChartTransform } from '../types';
+import type { AlpacaBar } from '../types';
 
-export interface HoverData {
-  x: number;
-  y: number;
-  data: CandlestickData | null;
-}
-
-export interface ChartState {
-  // Data
-  data: CandlestickData[];
-  allData: CandlestickData[];
-
-  // Dimensions
-  dimensions: ChartDimensions;
-
-  // Transform and viewport
-  transform: ChartTransform;
-  currentViewStart: number;
-  currentViewEnd: number;
-
-  // UI state
-  isLive: boolean;
-  isWebSocketEnabled: boolean;
-  isZooming: boolean;
-  isLoading: boolean;
-  error: string | null;
-  chartLoaded: boolean;
-  chartExists: boolean;
-
-  // Hover state
-  hoverData: HoverData | null;
-
-  // Configuration
-  timeframe: ChartTimeframe | null;
-  symbol: string;
-
-  // Y-scale management
-  fixedYScaleDomain: [number, number] | null;
-}
+const getCandleTime = (d: CandlestickData): string => d.time ?? d.timestamp;
 
 export interface ChartActions {
   // Data actions
@@ -87,7 +54,7 @@ export interface ChartActions {
     direction: 'past' | 'future',
     dataPoints?: number
   ) => Promise<void>;
-  updateChartWithLiveData: (bar: any) => void; // AlpacaBar type
+  updateChartWithLiveData: (bar: AlpacaBar) => void; // AlpacaBar type
 
   // Transform actions
   setTransform: (transform: ChartTransform) => void;
@@ -368,11 +335,11 @@ export const useChartStateManager = (
         if (err instanceof Error) {
           if (
             'response' in err &&
-            err.response &&
-            typeof err.response === 'object' &&
-            'data' in err.response
+            (err as any).response &&
+            typeof (err as any).response === 'object' &&
+            'data' in (err as any).response
           ) {
-            const responseData = err.response.data as { error?: string };
+            const responseData = (err as any).response.data as { error?: string };
             errorMessage = responseData.error || errorMessage;
           } else {
             errorMessage = err.message;
@@ -406,14 +373,14 @@ export const useChartStateManager = (
           if (!earliestData) {
             throw new Error('No existing data to load more past data from');
           }
-          startTime = earliestData.time;
+          startTime = getCandleTime(earliestData);
         } else {
           // For future data, start from the latest data point we have
           const latestData = state.allData[state.allData.length - 1];
           if (!latestData) {
             throw new Error('No existing data to load more future data from');
           }
-          startTime = latestData.time;
+          startTime = getCandleTime(latestData);
         }
 
         // Calculate buffer size for smooth rendering
@@ -453,7 +420,8 @@ export const useChartStateManager = (
 
         // Remove duplicates based on timestamp
         const uniqueData = updatedAllData.reduce((acc, current) => {
-          const existing = acc.find((item) => item.time === current.time);
+          const currentTime = getCandleTime(current);
+          const existing = acc.find((item) => getCandleTime(item) === currentTime);
           if (!existing) {
             acc.push(current);
           }
@@ -461,7 +429,9 @@ export const useChartStateManager = (
         }, [] as CandlestickData[]);
 
         // Sort by timestamp to maintain chronological order
-        uniqueData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+        uniqueData.sort(
+          (a, b) => new Date(getCandleTime(a)).getTime() - new Date(getCandleTime(b)).getTime()
+        );
 
         setAllData(uniqueData);
       } catch (err: unknown) {
@@ -469,11 +439,11 @@ export const useChartStateManager = (
         if (err instanceof Error) {
           if (
             'response' in err &&
-            err.response &&
-            typeof err.response === 'object' &&
-            'data' in err.response
+            (err as any).response &&
+            typeof (err as any).response === 'object' &&
+            'data' in (err as any).response
           ) {
-            const responseData = err.response.data as { error?: string };
+            const responseData = (err as any).response.data as { error?: string };
             errorMessage = responseData.error || errorMessage;
           } else {
             errorMessage = err.message;
@@ -488,13 +458,15 @@ export const useChartStateManager = (
     [state.allData, setIsLoading, setError, setAllData]
   );
 
-  const updateChartWithLiveData = useCallback((bar: any) => {
+  const updateChartWithLiveData = useCallback((bar: AlpacaBar) => {
     const newCandle: CandlestickData = {
+      timestamp: bar.t,
       time: bar.t,
       open: bar.o,
       high: bar.h,
       low: bar.l,
       close: bar.c,
+      volume: bar.v ?? 0,
     };
 
     // Update chart data directly
@@ -502,7 +474,7 @@ export const useChartStateManager = (
       const lastCandle = prev.allData[prev.allData.length - 1];
       let updatedAllData: CandlestickData[];
 
-      if (lastCandle && lastCandle.time === newCandle.time) {
+      if (lastCandle && getCandleTime(lastCandle) === getCandleTime(newCandle)) {
         // Update existing candle
         updatedAllData = [...prev.allData];
         updatedAllData[updatedAllData.length - 1] = newCandle;
