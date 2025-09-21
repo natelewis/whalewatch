@@ -303,10 +303,10 @@ export const memoizedGenerateTimeBasedTicks = (
   const startMinutes = startTime.getMinutes();
   const roundedStartMinutes = Math.floor(startMinutes / markerIntervalMinutes) * markerIntervalMinutes;
   const roundedStartTime = new Date(startTime);
-  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0, 0);
+  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0);
 
   // Generate ticks at regular intervals from the rounded start time
-  let currentTime = new Date(roundedStartTime);
+  const currentTime = new Date(roundedStartTime);
   while (currentTime <= endTime) {
     // Check if this time exists in our data (within a reasonable tolerance)
     const timeInData = allChartData.some(d => {
@@ -359,10 +359,10 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   const startMinutes = startTime.getMinutes();
   const roundedStartMinutes = Math.floor(startMinutes / markerIntervalMinutes) * markerIntervalMinutes;
   const roundedStartTime = new Date(startTime);
-  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0, 0);
+  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0);
 
   // Generate ticks at regular intervals from the rounded start time
-  let currentTime = new Date(roundedStartTime);
+  const currentTime = new Date(roundedStartTime);
   while (currentTime <= endTime) {
     // Check if this time exists in our visible data (within a reasonable tolerance)
     const timeInData = visibleData.some(d => {

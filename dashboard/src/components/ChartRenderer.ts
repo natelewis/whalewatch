@@ -153,7 +153,9 @@ export const createChart = ({
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createCustomTimeAxis(xScale, allChartData, X_AXIS_MARKER_INTERVAL, X_AXIS_MARKER_DATA_POINT_INTERVAL, visibleData));
+    .call(
+      createCustomTimeAxis(xScale, allChartData, X_AXIS_MARKER_INTERVAL, X_AXIS_MARKER_DATA_POINT_INTERVAL, visibleData)
+    );
 
   // Create Y-axis
   const yAxis = g
@@ -269,7 +271,8 @@ export const createChart = ({
           calculations.transformedXScale,
           currentData,
           X_AXIS_MARKER_INTERVAL,
-          X_AXIS_MARKER_DATA_POINT_INTERVAL
+          X_AXIS_MARKER_DATA_POINT_INTERVAL,
+          calculations.visibleData
         )
       );
 

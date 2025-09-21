@@ -244,11 +244,12 @@ export const createCustomTimeAxis = (
 ): d3.Axis<number | Date> => {
   // Use visible data if provided, otherwise fall back to all data
   const dataForTicks = visibleData && visibleData.length > 0 ? visibleData : allChartData;
-  
+
   // Generate time-based ticks that make sense for the visible data with configurable intervals
-  const timeTicks = visibleData && visibleData.length > 0 
-    ? memoizedGenerateVisibleTimeBasedTicks(visibleData, markerIntervalMinutes)
-    : generateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
+  const timeTicks =
+    visibleData && visibleData.length > 0
+      ? memoizedGenerateVisibleTimeBasedTicks(visibleData, markerIntervalMinutes)
+      : generateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
 
   // Create a custom axis function that positions ticks based on data indices
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {
