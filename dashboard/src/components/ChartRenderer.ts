@@ -569,17 +569,11 @@ export const createChart = ({
       isPointerDown = true;
       panStartXLocal = (event as PointerEvent).clientX;
       panStartYLocal = (event as PointerEvent).clientY;
-      // Reset vertical transform if data length changed since last pan (e.g., after add-left or prune)
+      // If data length changed since last pan (e.g., after add-left or prune),
+      // preserve current vertical transform; only update the known length.
       const latestData = stateCallbacks.getCurrentData?.() || allChartData;
       if (latestData.length !== lastKnownDataLength) {
-        currentTransformY = 0;
-        currentTransformK = 1;
-        panStartTransformY = 0;
-        panStartTransformK = 1;
         lastKnownDataLength = latestData.length;
-        if (stateCallbacks.setCurrentTransform) {
-          stateCallbacks.setCurrentTransform(d3.zoomIdentity);
-        }
       }
       // Prefer live viewport from React state via callbacks to avoid stale or recomputed defaults
       const data = stateCallbacks.getCurrentData?.() || allChartData;
