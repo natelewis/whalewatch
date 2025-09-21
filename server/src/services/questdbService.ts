@@ -395,7 +395,9 @@ export class QuestDBService {
     try {
       // Get all available tables first
       const tablesResponse = await this.executeQuery<{ table_name: string }>('SHOW TABLES');
-      const availableTables = tablesResponse.dataset.map((row) => (row as any)[0]);
+      const availableTables = tablesResponse.dataset.map(
+        (row) => (row as { table_name: string }).table_name
+      );
 
       console.log('📊 Available tables:', availableTables);
 

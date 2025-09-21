@@ -3,6 +3,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { chartRoutes } from '../../routes/chart';
 import { questdbService } from '../../services/questdbService';
+import { QuestDBStockAggregate } from '../../types';
 
 // Mock the questdb service
 jest.mock('../../services/questdbService');
@@ -27,7 +28,7 @@ describe('Chart Routes', () => {
   });
 
   describe('GET /api/chart/:symbol', () => {
-    const mockAggregates = [
+    const mockAggregates: QuestDBStockAggregate[] = [
       {
         symbol: 'AAPL',
         timestamp: '2024-01-01T10:00:00Z',
@@ -53,7 +54,7 @@ describe('Chart Routes', () => {
     ];
 
     it('should return chart data with start_time and direction', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       const response = await request(app)
         .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past')
@@ -71,7 +72,7 @@ describe('Chart Routes', () => {
     });
 
     it('should use current time as default start_time when not provided', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       const response = await request(app)
         .get('/api/chart/AAPL?direction=past')
@@ -102,7 +103,7 @@ describe('Chart Routes', () => {
     });
 
     it('should use calculated time range in QuestDB query based on direction', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       await request(app)
         .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&limit=100')
@@ -119,7 +120,7 @@ describe('Chart Routes', () => {
     });
 
     it('should handle different timeframes correctly', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       // Test 1 hour timeframe
       await request(app)
@@ -151,7 +152,7 @@ describe('Chart Routes', () => {
     });
 
     it('should use provided start_time when available', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       await request(app)
         .get('/api/chart/AAPL?interval=1d&start_time=2024-01-01T00:00:00Z&direction=past')
@@ -181,7 +182,7 @@ describe('Chart Routes', () => {
     });
 
     it('should convert QuestDB aggregates to Alpaca bar format', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       const response = await request(app)
         .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past')
@@ -239,7 +240,7 @@ describe('Chart Routes', () => {
         },
       ];
 
-      mockQuestdbService.getStockAggregates.mockResolvedValue(minuteBars as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(minuteBars);
 
       const response = await request(app)
         .get('/api/chart/AAPL?interval=1h&start_time=2024-01-01T10:00:00Z&direction=past')
@@ -259,7 +260,7 @@ describe('Chart Routes', () => {
     });
 
     it('should uppercase symbol parameter', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       await request(app)
         .get('/api/chart/aapl?start_time=2024-01-01T10:00:00Z&direction=past')
@@ -272,7 +273,7 @@ describe('Chart Routes', () => {
     });
 
     it('should support view-based loading parameters', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       const response = await request(app)
         .get(
@@ -301,7 +302,7 @@ describe('Chart Routes', () => {
         vwap: 102 + i * 0.1,
       }));
 
-      mockQuestdbService.getStockAggregates.mockResolvedValue(extendedAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(extendedAggregates);
 
       const response = await request(app)
         .get(
@@ -327,7 +328,7 @@ describe('Chart Routes', () => {
     });
 
     it('should default view_size to limit when not provided', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       const response = await request(app)
         .get(
@@ -340,7 +341,7 @@ describe('Chart Routes', () => {
     });
 
     it('should work with traditional loading when view_based_loading is false', async () => {
-      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates as any);
+      mockQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
 
       const response = await request(app)
         .get(

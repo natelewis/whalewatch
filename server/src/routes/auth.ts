@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import passport from 'passport';
 import jwt from 'jsonwebtoken';
 import { generateToken } from '../config/passport';
+import { User, JWTPayload } from '../types';
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.get(
   passport.authenticate('google', { failureRedirect: '/login' }),
   (req: Request, res: Response) => {
     try {
-      const user = req.user as any;
+      const user = req.user as User;
       const token = generateToken(user);
 
       // Redirect to frontend with token
@@ -64,7 +65,7 @@ router.get('/verify', (req: Request, res: Response) => {
       throw new Error('JWT_SECRET not configured');
     }
 
-    const decoded = jwt.verify(token, secret) as any;
+    const decoded = jwt.verify(token, secret) as JWTPayload;
 
     return res.json({
       user: {

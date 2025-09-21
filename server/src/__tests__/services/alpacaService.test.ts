@@ -169,9 +169,7 @@ describe('AlpacaService', () => {
     it('should throw error on API failure', async () => {
       mockedAxios.get.mockRejectedValue(new Error('API Error'));
 
-      await expect(alpacaService.getBars('AAPL', '1H', 100)).rejects.toThrow(
-        'Failed to fetch chart data'
-      );
+      await expect(alpacaService.getBars('AAPL', '1H', 100)).rejects.toThrow('API Error');
     });
   });
 

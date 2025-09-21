@@ -61,18 +61,18 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
 
   const getContractColor = (contractType: string): string => {
     if (contractType === 'call') {
-return 'text-green-500';
-}
+      return 'text-green-500';
+    }
     if (contractType === 'put') {
-return 'text-red-500';
-}
+      return 'text-red-500';
+    }
     return 'text-gray-500';
   };
 
   const isNearMoney = (contract: AlpacaOptionsContract, currentPrice?: number): boolean => {
     if (!currentPrice || !contract.strike_price) {
-return false;
-}
+      return false;
+    }
     const strike = contract.strike_price;
     const diff = Math.abs(strike - currentPrice) / currentPrice;
     return diff <= 0.05; // Within 5% of current price
@@ -81,17 +81,17 @@ return false;
   const filteredContracts = contracts
     .filter((contract) => {
       if (filter === 'all') {
-return true;
-}
+        return true;
+      }
       if (filter === 'calls') {
-return (contract.contract_type || '') === 'call';
-}
+        return (contract.contract_type || '') === 'call';
+      }
       if (filter === 'puts') {
-return (contract.contract_type || '') === 'put';
-}
+        return (contract.contract_type || '') === 'put';
+      }
       if (filter === 'near_money') {
-return isNearMoney(contract);
-}
+        return isNearMoney(contract);
+      }
       return true;
     })
     .sort((a, b) => {
@@ -99,8 +99,8 @@ return isNearMoney(contract);
       const dateA = a.expiration_date ? new Date(a.expiration_date).getTime() : 0;
       const dateB = b.expiration_date ? new Date(b.expiration_date).getTime() : 0;
       if (dateA !== dateB) {
-return dateA - dateB;
-}
+        return dateA - dateB;
+      }
       return (a.strike_price || 0) - (b.strike_price || 0);
     });
 
@@ -157,7 +157,7 @@ return dateA - dateB;
             ].map((option) => (
               <button
                 key={option.value}
-                onClick={() => setFilter(option.value as any)}
+                onClick={() => setFilter(option.value as 'all' | 'calls' | 'puts' | 'near_money')}
                 className={`px-3 py-1 text-xs rounded-full transition-colors ${
                   filter === option.value
                     ? 'bg-primary text-primary-foreground'

@@ -39,10 +39,34 @@ describe('Account Routes', () => {
         status: 'ACTIVE',
         currency: 'USD',
         buying_power: '10000.00',
+        regt_buying_power: '10000.00',
+        daytrading_buying_power: '10000.00',
+        non_marginable_buying_power: '10000.00',
+        cash: '10000.00',
+        accrued_fees: '0.00',
+        pending_transfer_out: '0.00',
+        pending_transfer_in: '0.00',
         portfolio_value: '50000.00',
+        pattern_day_trader: false,
+        trading_blocked: false,
+        transfers_blocked: false,
+        account_blocked: false,
+        created_at: '2024-01-01T00:00:00Z',
+        trade_suspended_by_user: false,
+        multiplier: '1.0',
+        shorting_enabled: true,
+        equity: '50000.00',
+        last_equity: '50000.00',
+        long_market_value: '50000.00',
+        short_market_value: '0.00',
+        initial_margin: '0.00',
+        maintenance_margin: '0.00',
+        last_maintenance_margin: '0.00',
+        sma: '0.00',
+        daytrade_count: 0,
       };
 
-      mockAlpacaService.getAccount.mockResolvedValue(mockAccount as any);
+      mockAlpacaService.getAccount.mockResolvedValue(mockAccount);
 
       const response = await request(app)
         .get('/api/account/info')
@@ -78,14 +102,23 @@ describe('Account Routes', () => {
         {
           asset_id: 'asset-1',
           symbol: 'AAPL',
+          exchange: 'NASDAQ',
+          asset_class: 'us_equity',
           qty: '10',
           side: 'long',
           market_value: '1500.00',
+          cost_basis: '1450.00',
           unrealized_pl: '50.00',
+          unrealized_plpc: '0.0345',
+          unrealized_intraday_pl: '25.00',
+          unrealized_intraday_plpc: '0.0172',
+          current_price: '150.00',
+          lastday_price: '147.50',
+          change_today: '2.50',
         },
       ];
 
-      mockAlpacaService.getPositions.mockResolvedValue(mockPositions as any);
+      mockAlpacaService.getPositions.mockResolvedValue(mockPositions);
 
       const response = await request(app)
         .get('/api/account/positions')
@@ -109,15 +142,17 @@ describe('Account Routes', () => {
       const mockActivities = [
         {
           id: 'activity-1',
+          account_id: 'test-account-id',
           activity_type: 'FILL',
           transaction_time: '2024-01-01T10:00:00Z',
-          symbol: 'AAPL',
+          type: 'fill',
           qty: '10',
           side: 'buy',
+          symbol: 'AAPL',
         },
       ];
 
-      mockAlpacaService.getActivities.mockResolvedValue(mockActivities as any);
+      mockAlpacaService.getActivities.mockResolvedValue(mockActivities);
 
       const response = await request(app)
         .get('/api/account/activity')

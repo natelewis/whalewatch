@@ -256,7 +256,8 @@ export type WebSocketMessageData =
   | { error: string; message?: string }
   | { status: string; message?: string }
   | { channel: string; symbol?: string }
-  | Record<string, never>; // For pong and other empty messages
+  | { message: string } // For connection messages
+  | Record<string, unknown>; // For flexible data structures
 
 export interface WebSocketMessage {
   type:
@@ -380,6 +381,7 @@ export interface User {
 export interface JWTPayload {
   userId: string;
   email: string;
+  googleId?: string;
   auth0Id?: string;
   iat?: number;
   exp?: number;

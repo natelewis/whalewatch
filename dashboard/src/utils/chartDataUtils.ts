@@ -172,7 +172,7 @@ export const createUnifiedTimeScale = (
   const scale = d3.scaleTime();
   scale.domain([startTime, endTime]);
   scale.range([range[0], range[1]]);
-  return scale as unknown as d3.ScaleTime<Date, number>;
+  return scale as d3.ScaleTime<Date, number>;
 };
 
 /**
@@ -212,7 +212,7 @@ export const createIndexToTimeScale = (
   scale.domain([startTime, endTime]);
   scale.range(transformedLinearScale.range());
 
-  return scale as unknown as d3.ScaleTime<Date, number>;
+  return scale as d3.ScaleTime<Date, number>;
 };
 
 /**
@@ -234,11 +234,11 @@ export const createXAxis = (
 
   // Use custom tick values if provided, otherwise use the new time-based tick generation
   if (customTickValues) {
-    return axis.tickValues(customTickValues) as unknown as d3.Axis<number | Date>;
+    return axis.tickValues(customTickValues) as d3.Axis<number | Date>;
   } else {
     // Use the new time-based tick generation for better time distribution
     const timeBasedTicks = generateTimeBasedTicks(allChartData);
-    return axis.tickValues(timeBasedTicks) as unknown as d3.Axis<number | Date>;
+    return axis.tickValues(timeBasedTicks) as d3.Axis<number | Date>;
   }
 };
 
@@ -322,7 +322,7 @@ export const createCustomTimeAxis = (
     });
   };
 
-  return customAxis as unknown as d3.Axis<number | Date>;
+  return customAxis as d3.Axis<number | Date>;
 };
 
 /**
@@ -352,7 +352,7 @@ export const isValidChartData = (data: unknown): data is CandlestickData[] => {
 
   // Check if all items have the required CandlestickData properties
   return data.every(
-    (item) =>
+    (item): item is CandlestickData =>
       typeof item === 'object' &&
       item !== null &&
       'timestamp' in item &&
@@ -361,12 +361,12 @@ export const isValidChartData = (data: unknown): data is CandlestickData[] => {
       'low' in item &&
       'close' in item &&
       'volume' in item &&
-      typeof (item as any).timestamp === 'string' &&
-      typeof (item as any).open === 'number' &&
-      typeof (item as any).high === 'number' &&
-      typeof (item as any).low === 'number' &&
-      typeof (item as any).close === 'number' &&
-      typeof (item as any).volume === 'number'
+      typeof (item as Record<string, unknown>).timestamp === 'string' &&
+      typeof (item as Record<string, unknown>).open === 'number' &&
+      typeof (item as Record<string, unknown>).high === 'number' &&
+      typeof (item as Record<string, unknown>).low === 'number' &&
+      typeof (item as Record<string, unknown>).close === 'number' &&
+      typeof (item as Record<string, unknown>).volume === 'number'
   );
 };
 
