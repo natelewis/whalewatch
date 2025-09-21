@@ -479,48 +479,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           limit: newDataPoints,
           dataAdded: mergedData.length - chartState.allData.length,
         });
-
-        // Force a re-render with the merged data immediately
-        if (svgRef.current && chartState.chartLoaded) {
-          console.log('🔄 Forcing immediate re-render with left data');
-
-          // Set flag to prevent React effect from overriding
-          manualRenderInProgressRef.current = true;
-
-          // Get current transform to preserve the current view position
-          const currentZoomTransform = d3.zoomTransform(svgRef.current);
-
-          // Calculate chart state with the MERGED data
-          // Use the locked Y-scale domain from ref to prevent price level shifting
-          const lockedYScaleDomain = fixedYScaleDomainRef.current;
-
-          const calculations = calculateChartState({
-            dimensions: chartState.dimensions,
-            allChartData: mergedData, // Use the merged data
-            transform: currentZoomTransform, // Preserve current view position
-            fixedYScaleDomain: lockedYScaleDomain, // Use the LOCKED domain, never recalculate
-          });
-
-          // Update clip-path to accommodate the expanded dataset
-          updateClipPath(svgRef.current as SVGSVGElement, mergedData, chartState.dimensions);
-
-          // Legacy D3 axis updates removed
-
-          // Re-render with merged data (preserving current view position)
-          renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
-
-          console.log('✅ Left data re-render completed:', {
-            allDataLength: calculations.allData.length,
-            viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-            currentTransformX: currentZoomTransform.x,
-            currentTransformY: currentZoomTransform.y,
-          });
-
-          // Reset flag after a delay
-          setTimeout(() => {
-            manualRenderInProgressRef.current = false;
-          }, 1000);
-        }
       })
       .catch(error => {
         console.error('Failed to load more data to the left:', error);
