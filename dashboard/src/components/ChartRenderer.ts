@@ -177,7 +177,7 @@ export const createChart = ({
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createCustomTimeAxis(xScale, allChartData as { time: string }[]));
+    .call(createCustomTimeAxis(xScale, allChartData));
 
   // Create Y-axis
   const yAxis = g
@@ -279,9 +279,7 @@ export const createChart = ({
 
       // Use custom time axis with proper positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(
-        createCustomTimeAxis(calculations.transformedXScale, currentData as { time: string }[])
-      );
+      xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
@@ -502,7 +500,6 @@ export const createChart = ({
             y: mouseY + currentMargin.top,
             data: {
               timestamp: d.timestamp,
-              time: d.time || d.timestamp,
               open: d.open,
               high: d.high,
               low: d.low,
@@ -572,15 +569,10 @@ export const renderCandlestickChart = (
     yScaleDomain: calculations.baseYScale.domain(),
     yScaleRange: calculations.baseYScale.range(),
     firstCandleTime:
-      visibleCandles.length > 0
-        ? new Date(visibleCandles[0].time || visibleCandles[0].timestamp).toLocaleString()
-        : 'none',
+      visibleCandles.length > 0 ? new Date(visibleCandles[0].timestamp).toLocaleString() : 'none',
     lastCandleTime:
       visibleCandles.length > 0
-        ? new Date(
-            visibleCandles[visibleCandles.length - 1].time ||
-              visibleCandles[visibleCandles.length - 1].timestamp
-          ).toLocaleString()
+        ? new Date(visibleCandles[visibleCandles.length - 1].timestamp).toLocaleString()
         : 'none',
     firstCandleIndex: actualStart,
     lastCandleIndex: actualEnd,
@@ -637,7 +629,7 @@ export const renderCandlestickChart = (
           .merge(tooltip)
           .html(
             `
-            <div><strong>Time:</strong> ${new Date(d.time || d.timestamp).toLocaleString()}</div>
+            <div><strong>Time:</strong> ${new Date(d.timestamp).toLocaleString()}</div>
             <div><strong>O:</strong> ${d.open.toFixed(2)}</div>
             <div><strong>H:</strong> ${d.high.toFixed(2)}</div>
             <div><strong>L:</strong> ${d.low.toFixed(2)}</div>
@@ -654,22 +646,6 @@ export const renderCandlestickChart = (
     // High-Low line
     const highY = calculations.baseYScale(d.high);
     const lowY = calculations.baseYScale(d.low);
-
-    // Debug logging for first few candles
-    if (localIndex < 3) {
-      console.log(`🕯️ Candle ${localIndex} Y positions:`, {
-        globalIndex,
-        time: d.time,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-        highY,
-        lowY,
-        closeY: calculations.baseYScale(d.close),
-        yScaleDomain: calculations.baseYScale.domain(),
-        yScaleRange: calculations.baseYScale.range(),
-      });
-    }
 
     candleSticks
       .append('line')

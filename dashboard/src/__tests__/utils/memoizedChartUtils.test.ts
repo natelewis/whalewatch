@@ -14,7 +14,6 @@ import { CandlestickData, ChartDimensions } from '../../types';
 const mockCandlestickData: CandlestickData[] = [
   {
     timestamp: '2024-01-01T00:00:00Z',
-    time: '2024-01-01T00:00:00Z',
     open: 100,
     high: 110,
     low: 95,
@@ -23,7 +22,6 @@ const mockCandlestickData: CandlestickData[] = [
   },
   {
     timestamp: '2024-01-01T01:00:00Z',
-    time: '2024-01-01T01:00:00Z',
     open: 105,
     high: 115,
     low: 100,
@@ -32,7 +30,6 @@ const mockCandlestickData: CandlestickData[] = [
   },
   {
     timestamp: '2024-01-01T02:00:00Z',
-    time: '2024-01-01T02:00:00Z',
     open: 110,
     high: 120,
     low: 105,

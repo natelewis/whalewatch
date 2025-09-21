@@ -31,7 +31,7 @@ export const memoizedCalculateYScaleDomain = (
   // Create cache key based on data length, first/last prices, and fixed domain
   const dataKey =
     data.length > 0
-      ? `${data.length}-${data[0]?.time}-${data[data.length - 1]?.time}-${data[0]?.low}-${
+      ? `${data.length}-${data[0]?.timestamp}-${data[data.length - 1]?.timestamp}-${data[0]?.low}-${
           data[data.length - 1]?.high
         }`
       : 'empty';
@@ -83,8 +83,8 @@ export const memoizedCalculateChartState = ({
   // Create cache key based on all inputs
   const dataKey =
     allChartData.length > 0
-      ? `${allChartData.length}-${allChartData[0]?.time}-${
-          allChartData[allChartData.length - 1]?.time
+      ? `${allChartData.length}-${allChartData[0]?.timestamp}-${
+          allChartData[allChartData.length - 1]?.timestamp
         }`
       : 'empty';
   const transformKey = `${transform.x.toFixed(2)}-${transform.y.toFixed(2)}-${transform.k.toFixed(
@@ -167,7 +167,7 @@ export const memoizedCalculateChartState = ({
 export const memoizedGetPriceRange = (data: CandlestickData[]) => {
   if (!data || data.length === 0) return null;
 
-  const dataKey = `${data.length}-${data[0]?.time}-${data[data.length - 1]?.time}`;
+  const dataKey = `${data.length}-${data[0]?.timestamp}-${data[data.length - 1]?.timestamp}`;
   const cacheKey = `priceRange-${dataKey}`;
 
   if (calculationCache.has(cacheKey)) {
@@ -196,7 +196,7 @@ export const memoizedGetVisibleData = (
 ): CandlestickData[] => {
   if (!data || data.length === 0) return [];
 
-  const dataKey = `${data.length}-${data[0]?.time}-${data[data.length - 1]?.time}`;
+  const dataKey = `${data.length}-${data[0]?.timestamp}-${data[data.length - 1]?.timestamp}`;
   const cacheKey = `visibleData-${dataKey}-${startIndex}-${endIndex}`;
 
   if (calculationCache.has(cacheKey)) {

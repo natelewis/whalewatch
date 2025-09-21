@@ -200,12 +200,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         if (!xAxisGroup.empty()) {
           const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
           xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-          xAxisGroup.call(
-            createCustomTimeAxis(
-              calculations.transformedXScale,
-              chartState.allData as { time: string }[]
-            )
-          );
+          xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
           applyAxisStyling(xAxisGroup);
         }
       }
@@ -300,7 +295,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Use ref to avoid stale closure issues
     const currentData = currentDataRef.current;
     const oldestDataPoint = currentData[0];
-    const endTime = oldestDataPoint ? oldestDataPoint.time : undefined;
+    const endTime = oldestDataPoint ? oldestDataPoint.timestamp : undefined;
 
     console.log(
       '🔄 Auto-loading more historical data on buffered render (preserving current view):',
@@ -314,7 +309,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         currentDataLength: currentData.length,
         endTime: endTime ? new Date(endTime).toISOString() : 'current time',
         oldestDataTime: oldestDataPoint
-          ? new Date(oldestDataPoint.time || oldestDataPoint.timestamp).toISOString()
+          ? new Date(oldestDataPoint.timestamp).toISOString()
           : 'none',
       }
     );
@@ -387,7 +382,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Combine all data and deduplicate by timestamp
     const combinedData = [...existingData, ...newData];
     const uniqueData = combinedData.reduce((acc: CandlestickData[], current: CandlestickData) => {
-      const existingIndex = acc.findIndex((item: CandlestickData) => item.time === current.time);
+      const existingIndex = acc.findIndex(
+        (item: CandlestickData) => item.timestamp === current.timestamp
+      );
       if (existingIndex === -1) {
         acc.push(current);
       } else {
@@ -400,7 +397,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Sort by time to ensure chronological order
     return uniqueData.sort(
       (a: CandlestickData, b: CandlestickData) =>
-        new Date(a.time || a.timestamp).getTime() - new Date(b.time || b.timestamp).getTime()
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
   };
 
@@ -427,7 +424,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Use ref to avoid stale closure issues
     const currentData = currentDataRef.current;
     const oldestDataPoint = currentData[0];
-    const endTime = oldestDataPoint ? oldestDataPoint.time : undefined;
+    const endTime = oldestDataPoint ? oldestDataPoint.timestamp : undefined;
 
     console.log('🔄 Loading more data to the LEFT (historical):', {
       currentPoints: chartState.allData.length,
@@ -438,9 +435,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       timeframe,
       currentDataLength: currentData.length,
       endTime: endTime ? new Date(endTime).toISOString() : 'current time',
-      oldestDataTime: oldestDataPoint
-        ? new Date(oldestDataPoint.time || oldestDataPoint.timestamp).toISOString()
-        : 'none',
+      oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.timestamp).toISOString() : 'none',
     });
 
     // Use the API service directly with the increased data points
@@ -504,9 +499,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             );
 
             xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-            xAxisGroup.call(
-              createCustomTimeAxis(calculations.transformedXScale, mergedData as { time: string }[])
-            );
+            xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, mergedData));
             applyAxisStyling(xAxisGroup);
           }
 
@@ -566,7 +559,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Use ref to avoid stale closure issues
     const currentData = currentDataRef.current;
     const newestDataPoint = currentData[currentData.length - 1];
-    const startTime = newestDataPoint ? newestDataPoint.time : undefined;
+    const startTime = newestDataPoint ? newestDataPoint.timestamp : undefined;
 
     console.log('🔄 Loading more data to the RIGHT (future):', {
       currentPoints: chartState.allData.length,
@@ -577,9 +570,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       timeframe,
       currentDataLength: currentData.length,
       startTime: startTime ? new Date(startTime).toISOString() : 'current time',
-      newestDataTime: newestDataPoint
-        ? new Date(newestDataPoint.time || newestDataPoint.timestamp).toISOString()
-        : 'none',
+      newestDataTime: newestDataPoint ? new Date(newestDataPoint.timestamp).toISOString() : 'none',
     });
 
     // Use the API service directly with the increased data points
@@ -644,9 +635,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             );
 
             xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-            xAxisGroup.call(
-              createCustomTimeAxis(calculations.transformedXScale, mergedData as { time: string }[])
-            );
+            xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, mergedData));
             applyAxisStyling(xAxisGroup);
           }
 
@@ -746,12 +735,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
 
         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-        xAxisGroup.call(
-          createCustomTimeAxis(
-            calculations.transformedXScale,
-            chartState.allData as { time: string }[]
-          )
-        );
+        xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
         applyAxisStyling(xAxisGroup);
       }
 
@@ -1061,9 +1045,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           });
 
           xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-          xAxisGroup.call(
-            createCustomTimeAxis(calculations.baseXScale, chartState.allData as { time: string }[])
-          );
+          xAxisGroup.call(createCustomTimeAxis(calculations.baseXScale, chartState.allData));
           applyAxisStyling(xAxisGroup);
         }
       }
@@ -1534,9 +1516,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                   <div className="flex flex-col">
                     <span className="font-bold text-foreground text-lg">{symbol}</span>
                     <span className="text-sm text-muted-foreground">
-                      {new Date(
-                        chartState.hoverData.data.time || chartState.hoverData.data.timestamp
-                      ).toLocaleString()}
+                      {new Date(chartState.hoverData.data.timestamp).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex gap-3 text-sm">

@@ -29,7 +29,6 @@ export const deduplicateAndSortBars = (bars: AlpacaBar[]): AlpacaBar[] => {
 export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[] => {
   return bars.map((bar) => ({
     timestamp: bar.t,
-    time: bar.t, // back-compat field used by UI
     open: bar.o,
     high: bar.h,
     low: bar.l,
@@ -114,14 +113,14 @@ export const applyAxisStyling = (
  * Calculate dynamic tick values for time-based scale (every 20 data points)
  */
 export const calculateTimeBasedTickValues = (
-  allChartData: { time: string }[],
+  allChartData: { timestamp: string }[],
   interval: number = 20
 ): Date[] => {
   const tickValues: Date[] = [];
 
   // Generate ticks every 'interval' data points
   for (let i = 0; i < allChartData.length; i += interval) {
-    tickValues.push(new Date(allChartData[i].time));
+    tickValues.push(new Date(allChartData[i].timestamp));
   }
 
   return tickValues;
@@ -131,7 +130,7 @@ export const calculateTimeBasedTickValues = (
  * Generate time-based ticks that account for actual time distribution
  * This creates ticks that make sense for the data's time pattern
  */
-export const generateTimeBasedTicks = (allChartData: { time: string }[]): Date[] => {
+export const generateTimeBasedTicks = (allChartData: { timestamp: string }[]): Date[] => {
   if (allChartData.length === 0) {
     return [];
   }
@@ -141,7 +140,7 @@ export const generateTimeBasedTicks = (allChartData: { time: string }[]): Date[]
   const ticks: Date[] = [];
 
   for (let i = 0; i < allChartData.length; i += dataPointInterval) {
-    ticks.push(new Date(allChartData[i].time));
+    ticks.push(new Date(allChartData[i].timestamp));
   }
 
   return ticks;
@@ -153,7 +152,7 @@ export const generateTimeBasedTicks = (allChartData: { time: string }[]): Date[]
  */
 export const createUnifiedTimeScale = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
-  allChartData: { time: string }[]
+  allChartData: { timestamp: string }[]
 ): d3.ScaleTime<Date, number> => {
   // Get the domain from the transformed linear scale (data indices)
   const [domainStart, domainEnd] = transformedLinearScale.domain();
@@ -162,9 +161,9 @@ export const createUnifiedTimeScale = (
   const startIndex = Math.max(0, Math.floor(domainStart));
   const endIndex = Math.min(allChartData.length - 1, Math.ceil(domainEnd));
 
-  const startTime = new Date(allChartData[startIndex]?.time || allChartData[0].time);
+  const startTime = new Date(allChartData[startIndex]?.timestamp || allChartData[0].timestamp);
   const endTime = new Date(
-    allChartData[endIndex]?.time || allChartData[allChartData.length - 1].time
+    allChartData[endIndex]?.timestamp || allChartData[allChartData.length - 1].timestamp
   );
 
   // Create time-based scale with the same range as the transformed linear scale
@@ -183,7 +182,7 @@ export const createUnifiedTimeScale = (
  */
 export const createIndexToTimeScale = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
-  allChartData: { time: string }[]
+  allChartData: { timestamp: string }[]
 ): d3.ScaleTime<Date, number> => {
   // Safety check for empty or invalid data
   if (!allChartData || allChartData.length === 0) {
@@ -195,8 +194,10 @@ export const createIndexToTimeScale = (
     return defaultScale as unknown as d3.ScaleTime<Date, number>;
   }
 
-  if (!allChartData[0] || !allChartData[0].time) {
-    console.warn('createIndexToTimeScale called with invalid chart data - missing time property');
+  if (!allChartData[0] || !allChartData[0].timestamp) {
+    console.warn(
+      'createIndexToTimeScale called with invalid chart data - missing timestamp property'
+    );
     const defaultScale = d3.scaleTime();
     defaultScale.domain([new Date(), new Date()]);
     defaultScale.range([0, 1]);
@@ -204,8 +205,8 @@ export const createIndexToTimeScale = (
   }
 
   // Create a time-based scale with the actual time domain
-  const startTime = new Date(allChartData[0].time);
-  const endTime = new Date(allChartData[allChartData.length - 1].time);
+  const startTime = new Date(allChartData[0].timestamp);
+  const endTime = new Date(allChartData[allChartData.length - 1].timestamp);
 
   const scale = d3.scaleTime();
   scale.domain([startTime, endTime]);
@@ -219,7 +220,7 @@ export const createIndexToTimeScale = (
  */
 export const createXAxis = (
   scale: d3.AxisScale<Date | number>,
-  allChartData: { time: string }[],
+  allChartData: { timestamp: string }[],
   customTickValues?: Date[]
 ): d3.Axis<number | Date> => {
   // Create a custom axis that positions ticks based on data indices
@@ -248,7 +249,7 @@ export const createXAxis = (
  */
 export const createCustomTimeAxis = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
-  allChartData: { time: string }[]
+  allChartData: { timestamp: string }[]
 ): d3.Axis<number | Date> => {
   // Generate time-based ticks that make sense for the data
   const timeTicks = generateTimeBasedTicks(allChartData);
@@ -275,10 +276,10 @@ export const createCustomTimeAxis = (
       const tickData = timeTicks.map((tick) => {
         // Find the closest data point by time
         let closestIndex = 0;
-        let minTimeDiff = Math.abs(new Date(allChartData[0].time).getTime() - tick.getTime());
+        let minTimeDiff = Math.abs(new Date(allChartData[0].timestamp).getTime() - tick.getTime());
 
         for (let i = 1; i < allChartData.length; i++) {
-          const dataTime = new Date(allChartData[i].time);
+          const dataTime = new Date(allChartData[i].timestamp);
           const timeDiff = Math.abs(dataTime.getTime() - tick.getTime());
           if (timeDiff < minTimeDiff) {
             minTimeDiff = timeDiff;
@@ -290,14 +291,14 @@ export const createCustomTimeAxis = (
         const position = transformedLinearScale(closestIndex);
 
         return {
-          time: tick,
+          timestamp: tick,
           position: position,
         };
       });
 
       // Add tick marks and labels
       const tickSelection = context
-        .selectAll<SVGGElement, { time: Date; position: number }>('g.tick')
+        .selectAll<SVGGElement, { timestamp: Date; position: number }>('g.tick')
         .data(tickData)
         .enter()
         .append('g')
@@ -315,7 +316,9 @@ export const createCustomTimeAxis = (
         .attr('text-anchor', 'middle')
         .style('font-size', '12px')
         .style('fill', '#666')
-        .text((d) => d.time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+        .text((d) =>
+          d.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        );
     });
   };
 
@@ -420,8 +423,8 @@ export const fillMissingMinutes = (
 
     // Check if there's a gap to the next data point
     if (i < data.length - 1) {
-      const currentTime = new Date(data[i].time || data[i].timestamp).getTime();
-      const nextTime = new Date(data[i + 1].time || data[i + 1].timestamp).getTime();
+      const currentTime = new Date(data[i].timestamp).getTime();
+      const nextTime = new Date(data[i + 1].timestamp).getTime();
       const gapMs = nextTime - currentTime;
 
       // If gap is more than 2 intervals but less than maxGapMultiplier, fill with last known price
@@ -433,7 +436,6 @@ export const fillMissingMinutes = (
           const fillTime = new Date(currentTime + j * intervalMs).toISOString();
           filledData.push({
             timestamp: fillTime,
-            time: fillTime,
             open: lastPrice,
             high: lastPrice,
             low: lastPrice,

@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react';
-import { CandlestickData } from '../utils/chartDataUtils';
+import { CandlestickData } from '../types';
 import { memoizedGetPriceRange, memoizedGetVisibleData } from '../utils/memoizedChartUtils';
 
 /**
@@ -10,7 +10,9 @@ export const useChartDataProcessor = (data: CandlestickData[]) => {
   // Memoized sorted data to avoid repeated sorting
   const processedData = useMemo(() => {
     if (!data || data.length === 0) return [];
-    return [...data].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    return [...data].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
   }, [data]);
 
   // Validate data is valid and non-empty
@@ -35,8 +37,8 @@ export const useChartDataProcessor = (data: CandlestickData[]) => {
       start: 0,
       end: processedData.length - 1,
       length: processedData.length,
-      firstTime: processedData[0]?.time,
-      lastTime: processedData[processedData.length - 1]?.time,
+      firstTime: processedData[0]?.timestamp,
+      lastTime: processedData[processedData.length - 1]?.timestamp,
     };
   }, [processedData, isValidData]);
 
@@ -50,7 +52,7 @@ export const useChartDataProcessor = (data: CandlestickData[]) => {
   const findDataByTime = useCallback(
     (time: string): CandlestickData | null => {
       if (!isValidData) return null;
-      return processedData.find((d) => d.time === time) || null;
+      return processedData.find((d) => d.timestamp === time) || null;
     },
     [processedData, isValidData]
   );

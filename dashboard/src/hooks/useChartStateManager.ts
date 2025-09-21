@@ -31,7 +31,7 @@ function getIntervalMs(interval: string): number {
 import { HoverData, ChartState, ChartTransform } from '../types';
 import type { AlpacaBar } from '../types';
 
-const getCandleTime = (d: CandlestickData): string => d.time ?? d.timestamp;
+const getCandleTime = (d: CandlestickData): string => d.timestamp;
 
 export interface ChartActions {
   // Data actions
@@ -461,7 +461,6 @@ export const useChartStateManager = (
   const updateChartWithLiveData = useCallback((bar: AlpacaBar) => {
     const newCandle: CandlestickData = {
       timestamp: bar.t,
-      time: bar.t,
       open: bar.o,
       high: bar.h,
       low: bar.l,

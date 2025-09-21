@@ -66,14 +66,15 @@ describe('chartDataUtils', () => {
   describe('formatBarsToCandlestickData', () => {
     it('should convert AlpacaBar to CandlestickData format', () => {
       const result = formatBarsToCandlestickData(mockBars);
-      
+
       expect(result).toHaveLength(4);
       expect(result[0]).toEqual({
-        time: '2023-01-01T10:00:00Z',
+        timestamp: '2023-01-01T10:00:00Z',
         open: 100,
         high: 105,
         low: 95,
         close: 102,
+        volume: 1000,
       });
     });
 
@@ -86,7 +87,7 @@ describe('chartDataUtils', () => {
   describe('calculateDataRange', () => {
     it('should calculate data range from bars', () => {
       const result = calculateDataRange(mockBars);
-      
+
       expect(result).toEqual({
         earliest: '2023-01-01T10:00:00Z',
         latest: '2023-01-01T11:00:00Z',
@@ -119,7 +120,7 @@ describe('chartDataUtils', () => {
   describe('processChartData', () => {
     it('should process bars into formatted data and range', () => {
       const result = processChartData(mockBars);
-      
+
       expect(result.formattedData).toHaveLength(3); // After deduplication
       expect(result.dataRange).toEqual({
         earliest: '2023-01-01T09:00:00Z',
@@ -129,7 +130,7 @@ describe('chartDataUtils', () => {
 
     it('should handle empty array', () => {
       const result = processChartData([]);
-      
+
       expect(result.formattedData).toEqual([]);
       expect(result.dataRange).toBeNull();
     });
@@ -138,27 +139,29 @@ describe('chartDataUtils', () => {
   describe('fillMissingMinutes', () => {
     const oneMinuteData = [
       {
-        time: '2023-01-01T10:00:00Z',
+        timestamp: '2023-01-01T10:00:00Z',
         open: 100,
         high: 105,
         low: 95,
         close: 102,
+        volume: 1000,
       },
       {
-        time: '2023-01-01T10:03:00Z', // 3 minutes gap
+        timestamp: '2023-01-01T10:03:00Z', // 3 minutes gap
         open: 102,
         high: 108,
         low: 98,
         close: 106,
+        volume: 1200,
       },
     ];
 
     it('should fill missing minutes for 1m timeframe', () => {
       const result = fillMissingMinutes(oneMinuteData, '1m');
-      
+
       expect(result).toHaveLength(4); // Original 2 + 2 filled
-      expect(result[1].time).toBe('2023-01-01T10:01:00Z');
-      expect(result[2].time).toBe('2023-01-01T10:02:00Z');
+      expect(result[1].timestamp).toBe('2023-01-01T10:01:00Z');
+      expect(result[2].timestamp).toBe('2023-01-01T10:02:00Z');
     });
 
     it('should not fill for non-1m timeframes', () => {
@@ -174,18 +177,20 @@ describe('chartDataUtils', () => {
     it('should not fill small gaps', () => {
       const smallGapData = [
         {
-          time: '2023-01-01T10:00:00Z',
+          timestamp: '2023-01-01T10:00:00Z',
           open: 100,
           high: 105,
           low: 95,
           close: 102,
+          volume: 1000,
         },
         {
-          time: '2023-01-01T10:01:00Z', // 1 minute gap
+          timestamp: '2023-01-01T10:01:00Z', // 1 minute gap
           open: 102,
           high: 108,
           low: 98,
           close: 106,
+          volume: 1200,
         },
       ];
 

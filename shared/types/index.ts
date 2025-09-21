@@ -321,8 +321,6 @@ export interface TimeframeConfig {
 
 // Candlestick Data
 export interface CandlestickData {
-  // Back-compat with dashboard code referencing `time`
-  time?: string;
   timestamp: string;
   open: number;
   high: number;
