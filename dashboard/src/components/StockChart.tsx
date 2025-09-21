@@ -140,6 +140,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     margin: { top: 0, right: 0, bottom: 0, left: 0 },
   });
 
+  // Store reference to current view indices to avoid stale closures in D3 event handlers
+  const currentViewStartRef = useRef<number>(0);
+  const currentViewEndRef = useRef<number>(0);
+
   // Update dimensions ref when dimensions change
   useEffect(() => {
     currentDimensionsRef.current = chartState.dimensions;
@@ -150,90 +154,96 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     currentDataRef.current = chartState.allData;
   }, [chartState.allData]);
 
-  // Trigger chart re-render when allData changes (for data loading)
+  // Update viewport refs when view changes
   useEffect(() => {
-    if (chartState.chartLoaded && chartState.chartExists && chartState.allData.length > 0) {
-      console.log('🔄 allData changed, triggering chart re-render:', {
-        allDataLength: chartState.allData.length,
-        chartLoaded: chartState.chartLoaded,
-        chartExists: chartState.chartExists,
-      });
+    currentViewStartRef.current = chartState.currentViewStart;
+    currentViewEndRef.current = chartState.currentViewEnd;
+  }, [chartState.currentViewStart, chartState.currentViewEnd]);
 
-      // Always use the latest zoom transform from the chart to avoid stale transforms
-      const currentZoomTransform = svgRef.current ? d3.zoomTransform(svgRef.current) : d3.zoomIdentity;
+  // Trigger chart re-render when allData changes (for data loading)
+  // useEffect(() => {
+  //   if (chartState.chartLoaded && chartState.chartExists && chartState.allData.length > 0) {
+  //     console.log('🔄 allData changed, triggering chart re-render:', {
+  //       allDataLength: chartState.allData.length,
+  //       chartLoaded: chartState.chartLoaded,
+  //       chartExists: chartState.chartExists,
+  //     });
 
-      // Calculate new chart state with updated data
-      const calculations = calculateChartState({
-        dimensions: chartState.dimensions,
-        allChartData: chartState.allData,
-        transform: currentZoomTransform,
-        fixedYScaleDomain: chartState.fixedYScaleDomain,
-      });
+  //     // Always use the latest zoom transform from the chart to avoid stale transforms
+  //     const currentZoomTransform = svgRef.current ? d3.zoomTransform(svgRef.current) : d3.zoomIdentity;
 
-      // Update clip-path to accommodate expanded dataset
-      if (svgRef.current) {
-        updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
-      }
+  //     // Calculate new chart state with updated data
+  //     const calculations = calculateChartState({
+  //       dimensions: chartState.dimensions,
+  //       allChartData: chartState.allData,
+  //       transform: currentZoomTransform,
+  //       fixedYScaleDomain: chartState.fixedYScaleDomain,
+  //     });
 
-      // Update X-axis with new data
-      if (svgRef.current) {
-        const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
-        if (!xAxisGroup.empty()) {
-          const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
-          xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-          xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
-          applyAxisStyling(xAxisGroup);
-        }
-      }
+  //     // Update clip-path to accommodate expanded dataset
+  //     if (svgRef.current) {
+  //       updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
+  //     }
 
-      // Update Y-axis
-      if (svgRef.current) {
-        const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
-        if (!yAxisGroup.empty()) {
-          yAxisGroup.call(createYAxis(calculations.transformedYScale));
-          applyAxisStyling(yAxisGroup);
-        }
-      }
+  //     // Update X-axis with new data
+  //     if (svgRef.current) {
+  //       const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
+  //       if (!xAxisGroup.empty()) {
+  //         const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
+  //         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+  //         xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
+  //         applyAxisStyling(xAxisGroup);
+  //       }
+  //     }
 
-      // Chart content transform handled by renderer (using transformed scales)
+  //     // Update Y-axis
+  //     if (svgRef.current) {
+  //       const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
+  //       if (!yAxisGroup.empty()) {
+  //         yAxisGroup.call(createYAxis(calculations.transformedYScale));
+  //         applyAxisStyling(yAxisGroup);
+  //       }
+  //     }
 
-      // Re-render candlesticks with updated data
-      if (svgRef.current) {
-        renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
-      }
+  //     // Chart content transform handled by renderer (using transformed scales)
 
-      // Update buffer range
-      const bufferSize = BUFFER_SIZE;
-      const dataLength = chartState.allData.length;
-      const marginSize = MARGIN_SIZE;
-      const atDataStart = calculations.viewStart <= marginSize;
-      const atDataEnd = calculations.viewEnd >= dataLength - marginSize;
+  //     // Re-render candlesticks with updated data
+  //     if (svgRef.current) {
+  //       renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
+  //     }
 
-      let actualStart, actualEnd;
+  //     // Update buffer range
+  //     const bufferSize = BUFFER_SIZE;
+  //     const dataLength = chartState.allData.length;
+  //     const marginSize = MARGIN_SIZE;
+  //     const atDataStart = calculations.viewStart <= marginSize;
+  //     const atDataEnd = calculations.viewEnd >= dataLength - marginSize;
 
-      if (atDataStart && atDataEnd) {
-        actualStart = 0;
-        actualEnd = dataLength - 1;
-      } else if (atDataStart) {
-        actualStart = 0;
-        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
-      } else if (atDataEnd) {
-        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-        actualEnd = dataLength - 1;
-      } else {
-        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
-      }
+  //     let actualStart, actualEnd;
 
-      currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+  //     if (atDataStart && atDataEnd) {
+  //       actualStart = 0;
+  //       actualEnd = dataLength - 1;
+  //     } else if (atDataStart) {
+  //       actualStart = 0;
+  //       actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
+  //     } else if (atDataEnd) {
+  //       actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
+  //       actualEnd = dataLength - 1;
+  //     } else {
+  //       actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
+  //       actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
+  //     }
 
-      console.log('✅ Chart re-rendered with updated data:', {
-        allDataLength: calculations.allData.length,
-        viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-        bufferRange: `${actualStart}-${actualEnd}`,
-      });
-    }
-  }, [chartState.allData.length]); // Only trigger when data length changes
+  //     currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+
+  //     console.log('✅ Chart re-rendered with updated data:', {
+  //       allDataLength: calculations.allData.length,
+  //       viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
+  //       bufferRange: `${actualStart}-${actualEnd}`,
+  //     });
+  //   }
+  // }, [chartState.allData.length]); // Only trigger when data length changes
 
   // Update fixed Y-scale domain ref when it changes
   useEffect(() => {
@@ -772,6 +782,68 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     }
   };
 
+  // Programmatic pan left by N data points (history)
+  const panLeft = (points: number = 10): void => {
+    if (!isValidData || chartState.allData.length === 0) {
+      return;
+    }
+
+    const total = chartState.allData.length;
+    const windowSize = CHART_DATA_POINTS;
+    const currentStart = Math.max(0, Math.floor(chartState.currentViewStart));
+    const currentEnd = Math.min(total - 1, Math.ceil(chartState.currentViewEnd));
+    const size = Math.max(1, currentEnd - currentStart + 1);
+    const w = Math.max(windowSize, size);
+
+    let newStart = Math.max(0, currentStart - points);
+    let newEnd = newStart + w - 1;
+    if (newEnd > total - 1) {
+      newEnd = total - 1;
+      newStart = Math.max(0, newEnd - w + 1);
+    }
+
+    chartActions.setViewport(newStart, newEnd);
+
+    if (!svgRef.current) {
+      return;
+    }
+
+    const currentZoomTransform = d3.zoomTransform(svgRef.current);
+    const baseCalcs = calculateChartState({
+      dimensions: chartState.dimensions,
+      allChartData: chartState.allData,
+      transform: currentZoomTransform,
+      fixedYScaleDomain: chartState.fixedYScaleDomain,
+    });
+
+    // Update axes
+    const svg = d3.select(svgRef.current);
+    const { innerHeight } = calculateInnerDimensions(chartState.dimensions);
+    const xAxisGroup = svg.select<SVGGElement>('.x-axis');
+    if (!xAxisGroup.empty()) {
+      const xScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, baseCalcs.innerWidth]);
+      const slice = chartState.allData.slice(newStart, newEnd + 1);
+      xAxisGroup.attr('transform', `translate(0,${innerHeight})`);
+      xAxisGroup.call(createCustomTimeAxis(xScale as unknown as d3.ScaleLinear<number, number>, chartState.allData));
+      applyAxisStyling(xAxisGroup);
+    }
+
+    const yAxisGroup = svg.select<SVGGElement>('.y-axis');
+    if (!yAxisGroup.empty()) {
+      yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
+      applyAxisStyling(yAxisGroup);
+    }
+
+    // Render candles for the new viewport
+    const finalCalcs: ChartCalculations = {
+      ...baseCalcs,
+      viewStart: newStart,
+      viewEnd: newEnd,
+      visibleData: chartState.allData.slice(newStart, newEnd + 1),
+    };
+    renderCandlestickChart(svgRef.current as SVGSVGElement, finalCalcs);
+  };
+
   // Centralized calculations will be used instead of useChartScales
 
   // Define timeframes array
@@ -1253,6 +1325,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             setIsZooming: chartActions.setIsZooming,
             setCurrentViewStart: chartActions.setCurrentViewStart,
             setCurrentViewEnd: chartActions.setCurrentViewEnd,
+            getCurrentViewStart: () => currentViewStartRef.current,
+            getCurrentViewEnd: () => currentViewEndRef.current,
             setHoverData: chartActions.setHoverData,
             setChartLoaded: chartActions.setChartLoaded,
             setFixedYScaleDomain: chartActions.setFixedYScaleDomain,
@@ -1433,6 +1507,14 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           <div className="flex items-center space-x-4">
             <h3 className="text-lg font-semibold text-foreground">{symbol}</h3>
             <div className="flex items-center space-x-2">
+              <button
+                onClick={() => panLeft(10)}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="Pan left 10"
+                disabled={!isValidData || chartState.allData.length === 0}
+              >
+                ← Pan 10
+              </button>
               <button
                 onClick={() => chartActions.setIsLive(!chartState.isLive)}
                 className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${

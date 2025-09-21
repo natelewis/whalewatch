@@ -10,6 +10,7 @@ import {
   ZOOM_SCALE_MAX,
   X_AXIS_MARKER_INTERVAL,
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
+  LOAD_EDGE_TRIGGER,
 } from '../constants';
 import { ChartDimensions, CandlestickData } from '../types';
 import {
@@ -169,9 +170,12 @@ export const createChart = ({
   // Show all tick marks and labels
 
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([ZOOM_SCALE_MIN, ZOOM_SCALE_MAX]);
+  // Only allow wheel zoom through d3.zoom; we'll handle panning ourselves
+  zoom.filter(event => (event as { type?: string }).type === 'wheel');
   let panStartX = 0;
   let panStartViewStart = 0;
   let panStartViewEnd = CHART_DATA_POINTS - 1;
+  let panStartCenter = Math.floor((panStartViewStart + panStartViewEnd) / 2); // d3-wheel zoom path
 
   // Store reference to zoom behavior for programmatic control
   if (stateCallbacks.setZoomBehavior) {
@@ -193,6 +197,7 @@ export const createChart = ({
       });
       panStartViewStart = Math.floor(calcAtStart.viewStart);
       panStartViewEnd = Math.ceil(calcAtStart.viewEnd);
+      panStartCenter = Math.floor((panStartViewStart + panStartViewEnd) / 2);
     }
     if (stateCallbacks.setIsZooming) {
       stateCallbacks.setIsZooming(true);
@@ -228,6 +233,11 @@ export const createChart = ({
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
     const zoomStartTime = performance.now();
     const { transform } = event;
+    const sourceType = (event.sourceEvent as unknown as { type?: string })?.type;
+    // Ignore non-wheel events
+    if (sourceType !== 'wheel') {
+      return;
+    }
 
     // Update current transform for debugging
     if (stateCallbacks.setCurrentTransform) {
@@ -274,23 +284,18 @@ export const createChart = ({
     // Compute viewport indices from pixel delta
     const { innerWidth: currInnerWidth } = calculateInnerDimensions(currentDimensions);
     const bandWidth = currInnerWidth / CHART_DATA_POINTS;
-    const sourceEvent: unknown = event.sourceEvent;
-    const sourceType = (sourceEvent as { type?: string } | undefined)?.type;
-    const isWheel = sourceType === 'wheel' || (sourceEvent as { deltaY?: number } | undefined)?.deltaY !== undefined;
-    const windowSize = Math.max(1, CHART_DATA_POINTS - 1);
-    let newStart = panStartViewStart;
+    const isWheel = true;
+    const windowSize = Math.max(1, CHART_DATA_POINTS);
+    const halfWindow = Math.floor(windowSize / 2);
+    let newCenter = panStartCenter;
     if (!isWheel) {
       const dx = transform.x - panStartX;
       const deltaIdx = dx / bandWidth;
-      newStart = Math.max(0, Math.min(currentData.length - windowSize - 1, Math.round(panStartViewStart - deltaIdx)));
+      newCenter = Math.round(panStartCenter - deltaIdx);
     }
-    // Enforce exact viewport window size = CHART_DATA_POINTS
-    const newEndMutable = Math.min(currentData.length - 1, newStart + windowSize);
-    // If clamped at data end, shift start left to keep window size
-    if (newEndMutable - newStart + 1 < windowSize + 1) {
-      newStart = Math.max(0, newEndMutable - windowSize);
-    }
-    const newEnd = newEndMutable;
+    // Allow padding on either side by using center-based window; renderer will handle out-of-bounds gracefully
+    const newStart = newCenter - halfWindow;
+    const newEnd = newCenter + halfWindow;
 
     if (stateCallbacks.setCurrentViewStart) {
       stateCallbacks.setCurrentViewStart(newStart);
@@ -305,13 +310,15 @@ export const createChart = ({
       chartContentGroup.attr('transform', null);
     }
 
-    // Update X-axis using live viewport scale during pan
+    // Update X-axis using live viewport scale during zoom
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
       const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, currInnerWidth]);
-      const visibleSlice = currentData.slice(newStart, newEnd + 1);
+      const sliceStart = Math.max(0, Math.min(currentData.length - 1, newStart));
+      const sliceEnd = Math.max(sliceStart, Math.min(currentData.length - 1, newEnd));
+      const visibleSlice = currentData.slice(sliceStart, sliceEnd + 1);
       xAxisGroup.call(
         createCustomTimeAxis(
           viewportXScale as unknown as d3.ScaleLinear<number, number>,
@@ -324,14 +331,14 @@ export const createChart = ({
       applyAxisStyling(xAxisGroup);
     }
 
-    // Update Y-axis using locked domain during pan
+    // Update Y-axis using locked domain during zoom
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
       yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
       applyAxisStyling(yAxisGroup);
     }
 
-    // Re-render candles during pan for real-time visuals
+    // Re-render candles during zoom for real-time visuals
     const calculations = {
       ...baseCalcs,
       viewStart: newStart,
@@ -370,7 +377,7 @@ export const createChart = ({
     }
 
     const dataLength = currentData.length;
-    const threshold = Math.max(0, BUFFER_SIZE - CHART_DATA_POINTS);
+    const threshold = LOAD_EDGE_TRIGGER;
     const curStart = Math.floor(chartState.currentViewStart);
     const curEnd = Math.floor(chartState.currentViewEnd);
     const distanceLeft = Math.max(0, curStart);
@@ -390,7 +397,8 @@ export const createChart = ({
         distanceRight,
         threshold,
       });
-      onBufferedCandlesRendered(loadDirection);
+      // Trigger load on next tick to avoid racing a final stray handleZoom
+      setTimeout(() => onBufferedCandlesRendered(loadDirection as 'past' | 'future'), 0);
     }
 
     // Do not re-render here; the last pan render is already at the settled viewport
@@ -454,13 +462,17 @@ export const createChart = ({
     .attr('stroke-dasharray', '3,3')
     .style('opacity', 0);
 
-  // Add hover behavior
-  g.append('rect')
+  // Pointer overlay for custom pan
+  const overlayRect = g
+    .append('rect')
     .attr('class', 'overlay')
     .attr('width', innerWidth)
     .attr('height', innerHeight)
     .style('fill', 'none')
-    .style('pointer-events', 'all')
+    .style('pointer-events', 'all');
+
+  // Hover behavior
+  overlayRect
     .on('mouseover', () => {
       crosshair.select('.crosshair-x').style('opacity', 1);
       crosshair.select('.crosshair-y').style('opacity', 1);
@@ -543,6 +555,101 @@ export const createChart = ({
       }
     });
 
+  // Custom pan variables
+  let isPointerDown = false;
+  let panStartXLocal = 0;
+  let panStartCenterLocal = 0;
+
+  const getWindowSize = (): number => CHART_DATA_POINTS;
+
+  overlayRect
+    .on('pointerdown', event => {
+      isPointerDown = true;
+      panStartXLocal = (event as PointerEvent).clientX;
+      // Prefer live viewport from React state via callbacks to avoid stale or recomputed defaults
+      const data = stateCallbacks.getCurrentData?.() || allChartData;
+      const dims = stateCallbacks.getCurrentDimensions?.() || dimensions;
+      const startFromState = stateCallbacks.getCurrentViewStart?.();
+      const endFromState = stateCallbacks.getCurrentViewEnd?.();
+      let startIdx = Number.isFinite(startFromState as number) ? Math.floor(startFromState as number) : 0;
+      let endIdx = Number.isFinite(endFromState as number) ? Math.floor(endFromState as number) : data.length - 1;
+      // Fallback: if invalid, compute from base calcs
+      if (!Number.isFinite(startIdx) || !Number.isFinite(endIdx) || endIdx < startIdx) {
+        const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+        const baseCalcs = calculateChartState({
+          dimensions: dims,
+          allChartData: data,
+          transform: d3.zoomIdentity.translate(0, currentTransform.y).scale(currentTransform.k),
+          fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
+        });
+        startIdx = Math.floor(baseCalcs.viewStart);
+        endIdx = Math.floor(baseCalcs.viewEnd);
+      }
+      panStartCenterLocal = Math.floor((startIdx + endIdx) / 2);
+      // Debug: snapshot pan start
+      const { innerWidth: iw } = calculateInnerDimensions(dims);
+      const bw = iw / CHART_DATA_POINTS;
+      console.log('PAN_DEBUG start', { startIdx, endIdx, panStartCenterLocal, iw, bw });
+      isPanningRef.current = true;
+    })
+    .on('pointermove', event => {
+      if (!isPointerDown) {
+        return;
+      }
+      const data = stateCallbacks.getCurrentData?.() || allChartData;
+      const dims = stateCallbacks.getCurrentDimensions?.() || dimensions;
+      const { innerWidth: currInnerWidth } = calculateInnerDimensions(dims);
+      const bandWidth = currInnerWidth / CHART_DATA_POINTS;
+      const dx = (event as PointerEvent).clientX - panStartXLocal;
+      const deltaIdx = dx / bandWidth;
+      const center = Math.max(0, Math.min(data.length - 1, Math.round(panStartCenterLocal - deltaIdx)));
+      const windowSize = getWindowSize();
+      const halfWindow = Math.floor(windowSize / 2);
+      let newStart = center - halfWindow + 1;
+      let newEnd = newStart + windowSize - 1;
+      const total = data.length;
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = Math.min(total - 1, newStart + windowSize - 1);
+      }
+      if (newEnd > total - 1) {
+        newEnd = total - 1;
+        newStart = Math.max(0, newEnd - (windowSize - 1));
+      }
+      if (stateCallbacks.setCurrentViewStart) {
+        stateCallbacks.setCurrentViewStart(newStart);
+      }
+      if (stateCallbacks.setCurrentViewEnd) {
+        stateCallbacks.setCurrentViewEnd(newEnd);
+      }
+
+      // Render live
+      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+      const baseCalcs = calculateChartState({
+        dimensions: dims,
+        allChartData: data,
+        transform: d3.zoomIdentity.translate(0, currentTransform.y).scale(currentTransform.k),
+        fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
+      });
+      const calculations = {
+        ...baseCalcs,
+        viewStart: newStart,
+        viewEnd: newEnd,
+        visibleData: data.slice(Math.max(0, newStart), Math.min(data.length - 1, newEnd) + 1),
+      } as ChartCalculations;
+      renderCandlestickChart(svgElement, calculations);
+      // Debug: live pan state
+      console.log('PAN_DEBUG move', { dx, deltaIdx, center, newStart, newEnd, total });
+    })
+    .on('pointerup', () => {
+      isPointerDown = false;
+      isPanningRef.current = false;
+    })
+    .on('pointercancel', () => {
+      isPointerDown = false;
+      isPanningRef.current = false;
+    });
+
   // Fixed Y-scale domain is now set during initial rendering to ensure consistency
 
   if (stateCallbacks.setChartLoaded) {
@@ -584,10 +691,24 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   const candleWidth = Math.max(1, 4);
   const hoverWidth = Math.max(8, candleWidth * 2); // Wider hover area
 
-  // Render the entire available dataset (bounded by pruning elsewhere)
-  const actualStart = 0;
-  const actualEnd = Math.max(0, calculations.allData.length - 1);
-  const visibleCandles = calculations.allData;
+  // Render constant-size viewport slice with padding if needed
+  const windowSize = Math.max(1, CHART_DATA_POINTS);
+  const halfWindow = Math.floor(windowSize / 2);
+  const centerIndex = Math.floor((calculations.viewStart + calculations.viewEnd) / 2);
+  const desiredStart = centerIndex - halfWindow + 1;
+  const desiredEnd = desiredStart + windowSize - 1;
+  const actualStart = desiredStart;
+  const actualEnd = desiredEnd;
+  const sliceStart = Math.max(0, Math.min(calculations.allData.length - 1, desiredStart));
+  const sliceEnd = Math.max(sliceStart, Math.min(calculations.allData.length - 1, desiredEnd));
+  const core = calculations.allData.slice(sliceStart, sliceEnd + 1);
+  const padLeftCount = Math.max(0, sliceStart - desiredStart);
+  const padRightCount = Math.max(0, desiredEnd - sliceEnd);
+  const leftFill = core.length > 0 ? core[0] : null;
+  const rightFill = core.length > 0 ? core[core.length - 1] : null;
+  const padLeft: typeof core = leftFill ? Array.from({ length: padLeftCount }, () => leftFill) : [];
+  const padRight: typeof core = rightFill ? Array.from({ length: padRightCount }, () => rightFill) : [];
+  const visibleCandles = [...padLeft, ...core, ...padRight];
 
   // Debug markers: show clip edges and first/last candle x positions (inside chart-content so they move with pan)
   let dbg = chartContent.select<SVGGElement>('.debug-layer');
@@ -627,7 +748,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     contentTransform: currentContentTransform,
   }); */
 
-  console.log('🎨 Rendering candlesticks:', {
+  /* console.log('Rendering candlesticks:', {
     allDataLength: calculations.allData.length,
     viewStart: calculations.viewStart,
     viewEnd: calculations.viewEnd,
@@ -650,13 +771,19 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
       visibleCandles.length > 0
         ? calculations.transformedYScale(visibleCandles[visibleCandles.length - 1].close)
         : 'none',
-  });
+  }); */
 
-  // Build viewport X scale from viewStart/viewEnd so we draw only the viewport slice
-  const xScaleForPosition = d3
-    .scaleLinear()
-    .domain([calculations.viewStart, calculations.viewEnd])
-    .range([0, calculations.innerWidth]);
+  // Build safe viewport X scale; avoid collapsed domains at drop
+  const desiredWindow = Math.max(1, CHART_DATA_POINTS - 1);
+  let safeViewStart = Math.max(0, Math.floor(calculations.viewStart));
+  let safeViewEnd = Math.min(calculations.allData.length - 1, Math.ceil(calculations.viewEnd));
+  if (safeViewEnd - safeViewStart < desiredWindow) {
+    safeViewEnd = Math.min(calculations.allData.length - 1, safeViewStart + desiredWindow);
+    if (safeViewEnd - safeViewStart < desiredWindow) {
+      safeViewStart = Math.max(0, safeViewEnd - desiredWindow);
+    }
+  }
+  const xScaleForPosition = d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, calculations.innerWidth]);
   /* console.log('baseXScale domain/range:', {
     domain: calculations.baseXScale.domain(),
     range: calculations.baseXScale.range(),

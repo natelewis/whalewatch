@@ -92,6 +92,8 @@ export interface ChartStateCallbacks {
   setIsZooming?: (value: boolean) => void;
   setCurrentViewStart?: (value: number) => void;
   setCurrentViewEnd?: (value: number) => void;
+  getCurrentViewStart?: () => number;
+  getCurrentViewEnd?: () => number;
   setHoverData?: (data: HoverData | null) => void;
   setFixedYScaleDomain?: (domain: [number, number] | null) => void;
   setChartExists?: (value: boolean) => void;
