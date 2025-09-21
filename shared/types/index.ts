@@ -166,6 +166,20 @@ export interface CreateOrderRequest {
   stop_price?: number;
 }
 
+export interface OrderLeg {
+  id: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  qty: string;
+  filled_qty: string;
+  filled_avg_price?: string;
+  status: string;
+  order_type: string;
+  time_in_force: string;
+  limit_price?: string;
+  stop_price?: string;
+}
+
 export interface CreateOrderResponse {
   id: string;
   client_order_id: string;
@@ -195,7 +209,7 @@ export interface CreateOrderResponse {
   stop_price?: string;
   status: string;
   extended_hours: boolean;
-  legs?: unknown[];
+  legs?: OrderLeg[];
   trail_percent?: string;
   trail_price?: string;
   hwm?: string;

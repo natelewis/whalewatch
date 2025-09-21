@@ -360,10 +360,10 @@ export const clampIndex = (index: number, arrayLength: number): number => {
  * Validate that required chart parameters are present
  */
 export const hasRequiredChartParams = (params: {
-  allChartData?: unknown;
-  xScale?: unknown;
-  yScale?: unknown;
-  visibleData?: unknown;
+  allChartData?: CandlestickData[];
+  xScale?: d3.ScaleTime<Date, number>;
+  yScale?: d3.ScaleLinear<number, number>;
+  visibleData?: CandlestickData[];
 }): boolean => {
   return !!(
     params.allChartData &&
