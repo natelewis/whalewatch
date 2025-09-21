@@ -61,7 +61,7 @@ export interface QuestDBStockAggregate {
 
 export interface QuestDBOptionContract {
   ticker: string;
-  contract_type: string;
+  contract_type: string; // Keep as string since QuestDB data might have other values
   exercise_style: string;
   expiration_date: string;
   shares_per_contract: number;

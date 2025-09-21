@@ -132,7 +132,7 @@ export interface AlpacaOptionsTrade {
     exercise_style: string;
     expiration_date: string;
     strike_price: number;
-    option_type: 'call' | 'put';
+    option_type: ContractType;
   };
   // Price history for gain calculation (only available if real data provides it)
   previous_price?: number;
@@ -140,9 +140,11 @@ export interface AlpacaOptionsTrade {
   gain_percentage?: number;
 }
 
+export type ContractType = 'call' | 'put';
+
 export interface AlpacaOptionsContract {
   cfi: string;
-  contract_type: string;
+  contract_type: ContractType;
   exercise_style: string;
   expiration_date: string;
   primary_exchange: string;

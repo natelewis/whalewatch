@@ -30,17 +30,27 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
     const contracts = await questdbService.getOptionContracts(symbol.toUpperCase(), params);
 
     // Convert QuestDB contracts to Alpaca format for frontend compatibility
-    const alpacaContracts = contracts.map(contract => ({
-      cfi: contract.contract_type || 'unknown',
-      contract_type: contract.contract_type || 'unknown',
-      exercise_style: contract.exercise_style || 'american',
-      expiration_date: contract.expiration_date || '',
-      primary_exchange: 'UNKNOWN', // QuestDB doesn't store this
-      shares_per_contract: contract.shares_per_contract || 100,
-      strike_price: contract.strike_price || 0,
-      ticker: contract.ticker || '',
-      underlying_ticker: contract.underlying_ticker || '',
-    }));
+    const alpacaContracts = contracts.map(contract => {
+      // Convert string contract type to proper ContractType
+      const contractType: 'call' | 'put' =
+        contract.contract_type?.toLowerCase() === 'call'
+          ? 'call'
+          : contract.contract_type?.toLowerCase() === 'put'
+          ? 'put'
+          : 'call'; // Default to 'call' if unknown
+
+      return {
+        cfi: contractType,
+        contract_type: contractType,
+        exercise_style: contract.exercise_style || 'american',
+        expiration_date: contract.expiration_date || '',
+        primary_exchange: 'UNKNOWN', // QuestDB doesn't store this
+        shares_per_contract: contract.shares_per_contract || 100,
+        strike_price: contract.strike_price || 0,
+        ticker: contract.ticker || '',
+        underlying_ticker: contract.underlying_ticker || '',
+      };
+    });
 
     // Check if no contracts were found
     if (!contracts || contracts.length === 0) {

@@ -123,9 +123,24 @@ export class QuestDBService {
       if (!Array.isArray(row)) {
         throw new Error('Expected array data from QuestDB');
       }
-      const obj: Record<string, unknown> = {};
+      const obj: Record<string, string | number | boolean | null> = {};
       columns.forEach((column, index) => {
-        obj[column.name] = row[index];
+        const value = row[index];
+        // Convert QuestDB values to appropriate TypeScript types
+        if (value === null || value === undefined) {
+          obj[column.name] = null;
+        } else if (
+          column.type === 'INT' ||
+          column.type === 'LONG' ||
+          column.type === 'FLOAT' ||
+          column.type === 'DOUBLE'
+        ) {
+          obj[column.name] = Number(value);
+        } else if (column.type === 'BOOLEAN') {
+          obj[column.name] = Boolean(value);
+        } else {
+          obj[column.name] = String(value);
+        }
       });
       return obj as T;
     });

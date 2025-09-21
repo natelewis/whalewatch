@@ -352,12 +352,12 @@ export const isValidChartData = (data: unknown): data is CandlestickData[] => {
       'low' in item &&
       'close' in item &&
       'volume' in item &&
-      typeof (item as Record<string, unknown>).timestamp === 'string' &&
-      typeof (item as Record<string, unknown>).open === 'number' &&
-      typeof (item as Record<string, unknown>).high === 'number' &&
-      typeof (item as Record<string, unknown>).low === 'number' &&
-      typeof (item as Record<string, unknown>).close === 'number' &&
-      typeof (item as Record<string, unknown>).volume === 'number'
+      typeof (item as CandlestickData).timestamp === 'string' &&
+      typeof (item as CandlestickData).open === 'number' &&
+      typeof (item as CandlestickData).high === 'number' &&
+      typeof (item as CandlestickData).low === 'number' &&
+      typeof (item as CandlestickData).close === 'number' &&
+      typeof (item as CandlestickData).volume === 'number'
   );
 };
 
