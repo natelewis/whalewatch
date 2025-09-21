@@ -1387,56 +1387,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 <span className="text-xs text-orange-500">Extended ({chartState.allData.length} pts)</span>
               </div>
             )}
-            <span className="text-xs text-muted-foreground">D3.js</span>
           </div>
         </div>
-
-        {/* Additional Debug Information - Collapsible */}
-        <details className="mt-2">
-          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-            Debug Details
-          </summary>
-          <div className="mt-2 grid grid-cols-2 gap-4 text-xs text-muted-foreground">
-            <div>
-              <div className="font-medium text-foreground mb-1">Data State</div>
-              <div>Valid Data: {isValidData ? '✓' : '✗'}</div>
-              <div>Chart Exists: {chartState.chartExists ? '✓' : '✗'}</div>
-              <div>Data Length: {chartState.data.length}</div>
-              <div>All Data Length: {chartState.allData.length}</div>
-            </div>
-            <div>
-              <div className="font-medium text-foreground mb-1">View State</div>
-              <div>View Start: {chartState.currentViewStart}</div>
-              <div>View End: {chartState.currentViewEnd}</div>
-              <div>At Right Edge: {isAtRightEdge ? '✓' : '✗'}</div>
-              <div>Y-Scale Fixed: {chartState.fixedYScaleDomain ? '✓' : '✗'}</div>
-            </div>
-            <div>
-              <div className="font-medium text-foreground mb-1">Rendering System</div>
-              <div>Chart Points: {CHART_DATA_POINTS}</div>
-              <div>Total Data: {chartState.allData.length}</div>
-              <div>Rendering: All Data</div>
-              <div>Clipping: Viewport</div>
-            </div>
-            <div>
-              <div className="font-medium text-foreground mb-1">Dimensions</div>
-              <div>Width: {Math.round(chartState.dimensions.width)}</div>
-              <div>Height: {Math.round(chartState.dimensions.height)}</div>
-              <div>
-                Inner W:{' '}
-                {Math.round(
-                  chartState.dimensions.width - chartState.dimensions.margin.left - chartState.dimensions.margin.right
-                )}
-              </div>
-              <div>
-                Inner H:{' '}
-                {Math.round(
-                  chartState.dimensions.height - chartState.dimensions.margin.top - chartState.dimensions.margin.bottom
-                )}
-              </div>
-            </div>
-          </div>
-        </details>
       </div>
     </div>
   );

@@ -508,10 +508,8 @@ export const createChart = ({
       // Capture starting transform from our internal state (not d3.zoom)
       panStartTransformY = currentTransformY;
       panStartTransformK = currentTransformK;
-      // Debug: snapshot pan start
       const { innerWidth: iw } = calculateInnerDimensions(dims);
       const bw = iw / CHART_DATA_POINTS;
-      // console.log('PAN_DEBUG start', { startIdx, endIdx, panStartCenterLocal, iw, bw });
       isPanningRef.current = true;
     })
     .on('pointermove', event => {
@@ -579,7 +577,7 @@ export const createChart = ({
         visibleData: data.slice(Math.max(0, newStart), Math.min(data.length - 1, newEnd) + 1),
       } as ChartCalculations;
       renderCandlestickChart(svgElement, calculations);
-      // Update axes during pan for live feedback
+
       // Update axes during pan for live feedback
       const svgSel2 = d3.select(svgElement);
       const yAxisGroup = svgSel2.select<SVGGElement>('.y-axis');
@@ -631,9 +629,6 @@ export const createChart = ({
           setTimeout(() => onBufferedCandlesRendered('future'), 0);
         }
       }
-
-      // Debug: live pan state
-      // console.log('PAN_DEBUG move', { dx, dy, deltaIdx, center, newStart, newEnd, total });
     })
     .on('pointerup', () => {
       isPointerDown = false;
@@ -650,6 +645,17 @@ export const createChart = ({
       loadRequestedRight = false;
       lastLoadDataLengthLeft = null;
       lastLoadDataLengthRight = null;
+    })
+    .on('mouseleave', () => {
+      // Drop pan if mouse leaves the page during panning
+      if (isPointerDown) {
+        isPointerDown = false;
+        isPanningRef.current = false;
+        loadRequestedLeft = false;
+        loadRequestedRight = false;
+        lastLoadDataLengthLeft = null;
+        lastLoadDataLengthRight = null;
+      }
     });
 
   // Fixed Y-scale domain is now set during initial rendering to ensure consistency
