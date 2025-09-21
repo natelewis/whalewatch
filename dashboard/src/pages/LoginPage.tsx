@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
+import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
 
 export const LoginPage: React.FC = () => {
   const { loginWithGoogle } = useAuth();
@@ -12,10 +13,14 @@ export const LoginPage: React.FC = () => {
   const handleGoogleLogin = () => {
     setIsLoading(true);
     setError(null);
-    try {
+
+    const result = safeCall(() => {
       loginWithGoogle();
-    } catch (err: unknown) {
-      setError('Failed to initiate Google login');
+    });
+
+    if (result.isErr()) {
+      const userMessage = createUserFriendlyMessage(result.error);
+      setError(userMessage);
       setIsLoading(false);
     }
   };

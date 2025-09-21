@@ -6,6 +6,7 @@ import { AccountSummary } from '../components/AccountSummary';
 import { PositionsTable } from '../components/PositionsTable';
 import { ActivityHistory } from '../components/ActivityHistory';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 
 export const AccountPage: React.FC = () => {
   const [account, setAccount] = useState<AlpacaAccount | null>(null);
@@ -41,46 +42,41 @@ export const AccountPage: React.FC = () => {
   }, [lastMessage]);
 
   const loadAccountData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+    setIsLoading(true);
+    setError(null);
 
-      const [accountResponse, positionsResponse, activitiesResponse] = await Promise.all([
-        apiService.getAccount(),
-        apiService.getPositions(),
-        apiService.getActivities(),
-      ]);
+    const [accountResult, positionsResult, activitiesResult] = await Promise.all([
+      safeCallAsync(() => apiService.getAccount()),
+      safeCallAsync(() => apiService.getPositions()),
+      safeCallAsync(() => apiService.getActivities()),
+    ]);
 
-      setAccount(accountResponse.account);
-      setPositions(positionsResponse.positions);
-      setActivities(activitiesResponse.activities);
+    // Check if any failed
+    const errors = [accountResult, positionsResult, activitiesResult]
+      .filter((result) => result.isErr())
+      .map((result) => result.error);
+
+    if (errors.length > 0) {
+      const userMessage = createUserFriendlyMessage(errors[0]);
+      setError(userMessage);
+    } else {
+      // All succeeded
+      setAccount(accountResult.value.account);
+      setPositions(positionsResult.value.positions);
+      setActivities(activitiesResult.value.activities);
 
       // Subscribe to real-time quotes for positions
-      if (positionsResponse.positions.length > 0) {
-        const symbols = positionsResponse.positions.map((p) => p.symbol);
+      if (positionsResult.value.positions.length > 0) {
+        const symbols = positionsResult.value.positions.map((p) => p.symbol);
         sendMessage({
           type: 'subscribe',
           data: { channel: 'account_quote', symbols },
           timestamp: new Date().toISOString(),
         });
       }
-    } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error &&
-        'response' in err &&
-        typeof err.response === 'object' &&
-        err.response !== null &&
-        'data' in err.response &&
-        typeof err.response.data === 'object' &&
-        err.response.data !== null &&
-        'error' in err.response.data &&
-        typeof err.response.data.error === 'string'
-          ? err.response.data.error
-          : 'Failed to load account data';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   };
 
   const handleRefresh = () => {

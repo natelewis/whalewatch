@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebSocketMessage } from '../types';
 import { WS_BASE_URL } from '../constants';
+import { safeCall } from '@whalewatch/shared';
 
 interface UseWebSocketOptions {
   onOpen?: () => void;
@@ -58,12 +59,15 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     };
 
     ws.onmessage = (event) => {
-      try {
-        const message: WebSocketMessage = JSON.parse(event.data);
-        setLastMessage(message);
-        options.onMessage?.(message);
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+      const result = safeCall(() => {
+        return JSON.parse(event.data) as WebSocketMessage;
+      });
+
+      if (result.isOk()) {
+        setLastMessage(result.value);
+        options.onMessage?.(result.value);
+      } else {
+        console.error('Error parsing WebSocket message:', result.error);
       }
     };
 

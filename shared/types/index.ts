@@ -379,6 +379,47 @@ export interface ApiError {
   code?: string;
 }
 
+// Enhanced error types for robust error handling
+export interface ErrorContext {
+  timestamp: string;
+  source?: string;
+  userId?: string;
+  requestId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ParsedError {
+  message: string;
+  type: string;
+  status?: number;
+  code?: string;
+  context?: ErrorContext;
+  originalError?: unknown;
+  isRetryable?: boolean;
+  isUserFriendly?: boolean;
+}
+
+export interface AxiosErrorResponse {
+  status?: number;
+  statusText?: string;
+  data?: {
+    error?: string;
+    message?: string;
+    code?: string;
+    details?: unknown;
+  };
+}
+
+export interface AxiosError extends Error {
+  response?: AxiosErrorResponse;
+  request?: unknown;
+  code?: string;
+  config?: unknown;
+}
+
+// Error severity levels
+export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical';
+
 // ============================================================================
 // WHALE DETECTION TYPES
 // ============================================================================

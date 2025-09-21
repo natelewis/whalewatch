@@ -7,6 +7,7 @@ import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
 import { apiService } from '../services/apiService';
+import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
 import {
   formatPrice,
   processChartData,
@@ -857,8 +858,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    try {
-      const savedTimeframe = getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1h');
+    const result = safeCall(() => {
+      return getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1h');
+    });
+
+    if (result.isOk()) {
+      const savedTimeframe = result.value;
       setTimeframe(savedTimeframe);
 
       // Load initial data immediately
@@ -870,8 +875,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         .finally(() => {
           isLoadingDataRef.current = false;
         });
-    } catch (error) {
-      console.warn('Failed to load chart timeframe from localStorage:', error);
+    } else {
+      console.warn(
+        'Failed to load chart timeframe from localStorage:',
+        createUserFriendlyMessage(result.error)
+      );
       setTimeframe('1h');
 
       // Load initial data with default timeframe
@@ -889,10 +897,15 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Save timeframe to localStorage
   useEffect(() => {
     if (timeframe !== null) {
-      try {
+      const result = safeCall(() => {
         setLocalStorageItem('chartTimeframe', timeframe);
-      } catch (error) {
-        console.warn('Failed to save chart timeframe to localStorage:', error);
+      });
+
+      if (result.isErr()) {
+        console.warn(
+          'Failed to save chart timeframe to localStorage:',
+          createUserFriendlyMessage(result.error)
+        );
       }
     }
   }, [timeframe]);

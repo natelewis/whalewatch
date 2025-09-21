@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, AuthContextType } from '../types';
 import { authService } from '../services/authService';
 import { API_BASE_URL } from '../constants';
+import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -16,19 +17,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (token) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const result = await safeCallAsync(async () => {
           const userData = await authService.verifyToken();
-          setUser(userData.user);
+          return userData;
+        });
+
+        if (result.isOk()) {
+          setUser(result.value.user);
           setIsAuthenticated(true);
+        } else {
+          console.error('Auth initialization error:', createUserFriendlyMessage(result.error));
+          localStorage.removeItem('token');
         }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        localStorage.removeItem('token');
-      } finally {
-        setIsLoading(false);
       }
+      setIsLoading(false);
     };
 
     initAuth();
@@ -40,7 +44,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const handleOAuthCallback = async (token: string) => {
-    try {
+    const result = await safeCallAsync(async () => {
       // Store the token
       localStorage.setItem('token', token);
 
@@ -50,8 +54,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(true);
 
       return { success: true };
-    } catch (error) {
-      console.error('OAuth callback error:', error);
+    });
+
+    if (result.isOk()) {
+      return result.value;
+    } else {
+      console.error('OAuth callback error:', createUserFriendlyMessage(result.error));
       localStorage.removeItem('token');
       return { success: false, error: 'Authentication failed' };
     }

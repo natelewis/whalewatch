@@ -1,7 +1,7 @@
 {
-  "name": "@whalewatch/shared-types",
+  "name": "@whalewatch/shared",
   "version": "1.0.0",
-  "description": "Shared types for WhaleWatch project",
+  "description": "Shared types and utilities for WhaleWatch project",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,5 +17,8 @@
   },
   "devDependencies": {
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "neverthrow": "^8.2.0"
   }
 }

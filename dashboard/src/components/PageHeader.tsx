@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TickerSelector } from './TickerSelector';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
+import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
 
 interface PageHeaderProps {
   title: string;
@@ -25,24 +26,36 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
   // Load saved symbol from localStorage on component mount
   useEffect(() => {
-    try {
-      const savedSymbol = getLocalStorageItem('globalTickerSymbol', selectedSymbol);
+    const result = safeCall(() => {
+      return getLocalStorageItem('globalTickerSymbol', selectedSymbol);
+    });
+
+    if (result.isOk()) {
+      const savedSymbol = result.value;
       if (savedSymbol !== selectedSymbol) {
         setLocalSymbol(savedSymbol);
         onSymbolChange(savedSymbol);
       }
-    } catch (error) {
-      console.warn('Failed to load ticker symbol from localStorage:', error);
+    } else {
+      console.warn(
+        'Failed to load ticker symbol from localStorage:',
+        createUserFriendlyMessage(result.error)
+      );
     }
   }, []);
 
   // Save symbol to localStorage whenever it changes
   useEffect(() => {
-    try {
+    const result = safeCall(() => {
       setLocalStorageItem('globalTickerSymbol', selectedSymbol);
       setLocalSymbol(selectedSymbol);
-    } catch (error) {
-      console.warn('Failed to save ticker symbol to localStorage:', error);
+    });
+
+    if (result.isErr()) {
+      console.warn(
+        'Failed to save ticker symbol to localStorage:',
+        createUserFriendlyMessage(result.error)
+      );
     }
   }, [selectedSymbol]);
 

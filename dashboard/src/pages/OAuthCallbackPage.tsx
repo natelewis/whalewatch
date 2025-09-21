@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
+import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 
 export const OAuthCallbackPage: React.FC = () => {
   const { handleOAuthCallback } = useAuth();
@@ -14,36 +15,36 @@ export const OAuthCallbackPage: React.FC = () => {
 
   useEffect(() => {
     const processCallback = async () => {
-      try {
+      const result = await safeCallAsync(async () => {
         const token = searchParams.get('token');
         const error = searchParams.get('error');
 
         if (error) {
-          setStatus('error');
-          setError('Authentication failed. Please try again.');
-          return;
+          throw new Error('Authentication failed. Please try again.');
         }
 
         if (!token) {
-          setStatus('error');
-          setError('No authentication token received.');
-          return;
+          throw new Error('No authentication token received.');
         }
 
-        const result = await handleOAuthCallback(token);
+        const authResult = await handleOAuthCallback(token);
 
-        if (result.success) {
-          setStatus('success');
-          setTimeout(() => {
-            navigate('/');
-          }, 1500);
-        } else {
-          setStatus('error');
-          setError(result.error || 'Authentication failed.');
+        if (!authResult.success) {
+          throw new Error(authResult.error || 'Authentication failed.');
         }
-      } catch (err) {
+
+        return authResult;
+      });
+
+      if (result.isOk()) {
+        setStatus('success');
+        setTimeout(() => {
+          navigate('/');
+        }, 1500);
+      } else {
         setStatus('error');
-        setError('An unexpected error occurred.');
+        const userMessage = createUserFriendlyMessage(result.error);
+        setError(userMessage);
       }
     };
 

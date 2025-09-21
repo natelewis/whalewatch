@@ -4,6 +4,7 @@ import { apiService } from '../services/apiService';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { PageHeader } from '../components/PageHeader';
+import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
@@ -28,12 +29,15 @@ export const WhaleFinderPage: React.FC = () => {
   }, [lastMessage]);
 
   const loadOptionsContracts = async (symbol: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
+    setIsLoading(true);
+    setError(null);
 
-      const response = await apiService.getOptionsContracts(symbol);
-      setOptionsContracts(response.contracts);
+    const result = await safeCallAsync(async () => {
+      return apiService.getOptionsContracts(symbol);
+    });
+
+    if (result.isOk()) {
+      setOptionsContracts(result.value.contracts);
 
       // Subscribe to real-time options contracts for this symbol
       sendMessage({
@@ -41,23 +45,12 @@ export const WhaleFinderPage: React.FC = () => {
         data: { channel: 'options_contract', symbol },
         timestamp: new Date().toISOString(),
       });
-    } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error &&
-        'response' in err &&
-        typeof err.response === 'object' &&
-        err.response !== null &&
-        'data' in err.response &&
-        typeof err.response.data === 'object' &&
-        err.response.data !== null &&
-        'error' in err.response.data &&
-        typeof err.response.data.error === 'string'
-          ? err.response.data.error
-          : 'Failed to load options contracts';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
+    } else {
+      const userMessage = createUserFriendlyMessage(result.error);
+      setError(userMessage);
     }
+
+    setIsLoading(false);
   };
 
   const handleSymbolChange = (symbol: string) => {

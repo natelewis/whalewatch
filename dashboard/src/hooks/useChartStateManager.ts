@@ -9,6 +9,7 @@ import {
 import { CHART_DATA_POINTS } from '../constants';
 import { processChartData } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
+import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 
 // Helper function to get interval in milliseconds
 function getIntervalMs(interval: string): number {
@@ -296,14 +297,14 @@ export const useChartStateManager = (
       startTime?: string,
       direction: 'past' | 'future' = 'past'
     ) => {
-      try {
-        setIsLoading(true);
-        setError(null);
+      setIsLoading(true);
+      setError(null);
 
-        // Calculate buffer size for smooth rendering
-        const bufferSize = calculateBufferSize(state.dimensions.width);
-        const totalDataPoints = dataPoints + bufferSize;
+      // Calculate buffer size for smooth rendering
+      const bufferSize = calculateBufferSize(state.dimensions.width);
+      const totalDataPoints = dataPoints + bufferSize;
 
+      const result = await safeCallAsync(async () => {
         // Load chart data from API with new parameters
         const response = await apiService.getChartData(
           symbol,
@@ -326,30 +327,21 @@ export const useChartStateManager = (
           dataRange,
         });
 
+        return { formattedData, symbol, timeframe };
+      });
+
+      if (result.isOk()) {
         // Update state with new data
-        setAllData(formattedData);
-        setSymbol(symbol);
-        setTimeframe(timeframe);
-      } catch (err: unknown) {
-        let errorMessage = 'Failed to load chart data';
-        if (err instanceof Error) {
-          if (
-            'response' in err &&
-            (err as any).response &&
-            typeof (err as any).response === 'object' &&
-            'data' in (err as any).response
-          ) {
-            const responseData = (err as any).response.data as { error?: string };
-            errorMessage = responseData.error || errorMessage;
-          } else {
-            errorMessage = err.message;
-          }
-        }
-        setError(errorMessage);
-        console.error('Error loading chart data:', errorMessage);
-      } finally {
-        setIsLoading(false);
+        setAllData(result.value.formattedData);
+        setSymbol(result.value.symbol);
+        setTimeframe(result.value.timeframe);
+      } else {
+        const userMessage = createUserFriendlyMessage(result.error);
+        setError(userMessage);
+        console.error('Error loading chart data:', userMessage);
       }
+
+      setIsLoading(false);
     },
     [setIsLoading, setError, setAllData, setSymbol, setTimeframe]
   );
@@ -361,10 +353,10 @@ export const useChartStateManager = (
       direction: 'past' | 'future',
       dataPoints: number = DEFAULT_CHART_DATA_POINTS
     ) => {
-      try {
-        setIsLoading(true);
-        setError(null);
+      setIsLoading(true);
+      setError(null);
 
+      const result = await safeCallAsync(async () => {
         // Determine start time based on current data and direction
         let startTime: string;
         if (direction === 'past') {
@@ -433,27 +425,18 @@ export const useChartStateManager = (
           (a, b) => new Date(getCandleTime(a)).getTime() - new Date(getCandleTime(b)).getTime()
         );
 
-        setAllData(uniqueData);
-      } catch (err: unknown) {
-        let errorMessage = 'Failed to load more chart data';
-        if (err instanceof Error) {
-          if (
-            'response' in err &&
-            (err as any).response &&
-            typeof (err as any).response === 'object' &&
-            'data' in (err as any).response
-          ) {
-            const responseData = (err as any).response.data as { error?: string };
-            errorMessage = responseData.error || errorMessage;
-          } else {
-            errorMessage = err.message;
-          }
-        }
-        setError(errorMessage);
-        console.error('Error loading more chart data:', errorMessage);
-      } finally {
-        setIsLoading(false);
+        return uniqueData;
+      });
+
+      if (result.isOk()) {
+        setAllData(result.value);
+      } else {
+        const userMessage = createUserFriendlyMessage(result.error);
+        setError(userMessage);
+        console.error('Error loading more chart data:', userMessage);
       }
+
+      setIsLoading(false);
     },
     [state.allData, setIsLoading, setError, setAllData]
   );
