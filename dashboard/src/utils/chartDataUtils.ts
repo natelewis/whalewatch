@@ -103,7 +103,6 @@ export const calculateInnerDimensions = (dimensions: {
 
 /**
  * Apply consistent styling to axis elements
- * Now uses memoized version for better performance
  */
 export const applyAxisStyling = memoizedApplyAxisStyling;
 
@@ -231,9 +230,8 @@ export const createXAxis = (
 
 /**
  * Create a custom X-axis that properly handles time compression
- * This function creates an axis that positions ticks based on data indices
- * rather than actual time values, ensuring proper alignment with candlesticks
- * Now supports configurable marker intervals and uses visible data for consistent tick display
+ * Positions ticks based on data indices to align with candlesticks.
+ * Supports optional marker/data-point intervals and visible data.
  */
 export const createCustomTimeAxis = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
@@ -242,25 +240,20 @@ export const createCustomTimeAxis = (
   dataPointInterval?: number,
   visibleData?: { timestamp: string }[]
 ): d3.Axis<number | Date> => {
-  // Use visible data if provided, otherwise fall back to all data
-  const dataForTicks = visibleData && visibleData.length > 0 ? visibleData : allChartData;
-
-  // Generate time-based ticks that make sense for the visible data with configurable intervals
   const timeTicks =
     visibleData && visibleData.length > 0
       ? memoizedGenerateVisibleTimeBasedTicks(visibleData, markerIntervalMinutes)
       : generateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
 
-  // Create a custom axis function that positions ticks based on data indices
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {
     selection.each(function () {
       const context = d3.select(this);
 
-      // Clear existing ticks and domain
+      // Clear existing ticks/domain
       context.selectAll('.tick').remove();
       context.selectAll('.domain').remove();
 
-      // Add domain line
+      // Domain line
       const range = transformedLinearScale.range();
       context
         .append('path')
@@ -269,14 +262,13 @@ export const createCustomTimeAxis = (
         .attr('stroke-width', 1)
         .attr('d', `M${range[0]},0V0H${range[1]}V0`);
 
-      // Create custom ticks that align with data points (memoized)
+      // Tick positions mapped to indices
       const tickData = memoizedMapTicksToPositions(
         transformedLinearScale,
         allChartData as unknown as CandlestickData[],
         timeTicks
       );
 
-      // Add tick marks and labels
       const tickSelection = context
         .selectAll<SVGGElement, { timestamp: Date; position: number }>('g.tick')
         .data(tickData)
@@ -285,10 +277,8 @@ export const createCustomTimeAxis = (
         .attr('class', 'tick')
         .attr('transform', d => `translate(${d.position},0)`);
 
-      // Add tick line
       tickSelection.append('line').attr('stroke', '#666').attr('stroke-width', 1).attr('y2', 6);
 
-      // Add tick label (using memoized time formatting for better performance)
       tickSelection
         .append('text')
         .attr('y', 9)
@@ -305,7 +295,6 @@ export const createCustomTimeAxis = (
 
 /**
  * Create Y-axis with consistent configuration
- * Now uses memoized version for better performance
  */
 export const createYAxis = memoizedCreateYAxis;
 

@@ -8,15 +8,7 @@ import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
 import { apiService } from '../services/apiService';
 import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
-import {
-  formatPrice,
-  processChartData,
-  calculateInnerDimensions,
-  createCustomTimeAxis,
-  createYAxis,
-  applyAxisStyling,
-  isValidChartData,
-} from '../utils/chartDataUtils';
+import { formatPrice, processChartData, calculateInnerDimensions, isValidChartData } from '../utils/chartDataUtils';
 import { TimeframeConfig } from '../types';
 import { createChart, renderCandlestickChart, updateClipPath, calculateChartState } from './ChartRenderer';
 import { memoizedCalculateYScaleDomain } from '../utils/memoizedChartUtils';
@@ -461,7 +453,26 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           dataAdded: mergedData.length - chartState.allData.length,
         });
 
+        // Preserve viewport by anchoring the same visible window after left-side insertion
+        const prevStart = chartState.currentViewStart;
+        const prevEnd = chartState.currentViewEnd;
+        const windowSize = Math.max(1, Math.round(prevEnd - prevStart));
+        const dataAdded = mergedData.length - chartState.allData.length;
+        let anchoredEnd = Math.max(0, Math.round(prevEnd + dataAdded));
+        let anchoredStart = Math.max(0, Math.round(prevStart + dataAdded));
+        const totalAfter = mergedData.length;
+        if (anchoredEnd > totalAfter - 1) {
+          anchoredEnd = totalAfter - 1;
+        }
+        if (anchoredStart < 0) {
+          anchoredStart = 0;
+        }
+        if (anchoredEnd - anchoredStart < windowSize) {
+          anchoredStart = Math.max(0, anchoredEnd - windowSize);
+        }
+
         chartActions.setAllData(mergedData);
+        chartActions.setViewport(anchoredStart, anchoredEnd);
 
         console.log('✅ Successfully loaded more data to the LEFT:', {
           mergedDataLength: mergedData.length,
@@ -493,26 +504,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Update clip-path to accommodate the expanded dataset
           updateClipPath(svgRef.current as SVGSVGElement, mergedData, chartState.dimensions);
 
-          // Update X-axis with the merged data
-          const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
-          if (!xAxisGroup.empty()) {
-            const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
-
-            xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-            xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, mergedData));
-            applyAxisStyling(xAxisGroup);
-          }
-
-          // Update Y-axis using the LOCKED Y-scale domain
-          const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
-          if (!yAxisGroup.empty()) {
-            const { innerWidth: axisInnerWidth } = calculateInnerDimensions(chartState.dimensions);
-            yAxisGroup.attr('transform', `translate(${axisInnerWidth},0)`);
-
-            // Use the SAME Y-scale that the candlesticks use to ensure perfect alignment
-            yAxisGroup.call(createYAxis(calculations.baseYScale));
-            applyAxisStyling(yAxisGroup);
-          }
+          // Legacy D3 axis updates removed
 
           // Re-render with merged data (preserving current view position)
           renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
@@ -627,26 +619,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Update clip-path to accommodate the expanded dataset
           updateClipPath(svgRef.current as SVGSVGElement, mergedData, chartState.dimensions);
 
-          // Update X-axis with the merged data
-          const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
-          if (!xAxisGroup.empty()) {
-            const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
-
-            xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-            xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, mergedData));
-            applyAxisStyling(xAxisGroup);
-          }
-
-          // Update Y-axis using the LOCKED Y-scale domain
-          const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
-          if (!yAxisGroup.empty()) {
-            const { innerWidth: axisInnerWidth } = calculateInnerDimensions(chartState.dimensions);
-            yAxisGroup.attr('transform', `translate(${axisInnerWidth},0)`);
-
-            // Use the SAME Y-scale that the candlesticks use to ensure perfect alignment
-            yAxisGroup.call(createYAxis(calculations.baseYScale));
-            applyAxisStyling(yAxisGroup);
-          }
+          // Legacy D3 axis updates removed
 
           // Re-render with merged data (preserving current view position)
           renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
@@ -724,22 +697,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
       // Chart content transform handled by renderer (using transformed scales)
 
-      // Update X-axis using time-based scale that aligns with candlesticks
-      const xAxisGroup = svg.select<SVGGElement>('.x-axis');
-      if (!xAxisGroup.empty()) {
-        const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
-
-        xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-        xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, chartState.allData));
-        applyAxisStyling(xAxisGroup);
-      }
-
-      // Update Y-axis using centralized calculations
-      const yAxisGroup = svg.select<SVGGElement>('.y-axis');
-      if (!yAxisGroup.empty()) {
-        yAxisGroup.call(createYAxis(calculations.transformedYScale));
-        applyAxisStyling(yAxisGroup);
-      }
+      // Legacy D3 axis updates removed
 
       // Re-render candlesticks with the new view
       renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
@@ -818,21 +776,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
     // Update axes
     const svg = d3.select(svgRef.current);
-    const { innerHeight } = calculateInnerDimensions(chartState.dimensions);
-    const xAxisGroup = svg.select<SVGGElement>('.x-axis');
-    if (!xAxisGroup.empty()) {
-      const xScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, baseCalcs.innerWidth]);
-      const slice = chartState.allData.slice(newStart, newEnd + 1);
-      xAxisGroup.attr('transform', `translate(0,${innerHeight})`);
-      xAxisGroup.call(createCustomTimeAxis(xScale as unknown as d3.ScaleLinear<number, number>, chartState.allData));
-      applyAxisStyling(xAxisGroup);
-    }
-
-    const yAxisGroup = svg.select<SVGGElement>('.y-axis');
-    if (!yAxisGroup.empty()) {
-      yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
-      applyAxisStyling(yAxisGroup);
-    }
+    // Legacy D3 axis updates removed
 
     // Render candles for the new viewport
     const finalCalcs: ChartCalculations = {
@@ -1077,35 +1021,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Update clip-path for new dimensions
       updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
 
-      // Update X-axis with new dimensions
-      const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
-      if (!xAxisGroup.empty()) {
-        const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
-
-        // Create time-based scale that maps data indices to screen coordinates
-        if (chartState.allData.length > 0) {
-          console.log('🔄 Updating X-axis on resize:', {
-            innerWidth: calculations.innerWidth,
-            bandWidth: calculations.innerWidth / CHART_DATA_POINTS,
-            scaleDomain: calculations.baseXScale.domain(),
-            scaleRange: calculations.baseXScale.range(),
-          });
-
-          xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-          xAxisGroup.call(createCustomTimeAxis(calculations.baseXScale, chartState.allData));
-          applyAxisStyling(xAxisGroup);
-        }
-      }
-
-      // Update Y-axis with new dimensions
-      const yAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.y-axis');
-      if (!yAxisGroup.empty()) {
-        const { innerWidth: axisInnerWidth } = calculateInnerDimensions(chartState.dimensions);
-        yAxisGroup.attr('transform', `translate(${axisInnerWidth},0)`);
-        // Use transformed Y scale to match candle positioning
-        yAxisGroup.call(createYAxis(calculations.transformedYScale));
-        applyAxisStyling(yAxisGroup);
-      }
+      // Legacy D3 axis updates removed
 
       // Chart content transform handled by renderer (using transformed scales)
 
