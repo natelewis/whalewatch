@@ -19,7 +19,8 @@ type ChartState = {
   allData: CandlestickData[];
   transformString: string;
 };
-type CacheValue = YScaleDomain | PriceRange | ChartState | CandlestickData[];
+type TickPosition = { timestamp: Date; position: number };
+type CacheValue = YScaleDomain | PriceRange | ChartState | CandlestickData[] | TickPosition[];
 
 // Memoization cache for expensive calculations
 const calculationCache = new Map<string, CacheValue>();
@@ -250,4 +251,51 @@ export const getCacheStats = () => {
     priceRangeEntries: Array.from(calculationCache.keys()).filter(k => k.startsWith('priceRange-')).length,
     visibleDataEntries: Array.from(calculationCache.keys()).filter(k => k.startsWith('visibleData-')).length,
   };
+};
+
+/**
+ * Memoized mapping from time-based ticks to on-screen positions using a transformed linear scale
+ */
+export const memoizedMapTicksToPositions = (
+  transformedLinearScale: d3.ScaleLinear<number, number>,
+  allChartData: CandlestickData[],
+  ticks: Date[]
+): TickPosition[] => {
+  if (!allChartData || allChartData.length === 0 || ticks.length === 0) {
+    return [];
+  }
+
+  const dataKey = `${allChartData.length}-${allChartData[0]?.timestamp}-${
+    allChartData[allChartData.length - 1]?.timestamp
+  }`;
+  const ticksKey = ticks.map(t => t.getTime()).join(',');
+  const scaleKey = `range:${transformedLinearScale.range().join('-')}:domain:${transformedLinearScale
+    .domain()
+    .map(v => v.toFixed(2))
+    .join('-')}`;
+  const cacheKey = `tickPos-${dataKey}-${ticksKey}-${scaleKey}`;
+
+  if (calculationCache.has(cacheKey)) {
+    return calculationCache.get(cacheKey) as TickPosition[];
+  }
+
+  const result: TickPosition[] = ticks.map(tick => {
+    // Find closest data point by time
+    let closestIndex = 0;
+    let minTimeDiff = Math.abs(new Date(allChartData[0].timestamp).getTime() - tick.getTime());
+    for (let i = 1; i < allChartData.length; i++) {
+      const dataTime = new Date(allChartData[i].timestamp);
+      const timeDiff = Math.abs(dataTime.getTime() - tick.getTime());
+      if (timeDiff < minTimeDiff) {
+        minTimeDiff = timeDiff;
+        closestIndex = i;
+      }
+    }
+    const position = transformedLinearScale(closestIndex);
+    return { timestamp: tick, position };
+  });
+
+  calculationCache.set(cacheKey, result);
+  cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
+  return result;
 };

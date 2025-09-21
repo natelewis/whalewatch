@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { memoizedMapTicksToPositions } from './memoizedChartUtils';
 import {
   AlpacaBar,
   ChartTimeframe,
@@ -263,29 +264,12 @@ export const createCustomTimeAxis = (
         .attr('stroke-width', 1)
         .attr('d', `M${range[0]},0V0H${range[1]}V0`);
 
-      // Create custom ticks that align with data points
-      const tickData = timeTicks.map(tick => {
-        // Find the closest data point by time
-        let closestIndex = 0;
-        let minTimeDiff = Math.abs(new Date(allChartData[0].timestamp).getTime() - tick.getTime());
-
-        for (let i = 1; i < allChartData.length; i++) {
-          const dataTime = new Date(allChartData[i].timestamp);
-          const timeDiff = Math.abs(dataTime.getTime() - tick.getTime());
-          if (timeDiff < minTimeDiff) {
-            minTimeDiff = timeDiff;
-            closestIndex = i;
-          }
-        }
-
-        // Use the linear scale to get the screen position for this data index
-        const position = transformedLinearScale(closestIndex);
-
-        return {
-          timestamp: tick,
-          position: position,
-        };
-      });
+      // Create custom ticks that align with data points (memoized)
+      const tickData = memoizedMapTicksToPositions(
+        transformedLinearScale,
+        allChartData as unknown as CandlestickData[],
+        timeTicks
+      );
 
       // Add tick marks and labels
       const tickSelection = context
