@@ -349,7 +349,7 @@ export const createChart = ({
   crosshair
     .append('line')
     .attr('class', 'crosshair-x')
-    .attr('stroke', '#666')
+    .attr('stroke', 'hsl(var(--muted-foreground))')
     .attr('stroke-Bufferwidth', 1)
     .attr('stroke-dasharray', '3,3')
     .style('opacity', 0);
@@ -357,7 +357,7 @@ export const createChart = ({
   crosshair
     .append('line')
     .attr('class', 'crosshair-y')
-    .attr('stroke', '#666')
+    .attr('stroke', 'hsl(var(--muted-foreground))')
     .attr('stroke-width', 1)
     .attr('stroke-dasharray', '3,3')
     .style('opacity', 0);
@@ -388,7 +388,6 @@ export const createChart = ({
       const [mouseX, mouseY] = d3.pointer(event);
 
       // Always recompute scales using the latest data and dimensions to avoid stale closures
-      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
       const currentData = stateCallbacks.getCurrentData?.() || allChartData;
       const currentDimensions = stateCallbacks.getCurrentDimensions?.() || dimensions;
 

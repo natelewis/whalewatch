@@ -201,7 +201,7 @@ export const createCustomTimeAxis = (
       context
         .append('path')
         .attr('class', 'domain')
-        .attr('stroke', '#666')
+        .attr('stroke', 'hsl(var(--muted-foreground))')
         .attr('stroke-width', 1)
         .attr('d', `M${range[0]},0V0H${range[1]}V0`);
 
@@ -220,7 +220,7 @@ export const createCustomTimeAxis = (
         .attr('class', 'tick')
         .attr('transform', d => `translate(${d.position},0)`);
 
-      tickSelection.append('line').attr('stroke', '#666').attr('stroke-width', 1).attr('y2', 6);
+      tickSelection.append('line').attr('stroke', 'hsl(var(--muted-foreground))').attr('stroke-width', 1).attr('y2', 6);
 
       tickSelection
         .append('text')
@@ -228,7 +228,7 @@ export const createCustomTimeAxis = (
         .attr('dy', '0.71em')
         .attr('text-anchor', 'middle')
         .style('font-size', '12px')
-        .style('fill', 'white')
+        .style('fill', 'hsl(var(--muted-foreground))')
         .text(d => memoizedFormatTime(d.timestamp));
     });
   };
