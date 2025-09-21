@@ -429,6 +429,26 @@ export const memoizedFormatTime = (timestamp: Date): string => {
 };
 
 /**
+ * Helper function to apply axis styling without cache logic
+ * Used internally to avoid code duplication
+ */
+const applyAxisStylingDirect = (axis: d3.Selection<SVGGElement, unknown, null, undefined>): void => {
+  // Style the domain lines to be gray and remove end tick marks (nubs)
+  axis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
+  // Style tick lines to be gray, keep labels white
+  axis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+
+  // Always apply consistent font-size to prevent size variations during re-renders
+  // Use CSS custom property for muted-foreground color (HSL format)
+  axis
+    .selectAll('.tick text')
+    .style('font-size', '12px')
+    .style('font-family', 'system-ui, -apple-system, sans-serif')
+    .style('fill', 'hsl(var(--muted-foreground))');
+};
+
+/**
  * Memoized axis styling application
  * Prevents repeated DOM operations for the same styling
  */
@@ -446,29 +466,14 @@ export const memoizedApplyAxisStyling = (axis: d3.Selection<SVGGElement, unknown
 
   // Check if we've already applied this exact styling
   if (calculationCache.has(cacheKey)) {
-    // Even if cached, ensure font-size and color are consistently applied to prevent size variations
-    axis
-      .selectAll('.tick text')
-      .style('font-size', '12px')
-      .style('font-family', 'system-ui, -apple-system, sans-serif')
-      .style('fill', 'hsl(var(--muted-foreground))');
+    // Even if cached, ensure styling is applied to any new ticks created during panning/zooming
+    // This is crucial for new ticks created during panning/zooming
+    applyAxisStylingDirect(axis);
     return; // Already styled, skip other operations
   }
 
   // Apply the styling
-  // Style the domain lines to be gray and remove end tick marks (nubs)
-  axis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-
-  // Style tick lines to be gray, keep labels white
-  axis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-
-  // Always apply consistent font-size to prevent size variations during re-renders
-  // Use CSS custom property for muted-foreground color (HSL format)
-  axis
-    .selectAll('.tick text')
-    .style('font-size', '12px')
-    .style('font-family', 'system-ui, -apple-system, sans-serif')
-    .style('fill', 'hsl(var(--muted-foreground))');
+  applyAxisStylingDirect(axis);
 
   // Mark as styled
   calculationCache.set(cacheKey, true);
