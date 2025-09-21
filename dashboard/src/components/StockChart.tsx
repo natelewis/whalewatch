@@ -793,14 +793,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     if (isValidData) {
       const newVisibleData = getVisibleData(chartState.currentViewStart, chartState.currentViewEnd);
-      // console.log('Updating visible data:', {
-      //   currentViewStart: chartState.currentViewStart,
-      //   currentViewEnd: chartState.currentViewEnd,
-      //   allChartDataLength: chartState.allData.length,
-      //   newVisibleDataLength: newVisibleData.length,
-      //   newVisibleDataStart: newVisibleData[0]?.time,
-      //   newVisibleDataEnd: newVisibleData[newVisibleData.length - 1]?.time,
-      // });
       chartActions.setData(newVisibleData);
     }
   }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData, isValidData, getVisibleData]); // Removed chartActions
