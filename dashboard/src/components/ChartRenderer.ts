@@ -559,6 +559,9 @@ export const createChart = ({
   let isPointerDown = false;
   let panStartXLocal = 0;
   let panStartCenterLocal = 0;
+  let panStartYLocal = 0;
+  let panStartTransformY = 0;
+  let panStartTransformK = 1;
 
   const getWindowSize = (): number => CHART_DATA_POINTS;
 
@@ -566,6 +569,7 @@ export const createChart = ({
     .on('pointerdown', event => {
       isPointerDown = true;
       panStartXLocal = (event as PointerEvent).clientX;
+      panStartYLocal = (event as PointerEvent).clientY;
       // Prefer live viewport from React state via callbacks to avoid stale or recomputed defaults
       const data = stateCallbacks.getCurrentData?.() || allChartData;
       const dims = stateCallbacks.getCurrentDimensions?.() || dimensions;
@@ -586,6 +590,10 @@ export const createChart = ({
         endIdx = Math.floor(baseCalcs.viewEnd);
       }
       panStartCenterLocal = Math.floor((startIdx + endIdx) / 2);
+      // Capture starting Y-transform and scale for vertical pan
+      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+      panStartTransformY = currentTransform.y;
+      panStartTransformK = currentTransform.k;
       // Debug: snapshot pan start
       const { innerWidth: iw } = calculateInnerDimensions(dims);
       const bw = iw / CHART_DATA_POINTS;
@@ -601,6 +609,7 @@ export const createChart = ({
       const { innerWidth: currInnerWidth } = calculateInnerDimensions(dims);
       const bandWidth = currInnerWidth / CHART_DATA_POINTS;
       const dx = (event as PointerEvent).clientX - panStartXLocal;
+      const dy = (event as PointerEvent).clientY - panStartYLocal;
       const deltaIdx = dx / bandWidth;
       const center = Math.max(0, Math.min(data.length - 1, Math.round(panStartCenterLocal - deltaIdx)));
       const windowSize = getWindowSize();
@@ -624,11 +633,13 @@ export const createChart = ({
       }
 
       // Render live
-      const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+      // Apply vertical pan by adjusting the Y-transform based on pointer dy (zoom level preserved)
+      const newTransformY = panStartTransformY + dy;
+      const currentTransform = d3.zoomIdentity.translate(0, newTransformY).scale(panStartTransformK);
       const baseCalcs = calculateChartState({
         dimensions: dims,
         allChartData: data,
-        transform: d3.zoomIdentity.translate(0, currentTransform.y).scale(currentTransform.k),
+        transform: currentTransform,
         fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
       });
       const calculations = {
@@ -638,8 +649,14 @@ export const createChart = ({
         visibleData: data.slice(Math.max(0, newStart), Math.min(data.length - 1, newEnd) + 1),
       } as ChartCalculations;
       renderCandlestickChart(svgElement, calculations);
+      // Update Y-axis during vertical pan for live feedback
+      const yAxisGroup = d3.select(svgElement).select<SVGGElement>('.y-axis');
+      if (!yAxisGroup.empty()) {
+        yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
+        applyAxisStyling(yAxisGroup);
+      }
       // Debug: live pan state
-      console.log('PAN_DEBUG move', { dx, deltaIdx, center, newStart, newEnd, total });
+      console.log('PAN_DEBUG move', { dx, dy, deltaIdx, center, newStart, newEnd, total });
     })
     .on('pointerup', () => {
       isPointerDown = false;
