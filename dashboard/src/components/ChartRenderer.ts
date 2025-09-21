@@ -393,7 +393,7 @@ export const createChart = ({
       onBufferedCandlesRendered(loadDirection);
     }
 
-    // Re-render with the final viewport and update axes now that pan settled
+    // Do not re-render here; the last pan render is already at the settled viewport
     const { innerWidth: w, innerHeight: h } = calculateInnerDimensions(currentDimensions);
     const viewX = d3.scaleLinear().domain([chartState.currentViewStart, chartState.currentViewEnd]).range([0, w]);
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
