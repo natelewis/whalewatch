@@ -72,8 +72,8 @@ export const ActivityHistory: React.FC<ActivityHistoryProps> = ({ activities }) 
 
   const filteredActivities = activities.filter(activity => {
     if (filter === 'all') {
-return true;
-}
+      return true;
+    }
     return activity.activity_type === filter;
   });
 
@@ -98,7 +98,7 @@ return true;
       {/* Filter */}
       <div className="p-4 border-b border-border">
         <div className="flex space-x-2">
-          {activityTypes.map((type) => (
+          {activityTypes.map(type => (
             <button
               key={type.value}
               onClick={() => setFilter(type.value)}
@@ -116,32 +116,25 @@ return true;
 
       {/* Activities List */}
       <div className="max-h-96 overflow-y-auto">
-        {filteredActivities.map((activity) => (
+        {filteredActivities.map(activity => (
           <div key={activity.id} className="p-4 border-b border-border last:border-b-0 hover:bg-muted/50">
             <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0 mt-1">
-                {getActivityIcon(activity.activity_type)}
-              </div>
+              <div className="flex-shrink-0 mt-1">{getActivityIcon(activity.activity_type)}</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-foreground">
-                    {getActivityDescription(activity)}
-                  </p>
+                  <p className="text-sm font-medium text-foreground">{getActivityDescription(activity)}</p>
                   <div className="text-right">
                     {activity.net_amount && (
                       <p className={`text-sm font-medium ${getActivityColor(activity.activity_type)}`}>
-                        {parseFloat(activity.net_amount) >= 0 ? '+' : ''}{formatCurrency(activity.net_amount)}
+                        {parseFloat(activity.net_amount) >= 0 ? '+' : ''}
+                        {formatCurrency(activity.net_amount)}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(activity.transaction_time)}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{formatDate(activity.transaction_time)}</p>
                   </div>
                 </div>
                 {activity.order_id && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Order ID: {activity.order_id}
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Order ID: {activity.order_id}</p>
                 )}
               </div>
             </div>

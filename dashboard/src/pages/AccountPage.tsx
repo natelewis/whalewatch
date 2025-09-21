@@ -25,9 +25,13 @@ export const AccountPage: React.FC = () => {
   useEffect(() => {
     if (lastMessage?.type === 'account_quote') {
       // Update position prices in real-time
-      const accountData = lastMessage.data as { symbol: string; price: number; timestamp: string };
-      setPositions((prevPositions) =>
-        prevPositions.map((position) => {
+      const accountData = lastMessage.data as {
+        symbol: string;
+        price: number;
+        timestamp: string;
+      };
+      setPositions(prevPositions =>
+        prevPositions.map(position => {
           if (position.symbol === accountData.symbol) {
             return {
               ...position,

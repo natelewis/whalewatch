@@ -19,7 +19,7 @@ const api = axios.create({
 });
 
 // Add token to requests for the default api instance
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -30,7 +30,7 @@ api.interceptors.request.use((config) => {
 // Create a function that can be called with a token getter
 export const createApiService = (getToken: () => Promise<string | null>) => {
   // Add token to requests
-  api.interceptors.request.use(async (config) => {
+  api.interceptors.request.use(async config => {
     const token = await getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -50,10 +50,7 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       return response.data;
     },
 
-    async getActivities(
-      startDate?: string,
-      endDate?: string
-    ): Promise<{ activities: AlpacaActivity[] }> {
+    async getActivities(startDate?: string, endDate?: string): Promise<{ activities: AlpacaActivity[] }> {
       const params = new URLSearchParams();
       if (startDate) {
         params.append('start_date', startDate);
@@ -106,7 +103,11 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     async getOptionsTrades(
       symbol: string,
       hours: number = 1
-    ): Promise<{ symbol: string; trades: AlpacaOptionsTrade[]; hours: number }> {
+    ): Promise<{
+      symbol: string;
+      trades: AlpacaOptionsTrade[];
+      hours: number;
+    }> {
       const response = await api.get(`/api/options/${symbol}/recent`, {
         params: { hours },
       });
@@ -116,7 +117,11 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     async getOptionsContracts(
       symbol: string,
       limit: number = 1000
-    ): Promise<{ symbol: string; contracts: AlpacaOptionsContract[]; total_contracts: number }> {
+    ): Promise<{
+      symbol: string;
+      contracts: AlpacaOptionsContract[];
+      total_contracts: number;
+    }> {
       const response = await api.get(`/api/options/${symbol}/recent`, {
         params: { limit },
       });
@@ -124,16 +129,12 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
     },
 
     // Order endpoints
-    async createSellOrder(
-      orderData: CreateOrderRequest
-    ): Promise<{ message: string; order: CreateOrderResponse }> {
+    async createSellOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: CreateOrderResponse }> {
       const response = await api.post('/api/orders/sell', orderData);
       return response.data;
     },
 
-    async createBuyOrder(
-      orderData: CreateOrderRequest
-    ): Promise<{ message: string; order: CreateOrderResponse }> {
+    async createBuyOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: CreateOrderResponse }> {
       const response = await api.post('/api/orders/buy', orderData);
       return response.data;
     },
@@ -153,10 +154,7 @@ export const apiService = {
     return response.data;
   },
 
-  async getActivities(
-    startDate?: string,
-    endDate?: string
-  ): Promise<{ activities: AlpacaActivity[] }> {
+  async getActivities(startDate?: string, endDate?: string): Promise<{ activities: AlpacaActivity[] }> {
     const params = new URLSearchParams();
     if (startDate) {
       params.append('start_date', startDate);
@@ -219,7 +217,11 @@ export const apiService = {
   async getOptionsContracts(
     symbol: string,
     limit: number = 1000
-  ): Promise<{ symbol: string; contracts: AlpacaOptionsContract[]; total_contracts: number }> {
+  ): Promise<{
+    symbol: string;
+    contracts: AlpacaOptionsContract[];
+    total_contracts: number;
+  }> {
     const response = await api.get(`/api/options/${symbol}/recent`, {
       params: { limit },
     });
@@ -227,16 +229,12 @@ export const apiService = {
   },
 
   // Order endpoints
-  async createSellOrder(
-    orderData: CreateOrderRequest
-  ): Promise<{ message: string; order: CreateOrderResponse }> {
+  async createSellOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: CreateOrderResponse }> {
     const response = await api.post('/api/orders/sell', orderData);
     return response.data;
   },
 
-  async createBuyOrder(
-    orderData: CreateOrderRequest
-  ): Promise<{ message: string; order: CreateOrderResponse }> {
+  async createBuyOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: CreateOrderResponse }> {
     const response = await api.post('/api/orders/buy', orderData);
     return response.data;
   },

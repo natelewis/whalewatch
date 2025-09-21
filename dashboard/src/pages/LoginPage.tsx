@@ -53,9 +53,7 @@ export const LoginPage: React.FC = () => {
         <div className="bg-card p-8 rounded-lg border border-border">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-foreground">Sign in to your account</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Use your Google account to access Whale Watch
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground">Use your Google account to access Whale Watch</p>
           </div>
 
           {error && (
@@ -101,8 +99,8 @@ export const LoginPage: React.FC = () => {
           {/* Info */}
           <div className="mt-6 p-4 bg-muted/50 rounded-md">
             <p className="text-sm text-muted-foreground">
-              By signing in, you agree to our Terms of Service and Privacy Policy. Your account will
-              be created automatically upon first login.
+              By signing in, you agree to our Terms of Service and Privacy Policy. Your account will be created
+              automatically upon first login.
             </p>
           </div>
         </div>

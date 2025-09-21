@@ -1,11 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  ChartTimeframe,
-  ChartDimensions,
-  DEFAULT_CHART_DATA_POINTS,
-  CandlestickData,
-  DataRange,
-} from '../types';
+import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData, DataRange } from '../types';
 import { CHART_DATA_POINTS } from '../constants';
 import { processChartData } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
@@ -122,10 +116,7 @@ function calculateBufferSize(chartWidth: number): number {
  * Consolidated chart state management hook
  * Combines the best patterns from D3StockChart and useChartState
  */
-export const useChartStateManager = (
-  initialSymbol: string,
-  initialTimeframe: ChartTimeframe | null = null
-) => {
+export const useChartStateManager = (initialSymbol: string, initialTimeframe: ChartTimeframe | null = null) => {
   const [state, setState] = useState<ChartState>({
     data: [],
     allData: [],
@@ -152,43 +143,40 @@ export const useChartStateManager = (
 
   // Data actions
   const setData = useCallback((data: CandlestickData[]) => {
-    setState((prev) => ({ ...prev, data }));
+    setState(prev => ({ ...prev, data }));
     prevDataLengthRef.current = data.length;
   }, []);
 
   const setAllData = useCallback((allData: CandlestickData[]) => {
-    setState((prev) => ({ ...prev, allData }));
+    setState(prev => ({ ...prev, allData }));
   }, []);
 
   const addDataPoint = useCallback((point: CandlestickData) => {
-    setState((prev) => ({
+    setState(prev => ({
       ...prev,
       data: [...prev.data, point],
       allData: [...prev.allData, point],
     }));
   }, []);
 
-  const updateData = useCallback(
-    (updates: Partial<{ data: CandlestickData[]; allData: CandlestickData[] }>) => {
-      setState((prev) => ({ ...prev, ...updates }));
-    },
-    []
-  );
+  const updateData = useCallback((updates: Partial<{ data: CandlestickData[]; allData: CandlestickData[] }>) => {
+    setState(prev => ({ ...prev, ...updates }));
+  }, []);
 
   // Transform actions
   const setTransform = useCallback((transform: ChartTransform) => {
-    setState((prev) => ({ ...prev, transform }));
+    setState(prev => ({ ...prev, transform }));
   }, []);
 
   const updateTransform = useCallback((updates: Partial<ChartTransform>) => {
-    setState((prev) => ({
+    setState(prev => ({
       ...prev,
       transform: { ...prev.transform, ...updates },
     }));
   }, []);
 
   const resetTransform = useCallback(() => {
-    setState((prev) => ({
+    setState(prev => ({
       ...prev,
       transform: DEFAULT_TRANSFORM,
     }));
@@ -196,15 +184,15 @@ export const useChartStateManager = (
 
   // Viewport actions
   const setCurrentViewStart = useCallback((start: number) => {
-    setState((prev) => ({ ...prev, currentViewStart: start }));
+    setState(prev => ({ ...prev, currentViewStart: start }));
   }, []);
 
   const setCurrentViewEnd = useCallback((end: number) => {
-    setState((prev) => ({ ...prev, currentViewEnd: end }));
+    setState(prev => ({ ...prev, currentViewEnd: end }));
   }, []);
 
   const setViewport = useCallback((start: number, end: number) => {
-    setState((prev) => ({
+    setState(prev => ({
       ...prev,
       currentViewStart: start,
       currentViewEnd: end,
@@ -213,57 +201,57 @@ export const useChartStateManager = (
 
   // UI actions
   const setIsLive = useCallback((isLive: boolean) => {
-    setState((prev) => ({ ...prev, isLive }));
+    setState(prev => ({ ...prev, isLive }));
   }, []);
 
   const setIsWebSocketEnabled = useCallback((isWebSocketEnabled: boolean) => {
-    setState((prev) => ({ ...prev, isWebSocketEnabled }));
+    setState(prev => ({ ...prev, isWebSocketEnabled }));
   }, []);
 
   const setIsZooming = useCallback((isZooming: boolean) => {
-    setState((prev) => ({ ...prev, isZooming }));
+    setState(prev => ({ ...prev, isZooming }));
   }, []);
 
   const setIsLoading = useCallback((isLoading: boolean) => {
-    setState((prev) => ({ ...prev, isLoading }));
+    setState(prev => ({ ...prev, isLoading }));
   }, []);
 
   const setError = useCallback((error: string | null) => {
-    setState((prev) => ({ ...prev, error }));
+    setState(prev => ({ ...prev, error }));
   }, []);
 
   const setChartLoaded = useCallback((loaded: boolean) => {
-    setState((prev) => ({ ...prev, chartLoaded: loaded }));
+    setState(prev => ({ ...prev, chartLoaded: loaded }));
   }, []);
 
   const setChartExists = useCallback((exists: boolean) => {
-    setState((prev) => ({ ...prev, chartExists: exists }));
+    setState(prev => ({ ...prev, chartExists: exists }));
   }, []);
 
   const setHoverData = useCallback((hoverData: HoverData | null) => {
-    setState((prev) => ({ ...prev, hoverData }));
+    setState(prev => ({ ...prev, hoverData }));
   }, []);
 
   // Configuration actions
   const setTimeframe = useCallback((timeframe: ChartTimeframe) => {
-    setState((prev) => ({ ...prev, timeframe }));
+    setState(prev => ({ ...prev, timeframe }));
   }, []);
 
   const setSymbol = useCallback((symbol: string) => {
-    setState((prev) => ({ ...prev, symbol }));
+    setState(prev => ({ ...prev, symbol }));
   }, []);
 
   const setDimensions = useCallback((dimensions: ChartDimensions) => {
-    setState((prev) => ({ ...prev, dimensions }));
+    setState(prev => ({ ...prev, dimensions }));
   }, []);
 
   const setFixedYScaleDomain = useCallback((domain: [number, number] | null) => {
-    setState((prev) => ({ ...prev, fixedYScaleDomain: domain }));
+    setState(prev => ({ ...prev, fixedYScaleDomain: domain }));
   }, []);
 
   // Utility actions
   const resetChart = useCallback(() => {
-    setState((prev) => ({
+    setState(prev => ({
       ...prev,
       data: [],
       allData: [],
@@ -285,7 +273,7 @@ export const useChartStateManager = (
   }, []);
 
   const updateMultiple = useCallback((updates: Partial<ChartState>) => {
-    setState((prev) => ({ ...prev, ...updates }));
+    setState(prev => ({ ...prev, ...updates }));
   }, []);
 
   // Data loading actions
@@ -380,13 +368,7 @@ export const useChartStateManager = (
         const totalDataPoints = dataPoints + bufferSize;
 
         // Load more chart data from API
-        const response = await apiService.getChartData(
-          symbol,
-          timeframe,
-          totalDataPoints,
-          startTime,
-          direction
-        );
+        const response = await apiService.getChartData(symbol, timeframe, totalDataPoints, startTime, direction);
 
         // Process the new data
         const { formattedData } = processChartData(response.bars);
@@ -413,7 +395,7 @@ export const useChartStateManager = (
         // Remove duplicates based on timestamp
         const uniqueData = updatedAllData.reduce((acc, current) => {
           const currentTime = getCandleTime(current);
-          const existing = acc.find((item) => getCandleTime(item) === currentTime);
+          const existing = acc.find(item => getCandleTime(item) === currentTime);
           if (!existing) {
             acc.push(current);
           }
@@ -421,9 +403,7 @@ export const useChartStateManager = (
         }, [] as CandlestickData[]);
 
         // Sort by timestamp to maintain chronological order
-        uniqueData.sort(
-          (a, b) => new Date(getCandleTime(a)).getTime() - new Date(getCandleTime(b)).getTime()
-        );
+        uniqueData.sort((a, b) => new Date(getCandleTime(a)).getTime() - new Date(getCandleTime(b)).getTime());
 
         return uniqueData;
       });
@@ -452,7 +432,7 @@ export const useChartStateManager = (
     };
 
     // Update chart data directly
-    setState((prev) => {
+    setState(prev => {
       const lastCandle = prev.allData[prev.allData.length - 1];
       let updatedAllData: CandlestickData[];
 
@@ -480,7 +460,7 @@ export const useChartStateManager = (
       // Use centralized default view size
       const newStartIndex = Math.max(0, newEndIndex - CHART_DATA_POINTS + 1);
 
-      setState((prev) => ({
+      setState(prev => ({
         ...prev,
         currentViewStart: newStartIndex,
         currentViewEnd: newEndIndex,

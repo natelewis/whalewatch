@@ -216,7 +216,7 @@ describe('PageHeader', () => {
   it('handles localStorage errors gracefully', () => {
     // Mock console.warn to avoid test output noise
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    
+
     mockGetLocalStorageItem.mockImplementation(() => {
       throw new Error('localStorage error');
     });
@@ -235,7 +235,7 @@ describe('PageHeader', () => {
 
     // Should render the component despite localStorage error
     expect(screen.getByText('Test Page')).toBeInTheDocument();
-    
+
     consoleSpy.mockRestore();
   });
 });

@@ -42,11 +42,13 @@ This guide will help you set up Auth0 authentication for the WhaleWatch applicat
 ## Step 3: Configure Environment Variables
 
 1. Copy the server environment example:
+
    ```bash
    cp server/env.example server/.env
    ```
 
 2. Update `server/.env` with your Auth0 credentials:
+
    ```env
    # Auth0 Configuration
    AUTH0_DOMAIN=your-tenant.auth0.com
@@ -63,11 +65,13 @@ This guide will help you set up Auth0 authentication for the WhaleWatch applicat
    ```
 
 3. Copy the dashboard environment example:
+
    ```bash
    cp dashboard/env.example dashboard/.env
    ```
 
 4. Update `dashboard/.env` with your Auth0 credentials:
+
    ```env
    # API Configuration
    VITE_API_URL=http://localhost:3001
@@ -86,6 +90,7 @@ This guide will help you set up Auth0 authentication for the WhaleWatch applicat
 ## Step 4: Install Dependencies
 
 1. Install server dependencies:
+
    ```bash
    cd server
    npm install
@@ -100,6 +105,7 @@ This guide will help you set up Auth0 authentication for the WhaleWatch applicat
 ## Step 5: Start the Application
 
 1. Start the server:
+
    ```bash
    cd server
    npm run dev
@@ -161,6 +167,7 @@ For production deployment:
 ### Debug Mode
 
 To enable debug logging, set:
+
 ```env
 DEBUG=auth0:*
 ```
@@ -176,6 +183,7 @@ DEBUG=auth0:*
 ## Auth0 Scopes
 
 The application requests the following scopes:
+
 - `openid`: Required for OpenID Connect
 - `profile`: Access to basic profile information
 - `email`: Access to email address
@@ -185,6 +193,7 @@ These are the minimum required scopes for user authentication.
 ## User Data
 
 The application stores the following user data from Auth0:
+
 - Auth0 ID (sub claim)
 - Email address
 - Display name
@@ -197,6 +206,7 @@ This data is stored in memory for the demo. In production, you should use a prop
 ### Custom Login Page
 
 You can customize the Auth0 login page:
+
 1. Go to "Branding" > "Universal Login" in Auth0 Dashboard
 2. Customize the login page with your branding
 3. Configure custom domains if needed
@@ -204,6 +214,7 @@ You can customize the Auth0 login page:
 ### Social Connections
 
 To enable social logins (Google, GitHub, etc.):
+
 1. Go to "Authentication" > "Social" in Auth0 Dashboard
 2. Enable the desired social connections
 3. Configure the social provider credentials
@@ -211,6 +222,7 @@ To enable social logins (Google, GitHub, etc.):
 ### Rules and Hooks
 
 You can add custom logic using Auth0 Rules or Hooks:
+
 1. Go to "Auth0 Pipeline" > "Rules" or "Hooks"
 2. Create custom rules for user data transformation
 3. Add custom logic for user registration

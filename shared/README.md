@@ -22,16 +22,17 @@ try {
   const response = await apiService.getAccount();
   setAccount(response.account);
 } catch (err: unknown) {
-  const errorMessage = err instanceof Error && 
-    'response' in err && 
-    typeof err.response === 'object' && 
-    err.response !== null && 
-    'data' in err.response && 
-    typeof err.response.data === 'object' && 
-    err.response.data !== null && 
-    'error' in err.response.data && 
-    typeof err.response.data.error === 'string' 
-      ? err.response.data.error 
+  const errorMessage =
+    err instanceof Error &&
+    'response' in err &&
+    typeof err.response === 'object' &&
+    err.response !== null &&
+    'data' in err.response &&
+    typeof err.response.data === 'object' &&
+    err.response.data !== null &&
+    'error' in err.response.data &&
+    typeof err.response.data.error === 'string'
+      ? err.response.data.error
       : 'Failed to load account data';
   setError(errorMessage);
 }
@@ -52,7 +53,7 @@ if (result.isOk()) {
 ### Available Utilities
 
 - `safeCall(fn)` - Wrap sync functions that might throw
-- `safeCallAsync(fn)` - Wrap async functions that might throw  
+- `safeCallAsync(fn)` - Wrap async functions that might throw
 - `parseError(error)` - Parse any error into a structured format
 - `createUserFriendlyMessage(error)` - Convert technical errors to user-friendly messages
 - `createReactErrorHandler(setError)` - Create React error handlers
@@ -61,8 +62,9 @@ if (result.isOk()) {
 ### Error Types
 
 The system automatically categorizes errors into types like:
+
 - `NETWORK_ERROR`
-- `VALIDATION_ERROR` 
+- `VALIDATION_ERROR`
 - `AUTHENTICATION_ERROR`
 - `AUTHORIZATION_ERROR`
 - `RATE_LIMIT_ERROR`

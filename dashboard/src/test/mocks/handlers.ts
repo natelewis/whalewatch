@@ -90,7 +90,7 @@ const mockOptionsTrades: AlpacaOptionsTrade[] = [
     id: 'trade-1',
     symbol: 'TSLA',
     timestamp: '2024-01-01T10:00:00Z',
-    price: 5.50,
+    price: 5.5,
     size: 100,
     side: 'buy',
     conditions: ['regular'],
@@ -121,14 +121,17 @@ export const handlers = [
   }),
 
   http.post('http://localhost:3001/api/auth/register', () => {
-    return HttpResponse.json({
-      token: 'mock-jwt-token',
-      user: {
-        id: '2',
-        email: 'newuser@whalewatch.com',
-        name: 'New User',
+    return HttpResponse.json(
+      {
+        token: 'mock-jwt-token',
+        user: {
+          id: '2',
+          email: 'newuser@whalewatch.com',
+          name: 'New User',
+        },
       },
-    }, { status: 201 });
+      { status: 201 }
+    );
   }),
 
   http.get('http://localhost:3001/api/auth/verify', () => {
@@ -174,31 +177,37 @@ export const handlers = [
 
   // Order endpoints
   http.post('http://localhost:3001/api/orders/sell', () => {
-    return HttpResponse.json({
-      message: 'Order created successfully',
-      order: {
-        id: 'order-123',
-        symbol: 'AAPL',
-        qty: '10',
-        side: 'sell',
-        type: 'limit',
-        status: 'new',
+    return HttpResponse.json(
+      {
+        message: 'Order created successfully',
+        order: {
+          id: 'order-123',
+          symbol: 'AAPL',
+          qty: '10',
+          side: 'sell',
+          type: 'limit',
+          status: 'new',
+        },
       },
-    }, { status: 201 });
+      { status: 201 }
+    );
   }),
 
   http.post('http://localhost:3001/api/orders/buy', () => {
-    return HttpResponse.json({
-      message: 'Order created successfully',
-      order: {
-        id: 'order-124',
-        symbol: 'AAPL',
-        qty: '10',
-        side: 'buy',
-        type: 'market',
-        status: 'new',
+    return HttpResponse.json(
+      {
+        message: 'Order created successfully',
+        order: {
+          id: 'order-124',
+          symbol: 'AAPL',
+          qty: '10',
+          side: 'buy',
+          type: 'market',
+          status: 'new',
+        },
       },
-    }, { status: 201 });
+      { status: 201 }
+    );
   }),
 
   // Health check

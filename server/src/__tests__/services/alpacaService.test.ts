@@ -180,9 +180,7 @@ describe('AlpacaService', () => {
       const result = await alpacaService.getOptionsTrades('AAPL', 1);
 
       expect(result).toEqual([]);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'getOptionsTrades called on AlpacaService - use QuestDB routes instead'
-      );
+      expect(consoleSpy).toHaveBeenCalledWith('getOptionsTrades called on AlpacaService - use QuestDB routes instead');
 
       consoleSpy.mockRestore();
     });

@@ -49,9 +49,7 @@ describe('Auth Routes', () => {
         googleId: 'google-123456789',
       });
 
-      const response = await request(app)
-        .get('/api/auth/verify')
-        .set('Authorization', 'Bearer valid-token');
+      const response = await request(app).get('/api/auth/verify').set('Authorization', 'Bearer valid-token');
 
       expect(response.status).toBe(200);
       expect(response.body.user.id).toBe('test-user-id');
@@ -63,9 +61,7 @@ describe('Auth Routes', () => {
     });
 
     it('should reject invalid token', async () => {
-      const response = await request(app)
-        .get('/api/auth/verify')
-        .set('Authorization', 'Bearer invalid-token');
+      const response = await request(app).get('/api/auth/verify').set('Authorization', 'Bearer invalid-token');
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error', 'Invalid token');

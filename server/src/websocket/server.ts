@@ -58,7 +58,7 @@ export const setupWebSocketServer = (server: Server): void => {
     });
 
     // Handle errors
-    ws.on('error', (error) => {
+    ws.on('error', error => {
       console.error('WebSocket error:', error);
     });
 
@@ -93,17 +93,18 @@ const handleClientMessage = (ws: AuthenticatedWebSocket, message: WebSocketMessa
       }
       break;
     case 'ping':
-      sendMessage(ws, { type: 'pong', data: {}, timestamp: new Date().toISOString() });
+      sendMessage(ws, {
+        type: 'pong',
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
       break;
     default:
       sendError(ws, 'Unknown message type');
   }
 };
 
-const handleSubscription = (
-  ws: AuthenticatedWebSocket,
-  data: { channel: string; symbol?: string }
-): void => {
+const handleSubscription = (ws: AuthenticatedWebSocket, data: { channel: string; symbol?: string }): void => {
   const { channel, symbol } = data;
 
   if (!channel) {
@@ -148,10 +149,7 @@ const handleSubscription = (
   });
 };
 
-const handleUnsubscription = (
-  ws: AuthenticatedWebSocket,
-  data: { channel: string; symbol?: string }
-): void => {
+const handleUnsubscription = (ws: AuthenticatedWebSocket, data: { channel: string; symbol?: string }): void => {
   const { channel, symbol } = data;
 
   if (!channel) {
@@ -197,12 +195,12 @@ const handleUnsubscription = (
 
 const initializeQuestDBConnection = (wss: WebSocketServer): void => {
   // Start QuestDB streaming
-  questdbWebSocketService.startStreaming().catch((error) => {
+  questdbWebSocketService.startStreaming().catch(error => {
     console.error('Failed to start QuestDB streaming:', error);
   });
 
   // Handle real-time option trades from QuestDB
-  questdbWebSocketService.on('option_trade', (message) => {
+  questdbWebSocketService.on('option_trade', message => {
     console.log('✅ Broadcasting option trade from QuestDB:', {
       symbol: message.symbol,
       underlying_ticker: message.underlying_ticker,
@@ -213,7 +211,7 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
   });
 
   // Handle real-time stock trades from QuestDB
-  questdbWebSocketService.on('stock_trade', (message) => {
+  questdbWebSocketService.on('stock_trade', message => {
     console.log('✅ Broadcasting stock trade from QuestDB:', {
       symbol: message.symbol,
       price: message.data.price,
@@ -232,7 +230,7 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
   });
 
   // Handle real-time stock aggregates from QuestDB
-  questdbWebSocketService.on('stock_aggregate', (message) => {
+  questdbWebSocketService.on('stock_aggregate', message => {
     console.log('✅ Broadcasting stock aggregate from QuestDB:', {
       symbol: message.symbol,
       close: message.data.close,
@@ -259,7 +257,7 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
   });
 
   // Handle errors from QuestDB WebSocket
-  questdbWebSocketService.on('error', (error) => {
+  questdbWebSocketService.on('error', error => {
     console.error('❌ QuestDB WebSocket error:', error.message);
     // Don't broadcast errors to clients, just log them
   });
@@ -286,15 +284,12 @@ const broadcastToSubscribers = (
     timestamp: new Date().toISOString(),
   };
 
-  wss.clients.forEach((client) => {
+  wss.clients.forEach(client => {
     const authenticatedClient = client as AuthenticatedWebSocket;
     if (client.readyState === WebSocket.OPEN) {
       const subscriptionKey = symbol ? `${channel}:${symbol}` : channel;
 
-      if (
-        authenticatedClient.subscriptions.has(subscriptionKey) ||
-        authenticatedClient.subscriptions.has(channel)
-      ) {
+      if (authenticatedClient.subscriptions.has(subscriptionKey) || authenticatedClient.subscriptions.has(channel)) {
         client.send(JSON.stringify(message));
       }
     }

@@ -45,20 +45,18 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log(
-            `Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`
-          );
+          console.log(`Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`);
           connect();
         }, delay);
       }
     };
 
-    ws.onerror = (error) => {
+    ws.onerror = error => {
       console.error('WebSocket error:', error);
       options.onError?.(error);
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = event => {
       const result = safeCall(() => {
         return JSON.parse(event.data) as WebSocketMessage;
       });

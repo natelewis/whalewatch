@@ -10,11 +10,9 @@ export const useChartDataProcessor = (data: CandlestickData[]) => {
   // Memoized sorted data to avoid repeated sorting
   const processedData = useMemo(() => {
     if (!data || data.length === 0) {
-return [];
-}
-    return [...data].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+      return [];
+    }
+    return [...data].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [data]);
 
   // Validate data is valid and non-empty
@@ -26,8 +24,8 @@ return [];
   const getVisibleData = useCallback(
     (startIndex: number, endIndex: number): CandlestickData[] => {
       if (!isValidData) {
-return [];
-}
+        return [];
+      }
       return memoizedGetVisibleData(processedData, startIndex, endIndex);
     },
     [processedData, isValidData]
@@ -36,8 +34,8 @@ return [];
   // Get data range info
   const getDataRange = useCallback(() => {
     if (!isValidData) {
-return null;
-}
+      return null;
+    }
 
     return {
       start: 0,
@@ -51,8 +49,8 @@ return null;
   // Get price range for Y-axis scaling using memoized function
   const getPriceRange = useCallback(() => {
     if (!isValidData) {
-return null;
-}
+      return null;
+    }
     return memoizedGetPriceRange(processedData);
   }, [processedData, isValidData]);
 
@@ -60,9 +58,9 @@ return null;
   const findDataByTime = useCallback(
     (time: string): CandlestickData | null => {
       if (!isValidData) {
-return null;
-}
-      return processedData.find((d) => d.timestamp === time) || null;
+        return null;
+      }
+      return processedData.find(d => d.timestamp === time) || null;
     },
     [processedData, isValidData]
   );
@@ -71,8 +69,8 @@ return null;
   const findDataByIndex = useCallback(
     (index: number): CandlestickData | null => {
       if (!isValidData || index < 0 || index >= processedData.length) {
-return null;
-}
+        return null;
+      }
       return processedData[index];
     },
     [processedData, isValidData]

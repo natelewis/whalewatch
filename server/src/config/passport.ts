@@ -7,11 +7,8 @@ import { User } from '../types';
 // Google OAuth configuration
 const googleConfig = {
   clientID: secretValidator.getSecret('GOOGLE_CLIENT_ID') || 'your_google_client_id_here',
-  clientSecret:
-    secretValidator.getSecret('GOOGLE_CLIENT_SECRET') || 'your_google_client_secret_here',
-  callbackURL:
-    secretValidator.getSecret('GOOGLE_CALLBACK_URL') ||
-    'http://localhost:3001/api/auth/google/callback',
+  clientSecret: secretValidator.getSecret('GOOGLE_CLIENT_SECRET') || 'your_google_client_secret_here',
+  callbackURL: secretValidator.getSecret('GOOGLE_CALLBACK_URL') || 'http://localhost:3001/api/auth/google/callback',
 };
 
 // Mock user database - in production, use a real database
@@ -24,10 +21,7 @@ const users: Array<{
 }> = [];
 
 // Configure Google OAuth strategy only if properly configured
-if (
-  secretValidator.hasSecret('GOOGLE_CLIENT_ID') &&
-  secretValidator.hasSecret('GOOGLE_CLIENT_SECRET')
-) {
+if (secretValidator.hasSecret('GOOGLE_CLIENT_ID') && secretValidator.hasSecret('GOOGLE_CLIENT_SECRET')) {
   console.log('✅ Initializing Google OAuth strategy');
   console.log('  Config:', {
     clientID: googleConfig.clientID,
@@ -50,7 +44,7 @@ if (
           }
 
           // Check if user already exists
-          const user = users.find((u) => u.googleId === googleId);
+          const user = users.find(u => u.googleId === googleId);
 
           if (user) {
             // Update existing user
@@ -93,7 +87,7 @@ passport.serializeUser((user: User, done) => {
 
 // Deserialize user from session
 passport.deserializeUser((id: string, done) => {
-  const user = users.find((u) => u.id === id);
+  const user = users.find(u => u.id === id);
   done(null, user || null);
 });
 

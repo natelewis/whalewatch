@@ -79,12 +79,7 @@ export function parseError(error: unknown): AppError {
  * Type guard for Axios errors
  */
 function isAxiosError(error: unknown): error is AxiosError {
-  return (
-    error !== null &&
-    typeof error === 'object' &&
-    'isAxiosError' in error &&
-    error.isAxiosError === true
-  );
+  return error !== null && typeof error === 'object' && 'isAxiosError' in error && error.isAxiosError === true;
 }
 
 /**
@@ -174,14 +169,14 @@ export function safeCall<T>(fn: () => T): Result<T, AppError> {
  * Wrap an async function that might throw into a ResultAsync
  */
 export function safeCallAsync<T>(fn: () => Promise<T>): ResultAsync<T, AppError> {
-  return ResultAsync.fromPromise(fn(), (error) => parseError(error));
+  return ResultAsync.fromPromise(fn(), error => parseError(error));
 }
 
 /**
  * Convert a Promise that might reject into a ResultAsync
  */
 export function safePromise<T>(promise: Promise<T>): ResultAsync<T, AppError> {
-  return ResultAsync.fromPromise(promise, (error) => parseError(error));
+  return ResultAsync.fromPromise(promise, error => parseError(error));
 }
 
 /**
@@ -235,9 +230,7 @@ export function createReactErrorHandler(setError: (error: string) => void) {
 /**
  * Create an Express error handler
  */
-export function createExpressErrorHandler(res: {
-  status: (code: number) => { json: (data: unknown) => void };
-}) {
+export function createExpressErrorHandler(res: { status: (code: number) => { json: (data: unknown) => void } }) {
   return (error: unknown) => {
     const parsedError = parseError(error);
     const userMessage = createUserFriendlyMessage(parsedError);

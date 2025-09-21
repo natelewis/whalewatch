@@ -6,13 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 // Mock the StockChart component
 jest.mock('../../components/StockChart', () => ({
   __esModule: true,
-  default: ({
-    symbol,
-    onSymbolChange,
-  }: {
-    symbol: string;
-    onSymbolChange: (symbol: string) => void;
-  }) => (
+  default: ({ symbol, onSymbolChange }: { symbol: string; onSymbolChange: (symbol: string) => void }) => (
     <div data-testid="stock-chart">
       <span>Stock Chart for {symbol}</span>
       <button onClick={() => onSymbolChange('AAPL')}>Change to AAPL</button>

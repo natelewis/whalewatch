@@ -16,7 +16,7 @@ describe('SecretValidator', () => {
     originalEnv = { ...process.env };
 
     // Clear all environment variables
-    Object.keys(process.env).forEach((key) => {
+    Object.keys(process.env).forEach(key => {
       if (
         key.startsWith('ALPACA_') ||
         key.startsWith('JWT_') ||
@@ -106,7 +106,7 @@ describe('SecretValidator', () => {
       const result = secretValidator.validateSecrets();
 
       expect(result.warnings.length).toBeGreaterThan(0);
-      expect(result.warnings.some((warning) => warning.includes('optional'))).toBe(true);
+      expect(result.warnings.some(warning => warning.includes('optional'))).toBe(true);
     });
 
     it('should handle empty string values as missing', () => {
@@ -217,7 +217,7 @@ describe('SecretValidator', () => {
 
       expect(authSecrets.length).toBeGreaterThan(0);
       expect(
-        authSecrets.every((secret) =>
+        authSecrets.every(secret =>
           [
             'JWT_SECRET',
             'JWT_EXPIRES_IN',
@@ -236,10 +236,8 @@ describe('SecretValidator', () => {
 
       expect(tradingSecrets.length).toBeGreaterThan(0);
       expect(
-        tradingSecrets.every((secret) =>
-          ['ALPACA_API_KEY', 'ALPACA_SECRET_KEY', 'ALPACA_BASE_URL', 'ALPACA_DATA_URL'].includes(
-            secret.name
-          )
+        tradingSecrets.every(secret =>
+          ['ALPACA_API_KEY', 'ALPACA_SECRET_KEY', 'ALPACA_BASE_URL', 'ALPACA_DATA_URL'].includes(secret.name)
         )
       ).toBe(true);
     });
@@ -249,9 +247,7 @@ describe('SecretValidator', () => {
       const serverSecrets = secretValidator.getSecretsByCategory('server');
 
       expect(serverSecrets.length).toBeGreaterThan(0);
-      expect(
-        serverSecrets.every((secret) => ['PORT', 'NODE_ENV', 'CORS_ORIGIN'].includes(secret.name))
-      ).toBe(true);
+      expect(serverSecrets.every(secret => ['PORT', 'NODE_ENV', 'CORS_ORIGIN'].includes(secret.name))).toBe(true);
     });
 
     it('should return test secrets', () => {
@@ -259,11 +255,9 @@ describe('SecretValidator', () => {
       const testSecrets = secretValidator.getSecretsByCategory('test');
 
       expect(testSecrets.length).toBeGreaterThan(0);
-      expect(
-        testSecrets.every((secret) =>
-          ['TEST_ALPACA_API_KEY', 'TEST_ALPACA_SECRET_KEY'].includes(secret.name)
-        )
-      ).toBe(true);
+      expect(testSecrets.every(secret => ['TEST_ALPACA_API_KEY', 'TEST_ALPACA_SECRET_KEY'].includes(secret.name))).toBe(
+        true
+      );
     });
   });
 
@@ -296,7 +290,7 @@ describe('SecretValidator', () => {
       secretValidator = createValidator();
       const authSecrets = secretValidator.getSecretsByCategory('auth');
 
-      authSecrets.forEach((secret) => {
+      authSecrets.forEach(secret => {
         expect(secret).toHaveProperty('name');
         expect(secret).toHaveProperty('value');
         expect(secret).toHaveProperty('required');
@@ -312,10 +306,10 @@ describe('SecretValidator', () => {
       const tradingSecrets = secretValidator.getSecretsByCategory('trading');
 
       const sensitiveSecrets = tradingSecrets.filter(
-        (secret) => secret.name.includes('KEY') || secret.name.includes('SECRET')
+        secret => secret.name.includes('KEY') || secret.name.includes('SECRET')
       );
 
-      sensitiveSecrets.forEach((secret) => {
+      sensitiveSecrets.forEach(secret => {
         expect(secret.maskValue).toBe(true);
       });
     });
@@ -330,9 +324,9 @@ describe('SecretValidator', () => {
         const missingSecrets = secretValidator.getMissingSecrets();
 
         expect(missingSecrets.length).toBeGreaterThan(0);
-        expect(missingSecrets.every((secret) => secret.required)).toBe(true);
-        expect(missingSecrets.some((secret) => secret.name === 'ALPACA_API_KEY')).toBe(true);
-        expect(missingSecrets.some((secret) => secret.name === 'JWT_SECRET')).toBe(false);
+        expect(missingSecrets.every(secret => secret.required)).toBe(true);
+        expect(missingSecrets.some(secret => secret.name === 'ALPACA_API_KEY')).toBe(true);
+        expect(missingSecrets.some(secret => secret.name === 'JWT_SECRET')).toBe(false);
       });
     });
 
@@ -345,8 +339,8 @@ describe('SecretValidator', () => {
         const presentSecrets = secretValidator.getPresentSecrets();
 
         expect(presentSecrets.length).toBe(2);
-        expect(presentSecrets.some((secret) => secret.name === 'ALPACA_API_KEY')).toBe(true);
-        expect(presentSecrets.some((secret) => secret.name === 'JWT_SECRET')).toBe(true);
+        expect(presentSecrets.some(secret => secret.name === 'ALPACA_API_KEY')).toBe(true);
+        expect(presentSecrets.some(secret => secret.name === 'JWT_SECRET')).toBe(true);
       });
     });
 
@@ -356,9 +350,9 @@ describe('SecretValidator', () => {
         const missingOptional = secretValidator.getMissingOptionalSecrets();
 
         expect(missingOptional.length).toBeGreaterThan(0);
-        expect(missingOptional.every((secret) => !secret.required)).toBe(true);
-        expect(missingOptional.some((secret) => secret.name === 'PORT')).toBe(true);
-        expect(missingOptional.some((secret) => secret.name === 'ALPACA_BASE_URL')).toBe(true);
+        expect(missingOptional.every(secret => !secret.required)).toBe(true);
+        expect(missingOptional.some(secret => secret.name === 'PORT')).toBe(true);
+        expect(missingOptional.some(secret => secret.name === 'ALPACA_BASE_URL')).toBe(true);
       });
     });
 

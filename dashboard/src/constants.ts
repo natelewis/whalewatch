@@ -30,7 +30,4 @@ export const CHART_HEIGHT_OFFSET = 100; // Height offset for chart container
 export const RIGHT_EDGE_CHECK_INTERVAL = 1000; // ms
 
 // Defaults sourced from environment
-export const DEFAULT_CHART_DATA_POINTS = parseInt(
-  import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '500',
-  10
-);
+export const DEFAULT_CHART_DATA_POINTS = parseInt(import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '500', 10);

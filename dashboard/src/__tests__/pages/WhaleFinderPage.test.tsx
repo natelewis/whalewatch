@@ -117,9 +117,7 @@ describe('WhaleFinderPage', () => {
     renderWithRouter(<WhaleFinderPage />);
 
     expect(screen.getByText('Whale Finder')).toBeInTheDocument();
-    expect(
-      screen.getByText('Monitor large options trades and discover whale activity')
-    ).toBeInTheDocument();
+    expect(screen.getByText('Monitor large options trades and discover whale activity')).toBeInTheDocument();
   });
 
   it('renders the whale feed section', () => {

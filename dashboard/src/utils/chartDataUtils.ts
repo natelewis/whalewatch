@@ -15,7 +15,7 @@ export const deduplicateAndSortBars = (bars: AlpacaBar[]): AlpacaBar[] => {
   return bars
     .reduce((acc, bar) => {
       const timestamp = bar.t;
-      if (!acc.find((b) => b.t === timestamp)) {
+      if (!acc.find(b => b.t === timestamp)) {
         acc.push(bar);
       }
       return acc;
@@ -27,7 +27,7 @@ export const deduplicateAndSortBars = (bars: AlpacaBar[]): AlpacaBar[] => {
  * Convert AlpacaBar data to CandlestickData format
  */
 export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[] => {
-  return bars.map((bar) => ({
+  return bars.map(bar => ({
     timestamp: bar.t,
     open: bar.o,
     high: bar.h,
@@ -54,11 +54,8 @@ export const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
 /**
  * Get data points count for a given timeframe
  */
-export const getDataPointsForTimeframe = (
-  timeframe: ChartTimeframe,
-  timeframes: TimeframeConfig[]
-): number => {
-  const timeframeConfig = timeframes.find((tf) => tf.value === timeframe);
+export const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes: TimeframeConfig[]): number => {
+  const timeframeConfig = timeframes.find(tf => tf.value === timeframe);
   return timeframeConfig?.limit || DEFAULT_CHART_DATA_POINTS;
 };
 
@@ -98,9 +95,7 @@ export const calculateInnerDimensions = (dimensions: {
 /**
  * Apply consistent styling to axis elements
  */
-export const applyAxisStyling = (
-  axis: d3.Selection<SVGGElement, unknown, null, undefined>
-): void => {
+export const applyAxisStyling = (axis: d3.Selection<SVGGElement, unknown, null, undefined>): void => {
   // Style the domain lines to be gray and remove end tick marks (nubs)
   axis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
 
@@ -112,10 +107,7 @@ export const applyAxisStyling = (
 /**
  * Calculate dynamic tick values for time-based scale (every 20 data points)
  */
-export const calculateTimeBasedTickValues = (
-  allChartData: { timestamp: string }[],
-  interval: number = 20
-): Date[] => {
+export const calculateTimeBasedTickValues = (allChartData: { timestamp: string }[], interval: number = 20): Date[] => {
   const tickValues: Date[] = [];
 
   // Generate ticks every 'interval' data points
@@ -162,9 +154,7 @@ export const createUnifiedTimeScale = (
   const endIndex = Math.min(allChartData.length - 1, Math.ceil(domainEnd));
 
   const startTime = new Date(allChartData[startIndex]?.timestamp || allChartData[0].timestamp);
-  const endTime = new Date(
-    allChartData[endIndex]?.timestamp || allChartData[allChartData.length - 1].timestamp
-  );
+  const endTime = new Date(allChartData[endIndex]?.timestamp || allChartData[allChartData.length - 1].timestamp);
 
   // Create time-based scale with the same range as the transformed linear scale
   // This ensures perfect alignment with the linear scale's positioning
@@ -195,9 +185,7 @@ export const createIndexToTimeScale = (
   }
 
   if (!allChartData[0] || !allChartData[0].timestamp) {
-    console.warn(
-      'createIndexToTimeScale called with invalid chart data - missing timestamp property'
-    );
+    console.warn('createIndexToTimeScale called with invalid chart data - missing timestamp property');
     const defaultScale = d3.scaleTime();
     defaultScale.domain([new Date(), new Date()]);
     defaultScale.range([0, 1]);
@@ -227,9 +215,12 @@ export const createXAxis = (
   const axis = d3
     .axisBottom(scale)
     .tickSizeOuter(0)
-    .tickFormat((d) => {
+    .tickFormat(d => {
       const date = d as Date;
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     });
 
   // Use custom tick values if provided, otherwise use the new time-based tick generation
@@ -273,7 +264,7 @@ export const createCustomTimeAxis = (
         .attr('d', `M${range[0]},0V0H${range[1]}V0`);
 
       // Create custom ticks that align with data points
-      const tickData = timeTicks.map((tick) => {
+      const tickData = timeTicks.map(tick => {
         // Find the closest data point by time
         let closestIndex = 0;
         let minTimeDiff = Math.abs(new Date(allChartData[0].timestamp).getTime() - tick.getTime());
@@ -303,7 +294,7 @@ export const createCustomTimeAxis = (
         .enter()
         .append('g')
         .attr('class', 'tick')
-        .attr('transform', (d) => `translate(${d.position},0)`);
+        .attr('transform', d => `translate(${d.position},0)`);
 
       // Add tick line
       tickSelection.append('line').attr('stroke', '#666').attr('stroke-width', 1).attr('y2', 6);
@@ -316,8 +307,11 @@ export const createCustomTimeAxis = (
         .attr('text-anchor', 'middle')
         .style('font-size', '12px')
         .style('fill', '#666')
-        .text((d) =>
-          d.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        .text(d =>
+          d.timestamp.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
         );
     });
   };
@@ -328,10 +322,7 @@ export const createCustomTimeAxis = (
 /**
  * Create Y-axis with consistent configuration
  */
-export const createYAxis = (
-  scale: d3.ScaleLinear<number, number>,
-  tickCount: number = 10
-): d3.Axis<d3.NumberValue> => {
+export const createYAxis = (scale: d3.ScaleLinear<number, number>, tickCount: number = 10): d3.Axis<d3.NumberValue> => {
   return d3.axisRight(scale).tickSizeOuter(0).ticks(tickCount).tickFormat(d3.format('.2f'));
 };
 
@@ -401,10 +392,7 @@ export const hasRequiredChartParams = (params: {
 /**
  * Fill missing intervals for any timeframe data
  */
-export const fillMissingMinutes = (
-  data: CandlestickData[],
-  timeframe: ChartTimeframe
-): CandlestickData[] => {
+export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTimeframe): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }

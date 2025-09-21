@@ -43,10 +43,7 @@ function getIntervalMinutes(interval: AggregationInterval): number {
 /**
  * Aggregate stock data with the new system that skips intervals without data
  */
-function aggregateDataWithIntervals(
-  data: QuestDBStockAggregate[],
-  params: ChartQueryParams
-): QuestDBStockAggregate[] {
+function aggregateDataWithIntervals(data: QuestDBStockAggregate[], params: ChartQueryParams): QuestDBStockAggregate[] {
   if (data.length === 0) {
     return data;
   }
@@ -56,9 +53,7 @@ function aggregateDataWithIntervals(
   const startTime = new Date(params.startTime).getTime();
 
   // Sort data by timestamp to ensure proper aggregation
-  const sortedData = [...data].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
+  const sortedData = [...data].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   // For 1-minute intervals, no aggregation needed - just return the data
   if (intervalMinutes === 1) {
@@ -144,9 +139,7 @@ function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
   }
 
   // Sort by timestamp to ensure proper order
-  const sortedGroup = group.sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
+  const sortedGroup = group.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   const first = sortedGroup[0];
   const last = sortedGroup[sortedGroup.length - 1];
@@ -155,8 +148,8 @@ function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
     symbol: first.symbol,
     timestamp: first.timestamp, // Use the first timestamp as the bar timestamp
     open: first.open,
-    high: Math.max(...sortedGroup.map((item) => item.high)),
-    low: Math.min(...sortedGroup.map((item) => item.low)),
+    high: Math.max(...sortedGroup.map(item => item.high)),
+    low: Math.min(...sortedGroup.map(item => item.low)),
     close: last.close,
     volume: sortedGroup.reduce((sum, item) => sum + item.volume, 0),
     vwap:
@@ -191,9 +184,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     const intervalKey = interval as AggregationInterval;
     if (!AGGREGATION_INTERVALS[intervalKey]) {
       return res.status(400).json({
-        error: `Invalid interval. Supported intervals: ${Object.keys(AGGREGATION_INTERVALS).join(
-          ', '
-        )}`,
+        error: `Invalid interval. Supported intervals: ${Object.keys(AGGREGATION_INTERVALS).join(', ')}`,
       });
     }
 
@@ -268,14 +259,10 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     console.log(`🔍 DEBUG: Retrieved ${aggregates.length} raw aggregates for ${symbol}`);
 
     if (aggregates.length > 0) {
-      console.log(
-        `🔍 DEBUG: Data range: ${aggregates[0].timestamp} to ${
-          aggregates[aggregates.length - 1].timestamp
-        }`
-      );
+      console.log(`🔍 DEBUG: Data range: ${aggregates[0].timestamp} to ${aggregates[aggregates.length - 1].timestamp}`);
       console.log(
         `🔍 DEBUG: First few records:`,
-        aggregates.slice(0, 3).map((agg) => ({ timestamp: agg.timestamp, close: agg.close }))
+        aggregates.slice(0, 3).map(agg => ({ timestamp: agg.timestamp, close: agg.close }))
       );
 
       // For past direction, we got data in DESC order (most recent first), but we need ASC order for display
@@ -291,31 +278,30 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     // If no data found, return empty result
     if (aggregates.length === 0) {
-      console.log(
-        `No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`
-      );
+      console.log(`No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`);
     }
 
     // Remove duplicates by timestamp and aggregate them properly
-    const uniqueAggregates = aggregates.reduce((acc, agg) => {
-      const timestamp = agg.timestamp;
-      const existing = acc.find((a) => a.timestamp === timestamp);
+    const uniqueAggregates = aggregates.reduce(
+      (acc, agg) => {
+        const timestamp = agg.timestamp;
+        const existing = acc.find(a => a.timestamp === timestamp);
 
-      if (!existing) {
-        acc.push(agg);
-      } else {
-        // If duplicate found, aggregate the data properly
-        existing.high = Math.max(existing.high, agg.high);
-        existing.low = Math.min(existing.low, agg.low);
-        existing.close = agg.close; // Use the latest close price
-        existing.volume += agg.volume;
-        existing.transaction_count += agg.transaction_count;
-        existing.vwap =
-          (existing.vwap * existing.volume + agg.vwap * agg.volume) /
-          (existing.volume + agg.volume);
-      }
-      return acc;
-    }, [] as typeof aggregates);
+        if (!existing) {
+          acc.push(agg);
+        } else {
+          // If duplicate found, aggregate the data properly
+          existing.high = Math.max(existing.high, agg.high);
+          existing.low = Math.min(existing.low, agg.low);
+          existing.close = agg.close; // Use the latest close price
+          existing.volume += agg.volume;
+          existing.transaction_count += agg.transaction_count;
+          existing.vwap = (existing.vwap * existing.volume + agg.vwap * agg.volume) / (existing.volume + agg.volume);
+        }
+        return acc;
+      },
+      [] as typeof aggregates
+    );
 
     // Aggregate data using the new system that skips intervals without data
     const aggregatedData = aggregateDataWithIntervals(uniqueAggregates, chartParams);
@@ -328,7 +314,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     }
 
     // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
-    const bars = aggregatedData.map((agg) => ({
+    const bars = aggregatedData.map(agg => ({
       t: agg.timestamp,
       o: agg.open,
       h: agg.high,

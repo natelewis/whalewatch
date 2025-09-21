@@ -123,10 +123,7 @@ export class QuestDBWebSocketService extends EventEmitter {
   /**
    * Poll data for a specific subscription
    */
-  private async pollSubscriptionData(
-    key: string,
-    subscription: QuestDBSubscription
-  ): Promise<void> {
+  private async pollSubscriptionData(key: string, subscription: QuestDBSubscription): Promise<void> {
     const lastTimestamp = this.lastTimestamps.get(key);
     const now = new Date().toISOString();
 
@@ -295,9 +292,7 @@ export class QuestDBWebSocketService extends EventEmitter {
     console.log(`🔍 Polling stock aggregates for ${subscription.symbol}:`, {
       lastTimestamp: lastTimestamp || 'none (first poll)',
       currentTimestamp,
-      timeRange: lastTimestamp
-        ? `${lastTimestamp} to ${currentTimestamp}`
-        : `up to ${currentTimestamp}`,
+      timeRange: lastTimestamp ? `${lastTimestamp} to ${currentTimestamp}` : `up to ${currentTimestamp}`,
     });
 
     const aggregates = await questdbService.getStockAggregates(subscription.symbol, {

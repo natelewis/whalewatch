@@ -30,7 +30,7 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
     const contracts = await questdbService.getOptionContracts(symbol.toUpperCase(), params);
 
     // Convert QuestDB contracts to Alpaca format for frontend compatibility
-    const alpacaContracts = contracts.map((contract) => ({
+    const alpacaContracts = contracts.map(contract => ({
       cfi: contract.contract_type || 'unknown',
       contract_type: contract.contract_type || 'unknown',
       exercise_style: contract.exercise_style || 'american',
@@ -82,9 +82,7 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
     }
 
     return res.status(500).json({
-      error: `Failed to fetch options contracts data: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch options contracts data: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
       success: false,
     });
@@ -95,13 +93,7 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
 router.get('/:symbol/trades', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const {
-      start_time,
-      end_time,
-      limit = '1000',
-      order_by = 'timestamp',
-      order_direction = 'DESC',
-    } = req.query;
+    const { start_time, end_time, limit = '1000', order_by = 'timestamp', order_direction = 'DESC' } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
@@ -123,7 +115,7 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
     const trades = await questdbService.getOptionTrades(undefined, symbol.toUpperCase(), params);
 
     // Convert QuestDB trades to Alpaca format for frontend compatibility
-    const alpacaTrades = trades.map((trade) => ({
+    const alpacaTrades = trades.map(trade => ({
       id: trade.sequence_number.toString(),
       symbol: trade.ticker,
       timestamp: trade.timestamp,
@@ -153,9 +145,7 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     console.error('Error fetching options trades from QuestDB:', error);
     return res.status(500).json({
-      error: `Failed to fetch options trades: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch options trades: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
       success: false,
     });
@@ -186,9 +176,7 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
     console.error('QuestDB connection test failed:', error);
     return res.status(500).json({
       success: false,
-      message: `QuestDB connection test failed: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      message: `QuestDB connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
     });
   }

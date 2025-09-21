@@ -20,7 +20,9 @@ describe('Chart Routes', () => {
   beforeAll(() => {
     // Create a test JWT token
     const secret = process.env.JWT_SECRET || 'test-secret';
-    authToken = jwt.sign({ userId: '1', email: 'test@example.com' }, secret, { expiresIn: '1h' });
+    authToken = jwt.sign({ userId: '1', email: 'test@example.com' }, secret, {
+      expiresIn: '1h',
+    });
   });
 
   beforeEach(() => {
@@ -266,10 +268,7 @@ describe('Chart Routes', () => {
         .get('/api/chart/aapl?start_time=2024-01-01T10:00:00Z&direction=past')
         .set('Authorization', `Bearer ${authToken}`);
 
-      expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
-        'AAPL',
-        expect.any(Object)
-      );
+      expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith('AAPL', expect.any(Object));
     });
 
     it('should support view-based loading parameters', async () => {

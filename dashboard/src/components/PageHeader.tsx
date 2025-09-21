@@ -37,10 +37,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         onSymbolChange(savedSymbol);
       }
     } else {
-      console.warn(
-        'Failed to load ticker symbol from localStorage:',
-        createUserFriendlyMessage(result.error)
-      );
+      console.warn('Failed to load ticker symbol from localStorage:', createUserFriendlyMessage(result.error));
     }
   }, []);
 
@@ -52,10 +49,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     });
 
     if (result.isErr()) {
-      console.warn(
-        'Failed to save ticker symbol to localStorage:',
-        createUserFriendlyMessage(result.error)
-      );
+      console.warn('Failed to save ticker symbol to localStorage:', createUserFriendlyMessage(result.error));
     }
   }, [selectedSymbol]);
 

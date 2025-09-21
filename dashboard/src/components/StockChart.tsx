@@ -18,12 +18,7 @@ import {
   isValidChartData,
 } from '../utils/chartDataUtils';
 import { TimeframeConfig } from '../types';
-import {
-  createChart,
-  renderCandlestickChart,
-  updateClipPath,
-  calculateChartState,
-} from './ChartRenderer';
+import { createChart, renderCandlestickChart, updateClipPath, calculateChartState } from './ChartRenderer';
 import { memoizedCalculateYScaleDomain } from '../utils/memoizedChartUtils';
 import {
   BUFFER_SIZE,
@@ -33,16 +28,7 @@ import {
   MARGIN_SIZE,
   RIGHT_EDGE_CHECK_INTERVAL,
 } from '../constants';
-import {
-  BarChart3,
-  Settings,
-  Play,
-  Pause,
-  RotateCcw,
-  ArrowRight,
-  Wifi,
-  WifiOff,
-} from 'lucide-react';
+import { BarChart3, Settings, Play, Pause, RotateCcw, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 
 interface StockChartProps {
   symbol: string;
@@ -100,14 +86,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       symbol,
       timeframe,
     });
-  }, [
-    chartState.allData.length,
-    isValidData,
-    chartState.isLoading,
-    chartState.error,
-    symbol,
-    timeframe,
-  ]);
+  }, [chartState.allData.length, isValidData, chartState.isLoading, chartState.error, symbol, timeframe]);
 
   // Local state for current transform (for debugging)
   const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
@@ -178,9 +157,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       });
 
       // Get current transform to preserve view position
-      const currentZoomTransform = svgRef.current
-        ? d3.zoomTransform(svgRef.current)
-        : d3.zoomIdentity;
+      const currentZoomTransform = svgRef.current ? d3.zoomTransform(svgRef.current) : d3.zoomIdentity;
 
       // Calculate new chart state with updated data
       const calculations = calculateChartState({
@@ -266,9 +243,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     console.log('🔍 Fixed Y-scale domain changed:', {
       oldDomain: fixedYScaleDomainRef.current,
       newDomain: chartState.fixedYScaleDomain,
-      changed:
-        JSON.stringify(fixedYScaleDomainRef.current) !==
-        JSON.stringify(chartState.fixedYScaleDomain),
+      changed: JSON.stringify(fixedYScaleDomainRef.current) !== JSON.stringify(chartState.fixedYScaleDomain),
     });
     fixedYScaleDomainRef.current = chartState.fixedYScaleDomain;
   }, [chartState.fixedYScaleDomain]);
@@ -298,27 +273,22 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     const oldestDataPoint = currentData[0];
     const endTime = oldestDataPoint ? oldestDataPoint.timestamp : undefined;
 
-    console.log(
-      '🔄 Auto-loading more historical data on buffered render (preserving current view):',
-      {
-        currentPoints: chartState.allData.length,
-        newPoints: newDataPoints,
-        bufferSize,
-        pointsToAdd: bufferSize,
-        symbol,
-        timeframe,
-        currentDataLength: currentData.length,
-        endTime: endTime ? new Date(endTime).toISOString() : 'current time',
-        oldestDataTime: oldestDataPoint
-          ? new Date(oldestDataPoint.timestamp).toISOString()
-          : 'none',
-      }
-    );
+    console.log('🔄 Auto-loading more historical data on buffered render (preserving current view):', {
+      currentPoints: chartState.allData.length,
+      newPoints: newDataPoints,
+      bufferSize,
+      pointsToAdd: bufferSize,
+      symbol,
+      timeframe,
+      currentDataLength: currentData.length,
+      endTime: endTime ? new Date(endTime).toISOString() : 'current time',
+      oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.timestamp).toISOString() : 'none',
+    });
 
     // Use the API service directly with the increased data points
     apiService
       .getChartData(symbol, timeframe, newDataPoints, endTime, 'past')
-      .then((response) => {
+      .then(response => {
         const { formattedData } = processChartData(response.bars);
 
         console.log('📊 Auto-load before setAllData (preserving current view):', {
@@ -336,7 +306,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           limit: newDataPoints,
         });
       })
-      .catch((error) => {
+      .catch(error => {
         console.error('Failed to auto-load more data:', error);
         // No need to revert - data points are managed by allData.length
       });
@@ -376,16 +346,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   );
 
   // Function to merge new historical data with existing data
-  const mergeHistoricalData = (
-    existingData: CandlestickData[],
-    newData: CandlestickData[]
-  ): CandlestickData[] => {
+  const mergeHistoricalData = (existingData: CandlestickData[], newData: CandlestickData[]): CandlestickData[] => {
     // Combine all data and deduplicate by timestamp
     const combinedData = [...existingData, ...newData];
     const uniqueData = combinedData.reduce((acc: CandlestickData[], current: CandlestickData) => {
-      const existingIndex = acc.findIndex(
-        (item: CandlestickData) => item.timestamp === current.timestamp
-      );
+      const existingIndex = acc.findIndex((item: CandlestickData) => item.timestamp === current.timestamp);
       if (existingIndex === -1) {
         acc.push(current);
       } else {
@@ -397,8 +362,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
     // Sort by time to ensure chronological order
     return uniqueData.sort(
-      (a: CandlestickData, b: CandlestickData) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      (a: CandlestickData, b: CandlestickData) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
   };
 
@@ -442,7 +406,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Use the API service directly with the increased data points
     apiService
       .getChartData(symbol, timeframe, newDataPoints, endTime, 'past')
-      .then((response) => {
+      .then(response => {
         const { formattedData: newData } = processChartData(response.bars);
 
         console.log('📊 Before merging left data:', {
@@ -495,9 +459,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Update X-axis with the merged data
           const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
           if (!xAxisGroup.empty()) {
-            const { innerHeight: axisInnerHeight } = calculateInnerDimensions(
-              chartState.dimensions
-            );
+            const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
 
             xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
             xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, mergedData));
@@ -531,7 +493,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           }, 1000);
         }
       })
-      .catch((error) => {
+      .catch(error => {
         console.error('Failed to load more data to the left:', error);
         // No need to revert - data points are managed by allData.length
       });
@@ -578,7 +540,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // For right data, we don't specify startTime to get the most recent data
     apiService
       .getChartData(symbol, timeframe, newDataPoints, undefined, 'future')
-      .then((response) => {
+      .then(response => {
         const { formattedData: newData } = processChartData(response.bars);
 
         console.log('📊 Before merging right data:', {
@@ -631,9 +593,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Update X-axis with the merged data
           const xAxisGroup = d3.select(svgRef.current).select<SVGGElement>('.x-axis');
           if (!xAxisGroup.empty()) {
-            const { innerHeight: axisInnerHeight } = calculateInnerDimensions(
-              chartState.dimensions
-            );
+            const { innerHeight: axisInnerHeight } = calculateInnerDimensions(chartState.dimensions);
 
             xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
             xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, mergedData));
@@ -667,7 +627,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           }, 1000);
         }
       })
-      .catch((error) => {
+      .catch(error => {
         console.error('Failed to load more data to the right:', error);
         // No need to revert - data points are managed by allData.length
       });
@@ -812,7 +772,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const chartWebSocket = useChartWebSocket({
     symbol,
     isEnabled: chartState.isWebSocketEnabled,
-    onChartData: (bar) => {
+    onChartData: bar => {
       if (chartState.isLive) {
         // Create a unique key for this data point to prevent duplicate processing
         const dataKey = `${bar.t}-${bar.o}-${bar.h}-${bar.l}-${bar.c}`;
@@ -843,13 +803,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // });
       chartActions.setData(newVisibleData);
     }
-  }, [
-    chartState.currentViewStart,
-    chartState.currentViewEnd,
-    chartState.allData,
-    isValidData,
-    getVisibleData,
-  ]); // Removed chartActions
+  }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData, isValidData, getVisibleData]); // Removed chartActions
 
   // Load saved timeframe from localStorage and load initial data
   useEffect(() => {
@@ -867,30 +821,29 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       setTimeframe(savedTimeframe);
 
       // Load initial data immediately
-      console.log('🔄 Loading initial data for symbol:', { symbol, timeframe: savedTimeframe });
+      console.log('🔄 Loading initial data for symbol:', {
+        symbol,
+        timeframe: savedTimeframe,
+      });
       isLoadingDataRef.current = true;
       initialDataLoadedRef.current = true;
-      chartActions
-        .loadChartData(symbol, savedTimeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
-        .finally(() => {
-          isLoadingDataRef.current = false;
-        });
+      chartActions.loadChartData(symbol, savedTimeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
+        isLoadingDataRef.current = false;
+      });
     } else {
-      console.warn(
-        'Failed to load chart timeframe from localStorage:',
-        createUserFriendlyMessage(result.error)
-      );
+      console.warn('Failed to load chart timeframe from localStorage:', createUserFriendlyMessage(result.error));
       setTimeframe('1h');
 
       // Load initial data with default timeframe
-      console.log('🔄 Loading initial data with default timeframe:', { symbol, timeframe: '1h' });
+      console.log('🔄 Loading initial data with default timeframe:', {
+        symbol,
+        timeframe: '1h',
+      });
       isLoadingDataRef.current = true;
       initialDataLoadedRef.current = true;
-      chartActions
-        .loadChartData(symbol, '1h', DEFAULT_CHART_DATA_POINTS, undefined, 'past')
-        .finally(() => {
-          isLoadingDataRef.current = false;
-        });
+      chartActions.loadChartData(symbol, '1h', DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
+        isLoadingDataRef.current = false;
+      });
     }
   }, [symbol]); // Removed chartActions to prevent infinite loops
 
@@ -902,10 +855,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       });
 
       if (result.isErr()) {
-        console.warn(
-          'Failed to save chart timeframe to localStorage:',
-          createUserFriendlyMessage(result.error)
-        );
+        console.warn('Failed to save chart timeframe to localStorage:', createUserFriendlyMessage(result.error));
       }
     }
   }, [timeframe]);
@@ -928,13 +878,14 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       initialDataLoadedRef.current = false; // Allow data loading for new timeframe
       lastProcessedDataRef.current = null; // Reset WebSocket data tracking
 
-      console.log('🔄 Loading new data for symbol/timeframe:', { symbol, timeframe });
+      console.log('🔄 Loading new data for symbol/timeframe:', {
+        symbol,
+        timeframe,
+      });
       isLoadingDataRef.current = true;
-      chartActions
-        .loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
-        .finally(() => {
-          isLoadingDataRef.current = false;
-        });
+      chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
+        isLoadingDataRef.current = false;
+      });
     }
   }, [symbol, timeframe]); // Removed chartActions to prevent infinite loops
 
@@ -992,7 +943,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Use ResizeObserver for accurate container size detection
     let resizeObserver: ResizeObserver | null = null;
     if (containerRef.current && window.ResizeObserver) {
-      resizeObserver = new ResizeObserver((entries) => {
+      resizeObserver = new ResizeObserver(entries => {
         for (const entry of entries) {
           if (entry.target === containerRef.current) {
             handleResize();
@@ -1013,12 +964,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Separate effect to handle dimension changes and re-render chart
   useEffect(() => {
-    if (
-      svgRef.current &&
-      chartState.chartLoaded &&
-      chartState.chartExists &&
-      chartState.allData.length > 0
-    ) {
+    if (svgRef.current && chartState.chartLoaded && chartState.chartExists && chartState.allData.length > 0) {
       // Get current transform
       const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
@@ -1169,10 +1115,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Debug logging for chart creation conditions
     const gElementExists = svgRef.current ? !d3.select(svgRef.current).select('g').empty() : false;
     const shouldCreate =
-      isValidData &&
-      chartState.allData.length > 0 &&
-      svgRef.current &&
-      (!chartState.chartExists || !gElementExists);
+      isValidData && chartState.allData.length > 0 && svgRef.current && (!chartState.chartExists || !gElementExists);
 
     console.log('Chart creation effect conditions:', {
       isValidData,
@@ -1200,10 +1143,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
 
-      if (
-        chartState.currentViewStart > chartState.currentViewEnd ||
-        chartState.currentViewEnd < 0
-      ) {
+      if (chartState.currentViewStart > chartState.currentViewEnd || chartState.currentViewEnd < 0) {
         console.warn('Invalid view range in chart creation effect, resetting to valid values:', {
           currentViewStart: chartState.currentViewStart,
           currentViewEnd: chartState.currentViewEnd,
@@ -1352,7 +1292,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
           }
 
-          currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
+          currentBufferRangeRef.current = {
+            start: actualStart,
+            end: actualEnd,
+          };
 
           // Mark initial render as completed
           initialRenderCompletedRef.current = true;
@@ -1383,9 +1326,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               <button
                 onClick={() => chartActions.setIsLive(!chartState.isLive)}
                 className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                  chartState.isLive
-                    ? 'bg-green-500 text-white'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  chartState.isLive ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
                 {chartState.isLive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
@@ -1400,23 +1341,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 }`}
                 title={chartState.isWebSocketEnabled ? 'Disable WebSocket' : 'Enable WebSocket'}
               >
-                {chartState.isWebSocketEnabled ? (
-                  <Wifi className="h-3 w-3" />
-                ) : (
-                  <WifiOff className="h-3 w-3" />
-                )}
+                {chartState.isWebSocketEnabled ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                 {chartState.isWebSocketEnabled ? 'WebSocket' : 'No WS'}
               </button>
               <button
                 onClick={() =>
                   timeframe &&
-                  chartActions.loadChartData(
-                    symbol,
-                    timeframe,
-                    DEFAULT_CHART_DATA_POINTS,
-                    undefined,
-                    'past'
-                  )
+                  chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
                 }
                 className="p-1 text-muted-foreground hover:text-foreground"
                 title="Refresh data"
@@ -1460,7 +1391,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         <div className="flex items-center space-x-4">
           {/* Timeframe Selector */}
           <div className="flex space-x-1">
-            {timeframes.map((tf) => (
+            {timeframes.map(tf => (
               <button
                 key={tf.value}
                 onClick={() => setTimeframe(tf.value)}
@@ -1500,13 +1431,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               <button
                 onClick={() =>
                   timeframe &&
-                  chartActions.loadChartData(
-                    symbol,
-                    timeframe,
-                    DEFAULT_CHART_DATA_POINTS,
-                    undefined,
-                    'past'
-                  )
+                  chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
                 }
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               >
@@ -1535,27 +1460,18 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                   <div className="flex gap-3 text-sm">
                     <span className="text-muted-foreground">
                       O:{' '}
-                      <span className="font-mono text-foreground">
-                        {formatPrice(chartState.hoverData.data.open)}
-                      </span>
+                      <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.open)}</span>
                     </span>
                     <span className="text-muted-foreground">
                       H:{' '}
-                      <span className="font-mono text-foreground">
-                        {formatPrice(chartState.hoverData.data.high)}
-                      </span>
+                      <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.high)}</span>
                     </span>
                     <span className="text-muted-foreground">
-                      L:{' '}
-                      <span className="font-mono text-foreground">
-                        {formatPrice(chartState.hoverData.data.low)}
-                      </span>
+                      L: <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.low)}</span>
                     </span>
                     <span className="text-muted-foreground">
                       C:{' '}
-                      <span className="font-mono text-foreground">
-                        {formatPrice(chartState.hoverData.data.close)}
-                      </span>
+                      <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.close)}</span>
                     </span>
                   </div>
                 </div>
@@ -1592,14 +1508,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               View:{' '}
               {(() => {
                 const actualStart = Math.max(0, chartState.currentViewStart);
-                const actualEnd = Math.min(
-                  chartState.allData.length - 1,
-                  chartState.currentViewEnd
-                );
+                const actualEnd = Math.min(chartState.allData.length - 1, chartState.currentViewEnd);
                 const actualPoints = actualEnd - actualStart + 1;
-                return `${Math.round(actualStart)}-${Math.round(actualEnd)} (${Math.round(
-                  actualPoints
-                )})`;
+                return `${Math.round(actualStart)}-${Math.round(actualEnd)} (${Math.round(actualPoints)})`;
               })()}
             </span>
             <span>TF: {timeframe || 'Loading...'}</span>
@@ -1608,19 +1519,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           <div className="flex items-center space-x-4">
             {/* Chart State Information */}
             <div className="flex items-center space-x-2">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  chartState.chartLoaded ? 'bg-green-500' : 'bg-gray-500'
-                }`}
-              ></div>
+              <div className={`w-2 h-2 rounded-full ${chartState.chartLoaded ? 'bg-green-500' : 'bg-gray-500'}`}></div>
               <span>{chartState.chartLoaded ? 'Chart Ready' : 'Loading...'}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  chartState.isLive ? 'bg-green-500' : 'bg-gray-500'
-                }`}
-              ></div>
+              <div className={`w-2 h-2 rounded-full ${chartState.isLive ? 'bg-green-500' : 'bg-gray-500'}`}></div>
               <span>{chartState.isLive ? 'Live' : 'Historical'}</span>
             </div>
             {chartState.isZooming && (
@@ -1638,9 +1541,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             {chartState.allData.length > DEFAULT_CHART_DATA_POINTS && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                <span className="text-xs text-orange-500">
-                  Extended ({chartState.allData.length} pts)
-                </span>
+                <span className="text-xs text-orange-500">Extended ({chartState.allData.length} pts)</span>
               </div>
             )}
             <span className="text-xs text-muted-foreground">D3.js</span>
@@ -1681,17 +1582,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               <div>
                 Inner W:{' '}
                 {Math.round(
-                  chartState.dimensions.width -
-                    chartState.dimensions.margin.left -
-                    chartState.dimensions.margin.right
+                  chartState.dimensions.width - chartState.dimensions.margin.left - chartState.dimensions.margin.right
                 )}
               </div>
               <div>
                 Inner H:{' '}
                 {Math.round(
-                  chartState.dimensions.height -
-                    chartState.dimensions.margin.top -
-                    chartState.dimensions.margin.bottom
+                  chartState.dimensions.height - chartState.dimensions.margin.top - chartState.dimensions.margin.bottom
                 )}
               </div>
             </div>

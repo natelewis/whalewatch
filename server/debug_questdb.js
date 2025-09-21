@@ -17,7 +17,7 @@ console.log('QuestDB Config:', {
   baseUrl,
   username: config.username,
   password: config.password ? '***' : 'none',
-  ssl: config.ssl
+  ssl: config.ssl,
 });
 
 async function testConnection() {
@@ -73,7 +73,7 @@ async function testConnection() {
     // Test all the tables that the server tries to query
     console.log('\n4. Testing all database stats queries...');
     const tables = ['stock_trades', 'stock_aggregates', 'option_contracts', 'option_trades', 'option_quotes'];
-    
+
     for (const table of tables) {
       try {
         const tableResponse = await axios.get(`${baseUrl}/exec`, {
@@ -93,7 +93,6 @@ async function testConnection() {
         console.log(`❌ ${table}:`, error.response?.data?.error || error.message);
       }
     }
-
   } catch (error) {
     console.error('❌ Connection failed:', {
       message: error.message,

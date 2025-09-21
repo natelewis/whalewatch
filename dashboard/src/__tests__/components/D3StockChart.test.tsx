@@ -205,7 +205,11 @@ const mockUseChartStateManager = {
     chartExists: false,
     currentViewStart: 0,
     currentViewEnd: mockChartData.length - 1,
-    dimensions: { width: 800, height: 400, margin: { top: 20, right: 60, bottom: 40, left: 0 } },
+    dimensions: {
+      width: 800,
+      height: 400,
+      margin: { top: 20, right: 60, bottom: 40, left: 0 },
+    },
     transform: { x: 0, y: 0, k: 1 },
     hoverData: null,
     timeframe: '1h' as const,
@@ -325,10 +329,8 @@ describe('StockChart', () => {
     const timeframeButtons = screen
       .getAllByRole('button')
       .filter(
-        (button) =>
-          button.textContent?.includes('1m') ||
-          button.textContent?.includes('5m') ||
-          button.textContent?.includes('1h')
+        button =>
+          button.textContent?.includes('1m') || button.textContent?.includes('5m') || button.textContent?.includes('1h')
       );
 
     expect(timeframeButtons.length).toBeGreaterThan(0);
@@ -364,10 +366,7 @@ describe('StockChart', () => {
     const refreshButton = screen.getByTitle('Refresh data');
     fireEvent.click(refreshButton);
 
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
-      'TSLA',
-      '1h' as const
-    );
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '1h' as const);
   });
 
   it('resets zoom when reset button is clicked', () => {
@@ -441,10 +440,7 @@ describe('StockChart', () => {
 
     expect(localStorageMock.getItem).toHaveBeenCalledWith('chartTimeframe');
     // The component uses the saved timeframe from localStorage
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
-      'TSLA',
-      '5m' as const
-    );
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '5m' as const);
   });
 
   it('saves timeframe to localStorage when changed', () => {
@@ -523,9 +519,6 @@ describe('StockChart', () => {
     rerender(<StockChart symbol="AAPL" onSymbolChange={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'AAPL' })).toBeInTheDocument();
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
-      'AAPL',
-      '1h' as const
-    );
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('AAPL', '1h' as const);
   });
 });

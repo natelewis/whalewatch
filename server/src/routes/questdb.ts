@@ -8,13 +8,7 @@ const router = Router();
 router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const {
-      start_time,
-      end_time,
-      limit = '1000',
-      order_by = 'timestamp',
-      order_direction = 'DESC',
-    } = req.query;
+    const { start_time, end_time, limit = '1000', order_by = 'timestamp', order_direction = 'DESC' } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
@@ -45,9 +39,7 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     console.error('Error fetching stock trades from QuestDB:', error);
     return res.status(500).json({
-      error: `Failed to fetch stock trades: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch stock trades: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
       success: false,
     });
@@ -58,13 +50,7 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
 router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const {
-      start_time,
-      end_time,
-      limit = '1000',
-      order_by = 'timestamp',
-      order_direction = 'ASC',
-    } = req.query;
+    const { start_time, end_time, limit = '1000', order_by = 'timestamp', order_direction = 'ASC' } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
@@ -95,9 +81,7 @@ router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     console.error('Error fetching stock aggregates from QuestDB:', error);
     return res.status(500).json({
-      error: `Failed to fetch stock aggregates: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch stock aggregates: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
       success: false,
     });
@@ -125,10 +109,7 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
       order_direction: order_direction as 'ASC' | 'DESC',
     };
 
-    const contracts = await questdbService.getOptionContracts(
-      underlying_ticker.toUpperCase(),
-      params
-    );
+    const contracts = await questdbService.getOptionContracts(underlying_ticker.toUpperCase(), params);
 
     return res.json({
       underlying_ticker: underlying_ticker.toUpperCase(),
@@ -140,9 +121,7 @@ router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Res
   } catch (error: unknown) {
     console.error('Error fetching option contracts from QuestDB:', error);
     return res.status(500).json({
-      error: `Failed to fetch option contracts: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch option contracts: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
       success: false,
     });
@@ -196,9 +175,7 @@ router.get('/option-trades', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     console.error('Error fetching option trades from QuestDB:', error);
     return res.status(500).json({
-      error: `Failed to fetch option trades: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch option trades: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
       success: false,
     });
@@ -252,9 +229,7 @@ router.get('/option-quotes', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     console.error('Error fetching option quotes from QuestDB:', error);
     return res.status(500).json({
-      error: `Failed to fetch option quotes: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch option quotes: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
       success: false,
     });
@@ -287,9 +262,7 @@ router.get('/test-connection', async (_req: Request, res: Response) => {
     console.error('QuestDB connection test failed:', error);
     return res.status(500).json({
       success: false,
-      message: `QuestDB connection test failed: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      message: `QuestDB connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
     });
   }
@@ -308,9 +281,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
     console.error('Error fetching QuestDB stats:', error);
     return res.status(500).json({
       success: false,
-      error: `Failed to fetch database statistics: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      error: `Failed to fetch database statistics: ${error instanceof Error ? error.message : 'Unknown error'}`,
       data_source: 'questdb',
     });
   }

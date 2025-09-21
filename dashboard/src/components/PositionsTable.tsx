@@ -80,7 +80,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {positions.map((position) => (
+            {positions.map(position => (
               <tr key={position.asset_id} className="hover:bg-muted/50">
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -88,9 +88,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
                     <div className="ml-2 text-xs text-muted-foreground">{position.exchange}</div>
                   </div>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-foreground">
-                  {position.qty}
-                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-foreground">{position.qty}</td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-foreground">
                   {formatCurrency(position.current_price)}
                 </td>
@@ -100,9 +98,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     {getPLIcon(position.unrealized_pl)}
-                    <span
-                      className={`ml-1 text-sm font-medium ${getPLColor(position.unrealized_pl)}`}
-                    >
+                    <span className={`ml-1 text-sm font-medium ${getPLColor(position.unrealized_pl)}`}>
                       {formatCurrency(position.unrealized_pl)}
                     </span>
                   </div>
@@ -130,9 +126,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
       {selectedPosition && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-lg border border-border max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-foreground mb-4">
-              Position Actions - {selectedPosition.symbol}
-            </h3>
+            <h3 className="text-lg font-semibold text-foreground mb-4">Position Actions - {selectedPosition.symbol}</h3>
             <div className="space-y-4">
               <button className="w-full px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90">
                 Sell Position

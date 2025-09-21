@@ -69,11 +69,7 @@ export class AlpacaService {
     }
   }
 
-  async getBars(
-    symbol: string,
-    timeframe: ChartTimeframe,
-    limit: number = 1000
-  ): Promise<AlpacaBar[]> {
+  async getBars(symbol: string, timeframe: ChartTimeframe, limit: number = 1000): Promise<AlpacaBar[]> {
     try {
       const endTime = new Date();
       let startTime: Date;
@@ -136,7 +132,11 @@ export class AlpacaService {
       // Handle specific Alpaca API errors
       const isAxiosError = error && typeof error === 'object' && 'response' in error;
       const response = isAxiosError
-        ? (error as { response?: { status?: number; data?: { message?: string } } }).response
+        ? (
+            error as {
+              response?: { status?: number; data?: { message?: string } };
+            }
+          ).response
         : null;
 
       if (response?.status === 403) {
@@ -157,8 +157,7 @@ export class AlpacaService {
       }
 
       // Generic error handling
-      const errorMessage =
-        response?.data?.message || (error instanceof Error ? error.message : 'Unknown error');
+      const errorMessage = response?.data?.message || (error instanceof Error ? error.message : 'Unknown error');
       throw new Error(errorMessage || 'Failed to fetch chart data');
     }
   }

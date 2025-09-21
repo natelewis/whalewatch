@@ -68,9 +68,7 @@ describe('Account Routes', () => {
 
       mockAlpacaService.getAccount.mockResolvedValue(mockAccount);
 
-      const response = await request(app)
-        .get('/api/account/info')
-        .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get('/api/account/info').set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('account');
@@ -87,9 +85,7 @@ describe('Account Routes', () => {
     it('should return 500 on service error', async () => {
       mockAlpacaService.getAccount.mockRejectedValue(new Error('Service error'));
 
-      const response = await request(app)
-        .get('/api/account/info')
-        .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get('/api/account/info').set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty('error', 'Failed to fetch account information');
@@ -120,9 +116,7 @@ describe('Account Routes', () => {
 
       mockAlpacaService.getPositions.mockResolvedValue(mockPositions);
 
-      const response = await request(app)
-        .get('/api/account/positions')
-        .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get('/api/account/positions').set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('positions');
@@ -154,9 +148,7 @@ describe('Account Routes', () => {
 
       mockAlpacaService.getActivities.mockResolvedValue(mockActivities);
 
-      const response = await request(app)
-        .get('/api/account/activity')
-        .set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get('/api/account/activity').set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('activities');

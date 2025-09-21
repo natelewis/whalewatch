@@ -12,12 +12,7 @@ describe('TickerSelector', () => {
   });
 
   it('renders with default props', () => {
-    render(
-      <TickerSelector
-        selectedSymbol="AAPL"
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
     expect(screen.getByPlaceholderText('Enter ticker symbol')).toBeInTheDocument();
     expect(screen.getByDisplayValue('AAPL')).toBeInTheDocument();
@@ -43,12 +38,7 @@ describe('TickerSelector', () => {
 
   it('calls onSymbolChange when valid symbol is submitted', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
@@ -61,12 +51,7 @@ describe('TickerSelector', () => {
 
   it('shows error for invalid symbol format', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
@@ -80,12 +65,7 @@ describe('TickerSelector', () => {
 
   it('shows error for empty symbol', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
     await user.click(submitButton);
@@ -96,12 +76,7 @@ describe('TickerSelector', () => {
 
   it('shows real-time validation feedback', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
 
@@ -113,12 +88,7 @@ describe('TickerSelector', () => {
 
   it('clears error when user starts typing valid input', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
@@ -138,12 +108,7 @@ describe('TickerSelector', () => {
 
   it('converts input to uppercase', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
 
@@ -152,36 +117,21 @@ describe('TickerSelector', () => {
   });
 
   it('limits input to 5 characters', () => {
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
     expect(input).toHaveAttribute('maxLength', '5');
   });
 
   it('shows clear button when input has value', () => {
-    render(
-      <TickerSelector
-        selectedSymbol="AAPL"
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
     expect(screen.getByRole('button', { name: '' })).toBeInTheDocument(); // Clear button
   });
 
   it('clears input when clear button is clicked', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol="AAPL"
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
     const clearButton = screen.getByRole('button', { name: '' });
     await user.click(clearButton);
@@ -191,12 +141,7 @@ describe('TickerSelector', () => {
 
   it('disables submit button when there is an error', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol=""
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
@@ -209,12 +154,7 @@ describe('TickerSelector', () => {
 
   it('does not call onSymbolChange if symbol has not changed', async () => {
     const user = userEvent.setup();
-    render(
-      <TickerSelector
-        selectedSymbol="AAPL"
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    render(<TickerSelector selectedSymbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
     const input = screen.getByPlaceholderText('Enter ticker symbol');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
@@ -226,21 +166,11 @@ describe('TickerSelector', () => {
   });
 
   it('updates input when selectedSymbol prop changes', () => {
-    const { rerender } = render(
-      <TickerSelector
-        selectedSymbol="AAPL"
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    const { rerender } = render(<TickerSelector selectedSymbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
     expect(screen.getByDisplayValue('AAPL')).toBeInTheDocument();
 
-    rerender(
-      <TickerSelector
-        selectedSymbol="TSLA"
-        onSymbolChange={mockOnSymbolChange}
-      />
-    );
+    rerender(<TickerSelector selectedSymbol="TSLA" onSymbolChange={mockOnSymbolChange} />);
 
     expect(screen.getByDisplayValue('TSLA')).toBeInTheDocument();
   });

@@ -76,11 +76,7 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
 
   return (
     <div className={`flex flex-col space-y-1 ${className}`}>
-      {showLabel && (
-        <label className="text-sm font-medium text-foreground">
-          {label}
-        </label>
-      )}
+      {showLabel && <label className="text-sm font-medium text-foreground">{label}</label>}
       <form onSubmit={handleSymbolSubmit} className="flex items-center space-x-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -92,11 +88,7 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
             onBlur={() => setIsInputFocused(false)}
             placeholder={placeholder}
             className={`pl-10 pr-8 py-2 border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
-              inputError
-                ? 'border-red-500 focus:ring-red-500'
-                : isInputFocused
-                ? 'border-primary'
-                : 'border-border'
+              inputError ? 'border-red-500 focus:ring-red-500' : isInputFocused ? 'border-primary' : 'border-border'
             }`}
             maxLength={5}
           />

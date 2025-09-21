@@ -76,7 +76,11 @@ export class QuestDBService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const isAxiosError = error && typeof error === 'object' && 'response' in error;
       const response = isAxiosError
-        ? (error as { response?: { status?: number; data?: { error?: string } } }).response
+        ? (
+            error as {
+              response?: { status?: number; data?: { error?: string } };
+            }
+          ).response
         : null;
 
       console.error('QuestDB query execution failed:', {
@@ -93,9 +97,7 @@ export class QuestDBService {
           query: query,
           timestamp: new Date().toISOString(),
         };
-        throw new Error(
-          `QuestDB error: ${questdbError.error} at position ${questdbError.position}`
-        );
+        throw new Error(`QuestDB error: ${questdbError.error} at position ${questdbError.position}`);
       }
 
       if (error instanceof Error && 'code' in error) {
@@ -116,10 +118,7 @@ export class QuestDBService {
   /**
    * Convert QuestDB array data to object format
    */
-  private convertArrayToObject<T>(
-    data: unknown[],
-    columns: Array<{ name: string; type: string }>
-  ): T[] {
+  private convertArrayToObject<T>(data: unknown[], columns: Array<{ name: string; type: string }>): T[] {
     return data.map((row: unknown) => {
       if (!Array.isArray(row)) {
         throw new Error('Expected array data from QuestDB');
@@ -135,17 +134,8 @@ export class QuestDBService {
   /**
    * Get stock trades for a symbol within a time range
    */
-  async getStockTrades(
-    symbol: string,
-    params: QuestDBQueryParams = {}
-  ): Promise<QuestDBStockTrade[]> {
-    const {
-      start_time,
-      end_time,
-      limit = 1000,
-      order_by = 'timestamp',
-      order_direction = 'DESC',
-    } = params;
+  async getStockTrades(symbol: string, params: QuestDBQueryParams = {}): Promise<QuestDBStockTrade[]> {
+    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
 
     let query = `SELECT * FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
 
@@ -166,10 +156,7 @@ export class QuestDBService {
   /**
    * Get stock aggregates (bars) for a symbol within a time range
    */
-  async getStockAggregates(
-    symbol: string,
-    params: QuestDBQueryParams = {}
-  ): Promise<QuestDBStockAggregate[]> {
+  async getStockAggregates(symbol: string, params: QuestDBQueryParams = {}): Promise<QuestDBStockAggregate[]> {
     const { start_time, end_time, limit, order_by = 'timestamp', order_direction = 'ASC' } = params;
 
     let query = `SELECT * FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
@@ -227,13 +214,7 @@ export class QuestDBService {
     underlying_ticker?: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionTrade[]> {
-    const {
-      start_time,
-      end_time,
-      limit = 1000,
-      order_by = 'timestamp',
-      order_direction = 'DESC',
-    } = params;
+    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
 
     let query = 'SELECT * FROM option_trades WHERE 1=1';
 
@@ -267,13 +248,7 @@ export class QuestDBService {
     underlying_ticker?: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionQuote[]> {
-    const {
-      start_time,
-      end_time,
-      limit = 1000,
-      order_by = 'timestamp',
-      order_direction = 'DESC',
-    } = params;
+    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
 
     let query = 'SELECT * FROM option_quotes WHERE 1=1';
 
@@ -306,20 +281,14 @@ export class QuestDBService {
     const query = `SELECT * FROM sync_state WHERE ticker = '${ticker.toUpperCase()}' LIMIT 1`;
 
     const response = await this.executeQuery<QuestDBSyncState>(query);
-    const converted = this.convertArrayToObject<QuestDBSyncState>(
-      response.dataset,
-      response.columns
-    );
+    const converted = this.convertArrayToObject<QuestDBSyncState>(response.dataset, response.columns);
     return converted.length > 0 ? converted[0] : null;
   }
 
   /**
    * Update sync state for a ticker
    */
-  async updateSyncState(
-    ticker: string,
-    updates: Partial<Omit<QuestDBSyncState, 'ticker'>>
-  ): Promise<void> {
+  async updateSyncState(ticker: string, updates: Partial<Omit<QuestDBSyncState, 'ticker'>>): Promise<void> {
     const setClause = Object.entries(updates)
       .filter(([_, value]) => value !== undefined)
       .map(([key, value]) => {
@@ -345,10 +314,7 @@ export class QuestDBService {
     const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
 
     const response = await this.executeQuery<{ latest_timestamp: string }>(query);
-    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(
-      response.dataset,
-      response.columns
-    );
+    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(response.dataset, response.columns);
     return converted.length > 0 ? converted[0].latest_timestamp : null;
   }
 
@@ -359,10 +325,7 @@ export class QuestDBService {
     const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
 
     const response = await this.executeQuery<{ latest_timestamp: string }>(query);
-    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(
-      response.dataset,
-      response.columns
-    );
+    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(response.dataset, response.columns);
     return converted.length > 0 ? converted[0].latest_timestamp : null;
   }
 
@@ -395,9 +358,7 @@ export class QuestDBService {
     try {
       // Get all available tables first
       const tablesResponse = await this.executeQuery<{ table_name: string }>('SHOW TABLES');
-      const availableTables = tablesResponse.dataset.map(
-        (row) => (row as { table_name: string }).table_name
-      );
+      const availableTables = tablesResponse.dataset.map(row => (row as { table_name: string }).table_name);
 
       console.log('📊 Available tables:', availableTables);
 
@@ -421,9 +382,7 @@ export class QuestDBService {
       for (const { table, key } of tableQueries) {
         if (availableTables.includes(table)) {
           try {
-            const result = await this.executeQuery<{ count: number }>(
-              `SELECT COUNT(*) as count FROM ${table}`
-            );
+            const result = await this.executeQuery<{ count: number }>(`SELECT COUNT(*) as count FROM ${table}`);
             stats[key as keyof typeof stats] = result.dataset[0]?.count || 0;
             console.log(`✅ ${table}: ${stats[key as keyof typeof stats]} records`);
           } catch (error: unknown) {

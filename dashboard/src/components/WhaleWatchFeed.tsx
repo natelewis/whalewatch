@@ -79,7 +79,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
   };
 
   const filteredContracts = contracts
-    .filter((contract) => {
+    .filter(contract => {
       if (filter === 'all') {
         return true;
       }
@@ -115,7 +115,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
               <input
                 type="text"
                 value={searchSymbol}
-                onChange={(e) => setSearchSymbol(e.target.value)}
+                onChange={e => setSearchSymbol(e.target.value)}
                 placeholder="Enter symbol (e.g., TSLA, AAPL)"
                 className="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
               />
@@ -154,7 +154,7 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
               { value: 'all', label: 'All' },
               { value: 'calls', label: 'Calls' },
               { value: 'puts', label: 'Puts' },
-            ].map((option) => (
+            ].map(option => (
               <button
                 key={option.value}
                 onClick={() => setFilter(option.value as 'all' | 'calls' | 'puts' | 'near_money')}
@@ -203,16 +203,13 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
               <div className="flex items-center justify-between text-sm">
                 <div>
                   <span className="font-medium text-foreground">
-                    {filteredContracts.length} {filter === 'near_money' ? 'near money' : 'total'}{' '}
-                    contracts
+                    {filteredContracts.length} {filter === 'near_money' ? 'near money' : 'total'} contracts
                   </span>
                   <span className="text-muted-foreground ml-2">for {selectedSymbol}</span>
                 </div>
                 <div className="text-muted-foreground">
                   {selectedSymbol} •{' '}
-                  {filter === 'near_money'
-                    ? 'Near Money'
-                    : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  {filter === 'near_money' ? 'Near Money' : filter.charAt(0).toUpperCase() + filter.slice(1)}
                 </div>
               </div>
             </div>
@@ -239,17 +236,13 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                   <div
                     key={`${contract.ticker}-${contract.strike_price}-${contract.expiration_date}-${index}`}
                     className={`grid grid-cols-7 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors ${
-                      isNearMoneyContract
-                        ? 'bg-blue-50 dark:bg-blue-950/20 border-l-2 border-blue-500'
-                        : ''
+                      isNearMoneyContract ? 'bg-blue-50 dark:bg-blue-950/20 border-l-2 border-blue-500' : ''
                     }`}
                   >
                     {/* Contract Ticker */}
                     <div className="flex items-center space-x-1">
                       {getContractIcon(contract.contract_type || 'unknown')}
-                      <span className="font-medium text-foreground truncate text-xs">
-                        {contract.ticker || 'N/A'}
-                      </span>
+                      <span className="font-medium text-foreground truncate text-xs">{contract.ticker || 'N/A'}</span>
                     </div>
 
                     {/* Call/Put */}
@@ -259,8 +252,8 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                           isCall
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                             : isPut
-                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
                         }`}
                       >
                         {(contract.contract_type || 'unknown').toUpperCase()}
@@ -278,19 +271,13 @@ export const WhaleWatchFeed: React.FC<WhaleWatchFeedProps> = ({
                     </div>
 
                     {/* Exercise Style */}
-                    <div className="text-muted-foreground text-right text-xs">
-                      {contract.exercise_style || 'N/A'}
-                    </div>
+                    <div className="text-muted-foreground text-right text-xs">{contract.exercise_style || 'N/A'}</div>
 
                     {/* Exchange */}
-                    <div className="text-muted-foreground text-right text-xs">
-                      {contract.primary_exchange || 'N/A'}
-                    </div>
+                    <div className="text-muted-foreground text-right text-xs">{contract.primary_exchange || 'N/A'}</div>
 
                     {/* Shares per Contract */}
-                    <div className="text-muted-foreground text-right">
-                      {contract.shares_per_contract || 'N/A'}
-                    </div>
+                    <div className="text-muted-foreground text-right">{contract.shares_per_contract || 'N/A'}</div>
                   </div>
                 );
               })}

@@ -20,10 +20,7 @@ import {
   clampIndex,
   isValidChartData,
 } from '../utils/chartDataUtils';
-import {
-  memoizedCalculateYScaleDomain,
-  memoizedCalculateChartState,
-} from '../utils/memoizedChartUtils';
+import { memoizedCalculateYScaleDomain, memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 
 // ============================================================================
 // CONFIGURATION CONSTANTS - imported from centralized constants
@@ -112,9 +109,7 @@ export const createChart = ({
   onBufferedCandlesRendered?: () => void;
 }): void => {
   if (!svgElement) {
-    console.log(
-      'createChart: No svgElement found, skipping chart creation (SVG element not mounted yet)'
-    );
+    console.log('createChart: No svgElement found, skipping chart creation (SVG element not mounted yet)');
     return;
   }
 
@@ -161,8 +156,7 @@ export const createChart = ({
   g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
 
   // Create axes in the main chart group
-  const { innerWidth: chartInnerWidth, innerHeight: chartInnerHeight } =
-    calculateInnerDimensions(dimensions);
+  const { innerWidth: chartInnerWidth, innerHeight: chartInnerHeight } = calculateInnerDimensions(dimensions);
 
   // Use the provided base X scale for consistency with calculations
   // This ensures the same scale is used for both initial load and pan/zoom
@@ -324,7 +318,11 @@ export const createChart = ({
         const startDiff = Math.abs(currentViewStart - currentBufferRange.start);
         const endDiff = Math.abs(currentViewEnd - currentBufferRange.end);
         needsRerender = startDiff > marginSize || endDiff > marginSize;
-        console.log('🔍 At both boundaries:', { startDiff, endDiff, needsRerender });
+        console.log('🔍 At both boundaries:', {
+          startDiff,
+          endDiff,
+          needsRerender,
+        });
       } else if (atDataStart) {
         // At start boundary - only check if we've moved forward significantly
         needsRerender = currentViewEnd > currentBufferRange.end - marginSize;
@@ -342,9 +340,7 @@ export const createChart = ({
     if (needsRerender) {
       console.log('🔄 Re-rendering candlesticks - view outside buffer range', {
         currentView: `${currentViewStart}-${currentViewEnd}`,
-        bufferRange: currentBufferRange
-          ? `${currentBufferRange.start}-${currentBufferRange.end}`
-          : 'none',
+        bufferRange: currentBufferRange ? `${currentBufferRange.start}-${currentBufferRange.end}` : 'none',
         marginSize,
         bufferSize,
       });
@@ -439,7 +435,7 @@ export const createChart = ({
         stateCallbacks.setHoverData(null);
       }
     })
-    .on('mousemove', (event) => {
+    .on('mousemove', event => {
       const [mouseX, mouseY] = d3.pointer(event);
 
       // Always recompute scales using the latest data and dimensions to avoid stale closures
@@ -451,8 +447,7 @@ export const createChart = ({
         return;
       }
 
-      const { innerWidth: currInnerWidth, innerHeight: currInnerHeight } =
-        calculateInnerDimensions(currentDimensions);
+      const { innerWidth: currInnerWidth, innerHeight: currInnerHeight } = calculateInnerDimensions(currentDimensions);
 
       // Recreate the right-aligned base scale for the current dataset length
       const bandWidth = currInnerWidth / CHART_DATA_POINTS;
@@ -519,10 +514,7 @@ export const createChart = ({
   console.log('🎯 CHART LOADED - Axes can now be created');
 };
 
-export const renderCandlestickChart = (
-  svgElement: SVGSVGElement,
-  calculations: ChartCalculations
-): void => {
+export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
   console.log('🎨 renderCandlestickChart called with:', {
     allDataLength: calculations.allData.length,
     viewStart: calculations.viewStart,
@@ -550,10 +542,7 @@ export const renderCandlestickChart = (
   const bufferSize = BUFFER_SIZE;
   // Convert fractional view indices to integers for proper array slicing
   const actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-  const actualEnd = Math.min(
-    calculations.allData.length - 1,
-    Math.ceil(calculations.viewEnd) + bufferSize
-  );
+  const actualEnd = Math.min(calculations.allData.length - 1, Math.ceil(calculations.viewEnd) + bufferSize);
   const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
 
   console.log('🎨 Rendering candlesticks:', {
@@ -568,20 +557,16 @@ export const renderCandlestickChart = (
     scaleRange: calculations.baseXScale.range(),
     yScaleDomain: calculations.baseYScale.domain(),
     yScaleRange: calculations.baseYScale.range(),
-    firstCandleTime:
-      visibleCandles.length > 0 ? new Date(visibleCandles[0].timestamp).toLocaleString() : 'none',
+    firstCandleTime: visibleCandles.length > 0 ? new Date(visibleCandles[0].timestamp).toLocaleString() : 'none',
     lastCandleTime:
       visibleCandles.length > 0
         ? new Date(visibleCandles[visibleCandles.length - 1].timestamp).toLocaleString()
         : 'none',
     firstCandleIndex: actualStart,
     lastCandleIndex: actualEnd,
-    firstCandleY:
-      visibleCandles.length > 0 ? calculations.baseYScale(visibleCandles[0].close) : 'none',
+    firstCandleY: visibleCandles.length > 0 ? calculations.baseYScale(visibleCandles[0].close) : 'none',
     lastCandleY:
-      visibleCandles.length > 0
-        ? calculations.baseYScale(visibleCandles[visibleCandles.length - 1].close)
-        : 'none',
+      visibleCandles.length > 0 ? calculations.baseYScale(visibleCandles[visibleCandles.length - 1].close) : 'none',
   });
 
   // Use the base linear scale for candlestick positioning since the chart content group
@@ -610,10 +595,7 @@ export const renderCandlestickChart = (
       .style('cursor', 'pointer')
       .on('mouseover', function (event) {
         // Show tooltip with debugging info
-        const tooltip = d3
-          .select('body')
-          .selectAll<HTMLDivElement, number>('.candlestick-tooltip')
-          .data([1]);
+        const tooltip = d3.select('body').selectAll<HTMLDivElement, number>('.candlestick-tooltip').data([1]);
         tooltip
           .enter()
           .append('div')
@@ -664,10 +646,7 @@ export const renderCandlestickChart = (
       .attr('x', x - candleWidth / 2)
       .attr('y', calculations.baseYScale(Math.max(d.open, d.close)))
       .attr('width', candleWidth)
-      .attr(
-        'height',
-        Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1
-      )
+      .attr('height', Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1)
       .attr('fill', color)
       .attr('stroke', color)
       .attr('stroke-width', 1)

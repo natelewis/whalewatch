@@ -14,15 +14,15 @@ export const AccountSummary: React.FC<AccountSummaryProps> = ({ account }) => {
     }).format(parseFloat(value));
   };
 
-
   const cards = [
     {
       title: 'Portfolio Value',
       value: formatCurrency(account.portfolio_value),
       icon: DollarSign,
-      change: account.equity !== account.last_equity ? 
-        formatCurrency((parseFloat(account.equity) - parseFloat(account.last_equity)).toString()) : 
-        null,
+      change:
+        account.equity !== account.last_equity
+          ? formatCurrency((parseFloat(account.equity) - parseFloat(account.last_equity)).toString())
+          : null,
       changeType: parseFloat(account.equity) >= parseFloat(account.last_equity) ? 'positive' : 'negative',
     },
     {
@@ -55,14 +55,11 @@ export const AccountSummary: React.FC<AccountSummaryProps> = ({ account }) => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
                 <p className="text-2xl font-bold text-foreground">{card.value}</p>
-                {card.subtitle && (
-                  <p className="text-xs text-muted-foreground mt-1">{card.subtitle}</p>
-                )}
+                {card.subtitle && <p className="text-xs text-muted-foreground mt-1">{card.subtitle}</p>}
                 {card.change && (
-                  <p className={`text-xs mt-1 ${
-                    card.changeType === 'positive' ? 'text-green-500' : 'text-red-500'
-                  }`}>
-                    {card.changeType === 'positive' ? '+' : ''}{card.change}
+                  <p className={`text-xs mt-1 ${card.changeType === 'positive' ? 'text-green-500' : 'text-red-500'}`}>
+                    {card.changeType === 'positive' ? '+' : ''}
+                    {card.change}
                   </p>
                 )}
               </div>

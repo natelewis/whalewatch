@@ -158,20 +158,20 @@ export class SecretValidator {
     console.log('=====================================');
 
     // Process each secret in the array
-    this.secrets.forEach((secret) => {
+    this.secrets.forEach(secret => {
       const isPresent = Boolean(secret.value && secret.value.trim() !== '');
       const isRequired = secret.required;
-      
+
       if (isRequired) {
         requiredCount++;
       }
 
       if (isPresent) {
         presentCount++;
-        const displayValue = secret.maskValue && secret.value 
-          ? `${secret.value.substring(0, 4)}***` 
-          : secret.value;
-        console.log(`  ${secret.name}: ${isPresent ? '✅ Set' : '❌ Missing'} ${displayValue ? `(${displayValue})` : ''}`);
+        const displayValue = secret.maskValue && secret.value ? `${secret.value.substring(0, 4)}***` : secret.value;
+        console.log(
+          `  ${secret.name}: ${isPresent ? '✅ Set' : '❌ Missing'} ${displayValue ? `(${displayValue})` : ''}`
+        );
       } else {
         if (isRequired) {
           missingSecrets.push(secret.name);
@@ -240,42 +240,41 @@ export class SecretValidator {
    */
   public getSecretsByCategory(category: 'auth' | 'trading' | 'server' | 'test'): SecretConfig[] {
     const categoryMap = {
-      auth: ['JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_CALLBACK_URL', 'SESSION_SECRET'],
+      auth: [
+        'JWT_SECRET',
+        'JWT_EXPIRES_IN',
+        'GOOGLE_CLIENT_ID',
+        'GOOGLE_CLIENT_SECRET',
+        'GOOGLE_CALLBACK_URL',
+        'SESSION_SECRET',
+      ],
       trading: ['ALPACA_API_KEY', 'ALPACA_SECRET_KEY', 'ALPACA_BASE_URL', 'ALPACA_DATA_URL'],
       server: ['PORT', 'NODE_ENV', 'CORS_ORIGIN'],
       test: ['TEST_ALPACA_API_KEY', 'TEST_ALPACA_SECRET_KEY'],
     };
 
-    return this.secrets.filter(secret => 
-      categoryMap[category].includes(secret.name)
-    );
+    return this.secrets.filter(secret => categoryMap[category].includes(secret.name));
   }
 
   /**
    * Gets all secrets that are currently missing
    */
   public getMissingSecrets(): SecretConfig[] {
-    return this.secrets.filter(secret => 
-      secret.required && (!secret.value || secret.value.trim() === '')
-    );
+    return this.secrets.filter(secret => secret.required && (!secret.value || secret.value.trim() === ''));
   }
 
   /**
    * Gets all secrets that are currently present
    */
   public getPresentSecrets(): SecretConfig[] {
-    return this.secrets.filter(secret => 
-      secret.value && secret.value.trim() !== ''
-    );
+    return this.secrets.filter(secret => secret.value && secret.value.trim() !== '');
   }
 
   /**
    * Gets all optional secrets that are missing
    */
   public getMissingOptionalSecrets(): SecretConfig[] {
-    return this.secrets.filter(secret => 
-      !secret.required && (!secret.value || secret.value.trim() === '')
-    );
+    return this.secrets.filter(secret => !secret.required && (!secret.value || secret.value.trim() === ''));
   }
 
   /**
@@ -283,15 +282,18 @@ export class SecretValidator {
    */
   public validateSecret(name: string): { isValid: boolean; message: string } {
     const secret = this.secrets.find(s => s.name === name);
-    
+
     if (!secret) {
       return { isValid: false, message: `Secret '${name}' not found` };
     }
 
     const isPresent = Boolean(secret.value && secret.value.trim() !== '');
-    
+
     if (secret.required && !isPresent) {
-      return { isValid: false, message: `Required secret '${name}' is missing` };
+      return {
+        isValid: false,
+        message: `Required secret '${name}' is missing`,
+      };
     }
 
     if (!secret.required && !isPresent) {
@@ -310,10 +312,10 @@ export class SecretValidator {
     let presentCount = 0;
     let requiredCount = 0;
 
-    this.secrets.forEach((secret) => {
+    this.secrets.forEach(secret => {
       const isPresent = Boolean(secret.value && secret.value.trim() !== '');
       const isRequired = secret.required;
-      
+
       if (isRequired) {
         requiredCount++;
       }

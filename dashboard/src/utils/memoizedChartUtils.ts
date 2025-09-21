@@ -53,9 +53,7 @@ export const memoizedCalculateYScaleDomain = (
           data[data.length - 1]?.high
         }`
       : 'empty';
-  const cacheKey = `yScale-${dataKey}-${
-    fixedDomain ? `${fixedDomain[0]}-${fixedDomain[1]}` : 'null'
-  }`;
+  const cacheKey = `yScale-${dataKey}-${fixedDomain ? `${fixedDomain[0]}-${fixedDomain[1]}` : 'null'}`;
 
   if (calculationCache.has(cacheKey)) {
     return calculationCache.get(cacheKey) as YScaleDomain;
@@ -69,8 +67,8 @@ export const memoizedCalculateYScaleDomain = (
   } else if (!data || data.length === 0) {
     domain = [0, 100]; // Default fallback
   } else {
-    const minPrice = d3.min(data, (d) => d.low) as number;
-    const maxPrice = d3.max(data, (d) => d.high) as number;
+    const minPrice = d3.min(data, d => d.low) as number;
+    const maxPrice = d3.max(data, d => d.high) as number;
     const priceRange = maxPrice - minPrice;
     const padding = priceRange * PRICE_PADDING_MULTIPLIER;
     domain = [minPrice - padding, maxPrice + padding];
@@ -101,17 +99,11 @@ export const memoizedCalculateChartState = ({
   // Create cache key based on all inputs
   const dataKey =
     allChartData.length > 0
-      ? `${allChartData.length}-${allChartData[0]?.timestamp}-${
-          allChartData[allChartData.length - 1]?.timestamp
-        }`
+      ? `${allChartData.length}-${allChartData[0]?.timestamp}-${allChartData[allChartData.length - 1]?.timestamp}`
       : 'empty';
-  const transformKey = `${transform.x.toFixed(2)}-${transform.y.toFixed(2)}-${transform.k.toFixed(
-    2
-  )}`;
+  const transformKey = `${transform.x.toFixed(2)}-${transform.y.toFixed(2)}-${transform.k.toFixed(2)}`;
   const dimensionsKey = `${dimensions.width}-${dimensions.height}`;
-  const fixedDomainKey = fixedYScaleDomain
-    ? `${fixedYScaleDomain[0]}-${fixedYScaleDomain[1]}`
-    : 'null';
+  const fixedDomainKey = fixedYScaleDomain ? `${fixedYScaleDomain[0]}-${fixedYScaleDomain[1]}` : 'null';
 
   const cacheKey = `chartState-${dataKey}-${transformKey}-${dimensionsKey}-${fixedDomainKey}`;
 
@@ -194,7 +186,7 @@ export const memoizedGetPriceRange = (data: CandlestickData[]): PriceRange | nul
     return calculationCache.get(cacheKey) as PriceRange;
   }
 
-  const prices = data.flatMap((d) => [d.open, d.high, d.low, d.close]);
+  const prices = data.flatMap(d => [d.open, d.high, d.low, d.close]);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
 
@@ -253,16 +245,9 @@ export const clearCalculationCache = () => {
 export const getCacheStats = () => {
   return {
     totalEntries: calculationCache.size,
-    yScaleEntries: Array.from(calculationCache.keys()).filter((k) => k.startsWith('yScale-'))
-      .length,
-    chartStateEntries: Array.from(calculationCache.keys()).filter((k) =>
-      k.startsWith('chartState-')
-    ).length,
-    priceRangeEntries: Array.from(calculationCache.keys()).filter((k) =>
-      k.startsWith('priceRange-')
-    ).length,
-    visibleDataEntries: Array.from(calculationCache.keys()).filter((k) =>
-      k.startsWith('visibleData-')
-    ).length,
+    yScaleEntries: Array.from(calculationCache.keys()).filter(k => k.startsWith('yScale-')).length,
+    chartStateEntries: Array.from(calculationCache.keys()).filter(k => k.startsWith('chartState-')).length,
+    priceRangeEntries: Array.from(calculationCache.keys()).filter(k => k.startsWith('priceRange-')).length,
+    visibleDataEntries: Array.from(calculationCache.keys()).filter(k => k.startsWith('visibleData-')).length,
   };
 };

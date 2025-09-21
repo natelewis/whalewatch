@@ -129,20 +129,8 @@ export interface QuestDBResponse<T> {
 
 // WebSocket message types for real-time data
 export interface QuestDBWebSocketMessage {
-  type:
-    | 'stock_trade'
-    | 'option_trade'
-    | 'option_quote'
-    | 'stock_aggregate'
-    | 'error'
-    | 'connected'
-    | 'disconnected';
-  data:
-    | QuestDBStockTrade
-    | QuestDBOptionTrade
-    | QuestDBOptionQuote
-    | QuestDBStockAggregate
-    | string;
+  type: 'stock_trade' | 'option_trade' | 'option_quote' | 'stock_aggregate' | 'error' | 'connected' | 'disconnected';
+  data: QuestDBStockTrade | QuestDBOptionTrade | QuestDBOptionQuote | QuestDBStockAggregate | string;
   timestamp: string;
   symbol?: string;
   underlying_ticker?: string;
