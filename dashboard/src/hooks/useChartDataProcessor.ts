@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { CandlestickData } from '../utils/chartDataUtils';
+import { memoizedGetPriceRange, memoizedGetVisibleData } from '../utils/memoizedChartUtils';
 
 /**
  * Hook for processing and managing chart data
@@ -17,17 +18,11 @@ export const useChartDataProcessor = (data: CandlestickData[]) => {
     return !!(data && Array.isArray(data) && data.length > 0);
   }, [data]);
 
-  // Get visible data slice
+  // Get visible data slice using memoized function
   const getVisibleData = useCallback(
     (startIndex: number, endIndex: number): CandlestickData[] => {
       if (!isValidData) return [];
-
-      const clampedStart = Math.max(0, startIndex);
-      const clampedEnd = Math.min(processedData.length - 1, endIndex);
-
-      if (clampedStart > clampedEnd) return [];
-
-      return processedData.slice(clampedStart, clampedEnd + 1);
+      return memoizedGetVisibleData(processedData, startIndex, endIndex);
     },
     [processedData, isValidData]
   );
@@ -45,15 +40,10 @@ export const useChartDataProcessor = (data: CandlestickData[]) => {
     };
   }, [processedData, isValidData]);
 
-  // Get price range for Y-axis scaling
+  // Get price range for Y-axis scaling using memoized function
   const getPriceRange = useCallback(() => {
     if (!isValidData) return null;
-
-    const prices = processedData.flatMap((d) => [d.open, d.high, d.low, d.close]);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-
-    return { minPrice, maxPrice };
+    return memoizedGetPriceRange(processedData);
   }, [processedData, isValidData]);
 
   // Find data point by time
@@ -84,4 +74,3 @@ export const useChartDataProcessor = (data: CandlestickData[]) => {
     findDataByIndex,
   };
 };
-

@@ -95,7 +95,7 @@ export interface ChartStateCallbacks {
   setHoverData?: (data: HoverData | null) => void;
   setFixedYScaleDomain?: (domain: [number, number] | null) => void;
   setChartExists?: (value: boolean) => void;
-  setZoomBehavior?: (behavior: d3.ZoomBehavior<Element, unknown>) => void;
+  setZoomBehavior?: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => void;
   setCurrentTransform?: (transform: d3.ZoomTransform) => void;
   getFixedYScaleDomain?: () => [number, number] | null;
   getCurrentData?: () => CandlestickData[];

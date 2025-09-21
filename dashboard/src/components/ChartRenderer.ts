@@ -20,6 +20,10 @@ import {
   clampIndex,
   isValidChartData,
 } from '../utils/chartDataUtils';
+import {
+  memoizedCalculateYScaleDomain,
+  memoizedCalculateChartState,
+} from '../utils/memoizedChartUtils';
 
 // ============================================================================
 // CONFIGURATION CONSTANTS - imported from centralized constants
@@ -51,39 +55,10 @@ import { ChartStateCallbacks, ChartState } from '../types';
 // ============================================================================
 
 /**
- * Centralized Y-scale domain calculation
+ * Centralized Y-scale domain calculation using memoized function
  * This is the single source of truth for all Y-scale domain calculations
  */
-const calculateYScaleDomain = (
-  data: CandlestickData[],
-  fixedDomain: [number, number] | null = null
-): [number, number] => {
-  if (fixedDomain) {
-    return fixedDomain;
-  }
-
-  if (!data || data.length === 0) {
-    console.log('⚠️ No data for Y-scale, using fallback domain');
-    return [0, 100]; // Default fallback
-  }
-
-  const minPrice = d3.min(data, (d) => d.low) as number;
-  const maxPrice = d3.max(data, (d) => d.high) as number;
-  const priceRange = maxPrice - minPrice;
-  const padding = priceRange * PRICE_PADDING_MULTIPLIER;
-  const domain: [number, number] = [minPrice - padding, maxPrice + padding];
-
-  console.log('📊 Calculated Y-scale domain:', {
-    dataLength: data.length,
-    minPrice,
-    maxPrice,
-    priceRange,
-    padding,
-    domain,
-  });
-
-  return domain;
-};
+const calculateYScaleDomain = memoizedCalculateYScaleDomain;
 
 /**
  * Centralized Y-scale creation
@@ -99,91 +74,10 @@ const createYScale = (
 };
 
 /**
- * Centralized chart state calculation
+ * Centralized chart state calculation using memoized function
  * This is the single source of truth for all chart state calculations
  */
-export const calculateChartState = ({
-  dimensions,
-  allChartData,
-  transform,
-  fixedYScaleDomain,
-}: {
-  dimensions: ChartDimensions;
-  allChartData: CandlestickData[];
-  transform: d3.ZoomTransform;
-  fixedYScaleDomain: [number, number] | null;
-}): ChartCalculations => {
-  // Calculate dimensions (single source)
-  const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
-
-  // RIGHT-ALIGNED SYSTEM: Rightmost data is always at right edge (ground 0)
-  const availableDataLength = allChartData.length;
-  const bandWidth = innerWidth / CHART_DATA_POINTS;
-
-  // Calculate pan offset in data points (positive = pan left, negative = pan right)
-  const panOffsetPixels = transform.x;
-  const panOffsetDataPoints = panOffsetPixels / bandWidth;
-
-  // Calculate which portion of the full dataset should be visible
-  // Rightmost data is always at the right edge, panning moves the view left
-  const rightmostDataIndex = availableDataLength - 1;
-  const viewEnd = Math.min(rightmostDataIndex, rightmostDataIndex - panOffsetDataPoints);
-  const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
-
-  // console.log('📊 View calculation:', {
-  //   availableDataLength,
-  //   rightmostDataIndex,
-  //   panOffsetDataPoints,
-  //   panOffsetPixels: transform.x,
-  //   viewStart,
-  //   viewEnd,
-  //   viewSize: viewEnd - viewStart + 1,
-  //   bandWidth,
-  // });
-
-  // Create base X scale that maps data indices to screen coordinates
-  // The scale should always map the full dataset to a fixed range that shows 80 points
-  // Panning is handled by the transform, not by changing the scale range
-
-  // Calculate the scale range to accommodate the full dataset
-  // The range should be wide enough to show all data points with proper spacing
-  const totalDataWidth = availableDataLength * bandWidth;
-
-  // Position the scale so the rightmost data is at the right edge
-  const rightmostX = innerWidth;
-  const leftmostX = rightmostX - totalDataWidth;
-
-  // Create X scale that maps the full dataset to a range that allows panning
-  // The scale should map the full dataset, but we'll only render visible points
-  const baseXScale = d3
-    .scaleLinear()
-    .domain([0, availableDataLength - 1]) // Full dataset range
-    .range([leftmostX, rightmostX]); // Range sized for full dataset
-
-  // Create Y scale using centralized calculation
-  const baseYScale = createYScale(allChartData, innerHeight, fixedYScaleDomain);
-
-  // Calculate transformed scales (single source)
-  const transformedXScale = transform.rescaleX(baseXScale);
-  const transformedYScale = transform.rescaleY(baseYScale);
-
-  // Get visible data slice for tooltips and other interactions
-  const visibleData = allChartData.slice(viewStart, viewEnd + 1);
-
-  return {
-    innerWidth,
-    innerHeight,
-    baseXScale,
-    baseYScale,
-    transformedXScale,
-    transformedYScale,
-    viewStart,
-    viewEnd,
-    visibleData,
-    allData: allChartData,
-    transformString: transform.toString(),
-  };
-};
+export const calculateChartState = memoizedCalculateChartState;
 
 // ============================================================================
 // CHART RENDERING FUNCTIONS
@@ -283,7 +177,7 @@ export const createChart = ({
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
-    .call(createCustomTimeAxis(xScale, allChartData));
+    .call(createCustomTimeAxis(xScale, allChartData as { time: string }[]));
 
   // Create Y-axis
   const yAxis = g
@@ -302,7 +196,7 @@ export const createChart = ({
 
   // Store reference to zoom behavior for programmatic control
   if (stateCallbacks.setZoomBehavior) {
-    stateCallbacks.setZoomBehavior(zoom);
+    stateCallbacks.setZoomBehavior(zoom as d3.ZoomBehavior<SVGSVGElement, unknown>);
   }
 
   const handleZoomStart = (): void => {
@@ -385,7 +279,9 @@ export const createChart = ({
 
       // Use custom time axis with proper positioning
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
+      xAxisGroup.call(
+        createCustomTimeAxis(calculations.transformedXScale, currentData as { time: string }[])
+      );
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(xAxisGroup);
@@ -605,11 +501,13 @@ export const createChart = ({
             x: mouseX + currentMargin.left,
             y: mouseY + currentMargin.top,
             data: {
-              time: d.time,
+              timestamp: d.timestamp,
+              time: d.time || d.timestamp,
               open: d.open,
               high: d.high,
               low: d.low,
               close: d.close,
+              volume: d.volume,
             },
           });
         }
@@ -674,10 +572,15 @@ export const renderCandlestickChart = (
     yScaleDomain: calculations.baseYScale.domain(),
     yScaleRange: calculations.baseYScale.range(),
     firstCandleTime:
-      visibleCandles.length > 0 ? new Date(visibleCandles[0].time).toLocaleString() : 'none',
+      visibleCandles.length > 0
+        ? new Date(visibleCandles[0].time || visibleCandles[0].timestamp).toLocaleString()
+        : 'none',
     lastCandleTime:
       visibleCandles.length > 0
-        ? new Date(visibleCandles[visibleCandles.length - 1].time).toLocaleString()
+        ? new Date(
+            visibleCandles[visibleCandles.length - 1].time ||
+              visibleCandles[visibleCandles.length - 1].timestamp
+          ).toLocaleString()
         : 'none',
     firstCandleIndex: actualStart,
     lastCandleIndex: actualEnd,
@@ -734,7 +637,7 @@ export const renderCandlestickChart = (
           .merge(tooltip)
           .html(
             `
-            <div><strong>Time:</strong> ${new Date(d.time).toLocaleString()}</div>
+            <div><strong>Time:</strong> ${new Date(d.time || d.timestamp).toLocaleString()}</div>
             <div><strong>O:</strong> ${d.open.toFixed(2)}</div>
             <div><strong>H:</strong> ${d.high.toFixed(2)}</div>
             <div><strong>L:</strong> ${d.low.toFixed(2)}</div>
