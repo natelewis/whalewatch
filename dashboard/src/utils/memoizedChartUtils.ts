@@ -1,7 +1,6 @@
 import * as d3 from 'd3';
 import { CandlestickData, ChartDimensions } from '../types';
 import { CHART_DATA_POINTS, PRICE_PADDING_MULTIPLIER } from '../constants';
-import { calculateInnerDimensions } from './chartDataUtils';
 
 // Types for cache values
 type YScaleDomain = [number, number];
@@ -20,7 +19,18 @@ type ChartState = {
   transformString: string;
 };
 type TickPosition = { timestamp: Date; position: number };
-type CacheValue = YScaleDomain | PriceRange | ChartState | CandlestickData[] | TickPosition[];
+type InnerDimensions = { innerWidth: number; innerHeight: number };
+type CacheValue =
+  | YScaleDomain
+  | PriceRange
+  | ChartState
+  | CandlestickData[]
+  | TickPosition[]
+  | Date[]
+  | InnerDimensions
+  | string
+  | boolean
+  | d3.Axis<d3.NumberValue>;
 
 // Memoization cache for expensive calculations
 const calculationCache = new Map<string, CacheValue>();
@@ -254,7 +264,132 @@ export const getCacheStats = () => {
 };
 
 /**
+ * Memoized time-based tick generation
+ * This is called on every axis update and can be expensive with large datasets
+ */
+export const memoizedGenerateTimeBasedTicks = (allChartData: { timestamp: string }[]): Date[] => {
+  if (!allChartData || allChartData.length === 0) {
+    return [];
+  }
+
+  const dataKey = `${allChartData.length}-${allChartData[0]?.timestamp}-${
+    allChartData[allChartData.length - 1]?.timestamp
+  }`;
+  const cacheKey = `timeTicks-${dataKey}`;
+
+  if (calculationCache.has(cacheKey)) {
+    return calculationCache.get(cacheKey) as Date[];
+  }
+
+  // Generate ticks every 20 data points
+  const dataPointInterval = 20;
+  const ticks: Date[] = [];
+
+  for (let i = 0; i < allChartData.length; i += dataPointInterval) {
+    ticks.push(new Date(allChartData[i].timestamp));
+  }
+
+  calculationCache.set(cacheKey, ticks);
+  cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
+  return ticks;
+};
+
+/**
+ * Calculate inner dimensions from chart dimensions (width/height minus margins)
+ * This is a simple calculation that doesn't need memoization
+ */
+const calculateInnerDimensions = (dimensions: {
+  width: number;
+  height: number;
+  margin: { top: number; right: number; bottom: number; left: number };
+}): { innerWidth: number; innerHeight: number } => {
+  return {
+    innerWidth: dimensions.width - dimensions.margin.left - dimensions.margin.right,
+    innerHeight: dimensions.height - dimensions.margin.top - dimensions.margin.bottom,
+  };
+};
+
+/**
+ * Memoized time formatting for axis labels
+ * Expensive string operations that are repeated for the same timestamps
+ */
+export const memoizedFormatTime = (timestamp: Date): string => {
+  const timeKey = timestamp.getTime().toString();
+  const cacheKey = `timeFormat-${timeKey}`;
+
+  if (calculationCache.has(cacheKey)) {
+    return calculationCache.get(cacheKey) as string;
+  }
+
+  const result = timestamp.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  calculationCache.set(cacheKey, result);
+  cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
+  return result;
+};
+
+/**
+ * Memoized axis styling application
+ * Prevents repeated DOM operations for the same styling
+ */
+export const memoizedApplyAxisStyling = (axis: d3.Selection<SVGGElement, unknown, null, undefined>): void => {
+  // Create a unique key based on the axis element and its current state
+  const axisElement = axis.node();
+  if (!axisElement) {
+    return;
+  }
+
+  const axisId = axisElement.getAttribute('class') || 'unknown';
+  const hasDomain = !axis.select('.domain').empty();
+  const hasTicks = axis.selectAll('.tick').size() > 0;
+  const cacheKey = `axisStyle-${axisId}-${hasDomain}-${hasTicks}`;
+
+  // Check if we've already applied this exact styling
+  if (calculationCache.has(cacheKey)) {
+    return; // Already styled, skip
+  }
+
+  // Apply the styling
+  // Style the domain lines to be gray and remove end tick marks (nubs)
+  axis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+
+  // Style tick lines to be gray, keep labels white
+  axis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+  axis.selectAll('.tick text').style('font-size', '12px');
+
+  // Mark as styled
+  calculationCache.set(cacheKey, true);
+  cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
+};
+
+/**
+ * Memoized Y-axis creation
+ * Prevents recreating the same axis configuration repeatedly
+ */
+export const memoizedCreateYAxis = (
+  scale: d3.ScaleLinear<number, number>,
+  tickCount: number = 10
+): d3.Axis<d3.NumberValue> => {
+  const scaleKey = `yAxis-${scale.domain().join('-')}-${scale.range().join('-')}-${tickCount}`;
+  const cacheKey = `yAxis-${scaleKey}`;
+
+  if (calculationCache.has(cacheKey)) {
+    return calculationCache.get(cacheKey) as d3.Axis<d3.NumberValue>;
+  }
+
+  const result = d3.axisRight(scale).tickSizeOuter(0).ticks(tickCount).tickFormat(d3.format('.2f'));
+
+  calculationCache.set(cacheKey, result);
+  cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
+  return result;
+};
+
+/**
  * Memoized mapping from time-based ticks to on-screen positions using a transformed linear scale
+ * OPTIMIZED: Uses binary search instead of linear search for O(log n) performance per tick
  */
 export const memoizedMapTicksToPositions = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
@@ -279,18 +414,45 @@ export const memoizedMapTicksToPositions = (
     return calculationCache.get(cacheKey) as TickPosition[];
   }
 
+  // Pre-compute timestamps for binary search (only once per call)
+  const timestamps = allChartData.map(d => new Date(d.timestamp).getTime());
+
   const result: TickPosition[] = ticks.map(tick => {
-    // Find closest data point by time
+    const tickTime = tick.getTime();
+
+    // Binary search for closest timestamp
+    let left = 0;
+    let right = timestamps.length - 1;
     let closestIndex = 0;
-    let minTimeDiff = Math.abs(new Date(allChartData[0].timestamp).getTime() - tick.getTime());
-    for (let i = 1; i < allChartData.length; i++) {
-      const dataTime = new Date(allChartData[i].timestamp);
-      const timeDiff = Math.abs(dataTime.getTime() - tick.getTime());
-      if (timeDiff < minTimeDiff) {
-        minTimeDiff = timeDiff;
-        closestIndex = i;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      const midTime = timestamps[mid];
+
+      if (midTime === tickTime) {
+        closestIndex = mid;
+        break;
+      } else if (midTime < tickTime) {
+        left = mid + 1;
+      } else {
+        right = mid - 1;
       }
     }
+
+    // If we didn't find exact match, check neighbors
+    if (timestamps[closestIndex] !== tickTime) {
+      const leftDiff = closestIndex > 0 ? Math.abs(timestamps[closestIndex - 1] - tickTime) : Infinity;
+      const rightDiff =
+        closestIndex < timestamps.length - 1 ? Math.abs(timestamps[closestIndex + 1] - tickTime) : Infinity;
+      const currentDiff = Math.abs(timestamps[closestIndex] - tickTime);
+
+      if (leftDiff < currentDiff && leftDiff < rightDiff) {
+        closestIndex = closestIndex - 1;
+      } else if (rightDiff < currentDiff) {
+        closestIndex = closestIndex + 1;
+      }
+    }
+
     const position = transformedLinearScale(closestIndex);
     return { timestamp: tick, position };
   });

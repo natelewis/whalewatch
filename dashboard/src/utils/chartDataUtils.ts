@@ -1,5 +1,11 @@
 import * as d3 from 'd3';
-import { memoizedMapTicksToPositions } from './memoizedChartUtils';
+import {
+  memoizedMapTicksToPositions,
+  memoizedGenerateTimeBasedTicks,
+  memoizedFormatTime,
+  memoizedApplyAxisStyling,
+  memoizedCreateYAxis,
+} from './memoizedChartUtils';
 import {
   AlpacaBar,
   ChartTimeframe,
@@ -81,6 +87,7 @@ export const processChartData = (
 
 /**
  * Calculate inner dimensions from chart dimensions (width/height minus margins)
+ * This is a simple calculation that doesn't need memoization
  */
 export const calculateInnerDimensions = (dimensions: {
   width: number;
@@ -95,15 +102,9 @@ export const calculateInnerDimensions = (dimensions: {
 
 /**
  * Apply consistent styling to axis elements
+ * Now uses memoized version for better performance
  */
-export const applyAxisStyling = (axis: d3.Selection<SVGGElement, unknown, null, undefined>): void => {
-  // Style the domain lines to be gray and remove end tick marks (nubs)
-  axis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
-
-  // Style tick lines to be gray, keep labels white
-  axis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
-  axis.selectAll('.tick text').style('font-size', '12px');
-};
+export const applyAxisStyling = memoizedApplyAxisStyling;
 
 /**
  * Calculate dynamic tick values for time-based scale (every 20 data points)
@@ -122,22 +123,9 @@ export const calculateTimeBasedTickValues = (allChartData: { timestamp: string }
 /**
  * Generate time-based ticks that account for actual time distribution
  * This creates ticks that make sense for the data's time pattern
+ * Now uses memoized version for better performance
  */
-export const generateTimeBasedTicks = (allChartData: { timestamp: string }[]): Date[] => {
-  if (allChartData.length === 0) {
-    return [];
-  }
-
-  // Generate ticks every 20 data points
-  const dataPointInterval = 20;
-  const ticks: Date[] = [];
-
-  for (let i = 0; i < allChartData.length; i += dataPointInterval) {
-    ticks.push(new Date(allChartData[i].timestamp));
-  }
-
-  return ticks;
-};
+export const generateTimeBasedTicks = memoizedGenerateTimeBasedTicks;
 
 /**
  * Create unified time-based scale that works with transformed linear scale
@@ -283,7 +271,7 @@ export const createCustomTimeAxis = (
       // Add tick line
       tickSelection.append('line').attr('stroke', '#666').attr('stroke-width', 1).attr('y2', 6);
 
-      // Add tick label
+      // Add tick label (using memoized time formatting for better performance)
       tickSelection
         .append('text')
         .attr('y', 9)
@@ -291,12 +279,7 @@ export const createCustomTimeAxis = (
         .attr('text-anchor', 'middle')
         .style('font-size', '12px')
         .style('fill', '#666')
-        .text(d =>
-          d.timestamp.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        );
+        .text(d => memoizedFormatTime(d.timestamp));
     });
   };
 
@@ -305,10 +288,9 @@ export const createCustomTimeAxis = (
 
 /**
  * Create Y-axis with consistent configuration
+ * Now uses memoized version for better performance
  */
-export const createYAxis = (scale: d3.ScaleLinear<number, number>, tickCount: number = 10): d3.Axis<d3.NumberValue> => {
-  return d3.axisRight(scale).tickSizeOuter(0).ticks(tickCount).tickFormat(d3.format('.2f'));
-};
+export const createYAxis = memoizedCreateYAxis;
 
 /**
  * Format price values consistently (2 decimal places)

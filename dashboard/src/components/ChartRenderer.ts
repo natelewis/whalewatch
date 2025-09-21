@@ -185,6 +185,7 @@ export const createChart = ({
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
+    const zoomStartTime = performance.now();
     const { transform } = event;
 
     // Update current transform for debugging
@@ -217,12 +218,15 @@ export const createChart = ({
     }
 
     // Single source of truth for all calculations
+    const calcStartTime = performance.now();
     const calculations = calculateChartState({
       dimensions: currentDimensions,
       allChartData: currentData,
       transform,
       fixedYScaleDomain: currentFixedYScaleDomain,
     });
+    const calcEndTime = performance.now();
+    console.log(`⏱️ Chart state calculation took: ${(calcEndTime - calcStartTime).toFixed(2)}ms`);
 
     // Update view state using centralized calculations
     if (stateCallbacks.setCurrentViewStart) {
@@ -235,6 +239,7 @@ export const createChart = ({
     // Apply transform to the main chart content group (includes candlesticks)
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroup.empty()) {
+      const transformStartTime = performance.now();
       // console.log('🔄 Updating chart content group transform:', {
       //   transformString: calculations.transformString,
       //   transformX: transform.x,
@@ -244,28 +249,55 @@ export const createChart = ({
       //   yScaleRange: calculations.baseYScale.range(),
       // });
       chartContentGroup.attr('transform', calculations.transformString);
+      const transformEndTime = performance.now();
+      console.log(`⏱️ Transform update took: ${(transformEndTime - transformStartTime).toFixed(2)}ms`);
     }
 
     // Update X-axis using time-based scale that aligns with candlesticks
+    // Throttle X-axis updates during panning to improve performance
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
+      const axisStartTime = performance.now();
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
 
-      // Use custom time axis with proper positioning
-      xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
+      // Only update X-axis if we're not in the middle of a rapid pan operation
+      // or if the view has changed significantly (more than 10% of visible range)
+      const viewRange = calculations.viewEnd - calculations.viewStart;
+      const viewChangeThreshold = viewRange * 0.1; // 10% of visible range
+      const shouldUpdateAxis =
+        !isPanningRef.current ||
+        Math.abs(calculations.viewStart - (xAxisGroup.attr('data-last-view-start') || 0)) > viewChangeThreshold;
 
-      // Apply consistent styling to maintain consistency with initial load
-      applyAxisStyling(xAxisGroup);
+      if (shouldUpdateAxis) {
+        // Use custom time axis with proper positioning
+        xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
+        xAxisGroup.call(createCustomTimeAxis(calculations.transformedXScale, currentData));
+
+        // Apply consistent styling to maintain consistency with initial load
+        applyAxisStyling(xAxisGroup);
+
+        // Store current view for next comparison
+        xAxisGroup.attr('data-last-view-start', calculations.viewStart);
+      }
+
+      const axisEndTime = performance.now();
+      console.log(
+        `⏱️ X-axis update took: ${(axisEndTime - axisStartTime).toFixed(2)}ms (${
+          shouldUpdateAxis ? 'updated' : 'skipped'
+        })`
+      );
     }
 
     // Update Y-axis using centralized calculations
     const yAxisGroup = g.select<SVGGElement>('.y-axis');
     if (!yAxisGroup.empty()) {
+      const yAxisStartTime = performance.now();
       yAxisGroup.call(createYAxis(calculations.transformedYScale));
 
       // Apply consistent styling to maintain consistency with initial load
       applyAxisStyling(yAxisGroup);
+      const yAxisEndTime = performance.now();
+      console.log(`⏱️ Y-axis update took: ${(yAxisEndTime - yAxisStartTime).toFixed(2)}ms`);
     }
 
     // Check if we need to re-render candlesticks due to panning outside buffer
@@ -318,6 +350,7 @@ export const createChart = ({
     }
 
     if (needsRerender) {
+      const rerenderStartTime = performance.now();
       console.log('🔄 Re-rendering candlesticks - view outside buffer range', {
         currentView: `${currentViewStart}-${currentViewEnd}`,
         bufferRange: currentBufferRange ? `${currentBufferRange.start}-${currentBufferRange.end}` : 'none',
@@ -325,10 +358,16 @@ export const createChart = ({
         bufferSize,
       });
       renderCandlestickChart(svgElement, calculations);
+      const rerenderEndTime = performance.now();
+      console.log(`⏱️ Candlestick re-render took: ${(rerenderEndTime - rerenderStartTime).toFixed(2)}ms`);
 
       // Trigger data loading callback when buffered candles are rendered during panning
       if (onBufferedCandlesRendered) {
+        const dataLoadStartTime = performance.now();
+        console.log('🔄 Starting data loading during panning...');
         onBufferedCandlesRendered();
+        const dataLoadEndTime = performance.now();
+        console.log(`⏱️ Data loading callback took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
       }
 
       // Update buffer range tracking with smart boundary-aware buffer
@@ -363,6 +402,9 @@ export const createChart = ({
         bufferSize,
       });
     }
+
+    const zoomEndTime = performance.now();
+    console.log(`⏱️ Total handleZoom took: ${(zoomEndTime - zoomStartTime).toFixed(2)}ms`);
   };
 
   const handleZoomEnd = (): void => {
@@ -495,6 +537,7 @@ export const createChart = ({
 };
 
 export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
+  const renderStartTime = performance.now();
   console.log('🎨 renderCandlestickChart called with:', {
     allDataLength: calculations.allData.length,
     viewStart: calculations.viewStart,
@@ -552,6 +595,7 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   // Use the base linear scale for candlestick positioning since the chart content group
   // already has the transform applied
 
+  const candlestickRenderStartTime = performance.now();
   visibleCandles.forEach((d, localIndex) => {
     // Calculate the global data index for proper positioning
     const globalIndex = actualStart + localIndex;
@@ -634,6 +678,10 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     // .style('opacity', 0.8);
   });
 
+  const candlestickRenderEndTime = performance.now();
+  const totalRenderTime = candlestickRenderEndTime - renderStartTime;
+  const candlestickLoopTime = candlestickRenderEndTime - candlestickRenderStartTime;
+
   console.log('🎨 Rendered BUFFERED candles (SMOOTH PANNING):', {
     allDataLength: calculations.allData.length,
     bufferedCandlesRendered: visibleCandles.length,
@@ -647,6 +695,11 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
       domain: calculations.baseXScale.domain(),
       range: calculations.baseXScale.range(),
       totalWidth: calculations.baseXScale.range()[1] - calculations.baseXScale.range()[0],
+    },
+    performance: {
+      totalRenderTime: `${totalRenderTime.toFixed(2)}ms`,
+      candlestickLoopTime: `${candlestickLoopTime.toFixed(2)}ms`,
+      candlesPerMs: visibleCandles.length > 0 ? (visibleCandles.length / candlestickLoopTime).toFixed(2) : '0',
     },
   });
 };

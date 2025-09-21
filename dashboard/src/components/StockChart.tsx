@@ -250,6 +250,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Function to automatically load more data when buffered candles are rendered
   const loadMoreDataOnBufferedRender = useCallback((): void => {
+    const dataLoadStartTime = performance.now();
+    console.log('🔄 loadMoreDataOnBufferedRender called during panning');
+
     if (timeframe === null) {
       console.warn('Cannot auto-load more data: no timeframe selected');
       return;
@@ -305,6 +308,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           newDataLength: formattedData.length,
           limit: newDataPoints,
         });
+        const dataLoadEndTime = performance.now();
+        console.log(`⏱️ Data loading (async) took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
       })
       .catch(error => {
         console.error('Failed to auto-load more data:', error);
