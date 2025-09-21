@@ -88,7 +88,7 @@ export const createChart = ({
   chartState: ChartState;
   bufferRangeRef: React.MutableRefObject<{ start: number; end: number } | null>;
   isPanningRef: React.MutableRefObject<boolean>;
-  onBufferedCandlesRendered?: () => void;
+  onBufferedCandlesRendered?: (direction: 'past' | 'future') => void;
 }): void => {
   if (!svgElement) {
     console.log('createChart: No svgElement found, skipping chart creation (SVG element not mounted yet)');
@@ -121,18 +121,16 @@ export const createChart = ({
 
   const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`); // gRef.current;
 
-  // Add a clip-path that's large enough for all buffered content
-  // Allow plenty of space for off-screen candlesticks to be rendered
-  const bufferSpace = innerWidth * 2; // Large buffer for off-screen rendering
+  // Add a clip-path that matches the chart's inner area (no render buffer)
   svg
     .append('defs')
     .append('clipPath')
     .attr('id', 'clip')
     .append('rect')
-    .attr('x', -bufferSpace)
-    .attr('y', -bufferSpace)
-    .attr('width', innerWidth + bufferSpace * 2)
-    .attr('height', innerHeight + bufferSpace * 2);
+    .attr('x', 0)
+    .attr('y', 0)
+    .attr('width', innerWidth)
+    .attr('height', innerHeight);
 
   // Create chart content group for transforms
   g.append('g').attr('class', 'chart-content').attr('clip-path', 'url(#clip)');
@@ -240,21 +238,13 @@ export const createChart = ({
       stateCallbacks.setCurrentViewEnd(calculations.viewEnd);
     }
 
-    // Apply transform to the main chart content group (includes candlesticks)
+    // Do not apply transform to the content group; we use transformed scales for positioning
     const chartContentGroup = g.select<SVGGElement>('.chart-content');
     if (!chartContentGroup.empty()) {
       const transformStartTime = performance.now();
-      // console.log('🔄 Updating chart content group transform:', {
-      //   transformString: calculations.transformString,
-      //   transformX: transform.x,
-      //   transformY: transform.y,
-      //   transformK: transform.k,
-      //   yScaleDomain: calculations.baseYScale.domain(),
-      //   yScaleRange: calculations.baseYScale.range(),
-      // });
-      chartContentGroup.attr('transform', calculations.transformString);
+      chartContentGroup.attr('transform', null);
       const transformEndTime = performance.now();
-      console.log(`⏱️ Transform update took: ${(transformEndTime - transformStartTime).toFixed(2)}ms`);
+      console.log(`⏱️ Transform clear took: ${(transformEndTime - transformStartTime).toFixed(2)}ms`);
     }
 
     // Update X-axis using time-based scale that aligns with candlesticks
@@ -301,108 +291,13 @@ export const createChart = ({
       console.log(`⏱️ Y-axis update took: ${(yAxisEndTime - yAxisStartTime).toFixed(2)}ms`);
     }
 
-    // Check if we need to re-render candlesticks due to panning outside buffer
-    const bufferSize = BUFFER_SIZE;
-    const currentViewStart = calculations.viewStart;
-    const currentViewEnd = calculations.viewEnd;
-    const dataLength = calculations.allData.length;
+    // Always re-render all candles on pan (simplicity over optimization)
+    const rerenderStartTime = performance.now();
+    renderCandlestickChart(svgElement, calculations);
+    const rerenderEndTime = performance.now();
+    console.log(`⏱️ Candlestick re-render (pan) took: ${(rerenderEndTime - rerenderStartTime).toFixed(2)}ms`);
 
-    // Check if current view is outside the current buffer range
-    const currentBufferRange = bufferRangeRef.current;
-
-    // Use a fixed margin to prevent oscillation around the threshold
-    // Fixed margin is more stable than percentage-based margin
-    const marginSize = MARGIN_SIZE;
-
-    // Smart buffer range logic that accounts for data boundaries
-    let needsRerender = false;
-
-    if (!currentBufferRange) {
-      // No buffer range set yet - always re-render
-      needsRerender = true;
-      console.log('🔄 No buffer range set - triggering re-render');
-    } else {
-      // Check if we're at data boundaries and adjust margin accordingly
-      const atDataStart = currentViewStart <= marginSize; // Within margin of data start
-      const atDataEnd = currentViewEnd >= dataLength - marginSize - 1; // Within margin of data end
-
-      if (atDataStart && atDataEnd) {
-        // At both boundaries - only re-render if view has changed significantly
-        const startDiff = Math.abs(currentViewStart - currentBufferRange.start);
-        const endDiff = Math.abs(currentViewEnd - currentBufferRange.end);
-        needsRerender = startDiff > marginSize || endDiff > marginSize;
-        console.log('🔍 At both boundaries:', {
-          startDiff,
-          endDiff,
-          needsRerender,
-        });
-      } else if (atDataStart) {
-        // At start boundary - only check if we've moved forward significantly
-        needsRerender = currentViewEnd > currentBufferRange.end - marginSize;
-      } else if (atDataEnd) {
-        // At end boundary - only check start margin
-        needsRerender = currentViewStart < currentBufferRange.start + marginSize;
-      } else {
-        // In the middle - check both margins
-        const startCheck = currentViewStart < currentBufferRange.start + marginSize;
-        const endCheck = currentViewEnd > currentBufferRange.end - marginSize;
-        needsRerender = startCheck || endCheck;
-      }
-    }
-
-    if (needsRerender) {
-      const rerenderStartTime = performance.now();
-      console.log('🔄 Re-rendering candlesticks - view outside buffer range', {
-        currentView: `${currentViewStart}-${currentViewEnd}`,
-        bufferRange: currentBufferRange ? `${currentBufferRange.start}-${currentBufferRange.end}` : 'none',
-        marginSize,
-        bufferSize,
-      });
-      renderCandlestickChart(svgElement, calculations);
-      const rerenderEndTime = performance.now();
-      console.log(`⏱️ Candlestick re-render took: ${(rerenderEndTime - rerenderStartTime).toFixed(2)}ms`);
-
-      // Trigger data loading callback when buffered candles are rendered during panning
-      if (onBufferedCandlesRendered) {
-        const dataLoadStartTime = performance.now();
-        console.log('🔄 Starting data loading during panning...');
-        onBufferedCandlesRendered();
-        const dataLoadEndTime = performance.now();
-        console.log(`⏱️ Data loading callback took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
-      }
-
-      // Update buffer range tracking with smart boundary-aware buffer
-      const atDataStart = currentViewStart <= marginSize; // Within margin of data start
-      const atDataEnd = currentViewEnd >= dataLength - marginSize; // Within margin of data end
-
-      let actualStart, actualEnd;
-
-      if (atDataStart && atDataEnd) {
-        // At both boundaries - use the full data range
-        actualStart = 0;
-        actualEnd = dataLength - 1;
-      } else if (atDataStart) {
-        // At start boundary - only buffer forward
-        actualStart = 0;
-        actualEnd = Math.min(dataLength - 1, Math.ceil(currentViewEnd) + bufferSize);
-      } else if (atDataEnd) {
-        // At end boundary - only buffer backward
-        actualStart = Math.max(0, Math.floor(currentViewStart) - bufferSize);
-        actualEnd = dataLength - 1;
-      } else {
-        // In the middle - buffer both ways
-        actualStart = Math.max(0, Math.floor(currentViewStart) - bufferSize);
-        actualEnd = Math.min(dataLength - 1, Math.ceil(currentViewEnd) + bufferSize);
-      }
-
-      bufferRangeRef.current = { start: actualStart, end: actualEnd };
-
-      console.log('🔄 Updated buffer range:', {
-        newBufferRange: `${actualStart}-${actualEnd}`,
-        viewRange: `${currentViewStart}-${currentViewEnd}`,
-        bufferSize,
-      });
-    }
+    // Auto-load is handled on pan end only to avoid recursive storms
 
     const zoomEndTime = performance.now();
     console.log(`⏱️ Total handleZoom took: ${(zoomEndTime - zoomStartTime).toFixed(2)}ms`);
@@ -416,6 +311,43 @@ export const createChart = ({
 
     // Show crosshairs again if mouse is still over the chart
     // We'll let the mousemove event handle showing them at the correct position
+
+    // After pan/zoom ends, decide if we need to auto-load more data based on edge proximity
+    const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+    const currentData = stateCallbacks.getCurrentData?.();
+    const currentDimensions = stateCallbacks.getCurrentDimensions?.();
+    if (!currentData || !currentDimensions) {
+      return;
+    }
+
+    const endCalculations = calculateChartState({
+      dimensions: currentDimensions,
+      allChartData: currentData,
+      transform: currentTransform,
+      fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
+    });
+
+    const dataLength = endCalculations.allData.length;
+    const threshold = Math.max(0, BUFFER_SIZE - CHART_DATA_POINTS);
+    const distanceLeft = Math.max(0, Math.floor(endCalculations.viewStart));
+    const distanceRight = Math.max(0, Math.floor(dataLength - 1 - endCalculations.viewEnd));
+
+    let loadDirection: 'past' | 'future' | null = null;
+    if (distanceLeft <= threshold) {
+      loadDirection = 'past';
+    } else if (distanceRight <= threshold) {
+      loadDirection = 'future';
+    }
+
+    if (onBufferedCandlesRendered && loadDirection) {
+      console.log('🔄 Auto-loading on pan end due to edge threshold...', {
+        loadDirection,
+        distanceLeft,
+        distanceRight,
+        threshold,
+      });
+      onBufferedCandlesRendered(loadDirection);
+    }
   };
 
   zoom.on('start', handleZoomStart).on('zoom', handleZoom).on('end', handleZoomEnd);
@@ -553,21 +485,65 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     return;
   }
 
-  chartContent.selectAll('.candle-sticks').remove();
-  const candleSticks = chartContent.append('g').attr('class', 'candle-sticks');
+  // Debug: log current transform on content group
+  const currentContentTransform = chartContent.attr('transform');
+  console.log('🧭 chart-content transform:', currentContentTransform);
+
+  // Create or reuse the candles layer for idempotent rendering
+  let candleSticks = chartContent.select<SVGGElement>('.candle-sticks');
+  if (candleSticks.empty()) {
+    candleSticks = chartContent.append('g').attr('class', 'candle-sticks');
+  } else {
+    candleSticks.selectAll('*').remove();
+  }
 
   // Don't apply transform here - it's handled in handleZoom for smooth panning
 
   const candleWidth = Math.max(1, 4);
   const hoverWidth = Math.max(8, candleWidth * 2); // Wider hover area
 
-  // Render candles with a buffer around the visible viewport for smooth panning
-  // This provides a good balance between performance and smooth interaction
-  const bufferSize = BUFFER_SIZE;
-  // Convert fractional view indices to integers for proper array slicing
-  const actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-  const actualEnd = Math.min(calculations.allData.length - 1, Math.ceil(calculations.viewEnd) + bufferSize);
-  const visibleCandles = calculations.allData.slice(actualStart, actualEnd + 1);
+  // Render the entire available dataset (bounded by pruning elsewhere)
+  const actualStart = 0;
+  const actualEnd = Math.max(0, calculations.allData.length - 1);
+  const visibleCandles = calculations.allData;
+
+  // Debug markers: show clip edges and first/last candle x positions (inside chart-content so they move with pan)
+  let dbg = chartContent.select<SVGGElement>('.debug-layer');
+  if (dbg.empty()) {
+    dbg = chartContent.append('g').attr('class', 'debug-layer').style('pointer-events', 'none');
+  }
+  dbg.selectAll('*').remove();
+  const x0 = 0;
+  const xW = calculations.innerWidth;
+  const xFirst = calculations.baseXScale(0);
+  const xLast = calculations.baseXScale(actualEnd);
+  dbg
+    .append('line')
+    .attr('x1', x0)
+    .attr('x2', x0)
+    .attr('y1', 0)
+    .attr('y2', calculations.innerHeight)
+    .attr('stroke', '#ff00ff')
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.5);
+  dbg
+    .append('line')
+    .attr('x1', xW)
+    .attr('x2', xW)
+    .attr('y1', 0)
+    .attr('y2', calculations.innerHeight)
+    .attr('stroke', '#ff00ff')
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.5);
+  dbg.append('circle').attr('cx', xFirst).attr('cy', 10).attr('r', 3).attr('fill', '#00c853');
+  dbg.append('circle').attr('cx', xLast).attr('cy', 10).attr('r', 3).attr('fill', '#d50000');
+  console.log('🧭 debug positions:', {
+    xFirst,
+    xLast,
+    clipLeft: x0,
+    clipRight: xW,
+    contentTransform: currentContentTransform,
+  });
 
   console.log('🎨 Rendering candlesticks:', {
     allDataLength: calculations.allData.length,
@@ -576,7 +552,6 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     actualStart,
     actualEnd,
     visibleCandlesCount: visibleCandles.length,
-    bufferSize,
     scaleDomain: calculations.baseXScale.domain(),
     scaleRange: calculations.baseXScale.range(),
     yScaleDomain: calculations.baseYScale.domain(),
@@ -588,22 +563,29 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
         : 'none',
     firstCandleIndex: actualStart,
     lastCandleIndex: actualEnd,
-    firstCandleY: visibleCandles.length > 0 ? calculations.baseYScale(visibleCandles[0].close) : 'none',
+    firstCandleY: visibleCandles.length > 0 ? calculations.transformedYScale(visibleCandles[0].close) : 'none',
     lastCandleY:
-      visibleCandles.length > 0 ? calculations.baseYScale(visibleCandles[visibleCandles.length - 1].close) : 'none',
+      visibleCandles.length > 0
+        ? calculations.transformedYScale(visibleCandles[visibleCandles.length - 1].close)
+        : 'none',
   });
 
-  // Use the base linear scale for candlestick positioning since the chart content group
-  // already has the transform applied
+  // Use the TRANSFORMED X scale for positioning so candles follow pan/zoom without group transform
+  const xScaleForPosition = calculations.transformedXScale;
+  console.log('🧮 baseXScale domain/range:', {
+    domain: calculations.baseXScale.domain(),
+    range: calculations.baseXScale.range(),
+    innerWidth: calculations.innerWidth,
+    innerHeight: calculations.innerHeight,
+  });
 
   const candlestickRenderStartTime = performance.now();
   visibleCandles.forEach((d, localIndex) => {
     // Calculate the global data index for proper positioning
     const globalIndex = actualStart + localIndex;
 
-    // Use the base linear scale for positioning since the chart content group already has the transform applied
-    // This prevents double transformation (scale + group transform)
-    const x = calculations.baseXScale(globalIndex);
+    // Use transformed X scale for positioning
+    const x = xScaleForPosition(globalIndex);
 
     const isUp = d.close >= d.open;
     const color = isUp ? CANDLE_UP_COLOR : CANDLE_DOWN_COLOR;
@@ -651,8 +633,8 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
       });
 
     // High-Low line
-    const highY = calculations.baseYScale(d.high);
-    const lowY = calculations.baseYScale(d.low);
+    const highY = calculations.transformedYScale(d.high);
+    const lowY = calculations.transformedYScale(d.low);
 
     candleSticks
       .append('line')
@@ -669,9 +651,9 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     candleSticks
       .append('rect')
       .attr('x', x - candleWidth / 2)
-      .attr('y', calculations.baseYScale(Math.max(d.open, d.close)))
+      .attr('y', calculations.transformedYScale(Math.max(d.open, d.close)))
       .attr('width', candleWidth)
-      .attr('height', Math.abs(calculations.baseYScale(d.close) - calculations.baseYScale(d.open)) || 1)
+      .attr('height', Math.abs(calculations.transformedYScale(d.close) - calculations.transformedYScale(d.open)) || 1)
       .attr('fill', color)
       .attr('stroke', color)
       .attr('stroke-width', 1)
@@ -683,13 +665,12 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   const totalRenderTime = candlestickRenderEndTime - renderStartTime;
   const candlestickLoopTime = candlestickRenderEndTime - candlestickRenderStartTime;
 
-  console.log('🎨 Rendered BUFFERED candles (SMOOTH PANNING):', {
+  console.log('🎨 Rendered all candles:', {
     allDataLength: calculations.allData.length,
-    bufferedCandlesRendered: visibleCandles.length,
+    candlesRendered: visibleCandles.length,
     visibleDataLength: calculations.visibleData.length,
     viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
     bufferRange: `${actualStart}-${actualEnd}`,
-    bufferSize: bufferSize,
     rightmostDataIndex: calculations.allData.length - 1,
     rightmostX: calculations.innerWidth,
     scaleInfo: {
@@ -714,23 +695,9 @@ export const updateClipPath = (
   const svg = d3.select(svgElement);
   const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
 
-  // Calculate buffer space for the clip-path
-  // Since we're rendering the full dataset, we need a buffer that can
-  // accommodate the full dataset width plus extra space for smooth panning
-  const bandWidth = innerWidth / CHART_DATA_POINTS;
-  const totalDataWidth = allChartData.length * bandWidth;
-
-  // Create a buffer that's large enough for the full dataset plus extra space
-  // This allows for smooth panning without clipping issues
-  const bufferSpace = Math.max(innerWidth * 2, totalDataWidth + innerWidth);
-
-  // Update the existing clip-path rectangle
+  // Update the existing clip-path rectangle to exactly the inner area (no buffer)
   const clipRect = svg.select('#clip rect');
   if (!clipRect.empty()) {
-    clipRect
-      .attr('x', -bufferSpace)
-      .attr('y', -bufferSpace)
-      .attr('width', innerWidth + bufferSpace * 2)
-      .attr('height', innerHeight + bufferSpace * 2);
+    clipRect.attr('x', 0).attr('y', 0).attr('width', innerWidth).attr('height', innerHeight);
   }
 };

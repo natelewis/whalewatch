@@ -140,8 +140,15 @@ export const memoizedCalculateChartState = ({
 
   // Calculate which portion of the full dataset should be visible
   const rightmostDataIndex = availableDataLength - 1;
-  const viewEnd = Math.min(rightmostDataIndex, rightmostDataIndex - panOffsetDataPoints);
-  const viewStart = Math.max(0, viewEnd - CHART_DATA_POINTS + 1);
+  // Clamp viewEnd into data bounds to avoid invalid ranges when transform.x is extreme
+  const unclampedViewEnd = rightmostDataIndex - panOffsetDataPoints;
+  const viewEnd = Math.max(0, Math.min(rightmostDataIndex, unclampedViewEnd));
+  let viewStart = Math.max(0, Math.min(viewEnd, viewEnd - CHART_DATA_POINTS + 1));
+  // If view collapes to 0-0 due to extreme pan, center window on available range
+  if (viewEnd === 0) {
+    const window = Math.min(CHART_DATA_POINTS - 1, rightmostDataIndex);
+    viewStart = Math.max(0, 0);
+  }
 
   // Calculate the scale range to accommodate the full dataset
   const totalDataWidth = availableDataLength * bandWidth;

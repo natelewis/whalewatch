@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData } from '../types';
-import { CHART_DATA_POINTS } from '../constants';
+import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
 import { processChartData } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
@@ -80,19 +80,9 @@ const DEFAULT_TRANSFORM: ChartTransform = {
 /**
  * Calculate buffer size based on chart dimensions
  */
-function calculateBufferSize(chartWidth: number): number {
-  // Use centralized number of visible points for buffer calculation
-  const visiblePoints = CHART_DATA_POINTS;
-  const pointsPerPixel = visiblePoints / chartWidth;
-
-  // Add buffer for smooth scrolling - typically 1-2 screen widths worth of data
-  const bufferMultiplier = 2;
-  const bufferPoints = Math.ceil(chartWidth * pointsPerPixel * bufferMultiplier);
-
-  // Ensure minimum buffer size
-  const minBuffer = Math.max(50, visiblePoints);
-
-  return Math.max(bufferPoints, minBuffer);
+function calculateBufferSize(): number {
+  // Fixed chunk size
+  return BUFFER_SIZE;
 }
 
 /**
@@ -271,19 +261,12 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       setIsLoading(true);
       setError(null);
 
-      // Calculate buffer size for smooth rendering
-      const bufferSize = calculateBufferSize(state.dimensions.width);
-      const totalDataPoints = dataPoints + bufferSize;
+      // Always request exactly BUFFER_SIZE
+      const totalDataPoints = BUFFER_SIZE;
 
       const result = await safeCallAsync(async () => {
         // Load chart data from API with new parameters
-        const response = await apiService.getChartData(
-          symbol,
-          timeframe,
-          totalDataPoints,
-          startTime, // If not provided, API will use current time
-          direction
-        );
+        const response = await apiService.getChartData(symbol, timeframe, totalDataPoints, startTime, direction);
 
         // Process the data using utility functions
         const { formattedData, dataRange } = processChartData(response.bars);
@@ -346,9 +329,8 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
           startTime = getCandleTime(latestData);
         }
 
-        // Calculate buffer size for smooth rendering
-        const bufferSize = calculateBufferSize(state.dimensions.width);
-        const totalDataPoints = dataPoints + bufferSize;
+        // Always request exactly BUFFER_SIZE more
+        const totalDataPoints = BUFFER_SIZE;
 
         // Load more chart data from API
         const response = await apiService.getChartData(symbol, timeframe, totalDataPoints, startTime, direction);

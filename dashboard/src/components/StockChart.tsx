@@ -121,6 +121,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Track last processed WebSocket data to prevent duplicate processing
   const lastProcessedDataRef = useRef<string | null>(null);
 
+  // Debounce timer for pruning
+  const pruneTimeoutRef = useRef<number | null>(null);
+
   // Store reference to the zoom behavior for programmatic control
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
@@ -156,7 +159,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         chartExists: chartState.chartExists,
       });
 
-      // Get current transform to preserve view position
+      // Always use the latest zoom transform from the chart to avoid stale transforms
       const currentZoomTransform = svgRef.current ? d3.zoomTransform(svgRef.current) : d3.zoomIdentity;
 
       // Calculate new chart state with updated data
@@ -192,13 +195,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         }
       }
 
-      // Update chart content group transform
-      if (svgRef.current) {
-        const chartContentGroup = d3.select(svgRef.current).select<SVGGElement>('.chart-content');
-        if (!chartContentGroup.empty()) {
-          chartContentGroup.attr('transform', calculations.transformString);
-        }
-      }
+      // Chart content transform handled by renderer (using transformed scales)
 
       // Re-render candlesticks with updated data
       if (svgRef.current) {
@@ -249,105 +246,130 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   }, [chartState.fixedYScaleDomain]);
 
   // Function to automatically load more data when buffered candles are rendered
-  const loadMoreDataOnBufferedRender = useCallback((): void => {
-    const dataLoadStartTime = performance.now();
-    console.log('🔄 loadMoreDataOnBufferedRender called during panning');
+  const loadMoreDataOnBufferedRender = useCallback(
+    (direction: 'past' | 'future' = 'past'): void => {
+      const dataLoadStartTime = performance.now();
+      console.log('🔄 loadMoreDataOnBufferedRender called during panning', { direction });
 
-    if (timeframe === null) {
-      console.warn('Cannot auto-load more data: no timeframe selected');
-      return;
-    }
+      if (timeframe === null) {
+        console.warn('Cannot auto-load more data: no timeframe selected');
+        return;
+      }
 
-    // Only load more data if we haven't reached the maximum yet
-    if (chartState.allData.length >= 1000) {
-      console.log('📊 Max data points reached, skipping auto-load');
-      return;
-    }
+      // Only load more data if we haven't reached the maximum yet
+      if (chartState.allData.length >= 1000) {
+        console.log('📊 Max data points reached, skipping auto-load');
+        return;
+      }
 
-    // Calculate buffer size the same way as in renderCandlestickChart
-    const bufferSize = BUFFER_SIZE;
+      // Fetch exactly BUFFER_SIZE each time
+      const fetchPoints = BUFFER_SIZE;
 
-    // Add the same amount of data that we're rendering in the buffer
-    const newDataPoints = Math.min(chartState.allData.length + bufferSize, 1000);
+      // Use ref to avoid stale closure issues
+      const currentData = currentDataRef.current;
 
-    // Calculate endTime based on the oldest data point we currently have
-    // Use ref to avoid stale closure issues
-    const currentData = currentDataRef.current;
-    const oldestDataPoint = currentData[0];
-    const endTime = oldestDataPoint ? oldestDataPoint.timestamp : undefined;
+      // Determine anchor time based on direction
+      const anchorTimestamp =
+        direction === 'past' ? currentData[0]?.timestamp : currentData[currentData.length - 1]?.timestamp;
 
-    console.log('🔄 Auto-loading more historical data on buffered render (preserving current view):', {
-      currentPoints: chartState.allData.length,
-      newPoints: newDataPoints,
-      bufferSize,
-      pointsToAdd: bufferSize,
-      symbol,
-      timeframe,
-      currentDataLength: currentData.length,
-      endTime: endTime ? new Date(endTime).toISOString() : 'current time',
-      oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.timestamp).toISOString() : 'none',
-    });
-
-    // Use the API service directly with the increased data points
-    apiService
-      .getChartData(symbol, timeframe, newDataPoints, endTime, 'past')
-      .then(response => {
-        const { formattedData } = processChartData(response.bars);
-
-        console.log('📊 Auto-load before setAllData (preserving current view):', {
-          currentAllDataLength: currentDataRef.current.length,
-          newFormattedDataLength: formattedData.length,
-        });
-
-        // For auto-load during panning, merge new data with existing data
-        // to preserve all previously loaded data points
-        const mergedData = mergeHistoricalData(currentDataRef.current, formattedData);
-        chartActions.setAllData(mergedData);
-
-        console.log('✅ Successfully auto-loaded more data (view preserved):', {
-          newDataLength: formattedData.length,
-          limit: newDataPoints,
-        });
-        const dataLoadEndTime = performance.now();
-        console.log(`⏱️ Data loading (async) took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
-      })
-      .catch(error => {
-        console.error('Failed to auto-load more data:', error);
-        // No need to revert - data points are managed by allData.length
+      console.log('🔄 Auto-loading more data on buffered render (direction-aware):', {
+        direction,
+        currentPoints: chartState.allData.length,
+        fetchPoints,
+        symbol,
+        timeframe,
+        anchorTime: anchorTimestamp ? new Date(anchorTimestamp).toISOString() : 'none',
       });
-  }, [timeframe, chartState.allData.length, symbol, chartActions]);
+
+      // Prevent multiple in-flight loads
+      if (isLoadingDataRef.current) {
+        console.log('⏸️ Skipping auto-load, request in flight');
+        return;
+      }
+      isLoadingDataRef.current = true;
+
+      // Request exactly BUFFER_SIZE more bars from the chosen side
+      apiService
+        .getChartData(symbol, timeframe, fetchPoints, anchorTimestamp, direction === 'past' ? 'past' : 'future')
+        .then(response => {
+          const { formattedData } = processChartData(response.bars);
+
+          // Merge while preserving order and removing dups
+          const mergedData = mergeHistoricalData(currentDataRef.current, formattedData);
+
+          // After merging, enforce max window of 2 * BUFFER_SIZE (prune opposite side)
+          let prunedData = mergedData;
+          if (mergedData.length > BUFFER_SIZE * 2) {
+            if (direction === 'past') {
+              // Loaded left: drop rightmost excess
+              prunedData = mergedData.slice(0, BUFFER_SIZE * 2);
+            } else {
+              // Loaded right: drop leftmost excess
+              prunedData = mergedData.slice(mergedData.length - BUFFER_SIZE * 2);
+            }
+          }
+
+          // Adjust viewport indices relative to any left-side slice
+          let newViewStart = chartState.currentViewStart;
+          let newViewEnd = chartState.currentViewEnd;
+          if (prunedData.length !== mergedData.length && direction === 'future') {
+            const dropCount = mergedData.length - prunedData.length;
+            newViewStart = Math.max(0, newViewStart - dropCount);
+            newViewEnd = Math.max(0, newViewEnd - dropCount);
+          }
+
+          // Preserve visible window by shifting viewport indices rather than transform
+          const prevLength = currentDataRef.current.length;
+          const mergedLength = mergedData.length;
+          const addedLeft = direction === 'past' ? Math.max(0, mergedLength - prevLength) : 0;
+          const removedLeft =
+            direction === 'future' && prunedData.length !== mergedData.length
+              ? mergedData.length - prunedData.length
+              : 0;
+
+          let adjustedViewStart = newViewStart + addedLeft - removedLeft;
+          let adjustedViewEnd = newViewEnd + addedLeft - removedLeft;
+
+          // Clamp to dataset bounds and preserve window size
+          const totalAfter = prunedData.length;
+          const windowSize = Math.max(1, Math.round(chartState.currentViewEnd - chartState.currentViewStart));
+          adjustedViewStart = Math.max(0, Math.min(totalAfter - 1, Math.round(adjustedViewStart)));
+          adjustedViewEnd = Math.max(adjustedViewStart, Math.min(totalAfter - 1, Math.round(adjustedViewEnd)));
+          if (adjustedViewEnd - adjustedViewStart < windowSize) {
+            adjustedViewEnd = Math.min(totalAfter - 1, adjustedViewStart + windowSize);
+          }
+
+          chartActions.setAllData(prunedData);
+          chartActions.setViewport(adjustedViewStart, adjustedViewEnd);
+
+          console.log('✅ Successfully auto-loaded data (direction-aware):', {
+            direction,
+            fetched: formattedData.length,
+            requested: fetchPoints,
+            newTotal: prunedData.length,
+          });
+
+          const dataLoadEndTime = performance.now();
+          console.log(`⏱️ Data loading (async) took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
+        })
+        .catch(error => {
+          console.error('Failed to auto-load more data:', error);
+        })
+        .finally(() => {
+          isLoadingDataRef.current = false;
+        });
+    },
+    [timeframe, chartState.allData.length, symbol, chartActions]
+  );
 
   // Wrapper function that renders candlesticks and triggers data loading for non-panning cases
   const renderCandlestickChartWithCallback = useCallback(
     (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
       renderCandlestickChart(svgElement, calculations);
 
-      // For non-panning cases, only trigger data loading if viewing historical data
-      const totalDataLength = calculations.allData.length;
-      // 10 point buffer from right edge
-      const isViewingHistoricalData = calculations.viewEnd < totalDataLength - 10;
-      const isCurrentlyPanning = isPanningRef.current;
-
-      // Only auto-load for non-panning cases when viewing historical data
-      if (!isCurrentlyPanning && isViewingHistoricalData) {
-        console.log('🔄 Triggering auto-load for historical data view (non-panning):', {
-          viewEnd: calculations.viewEnd,
-          totalDataLength,
-          isViewingHistoricalData,
-          isCurrentlyPanning,
-        });
-        loadMoreDataOnBufferedRender();
-      } else {
-        console.log('⏭️ Skipping auto-load (non-panning):', {
-          viewEnd: calculations.viewEnd,
-          totalDataLength,
-          isViewingHistoricalData,
-          isCurrentlyPanning,
-          reason: isCurrentlyPanning ? 'panning (handled elsewhere)' : 'viewing recent data',
-        });
-      }
+      // Non-panning auto-load is no longer needed with fixed chunk logic
     },
-    [loadMoreDataOnBufferedRender]
+    []
   );
 
   // Function to merge new historical data with existing data
@@ -690,10 +712,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         svg.call(zoomBehaviorRef.current.transform, transform);
       }
 
-      const chartContentGroup = svg.select<SVGGElement>('.chart-content');
-      if (!chartContentGroup.empty()) {
-        chartContentGroup.attr('transform', calculations.transformString);
-      }
+      // Chart content transform handled by renderer (using transformed scales)
 
       // Update X-axis using time-based scale that aligns with candlesticks
       const xAxisGroup = svg.select<SVGGElement>('.x-axis');
@@ -1011,16 +1030,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       if (!yAxisGroup.empty()) {
         const { innerWidth: axisInnerWidth } = calculateInnerDimensions(chartState.dimensions);
         yAxisGroup.attr('transform', `translate(${axisInnerWidth},0)`);
-        // Use base Y scale since the chart content group already has the transform applied
-        yAxisGroup.call(createYAxis(calculations.baseYScale));
+        // Use transformed Y scale to match candle positioning
+        yAxisGroup.call(createYAxis(calculations.transformedYScale));
         applyAxisStyling(yAxisGroup);
       }
 
-      // Update chart content group transform
-      const chartContentGroup = d3.select(svgRef.current).select<SVGGElement>('.chart-content');
-      if (!chartContentGroup.empty()) {
-        chartContentGroup.attr('transform', calculations.transformString);
-      }
+      // Chart content transform handled by renderer (using transformed scales)
 
       // Re-render candlesticks with new dimensions
       // Note: candlesticks will use base scales since transform is applied to chart content group
@@ -1034,6 +1049,37 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       }
     }
   }, [chartState.dimensions.width, chartState.dimensions.height]); // Trigger when dimensions change
+
+  // Clamp viewport indices whenever data length or viewport changes to prevent invalid ranges
+  useEffect(() => {
+    const total = chartState.allData.length;
+    if (total === 0) {
+      return;
+    }
+
+    let start = Math.max(0, Math.floor(chartState.currentViewStart));
+    let end = Math.min(total - 1, Math.ceil(chartState.currentViewEnd));
+
+    if (end < start) {
+      end = Math.min(total - 1, start + CHART_DATA_POINTS - 1);
+    }
+
+    if (end >= total) {
+      end = total - 1;
+    }
+    if (start < 0) {
+      start = 0;
+    }
+
+    // Ensure at most CHART_DATA_POINTS window when possible
+    if (end - start + 1 < 1) {
+      end = Math.min(total - 1, start + CHART_DATA_POINTS - 1);
+    }
+
+    if (start !== chartState.currentViewStart || end !== chartState.currentViewEnd) {
+      chartActions.setViewport(start, end);
+    }
+  }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData.length]);
 
   // Set initial view to show newest data when data loads
   useEffect(() => {
@@ -1311,6 +1357,73 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     isValidData,
     svgRef.current, // Re-run when SVG element becomes available
   ]);
+
+  // Prune off-chart data based on BUFFER_SIZE when not panning
+  useEffect(() => {
+    // Skip pruning during panning or when dataset is already small
+    const total = chartState.allData.length;
+    if (isPanningRef.current || total === 0) {
+      return;
+    }
+
+    // Debounce to avoid frequent slicing during quick interactions
+    if (pruneTimeoutRef.current) {
+      window.clearTimeout(pruneTimeoutRef.current);
+    }
+
+    pruneTimeoutRef.current = window.setTimeout(() => {
+      const bufferSize = BUFFER_SIZE; // retention chunk
+      const viewStart = Math.max(0, Math.floor(chartState.currentViewStart));
+      const viewEnd = Math.min(total - 1, Math.ceil(chartState.currentViewEnd));
+
+      // Simplified rule: keep at most 2 * BUFFER_SIZE overall by centering around view when possible
+      const desiredWindow = Math.min(total, BUFFER_SIZE * 2);
+      const keepStart = Math.max(0, Math.min(viewStart, total - desiredWindow));
+      const preliminaryEnd = Math.min(total - 1, Math.max(viewEnd, desiredWindow - 1));
+      const keepEnd = Math.min(preliminaryEnd, keepStart + desiredWindow - 1);
+
+      const leftExcess = keepStart; // number of points before keepStart
+      const rightExcess = total - 1 - keepEnd; // number of points after keepEnd
+
+      // Prune whenever total exceeds allowed window
+      const shouldPrune = total > desiredWindow && (leftExcess > 0 || rightExcess > 0);
+      if (!shouldPrune) {
+        return;
+      }
+
+      // Slice to the retention window
+      const newAllData = chartState.allData.slice(keepStart, keepEnd + 1);
+
+      // Adjust viewport to new indices after slice
+      const newViewStart = chartState.currentViewStart - keepStart;
+      const newViewEnd = chartState.currentViewEnd - keepStart;
+
+      // Update buffer range ref to match new dataset
+      const newBufferStart = Math.max(0, Math.floor(newViewStart) - bufferSize);
+      const newBufferEnd = Math.min(newAllData.length - 1, Math.ceil(newViewEnd) + bufferSize);
+      currentBufferRangeRef.current = { start: newBufferStart, end: newBufferEnd };
+
+      // Commit updates
+      chartActions.setAllData(newAllData);
+      chartActions.setViewport(newViewStart, newViewEnd);
+
+      console.log('🧹 Pruned off-chart data:', {
+        originalLength: total,
+        newLength: newAllData.length,
+        leftPruned: keepStart,
+        rightPruned: total - 1 - keepEnd,
+        viewBefore: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
+        viewAfter: `${newViewStart}-${newViewEnd}`,
+        bufferRange: `${newBufferStart}-${newBufferEnd}`,
+      });
+    }, 200);
+
+    return () => {
+      if (pruneTimeoutRef.current) {
+        window.clearTimeout(pruneTimeoutRef.current);
+      }
+    };
+  }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData.length]);
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">

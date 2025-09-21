@@ -1,7 +1,7 @@
 // Centralized constants for the dashboard
 
 // it should be divisible by 10 + 1. this will keep 1 minute ticks aligned with the 10 minute boundaries.
-export const BUFFER_SIZE = 41; // Buffer size in data points used for chart rendering
+export const BUFFER_SIZE = 300; // Fixed fetch/prune chunk size
 
 // Candlestick colors
 // Use these to change the up/down candle colors in one place
