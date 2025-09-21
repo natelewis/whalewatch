@@ -16,7 +16,7 @@ export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 export const CHART_DATA_POINTS = 80; // Number of data points to display on chart
 export const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
 // Pan-end load trigger: distance from edge (in points) to request more data
-export const LOAD_EDGE_TRIGGER = 10;
+export const LOAD_EDGE_TRIGGER = 150;
 
 // Zoom configuration
 export const ZOOM_SCALE_MIN = 0.5;

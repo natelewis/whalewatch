@@ -311,38 +311,36 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             }
           }
 
-          // Adjust viewport indices relative to any left-side slice
-          let newViewStart = chartState.currentViewStart;
-          let newViewEnd = chartState.currentViewEnd;
-          if (prunedData.length !== mergedData.length && direction === 'future') {
-            const dropCount = mergedData.length - prunedData.length;
-            newViewStart = Math.max(0, newViewStart - dropCount);
-            newViewEnd = Math.max(0, newViewEnd - dropCount);
-          }
+          // Anchor viewport exactly like manual "Load Left": shift indices to keep the same candles visible
+          const prevStart = chartState.currentViewStart;
+          const prevEnd = chartState.currentViewEnd;
+          const windowSize = Math.max(1, Math.round(prevEnd - prevStart));
 
-          // Preserve visible window by shifting viewport indices rather than transform
           const prevLength = currentDataRef.current.length;
           const mergedLength = mergedData.length;
+          const totalAfter = prunedData.length;
+
           const addedLeft = direction === 'past' ? Math.max(0, mergedLength - prevLength) : 0;
           const removedLeft =
             direction === 'future' && prunedData.length !== mergedData.length
               ? mergedData.length - prunedData.length
               : 0;
 
-          let adjustedViewStart = newViewStart + addedLeft - removedLeft;
-          let adjustedViewEnd = newViewEnd + addedLeft - removedLeft;
+          let anchoredStart = Math.round(prevStart + addedLeft - removedLeft);
+          let anchoredEnd = Math.round(prevEnd + addedLeft - removedLeft);
 
-          // Clamp to dataset bounds and preserve window size
-          const totalAfter = prunedData.length;
-          const windowSize = Math.max(1, Math.round(chartState.currentViewEnd - chartState.currentViewStart));
-          adjustedViewStart = Math.max(0, Math.min(totalAfter - 1, Math.round(adjustedViewStart)));
-          adjustedViewEnd = Math.max(adjustedViewStart, Math.min(totalAfter - 1, Math.round(adjustedViewEnd)));
-          if (adjustedViewEnd - adjustedViewStart < windowSize) {
-            adjustedViewEnd = Math.min(totalAfter - 1, adjustedViewStart + windowSize);
+          if (anchoredEnd > totalAfter - 1) {
+            anchoredEnd = totalAfter - 1;
+          }
+          if (anchoredStart < 0) {
+            anchoredStart = 0;
+          }
+          if (anchoredEnd - anchoredStart < windowSize) {
+            anchoredStart = Math.max(0, anchoredEnd - windowSize);
           }
 
           chartActions.setAllData(prunedData);
-          chartActions.setViewport(adjustedViewStart, adjustedViewEnd);
+          chartActions.setViewport(anchoredStart, anchoredEnd);
 
           console.log('✅ Successfully auto-loaded data (direction-aware):', {
             direction,

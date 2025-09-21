@@ -561,6 +561,10 @@ export const createChart = ({
   let currentTransformY = 0;
   let currentTransformK = 1;
   let lastKnownDataLength = allChartData.length;
+  let loadRequestedLeft = false;
+  let loadRequestedRight = false;
+  let lastLoadDataLengthLeft: number | null = null;
+  let lastLoadDataLengthRight: number | null = null;
 
   const getWindowSize = (): number => CHART_DATA_POINTS;
 
@@ -575,6 +579,11 @@ export const createChart = ({
       if (latestData.length !== lastKnownDataLength) {
         lastKnownDataLength = latestData.length;
       }
+      // Reset edge-trigger flags at the start of a pan
+      loadRequestedLeft = false;
+      loadRequestedRight = false;
+      lastLoadDataLengthLeft = null;
+      lastLoadDataLengthRight = null;
       // Prefer live viewport from React state via callbacks to avoid stale or recomputed defaults
       const data = stateCallbacks.getCurrentData?.() || allChartData;
       const dims = stateCallbacks.getCurrentDimensions?.() || dimensions;
@@ -602,7 +611,7 @@ export const createChart = ({
       // Debug: snapshot pan start
       const { innerWidth: iw } = calculateInnerDimensions(dims);
       const bw = iw / CHART_DATA_POINTS;
-      console.log('PAN_DEBUG start', { startIdx, endIdx, panStartCenterLocal, iw, bw });
+      // console.log('PAN_DEBUG start', { startIdx, endIdx, panStartCenterLocal, iw, bw });
       isPanningRef.current = true;
     })
     .on('pointermove', event => {
@@ -613,6 +622,17 @@ export const createChart = ({
       const dims = stateCallbacks.getCurrentDimensions?.() || dimensions;
       const { innerWidth: currInnerWidth } = calculateInnerDimensions(dims);
       const bandWidth = currInnerWidth / CHART_DATA_POINTS;
+      // If data length changed during pan (e.g., auto-load left), shift pan anchor to preserve view
+      if (data.length !== lastKnownDataLength) {
+        const deltaLen = data.length - lastKnownDataLength;
+        if (deltaLen !== 0) {
+          if (deltaLen > 0 && loadRequestedLeft) {
+            panStartCenterLocal = Math.max(0, Math.min(data.length - 1, panStartCenterLocal + deltaLen));
+          }
+          // For future/right loads with pruning, we rely on React viewport anchoring
+        }
+        lastKnownDataLength = data.length;
+      }
       const dx = (event as PointerEvent).clientX - panStartXLocal;
       const dy = (event as PointerEvent).clientY - panStartYLocal;
       const deltaIdx = dx / bandWidth;
@@ -684,16 +704,52 @@ export const createChart = ({
         );
         applyAxisStyling(xAxisGroup);
       }
+      // Edge auto-load trigger during pan
+      if (onBufferedCandlesRendered) {
+        // Reset per-edge lock when data length changes
+        if (lastLoadDataLengthLeft !== null && data.length !== lastLoadDataLengthLeft) {
+          loadRequestedLeft = false;
+          lastLoadDataLengthLeft = null;
+        }
+        if (lastLoadDataLengthRight !== null && data.length !== lastLoadDataLengthRight) {
+          loadRequestedRight = false;
+          lastLoadDataLengthRight = null;
+        }
+
+        const distanceLeft = Math.max(0, newStart);
+        const distanceRight = Math.max(0, total - 1 - newEnd);
+        const threshold = LOAD_EDGE_TRIGGER;
+
+        if (distanceLeft <= threshold && !loadRequestedLeft) {
+          loadRequestedLeft = true;
+          lastLoadDataLengthLeft = data.length;
+          setTimeout(() => onBufferedCandlesRendered('past'), 0);
+        }
+        if (distanceRight <= threshold && !loadRequestedRight) {
+          loadRequestedRight = true;
+          lastLoadDataLengthRight = data.length;
+          setTimeout(() => onBufferedCandlesRendered('future'), 0);
+        }
+      }
+
       // Debug: live pan state
-      console.log('PAN_DEBUG move', { dx, dy, deltaIdx, center, newStart, newEnd, total });
+      // console.log('PAN_DEBUG move', { dx, dy, deltaIdx, center, newStart, newEnd, total });
     })
     .on('pointerup', () => {
       isPointerDown = false;
       isPanningRef.current = false;
+      loadRequestedLeft = false;
+      loadRequestedRight = false;
+      lastLoadDataLengthLeft = null;
+      lastLoadDataLengthRight = null;
     })
     .on('pointercancel', () => {
       isPointerDown = false;
       isPanningRef.current = false;
+      loadRequestedLeft = false;
+      loadRequestedRight = false;
+      lastLoadDataLengthLeft = null;
+      lastLoadDataLengthRight = null;
     });
 
   // Fixed Y-scale domain is now set during initial rendering to ensure consistency
