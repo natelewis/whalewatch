@@ -184,6 +184,27 @@ export const createChart = ({
     // Hide crosshairs during panning
     crosshair.select('.crosshair-x').style('opacity', 0);
     crosshair.select('.crosshair-y').style('opacity', 0);
+
+    // Lock Y-scale domain at pan start if not already locked to prevent jumps on data loads
+    const existingFixed = stateCallbacks.getFixedYScaleDomain?.() || null;
+    if (!existingFixed && stateCallbacks.setFixedYScaleDomain) {
+      const currentData = stateCallbacks.getCurrentData?.();
+      const currentDimensions = stateCallbacks.getCurrentDimensions?.();
+      if (currentData && currentData.length > 0 && currentDimensions) {
+        const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
+        const calc = calculateChartState({
+          dimensions: currentDimensions,
+          allChartData: currentData,
+          transform: currentTransform,
+          fixedYScaleDomain: null,
+        });
+        const minPrice = d3.min(calc.visibleData, d => d.low);
+        const maxPrice = d3.max(calc.visibleData, d => d.high);
+        if (minPrice != null && maxPrice != null && isFinite(minPrice) && isFinite(maxPrice)) {
+          stateCallbacks.setFixedYScaleDomain([minPrice, maxPrice]);
+        }
+      }
+    }
   };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
@@ -347,6 +368,10 @@ export const createChart = ({
         threshold,
       });
       onBufferedCandlesRendered(loadDirection);
+    }
+    // Unlock Y-scale after pan ends so future operations can re-fit if desired
+    if (stateCallbacks.setFixedYScaleDomain) {
+      stateCallbacks.setFixedYScaleDomain(null);
     }
   };
 
