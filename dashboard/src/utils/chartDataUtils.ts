@@ -247,7 +247,7 @@ export const createCustomTimeAxis = (
 
   // Create a custom axis function that positions ticks based on data indices
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {
-    selection.each(function (this: SVGGElement) {
+    selection.each(function () {
       const context = d3.select(this);
 
       // Clear existing ticks and domain

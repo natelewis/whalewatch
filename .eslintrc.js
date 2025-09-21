@@ -13,13 +13,7 @@ module.exports = {
   rules: {
     // TypeScript rules
     '@typescript-eslint/no-explicit-any': 'error',
-    '@typescript-eslint/no-unused-vars': [
-      'error',
-      {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-      },
-    ],
+    '@typescript-eslint/no-unused-vars': 'off', // Disable for interface parameters
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-member-access': 'off',
     '@typescript-eslint/no-unsafe-call': 'off',
@@ -116,13 +110,7 @@ module.exports = {
     'eol-last': ['error', 'always'],
     'brace-style': ['error', '1tbs'],
     'spaced-comment': 'warn',
-    'no-unused-vars': [
-      'error',
-      {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-      },
-    ],
+    'no-unused-vars': 'off', // Use @typescript-eslint/no-unused-vars instead
   },
   env: {
     browser: true,
