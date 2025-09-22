@@ -392,12 +392,43 @@ export const memoizedGenerateTimeBasedTicks = (
 
     // Choose alignment strategy based on interval length
     if (tradingDaysInterval <= 7) {
-      // For short intervals (1-7 days), use every Nth trading day
-      for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
-        const tradingDay = sortedTradingDays[i];
-        const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData);
-        if (firstTimeForDate) {
-          ticks.push(firstTimeForDate);
+      // For short intervals (1-7 days), use consistent anchoring
+      if (tradingDaysInterval >= 2) {
+        // For 2+ day intervals, use a fixed anchor point (January 1, 2020)
+        // This ensures consistent positioning regardless of data range
+        const anchorDate = new Date('2020-01-01T00:00:00Z'); // Wednesday
+        const anchorDayOfWeek = anchorDate.getDay(); // 3 = Wednesday
+
+        // Find the first trading day on or after the anchor date
+        const firstTradingDay = sortedTradingDays[0];
+        const startDate = firstTradingDay < anchorDate ? firstTradingDay : anchorDate;
+
+        // Calculate the offset from the anchor to align intervals
+        const daysSinceAnchor = Math.floor((firstTradingDay.getTime() - anchorDate.getTime()) / (1000 * 60 * 60 * 24));
+        const offset = daysSinceAnchor % tradingDaysInterval;
+
+        // Find the first trading day that aligns with our interval
+        let startIndex = 0;
+        if (offset > 0) {
+          startIndex = tradingDaysInterval - offset;
+        }
+
+        // Generate ticks starting from the aligned position
+        for (let i = startIndex; i < sortedTradingDays.length; i += tradingDaysInterval) {
+          const tradingDay = sortedTradingDays[i];
+          const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
+        }
+      } else {
+        // For 1-day intervals, show every trading day
+        for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
+          const tradingDay = sortedTradingDays[i];
+          const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
         }
       }
     } else if (tradingDaysInterval <= 30) {
@@ -540,12 +571,43 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
 
     // Choose alignment strategy based on interval length
     if (tradingDaysInterval <= 7) {
-      // For short intervals (1-7 days), use every Nth trading day
-      for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
-        const tradingDay = sortedTradingDays[i];
-        const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData || visibleData);
-        if (firstTimeForDate) {
-          ticks.push(firstTimeForDate);
+      // For short intervals (1-7 days), use consistent anchoring
+      if (tradingDaysInterval >= 2) {
+        // For 2+ day intervals, use a fixed anchor point (January 1, 2020)
+        // This ensures consistent positioning regardless of data range
+        const anchorDate = new Date('2020-01-01T00:00:00Z'); // Wednesday
+        const anchorDayOfWeek = anchorDate.getDay(); // 3 = Wednesday
+
+        // Find the first trading day on or after the anchor date
+        const firstTradingDay = sortedTradingDays[0];
+        const startDate = firstTradingDay < anchorDate ? firstTradingDay : anchorDate;
+
+        // Calculate the offset from the anchor to align intervals
+        const daysSinceAnchor = Math.floor((firstTradingDay.getTime() - anchorDate.getTime()) / (1000 * 60 * 60 * 24));
+        const offset = daysSinceAnchor % tradingDaysInterval;
+
+        // Find the first trading day that aligns with our interval
+        let startIndex = 0;
+        if (offset > 0) {
+          startIndex = tradingDaysInterval - offset;
+        }
+
+        // Generate ticks starting from the aligned position
+        for (let i = startIndex; i < sortedTradingDays.length; i += tradingDaysInterval) {
+          const tradingDay = sortedTradingDays[i];
+          const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData || visibleData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
+        }
+      } else {
+        // For 1-day intervals, show every trading day
+        for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
+          const tradingDay = sortedTradingDays[i];
+          const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData || visibleData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
         }
       }
     } else if (tradingDaysInterval <= 30) {
