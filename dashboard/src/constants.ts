@@ -51,6 +51,9 @@ export const ZOOM_SCALE_MAX = 10;
 // Price padding configuration
 export const PRICE_PADDING_MULTIPLIER = 0.2; // 20% padding on min/max
 
+// Y-scale domain calculation configuration
+export const Y_SCALE_REPRESENTATIVE_DATA_LENGTH = 10000; // Number of recent data points to use for Y-scale domain calculation
+
 // Layout configuration
 export const MIN_CHART_HEIGHT = 400; // Minimum chart height in pixels
 export const CHART_HEIGHT_OFFSET = 100; // Height offset for chart container

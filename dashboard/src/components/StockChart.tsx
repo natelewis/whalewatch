@@ -22,6 +22,7 @@ import {
   RIGHT_EDGE_CHECK_INTERVAL,
   CANDLE_UP_COLOR,
   CANDLE_DOWN_COLOR,
+  Y_SCALE_REPRESENTATIVE_DATA_LENGTH,
 } from '../constants';
 import { BarChart3, Settings, Play, Pause, RotateCcw, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 
@@ -1066,9 +1067,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Only calculate if we don't already have a fixed domain (first time only)
           let fixedYScaleDomain: [number, number] | null = chartState.fixedYScaleDomain;
           if (!fixedYScaleDomain && isValidChartData(calculationsForRender.visibleData)) {
-            // Use a representative sample of recent data (last 200 points) for Y-scale domain
+            // Use a representative sample of recent data for Y-scale domain
             // This provides a good balance between being zoomed in and maintaining consistency
-            const representativeDataLength = Math.min(200, chartState.allData.length);
+            const representativeDataLength = Math.min(Y_SCALE_REPRESENTATIVE_DATA_LENGTH, chartState.allData.length);
             const representativeData = chartState.allData.slice(-representativeDataLength);
             fixedYScaleDomain = calculateYScaleDomain(representativeData);
 
