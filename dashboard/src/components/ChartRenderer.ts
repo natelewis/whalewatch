@@ -12,7 +12,6 @@ import {
   X_AXIS_MARKER_INTERVAL,
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
   X_AXIS_LABEL_CONFIGS,
-  CHART_RIGHT_PADDING,
 } from '../constants';
 import { ChartDimensions, CandlestickData } from '../types';
 import {
@@ -322,7 +321,7 @@ export const createChart = ({
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      const availableWidth = currInnerWidth - CHART_RIGHT_PADDING;
+      const availableWidth = currInnerWidth;
       const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, availableWidth]);
       const sliceStart = Math.max(0, Math.min(currentData.length - 1, newStart));
       const sliceEnd = Math.max(sliceStart, Math.min(currentData.length - 1, newEnd));
@@ -666,7 +665,7 @@ export const createChart = ({
       if (!xAxisGroup.empty()) {
         const { innerHeight: axisInnerHeight, innerWidth: axisInnerWidth } = calculateInnerDimensions(dims);
         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-        const availableWidth = axisInnerWidth - CHART_RIGHT_PADDING;
+        const availableWidth = axisInnerWidth;
         const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, availableWidth]);
         const visibleSlice = data.slice(Math.max(0, newStart), Math.min(total - 1, newEnd) + 1);
 
