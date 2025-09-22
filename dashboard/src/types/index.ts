@@ -33,6 +33,13 @@ export interface HoverData {
   data: CandlestickData | null;
 }
 
+export interface DateDisplayData {
+  x: number;
+  y: number;
+  timestamp: string;
+  visible: boolean;
+}
+
 export interface ChartState {
   // Data
   data: CandlestickData[];
@@ -57,6 +64,7 @@ export interface ChartState {
 
   // Hover state
   hoverData: HoverData | null;
+  dateDisplay: DateDisplayData | null;
 
   // Configuration
   timeframe: ChartTimeframe | null;
@@ -95,6 +103,7 @@ export interface ChartStateCallbacks {
   getCurrentViewStart?: () => number;
   getCurrentViewEnd?: () => number;
   setHoverData?: (data: HoverData | null) => void;
+  setDateDisplay?: (data: DateDisplayData | null) => void;
   setFixedYScaleDomain?: (domain: [number, number] | null) => void;
   setChartExists?: (value: boolean) => void;
   setZoomBehavior?: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => void;

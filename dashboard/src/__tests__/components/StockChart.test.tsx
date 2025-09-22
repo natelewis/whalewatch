@@ -212,12 +212,13 @@ const mockUseChartStateManager = {
     },
     transform: { x: 0, y: 0, k: 1 },
     hoverData: null,
+    dateDisplay: null,
     timeframe: '1h' as const,
     symbol: 'TSLA',
     fixedYScaleDomain: null,
   },
   actions: {
-    loadChartData: vi.fn() as (
+    loadChartData: vi.fn().mockResolvedValue(undefined) as (
       symbol: string,
       timeframe: ChartTimeframe,
       dataPoints?: number,
@@ -239,6 +240,7 @@ const mockUseChartStateManager = {
     setCurrentViewEnd: vi.fn(),
     setViewport: vi.fn(),
     setHoverData: vi.fn(),
+    setDateDisplay: vi.fn(),
     setChartLoaded: vi.fn(),
     setChartExists: vi.fn(),
     setTransform: vi.fn(),

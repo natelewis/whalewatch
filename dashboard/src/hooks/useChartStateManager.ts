@@ -6,7 +6,7 @@ import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 
 // Import types from centralized location
-import { HoverData, ChartState, ChartTransform } from '../types';
+import { HoverData, ChartState, ChartTransform, DateDisplayData } from '../types';
 import type { AlpacaBar } from '../types';
 
 const getCandleTime = (d: CandlestickData): string => d.timestamp;
@@ -53,6 +53,7 @@ export interface ChartActions {
   setChartLoaded: (loaded: boolean) => void;
   setChartExists: (exists: boolean) => void;
   setHoverData: (hoverData: HoverData | null) => void;
+  setDateDisplay: (dateDisplay: DateDisplayData | null) => void;
 
   // Configuration actions
   setTimeframe: (timeframe: ChartTimeframe) => void;
@@ -105,6 +106,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     chartLoaded: false,
     chartExists: false,
     hoverData: null,
+    dateDisplay: null,
     timeframe: initialTimeframe,
     symbol: initialSymbol,
     fixedYScaleDomain: null,
@@ -205,6 +207,10 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     setState(prev => ({ ...prev, hoverData }));
   }, []);
 
+  const setDateDisplay = useCallback((dateDisplay: DateDisplayData | null) => {
+    setState(prev => ({ ...prev, dateDisplay }));
+  }, []);
+
   // Configuration actions
   const setTimeframe = useCallback((timeframe: ChartTimeframe) => {
     setState(prev => ({ ...prev, timeframe }));
@@ -240,6 +246,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       chartLoaded: false,
       chartExists: false,
       hoverData: null,
+      dateDisplay: null,
       fixedYScaleDomain: null,
     }));
     isInitialLoadRef.current = true;
@@ -457,6 +464,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     setChartLoaded,
     setChartExists,
     setHoverData,
+    setDateDisplay,
     setTimeframe,
     setSymbol,
     setDimensions,

@@ -346,6 +346,9 @@ export const createChart = ({
   // Add crosshair
   const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
 
+  // Add date display
+  const dateDisplay = g.append('g').attr('class', 'date-display').style('pointer-events', 'none');
+
   crosshair
     .append('line')
     .attr('class', 'crosshair-x')
@@ -360,6 +363,21 @@ export const createChart = ({
     .attr('stroke', 'hsl(var(--muted-foreground))')
     .attr('stroke-width', 1)
     .attr('stroke-dasharray', '3,3')
+    .style('opacity', 0);
+
+  // Date display elements
+  const dateDisplayRect = dateDisplay
+    .append('rect')
+    .attr('class', 'date-display-bg')
+    .attr('rx', 4)
+    .attr('ry', 4)
+    .style('opacity', 0);
+
+  const dateDisplayText = dateDisplay
+    .append('text')
+    .attr('class', 'date-display-text')
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
     .style('opacity', 0);
 
   // Pointer overlay for custom pan
@@ -380,8 +398,13 @@ export const createChart = ({
     .on('mouseout', () => {
       crosshair.select('.crosshair-x').style('opacity', 0);
       crosshair.select('.crosshair-y').style('opacity', 0);
+      dateDisplayRect.style('opacity', 0);
+      dateDisplayText.style('opacity', 0);
       if (stateCallbacks.setHoverData) {
         stateCallbacks.setHoverData(null);
+      }
+      if (stateCallbacks.setDateDisplay) {
+        stateCallbacks.setDateDisplay(null);
       }
     })
     .on('mousemove', event => {
@@ -446,6 +469,42 @@ export const createChart = ({
               volume: d.volume,
             },
           });
+        }
+
+        // Update date display
+        if (stateCallbacks.setDateDisplay) {
+          const currentMargin = currentDimensions.margin;
+          const dateText = new Date(d.timestamp).toLocaleString();
+
+          // Position the date display below the vertical domain line
+          const dateDisplayY = currInnerHeight + 20; // 20px below the chart
+
+          stateCallbacks.setDateDisplay({
+            x: mouseX + currentMargin.left,
+            y: dateDisplayY + currentMargin.top,
+            timestamp: dateText,
+            visible: true,
+          });
+
+          // Update the visual date display elements
+          dateDisplayRect
+            .attr('x', mouseX - 40) // Center around the mouse X position
+            .attr('y', dateDisplayY - 8)
+            .attr('width', 80)
+            .attr('height', 16)
+            .attr('fill', 'hsl(var(--background))')
+            .attr('stroke', 'hsl(var(--muted-foreground))')
+            .attr('stroke-width', 1)
+            .style('opacity', 1);
+
+          dateDisplayText
+            .attr('x', mouseX)
+            .attr('y', dateDisplayY)
+            .text(dateText)
+            .attr('fill', 'hsl(var(--muted-foreground))')
+            .attr('font-size', '11px')
+            .attr('font-family', 'system-ui, -apple-system, sans-serif')
+            .style('opacity', 1);
         }
       }
     });

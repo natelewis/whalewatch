@@ -1005,6 +1005,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             getCurrentViewStart: () => currentViewStartRef.current,
             getCurrentViewEnd: () => currentViewEndRef.current,
             setHoverData: chartActions.setHoverData,
+            setDateDisplay: chartActions.setDateDisplay,
             setChartLoaded: chartActions.setChartLoaded,
             setFixedYScaleDomain: chartActions.setFixedYScaleDomain,
             setChartExists: chartActions.setChartExists,
