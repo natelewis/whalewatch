@@ -375,7 +375,7 @@ export const memoizedGenerateTimeBasedTicks = (
   if (markerIntervalMinutes >= 1440) {
     // 1 day or more
     // Generate ticks at the specified trading day interval
-    const tradingDaysInterval = markerIntervalMinutes / (60 * 24); // Convert minutes to days
+    const tradingDaysInterval = Math.floor(markerIntervalMinutes / (60 * 24)); // Convert minutes to days
 
     // Get all unique trading days from the data
     const tradingDays = new Set<string>();
@@ -461,25 +461,32 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   const startTime = new Date(visibleData[0].timestamp);
   const endTime = new Date(visibleData[visibleData.length - 1].timestamp);
 
-  // For date-only formats (1d, 1w, 1M), generate one tick per date at the first available time
+  // For date-only formats (1d, 1w, 1M), generate ticks at the specified trading day interval
   if (markerIntervalMinutes >= 1440) {
-    // Get all unique dates in the visible data
-    const uniqueDates = new Set<string>();
+    // Generate ticks at the specified trading day interval
+    const tradingDaysInterval = Math.floor(markerIntervalMinutes / (60 * 24)); // Convert minutes to days
+    
+    // Get all unique trading days from the visible data
+    const tradingDays = new Set<string>();
     visibleData.forEach(dataPoint => {
-      const date = new Date(dataPoint.timestamp);
-      const dateStr = date.toISOString().split('T')[0];
-      uniqueDates.add(dateStr);
+      const dataDate = new Date(dataPoint.timestamp);
+      const dateStr = dataDate.toISOString().split('T')[0];
+      tradingDays.add(dateStr);
     });
-
-    // Generate one tick per date at the first available time
-    Array.from(uniqueDates)
-      .sort()
-      .forEach(dateStr => {
-        const firstTimeForDate = findFirstTimeForDate(new Date(`${dateStr}T00:00:00Z`), allChartData || visibleData);
-        if (firstTimeForDate) {
-          ticks.push(firstTimeForDate);
-        }
-      });
+    
+    // Convert to sorted array of dates
+    const sortedTradingDays = Array.from(tradingDays)
+      .map(dateStr => new Date(`${dateStr}T00:00:00Z`))
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    // Select every Nth trading day
+    for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
+      const tradingDay = sortedTradingDays[i];
+      const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData || visibleData);
+      if (firstTimeForDate) {
+        ticks.push(firstTimeForDate);
+      }
+    }
   } else {
     // For time-based intervals, use the existing logic
     // Align start time to the nearest consistent boundary

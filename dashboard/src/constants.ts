@@ -78,7 +78,7 @@ export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
     showSeconds: false,
   },
   '1h': {
-    markerIntervalMinutes: 60 * 24 * 4, // Show labels every 2 days
+    markerIntervalMinutes: 60 * 24 * 2, // Show labels every 4 days
     labelFormat: 'date-only',
     showSeconds: false,
   },
