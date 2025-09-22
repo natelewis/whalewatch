@@ -1066,9 +1066,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Only calculate if we don't already have a fixed domain (first time only)
           let fixedYScaleDomain: [number, number] | null = chartState.fixedYScaleDomain;
           if (!fixedYScaleDomain && isValidChartData(calculationsForRender.visibleData)) {
-            // Use ALL data for Y-scale domain calculation to match panning behavior
-            // This ensures consistent price label spacing between initial load and panning
-            fixedYScaleDomain = calculateYScaleDomain(chartState.allData);
+            // Use a representative sample of recent data (last 200 points) for Y-scale domain
+            // This provides a good balance between being zoomed in and maintaining consistency
+            const representativeDataLength = Math.min(200, chartState.allData.length);
+            const representativeData = chartState.allData.slice(-representativeDataLength);
+            fixedYScaleDomain = calculateYScaleDomain(representativeData);
 
             // Set the fixed Y-scale domain for future renders
             chartActions.setFixedYScaleDomain(fixedYScaleDomain);
