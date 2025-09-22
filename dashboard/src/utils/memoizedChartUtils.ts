@@ -5,6 +5,8 @@ import {
   PRICE_PADDING_MULTIPLIER,
   X_AXIS_MARKER_INTERVAL,
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
+  AXIS_DOMAIN_AND_TICKS,
+  AXIS_LABELS,
 } from '../constants';
 
 // Types for cache values
@@ -433,19 +435,23 @@ export const memoizedFormatTime = (timestamp: Date): string => {
  * Used internally to avoid code duplication
  */
 const applyAxisStylingDirect = (axis: d3.Selection<SVGGElement, unknown, null, undefined>): void => {
-  // Style the domain lines to be gray and remove end tick marks (nubs)
-  axis.select('.domain').style('stroke', '#666').style('stroke-width', 1);
+  // Style the domain lines and tick lines
+  axis
+    .select('.domain')
+    .style('stroke', AXIS_DOMAIN_AND_TICKS.STROKE_COLOR)
+    .style('stroke-width', AXIS_DOMAIN_AND_TICKS.STROKE_WIDTH);
 
-  // Style tick lines to be gray, keep labels white
-  axis.selectAll('.tick line').style('stroke', '#666').style('stroke-width', 1);
+  axis
+    .selectAll('.tick line')
+    .style('stroke', AXIS_DOMAIN_AND_TICKS.STROKE_COLOR)
+    .style('stroke-width', AXIS_DOMAIN_AND_TICKS.STROKE_WIDTH);
 
-  // Always apply consistent font-size to prevent size variations during re-renders
-  // Use CSS custom property for muted-foreground color (HSL format)
+  // Style tick labels
   axis
     .selectAll('.tick text')
-    .style('font-size', '12px')
-    .style('font-family', 'system-ui, -apple-system, sans-serif')
-    .style('fill', 'hsl(var(--muted-foreground))');
+    .style('font-size', AXIS_LABELS.FONT_SIZE)
+    .style('font-family', AXIS_LABELS.FONT_FAMILY)
+    .style('fill', AXIS_LABELS.FILL_COLOR);
 };
 
 /**

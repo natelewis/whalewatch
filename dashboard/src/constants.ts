@@ -8,6 +8,20 @@ export const BUFFER_SIZE = 600; // Fixed fetch/prune chunk size
 export const CANDLE_UP_COLOR = '#26a69a';
 export const CANDLE_DOWN_COLOR = '#ef5350';
 
+// Axis styling constants
+// Use these to change axis appearance in one place
+export const AXIS_DOMAIN_AND_TICKS = {
+  // STROKE_COLOR: '#666',
+  STROKE_WIDTH: 3,
+  STROKE_COLOR: '#666',
+} as const;
+
+export const AXIS_LABELS = {
+  FONT_SIZE: '12px',
+  FONT_FAMILY: 'system-ui, -apple-system, sans-serif',
+  FILL_COLOR: '#ccc',
+} as const;
+
 // API / WebSocket base URLs
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
