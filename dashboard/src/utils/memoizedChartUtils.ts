@@ -58,6 +58,29 @@ const cleanupCache = (cache: Map<string, CacheValue>, maxSize: number) => {
 };
 
 /**
+ * Clear time formatting cache when interval changes
+ * This ensures x-axis labels are properly updated when switching timeframes
+ */
+export const clearTimeFormatCache = (): void => {
+  const keysToDelete: string[] = [];
+  for (const key of calculationCache.keys()) {
+    if (key.startsWith('timeFormat-')) {
+      keysToDelete.push(key);
+    }
+  }
+  keysToDelete.forEach(key => calculationCache.delete(key));
+};
+
+/**
+ * Clear all chart-related caches when switching timeframes
+ * This ensures fresh calculations for new data
+ */
+export const clearAllChartCaches = (): void => {
+  calculationCache.clear();
+  console.log('🧹 Cleared all chart caches');
+};
+
+/**
  * Memoized Y-scale domain calculation
  * This is one of the most expensive operations called frequently during chart updates
  */

@@ -4,6 +4,7 @@ import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
 import { processChartData } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
+import { clearTimeFormatCache, clearAllChartCaches } from '../utils/memoizedChartUtils';
 
 // Import types from centralized location
 import { HoverData, ChartState, ChartTransform, DateDisplayData } from '../types';
@@ -213,6 +214,8 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
 
   // Configuration actions
   const setTimeframe = useCallback((timeframe: ChartTimeframe) => {
+    // Clear time formatting cache when timeframe changes to ensure x-axis labels update correctly
+    clearTimeFormatCache();
     setState(prev => ({ ...prev, timeframe }));
   }, []);
 
@@ -230,6 +233,8 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
 
   // Utility actions
   const resetChart = useCallback(() => {
+    // Clear all caches when resetting chart to ensure fresh calculations
+    clearAllChartCaches();
     setState(prev => ({
       ...prev,
       data: [],

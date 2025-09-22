@@ -636,10 +636,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     }
   }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData, isValidData, getVisibleData]); // Removed chartActions
 
-  // Load saved timeframe from localStorage and load initial data
+  // Load saved timeframe from localStorage (but don't load data here)
   useEffect(() => {
-    if (isLoadingDataRef.current || initialDataLoadedRef.current) {
-      console.log('🔄 Data load already in progress or completed; skipping duplicate request');
+    if (initialDataLoadedRef.current) {
+      console.log('🔄 Initial timeframe already loaded; skipping');
       return;
     }
 
@@ -650,33 +650,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     if (result.isOk()) {
       const savedTimeframe = result.value;
       setTimeframe(savedTimeframe);
-
-      // Load initial data immediately
-      console.log('🔄 Loading initial data for symbol:', {
-        symbol,
-        timeframe: savedTimeframe,
-      });
-      isLoadingDataRef.current = true;
       initialDataLoadedRef.current = true;
-      chartActions.loadChartData(symbol, savedTimeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
-        isLoadingDataRef.current = false;
-      });
     } else {
       console.warn('Failed to load chart timeframe from localStorage:', createUserFriendlyMessage(result.error));
       setTimeframe('1h');
-
-      // Load initial data with default timeframe
-      console.log('🔄 Loading initial data with default timeframe:', {
-        symbol,
-        timeframe: '1h',
-      });
-      isLoadingDataRef.current = true;
       initialDataLoadedRef.current = true;
-      chartActions.loadChartData(symbol, '1h', DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
-        isLoadingDataRef.current = false;
-      });
     }
-  }, [symbol]); // Removed chartActions to prevent infinite loops
+  }, [symbol]); // Only load timeframe, not data
 
   // Save timeframe to localStorage
   useEffect(() => {
@@ -691,34 +671,44 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     }
   }, [timeframe]);
 
-  // Load chart data when symbol or timeframe changes (but not on initial mount)
+  // Load chart data when symbol or timeframe changes
   useEffect(() => {
-    // Skip on initial mount - let the initial data loading effect handle it
-    // But allow timeframe changes after hot reload
-    if (isInitialMountRef.current && timeframe === null) {
-      isInitialMountRef.current = false;
+    // Skip if timeframe is not set yet
+    if (timeframe === null) {
       return;
     }
 
-    // Only run if timeframe is not null and not currently loading
-    if (timeframe !== null && !isLoadingDataRef.current) {
-      chartActions.resetChart(); // Reset chart state for new symbol/timeframe
-      chartActions.setTimeframe(timeframe);
-      chartCreatedRef.current = false; // Allow chart recreation for new timeframe
-      initialRenderCompletedRef.current = false; // Allow initial render for new timeframe
-      initialDataLoadedRef.current = false; // Allow data loading for new timeframe
-      lastProcessedDataRef.current = null; // Reset WebSocket data tracking
-
-      console.log('🔄 Loading new data for symbol/timeframe:', {
-        symbol,
-        timeframe,
-      });
-      isLoadingDataRef.current = true;
-      chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
-        isLoadingDataRef.current = false;
-      });
+    // Skip if already loading data
+    if (isLoadingDataRef.current) {
+      console.log('🔄 Data load already in progress; skipping duplicate request');
+      return;
     }
-  }, [symbol, timeframe]); // Removed chartActions to prevent infinite loops
+
+    // Reset loading state to allow new data loading
+    isLoadingDataRef.current = false;
+
+    chartActions.resetChart(); // Reset chart state for new symbol/timeframe
+    chartActions.setTimeframe(timeframe);
+    chartCreatedRef.current = false; // Allow chart recreation for new timeframe
+    initialRenderCompletedRef.current = false; // Allow initial render for new timeframe
+    lastProcessedDataRef.current = null; // Reset WebSocket data tracking
+
+    // Force chart recreation by clearing the chart state
+    chartActions.setChartExists(false);
+    chartActions.setChartLoaded(false);
+
+    console.log('🔄 Loading data for symbol/timeframe:', {
+      symbol,
+      timeframe,
+      currentDataLength: chartState.allData.length,
+      isLoadingDataRef: isLoadingDataRef.current,
+    });
+    isLoadingDataRef.current = true;
+    chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
+      console.log('✅ Data loading completed for timeframe:', timeframe);
+      isLoadingDataRef.current = false;
+    });
+  }, [symbol, timeframe]); // Single effect handles all data loading
 
   // Cleanup refs on unmount
   useEffect(() => {
@@ -909,13 +899,36 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Create chart when data is available and view is properly set
   useEffect(() => {
     // Only create chart if it hasn't been created yet and we have valid data
+    // Allow recreation when timeframe changes (chartCreatedRef.current is set to false)
     if (chartCreatedRef.current) {
       return; // Chart already created, skip
     }
 
+    console.log('🎯 Chart creation effect triggered:', {
+      chartCreatedRef: chartCreatedRef.current,
+      isValidData,
+      allDataLength: chartState.allData.length,
+      chartExists: chartState.chartExists,
+      timeframe: chartState.timeframe,
+    });
+
     const gElementExists = svgRef.current ? !d3.select(svgRef.current).select('g').empty() : false;
     const shouldCreate =
       isValidData && chartState.allData.length > 0 && svgRef.current && (!chartState.chartExists || !gElementExists);
+
+    // Force recreation when chartCreatedRef.current is false (timeframe change)
+    const shouldForceRecreate =
+      !chartCreatedRef.current && isValidData && chartState.allData.length > 0 && svgRef.current;
+
+    console.log('🎯 Chart creation conditions:', {
+      gElementExists,
+      shouldCreate,
+      shouldForceRecreate,
+      isValidData,
+      allDataLength: chartState.allData.length,
+      chartExists: chartState.chartExists,
+      svgRefExists: !!svgRef.current,
+    });
     // Removed verbose chart creation condition logging
 
     // Set viewport if it's not set yet
@@ -926,7 +939,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartActions.setViewport(viewStart, viewEnd);
     }
 
-    if (shouldCreate) {
+    if (shouldCreate || shouldForceRecreate) {
       // Only validate that we have a reasonable range
       // Negative indices are normal when panning to historical data
 
