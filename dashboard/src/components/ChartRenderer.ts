@@ -501,23 +501,30 @@ export const createChart = ({
           });
 
           // Update the visual date display elements
+          // First set the text to measure its width
+          dateDisplayText
+            .attr('x', mouseX)
+            .attr('y', dateDisplayY - 5.5)
+            .text(dateText)
+            .attr('fill', 'white')
+            .attr('font-size', '12px')
+            .attr('font-family', 'system-ui, -apple-system, sans-serif')
+            .style('opacity', 1);
+
+          // Calculate text width and add 10px padding on each side
+          const textWidth = dateDisplayText.node()?.getBBox().width || 0;
+          const padding = 2;
+          const rectWidth = textWidth + padding * 2;
+          const rectX = mouseX - rectWidth / 2;
+
           dateDisplayRect
-            .attr('x', mouseX - 40) // Center around the mouse X position
-            .attr('y', dateDisplayY - 8)
-            .attr('width', 80)
-            .attr('height', 16)
+            .attr('x', rectX)
+            .attr('y', dateDisplayY - 13)
+            .attr('width', rectWidth)
+            .attr('height', 14)
             .attr('fill', 'hsl(var(--background))')
             .attr('stroke', 'hsl(var(--muted-foreground))')
             .attr('stroke-width', 1)
-            .style('opacity', 1);
-
-          dateDisplayText
-            .attr('x', mouseX)
-            .attr('y', dateDisplayY)
-            .text(dateText)
-            .attr('fill', 'hsl(var(--muted-foreground))')
-            .attr('font-size', '11px')
-            .attr('font-family', 'system-ui, -apple-system, sans-serif')
             .style('opacity', 1);
         }
       }
