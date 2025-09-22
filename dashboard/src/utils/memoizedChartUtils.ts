@@ -109,11 +109,18 @@ export const memoizedCalculateYScaleDomain = (
   } else if (!data || data.length === 0) {
     domain = [0, 100]; // Default fallback
   } else {
-    const minPrice = d3.min(data, d => d.low) as number;
-    const maxPrice = d3.max(data, d => d.high) as number;
-    const priceRange = maxPrice - minPrice;
-    const padding = priceRange * PRICE_PADDING_MULTIPLIER;
-    domain = [minPrice - padding, maxPrice + padding];
+    // Filter out fake candles for price range calculation
+    const realData = data.filter(d => !d.isFake && d.open !== -1 && d.high !== -1 && d.low !== -1 && d.close !== -1);
+
+    if (realData.length === 0) {
+      domain = [0, 100]; // Default fallback if no real data
+    } else {
+      const minPrice = d3.min(realData, d => d.low) as number;
+      const maxPrice = d3.max(realData, d => d.high) as number;
+      const priceRange = maxPrice - minPrice;
+      const padding = priceRange * PRICE_PADDING_MULTIPLIER;
+      domain = [minPrice - padding, maxPrice + padding];
+    }
   }
 
   // Cache the result

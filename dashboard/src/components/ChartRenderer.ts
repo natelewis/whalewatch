@@ -12,6 +12,7 @@ import {
   X_AXIS_MARKER_INTERVAL,
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
   X_AXIS_LABEL_CONFIGS,
+  HOVER_DISPLAY,
 } from '../constants';
 import { ChartDimensions, CandlestickData } from '../types';
 import {
@@ -23,6 +24,7 @@ import {
   createYAxis,
   applyAxisStyling,
   createViewportXScale,
+  isFakeCandle,
 } from '../utils/chartDataUtils';
 import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 import { smartDateRenderer } from '../utils/dateRenderer';
@@ -176,6 +178,16 @@ export const createChart = ({
 
   applyAxisStyling(xAxis);
   applyAxisStyling(yAxis);
+
+  // Keep a reference to the most recently used transformed Y scale for perfect sync
+  // Initialize with the base yScale, but immediately update if a transform exists in chartState
+  let lastTransformedYScale: d3.ScaleLinear<number, number> = yScale;
+  if (chartState.currentTransformY !== undefined && chartState.currentTransformK !== undefined) {
+    const initialTransform = d3.zoomIdentity
+      .translate(0, chartState.currentTransformY)
+      .scale(chartState.currentTransformK);
+    lastTransformedYScale = initialTransform.rescaleY(yScale);
+  }
 
   // Show all tick marks and labels
 
@@ -353,6 +365,8 @@ export const createChart = ({
       viewEnd: newEnd,
       visibleData: currentData.slice(newStart, newEnd + 1),
     } as ChartCalculations;
+    // Update latest transformed Y scale used for rendering
+    lastTransformedYScale = baseCalcs.transformedYScale;
     renderCandlestickChart(svgElement, calculations);
   };
 
@@ -361,6 +375,9 @@ export const createChart = ({
 
   // Add date display
   const dateDisplay = g.append('g').attr('class', 'date-display').style('pointer-events', 'none');
+
+  // Add price display (to the right of the horizontal crosshair, over y-axis labels)
+  const priceDisplay = g.append('g').attr('class', 'price-display').style('pointer-events', 'none');
 
   crosshair
     .append('line')
@@ -382,14 +399,29 @@ export const createChart = ({
   const dateDisplayRect = dateDisplay
     .append('rect')
     .attr('class', 'date-display-bg')
-    .attr('rx', 4)
-    .attr('ry', 4)
+    .attr('rx', 0)
+    .attr('ry', 0)
     .style('opacity', 0);
 
   const dateDisplayText = dateDisplay
     .append('text')
     .attr('class', 'date-display-text')
     .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
+    .style('opacity', 0);
+
+  // Price display elements
+  const priceDisplayRect = priceDisplay
+    .append('rect')
+    .attr('class', 'price-display-bg')
+    .attr('rx', 0)
+    .attr('ry', 0)
+    .style('opacity', 0);
+
+  const priceDisplayText = priceDisplay
+    .append('text')
+    .attr('class', 'price-display-text')
+    .attr('text-anchor', 'start')
     .attr('dominant-baseline', 'middle')
     .style('opacity', 0);
 
@@ -413,6 +445,8 @@ export const createChart = ({
       crosshair.select('.crosshair-y').style('opacity', 0);
       dateDisplayRect.style('opacity', 0);
       dateDisplayText.style('opacity', 0);
+      priceDisplayRect.style('opacity', 0);
+      priceDisplayText.style('opacity', 0);
       if (stateCallbacks.setHoverData) {
         stateCallbacks.setHoverData(null);
       }
@@ -446,7 +480,7 @@ export const createChart = ({
       const clampedIndex = clampIndex(index, currentData.length);
       const d = currentData[clampedIndex];
 
-      if (d) {
+      if (d && !isFakeCandle(d)) {
         // Always update crosshair to follow cursor position exactly (with latest dimensions)
         // This works both during normal hover and during panning
         crosshair
@@ -503,22 +537,50 @@ export const createChart = ({
             .attr('x', mouseX)
             .attr('y', dateDisplayY - 5.5)
             .text(dateText)
-            .attr('fill', 'white')
-            .attr('font-size', '12px')
-            .attr('font-family', 'system-ui, -apple-system, sans-serif')
+            .attr('fill', HOVER_DISPLAY.FILL_COLOR)
+            .attr('font-size', HOVER_DISPLAY.FONT_SIZE)
+            .attr('font-family', HOVER_DISPLAY.FONT_FAMILY)
             .style('opacity', 1);
 
-          // Calculate text width and add 10px padding on each side
+          // Calculate text width and add padding on each side
           const textWidth = dateDisplayText.node()?.getBBox().width || 0;
-          const padding = 2;
-          const rectWidth = textWidth + padding * 2;
+          const rectWidth = textWidth + HOVER_DISPLAY.DATE_BOX_PADDING * 2;
           const rectX = mouseX - rectWidth / 2;
 
           dateDisplayRect
             .attr('x', rectX)
             .attr('y', dateDisplayY - 13)
             .attr('width', rectWidth)
-            .attr('height', 14)
+            .attr('height', HOVER_DISPLAY.DATE_BOX_HEIGHT)
+            .attr('fill', 'hsl(var(--background))')
+            .attr('stroke', 'hsl(var(--muted-foreground))')
+            .attr('stroke-width', 1)
+            .style('opacity', 1);
+        }
+
+        // Update price display aligned with horizontal crosshair and over y-axis labels
+        {
+          // Use the exact same transformed Y-scale used for the latest render
+          const priceAtCursor = lastTransformedYScale.invert(mouseY);
+          const priceTextStr = Number.isFinite(priceAtCursor) ? priceAtCursor.toFixed(2) : '';
+
+          // Position box starting just to the right of the chart area (over y-axis labels)
+          const boxX = currInnerWidth + 4; // small offset into the y-axis label area
+
+          priceDisplayText
+            .attr('x', boxX + HOVER_DISPLAY.PRICE_BOX_PADDING) // Left-justify text with padding
+            .attr('y', mouseY + 1)
+            .text(priceTextStr)
+            .attr('fill', HOVER_DISPLAY.FILL_COLOR)
+            .attr('font-size', HOVER_DISPLAY.FONT_SIZE)
+            .attr('font-family', HOVER_DISPLAY.FONT_FAMILY)
+            .style('opacity', 1);
+
+          priceDisplayRect
+            .attr('x', boxX)
+            .attr('y', mouseY - HOVER_DISPLAY.PRICE_BOX_HEIGHT / 2)
+            .attr('width', HOVER_DISPLAY.PRICE_BOX_WIDTH)
+            .attr('height', HOVER_DISPLAY.PRICE_BOX_HEIGHT)
             .attr('fill', 'hsl(var(--background))')
             .attr('stroke', 'hsl(var(--muted-foreground))')
             .attr('stroke-width', 1)
@@ -534,8 +596,9 @@ export const createChart = ({
   let panStartYLocal = 0;
   let panStartTransformY = 0;
   let panStartTransformK = 1;
-  let currentTransformY = 0;
-  let currentTransformK = 1;
+  // Initialize vertical pan from chartState to persist across re-renders
+  let currentTransformY = chartState.currentTransformY || 0;
+  let currentTransformK = chartState.currentTransformK || 1;
   let lastKnownDataLength = allChartData.length;
   let loadRequestedLeft = false;
   let loadRequestedRight = false;
@@ -594,7 +657,8 @@ export const createChart = ({
       }
       const data = stateCallbacks.getCurrentData?.() || allChartData;
       const dims = stateCallbacks.getCurrentDimensions?.() || dimensions;
-      const { innerWidth: currInnerWidth } = calculateInnerDimensions(dims);
+      const { innerWidth: currInnerWidth, innerHeight: currInnerHeight } = calculateInnerDimensions(dims);
+      const [pmouseX, pmouseY] = d3.pointer(event);
       const bandWidth = currInnerWidth / CHART_DATA_POINTS;
       // If data length changed during pan (e.g., auto-load left), shift pan anchor to preserve view
       if (data.length !== lastKnownDataLength) {
@@ -636,6 +700,12 @@ export const createChart = ({
       const newTransformY = panStartTransformY + dy;
       currentTransformY = newTransformY;
       currentTransformK = panStartTransformK;
+
+      // Persist the vertical pan state for re-renders
+      if (stateCallbacks.setCurrentVerticalPan) {
+        stateCallbacks.setCurrentVerticalPan(currentTransformY, currentTransformK);
+      }
+
       const currentTransform = d3.zoomIdentity.translate(0, currentTransformY).scale(currentTransformK);
       if (stateCallbacks.setCurrentTransform) {
         stateCallbacks.setCurrentTransform(currentTransform);
@@ -652,7 +722,50 @@ export const createChart = ({
         viewEnd: newEnd,
         visibleData: data.slice(Math.max(0, newStart), Math.min(data.length - 1, newEnd) + 1),
       } as ChartCalculations;
+      // Update latest transformed Y scale used for rendering
+      lastTransformedYScale = baseCalcs.transformedYScale;
       renderCandlestickChart(svgElement, calculations);
+
+      // Keep crosshair and price display synced with pointer during pan
+      crosshair
+        .select('.crosshair-x')
+        .attr('x1', pmouseX)
+        .attr('x2', pmouseX)
+        .attr('y1', 0)
+        .attr('y2', currInnerHeight)
+        .style('opacity', 1);
+
+      crosshair
+        .select('.crosshair-y')
+        .attr('x1', 0)
+        .attr('x2', currInnerWidth)
+        .attr('y1', pmouseY)
+        .attr('y2', pmouseY)
+        .style('opacity', 1);
+
+      // Update price display using the active transformed Y-scale
+      const priceAtCursor = lastTransformedYScale.invert(pmouseY);
+      const priceTextStr = Number.isFinite(priceAtCursor) ? priceAtCursor.toFixed(2) : '';
+      const boxX = currInnerWidth + 4;
+
+      priceDisplayText
+        .attr('x', boxX + HOVER_DISPLAY.PRICE_BOX_PADDING) // Left-justify text with padding
+        .attr('y', pmouseY + 1)
+        .text(priceTextStr)
+        .attr('fill', HOVER_DISPLAY.FILL_COLOR)
+        .attr('font-size', HOVER_DISPLAY.FONT_SIZE)
+        .attr('font-family', HOVER_DISPLAY.FONT_FAMILY)
+        .style('opacity', 1);
+
+      priceDisplayRect
+        .attr('x', boxX)
+        .attr('y', pmouseY - HOVER_DISPLAY.PRICE_BOX_HEIGHT / 2)
+        .attr('width', HOVER_DISPLAY.PRICE_BOX_WIDTH)
+        .attr('height', HOVER_DISPLAY.PRICE_BOX_HEIGHT)
+        .attr('fill', 'hsl(var(--background))')
+        .attr('stroke', 'hsl(var(--muted-foreground))')
+        .attr('stroke-width', 1)
+        .style('opacity', 1);
 
       // Update axes during pan for live feedback
       const svgSel2 = d3.select(svgElement);
@@ -817,47 +930,81 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
     // Use transformed X scale for positioning
     const x = xScaleForPosition(globalIndex);
 
-    const isUp = d.close >= d.open;
-    const color = isUp ? CANDLE_UP_COLOR : CANDLE_DOWN_COLOR;
+    // Check if this is a fake candle
+    const isFake = isFakeCandle(d);
 
-    // Add invisible hover area for easier interaction
-    candleSticks
-      .append('rect')
-      .attr('x', x - hoverWidth / 2)
-      .attr('y', 0)
-      .attr('width', hoverWidth)
-      .attr('height', calculations.innerHeight)
-      .attr('fill', 'transparent')
-      .attr('class', 'candlestick-hover-area')
-      .style('cursor', 'pointer')
-      .on('mouseover', function () {})
-      .on('mouseout', function () {});
+    if (isFake) {
+      // For fake candles, render only a subtle placeholder
+      // This provides visual spacing without showing actual price data
+      candleSticks
+        .append('rect')
+        .attr('x', x - candleWidth / 2)
+        .attr('y', 0)
+        .attr('width', candleWidth)
+        .attr('height', calculations.innerHeight)
+        .attr('fill', 'transparent')
+        .attr('stroke', 'hsl(var(--muted-foreground))')
+        .attr('stroke-width', 0.5)
+        .attr('stroke-dasharray', '2,2')
+        .attr('class', 'candlestick-fake')
+        .style('opacity', 0.3);
 
-    // High-Low line
-    const highY = calculations.transformedYScale(d.high);
-    const lowY = calculations.transformedYScale(d.low);
+      // Add invisible hover area for fake candles too (for consistent interaction)
+      candleSticks
+        .append('rect')
+        .attr('x', x - hoverWidth / 2)
+        .attr('y', 0)
+        .attr('width', hoverWidth)
+        .attr('height', calculations.innerHeight)
+        .attr('fill', 'transparent')
+        .attr('class', 'candlestick-hover-area')
+        .style('cursor', 'pointer')
+        .on('mouseover', function () {})
+        .on('mouseout', function () {});
+    } else {
+      // Render normal candlestick for real data
+      const isUp = d.close >= d.open;
+      const color = isUp ? CANDLE_UP_COLOR : CANDLE_DOWN_COLOR;
 
-    candleSticks
-      .append('line')
-      .attr('x1', x)
-      .attr('x2', x)
-      .attr('y1', highY)
-      .attr('y2', lowY)
-      .attr('stroke', color)
-      .attr('stroke-width', 1)
-      .attr('class', 'candlestick-line');
+      // Add invisible hover area for easier interaction
+      candleSticks
+        .append('rect')
+        .attr('x', x - hoverWidth / 2)
+        .attr('y', 0)
+        .attr('width', hoverWidth)
+        .attr('height', calculations.innerHeight)
+        .attr('fill', 'transparent')
+        .attr('class', 'candlestick-hover-area')
+        .style('cursor', 'pointer')
+        .on('mouseover', function () {})
+        .on('mouseout', function () {});
 
-    // Open-Close rectangle
-    candleSticks
-      .append('rect')
-      .attr('x', x - candleWidth / 2)
-      .attr('y', calculations.transformedYScale(Math.max(d.open, d.close)))
-      .attr('width', candleWidth)
-      .attr('height', Math.abs(calculations.transformedYScale(d.close) - calculations.transformedYScale(d.open)) || 1)
-      .attr('fill', color)
-      .attr('stroke', color)
-      .attr('stroke-width', 1)
-      .attr('class', 'candlestick-rect');
+      // High-Low line
+      const highY = calculations.transformedYScale(d.high);
+      const lowY = calculations.transformedYScale(d.low);
+
+      candleSticks
+        .append('line')
+        .attr('x1', x)
+        .attr('x2', x)
+        .attr('y1', highY)
+        .attr('y2', lowY)
+        .attr('stroke', color)
+        .attr('stroke-width', 1)
+        .attr('class', 'candlestick-line');
+
+      // Open-Close rectangle
+      candleSticks
+        .append('rect')
+        .attr('x', x - candleWidth / 2)
+        .attr('y', calculations.transformedYScale(Math.max(d.open, d.close)))
+        .attr('width', candleWidth)
+        .attr('height', Math.abs(calculations.transformedYScale(d.close) - calculations.transformedYScale(d.open)) || 1)
+        .attr('fill', color)
+        .attr('stroke', color)
+        .attr('stroke-width', 1)
+        .attr('class', 'candlestick-rect');
+    }
   });
 };
 

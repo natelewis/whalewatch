@@ -18,8 +18,20 @@ export const AXIS_DOMAIN_AND_TICKS = {
 
 export const AXIS_LABELS = {
   FONT_SIZE: '12px',
-  FONT_FAMILY: 'system-ui, -apple-system, sans-serif',
+  FONT_FAMILY: 'ui-monospace, "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Source Code Pro", monospace',
   FILL_COLOR: '#ccc',
+} as const;
+
+// Hover display constants
+export const HOVER_DISPLAY = {
+  FONT_SIZE: '12px',
+  FONT_FAMILY: 'ui-monospace, "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Source Code Pro", monospace',
+  FILL_COLOR: 'white',
+  PRICE_BOX_WIDTH: 55,
+  PRICE_BOX_HEIGHT: 14,
+  PRICE_BOX_PADDING: 4,
+  DATE_BOX_PADDING: 2,
+  DATE_BOX_HEIGHT: 14,
 } as const;
 
 // API / WebSocket base URLs

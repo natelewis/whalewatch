@@ -398,3 +398,123 @@ export const createViewportXScale = (
 
   return d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, availableWidth]);
 };
+
+/**
+ * Creates a fake candle with all price and volume values set to -1
+ * This is used for padding to ensure proper chart spacing
+ */
+export const createFakeCandle = (timestamp: string): CandlestickData => {
+  return {
+    timestamp,
+    open: -1,
+    high: -1,
+    low: -1,
+    close: -1,
+    volume: -1,
+    isFake: true,
+  };
+};
+
+/**
+ * Checks if a candle is fake based on its properties
+ * A candle is considered fake if isFake is true OR if all price/volume values are -1
+ */
+export const isFakeCandle = (candle: CandlestickData): boolean => {
+  return (
+    candle.isFake === true ||
+    (candle.open === -1 && candle.high === -1 && candle.low === -1 && candle.close === -1 && candle.volume === -1)
+  );
+};
+
+/**
+ * Adds fake candles for right padding (always 1 candle to the right of the rightmost real candle)
+ * This creates visual padding so the rightmost candle doesn't touch the domain line
+ */
+export const addRightPaddingFakeCandle = (data: CandlestickData[]): CandlestickData[] => {
+  if (data.length === 0) {
+    return data;
+  }
+
+  // Find the last real (non-fake) candle
+  let lastRealCandleIndex = data.length - 1;
+  while (lastRealCandleIndex >= 0 && isFakeCandle(data[lastRealCandleIndex])) {
+    lastRealCandleIndex--;
+  }
+
+  // If no real candles found, return original data
+  if (lastRealCandleIndex < 0) {
+    return data;
+  }
+
+  const lastRealCandle = data[lastRealCandleIndex];
+  const lastRealTime = new Date(lastRealCandle.timestamp);
+
+  // Calculate the next timestamp based on the timeframe
+  // For now, we'll assume 1-minute intervals, but this could be made configurable
+  const nextTimestamp = new Date(lastRealTime.getTime() + 60 * 1000).toISOString();
+
+  // Create fake candle for right padding
+  const rightPaddingCandle = createFakeCandle(nextTimestamp);
+
+  return [...data, rightPaddingCandle];
+};
+
+/**
+ * Adds fake candles for left padding when there are fewer than 80 data points
+ * This ensures proper spacing when the dataset is small
+ */
+export const addLeftPaddingFakeCandles = (data: CandlestickData[], targetCount: number = 80): CandlestickData[] => {
+  if (data.length === 0) {
+    return data;
+  }
+
+  // Find the first real (non-fake) candle
+  let firstRealCandleIndex = 0;
+  while (firstRealCandleIndex < data.length && isFakeCandle(data[firstRealCandleIndex])) {
+    firstRealCandleIndex++;
+  }
+
+  // If no real candles found, return original data
+  if (firstRealCandleIndex >= data.length) {
+    return data;
+  }
+
+  const firstRealCandle = data[firstRealCandleIndex];
+  const firstRealTime = new Date(firstRealCandle.timestamp);
+
+  // Calculate how many fake candles we need to add
+  const currentRealCandleCount = data.filter(candle => !isFakeCandle(candle)).length;
+  const fakeCandlesNeeded = Math.max(0, targetCount - currentRealCandleCount);
+
+  if (fakeCandlesNeeded === 0) {
+    return data;
+  }
+
+  // Create fake candles going backwards in time
+  const fakeCandles: CandlestickData[] = [];
+  for (let i = 1; i <= fakeCandlesNeeded; i++) {
+    // For now, we'll assume 1-minute intervals, but this could be made configurable
+    const fakeTimestamp = new Date(firstRealTime.getTime() - i * 60 * 1000).toISOString();
+    fakeCandles.unshift(createFakeCandle(fakeTimestamp));
+  }
+
+  return [...fakeCandles, ...data];
+};
+
+/**
+ * Processes chart data to add appropriate fake candles for padding
+ * This is the main function that should be called to prepare data for rendering
+ */
+export const addFakeCandlesForPadding = (data: CandlestickData[], viewWindowSize: number = 80): CandlestickData[] => {
+  if (data.length === 0) {
+    return data;
+  }
+
+  // First add left padding if needed
+  let processedData = addLeftPaddingFakeCandles(data, viewWindowSize);
+
+  // Then add right padding (always add 1 fake candle to the right)
+  processedData = addRightPaddingFakeCandle(processedData);
+
+  return processedData;
+};
