@@ -41,19 +41,19 @@ describe('X-axis label configuration', () => {
       // 1h: 2-day markers
       expect(X_AXIS_LABEL_CONFIGS['1h'].markerIntervalMinutes).toBe(2880);
 
-      // 1d: daily markers
-      expect(X_AXIS_LABEL_CONFIGS['1d'].markerIntervalMinutes).toBe(1440);
+      // 1d: monthly markers
+      expect(X_AXIS_LABEL_CONFIGS['1d'].markerIntervalMinutes).toBe(43200);
 
-      // 1w: weekly markers
-      expect(X_AXIS_LABEL_CONFIGS['1w'].markerIntervalMinutes).toBe(10080);
+      // 1w: 14-day markers (2 weeks)
+      expect(X_AXIS_LABEL_CONFIGS['1w'].markerIntervalMinutes).toBe(20160);
 
-      // 1M: monthly markers
-      expect(X_AXIS_LABEL_CONFIGS['1M'].markerIntervalMinutes).toBe(43200);
+      // 1M: yearly markers (12 months)
+      expect(X_AXIS_LABEL_CONFIGS['1M'].markerIntervalMinutes).toBe(518400);
     });
 
     it('should have appropriate label formats for each timeframe', () => {
-      // Short timeframes should show time only
-      expect(X_AXIS_LABEL_CONFIGS['1m'].labelFormat).toBe('time-only');
+      // Short timeframes should show date-time
+      expect(X_AXIS_LABEL_CONFIGS['1m'].labelFormat).toBe('date-time');
 
       // Medium timeframes should show date-time
       expect(X_AXIS_LABEL_CONFIGS['5m'].labelFormat).toBe('date-time');
