@@ -15,7 +15,7 @@ import {
   TimeframeConfig,
   DataRange,
 } from '../types';
-import { CHART_DATA_POINTS } from '../constants';
+import { CHART_DATA_POINTS, CHART_RIGHT_PADDING } from '../constants';
 
 /**
  * Remove duplicate entries by timestamp and sort by time
@@ -393,5 +393,8 @@ export const createViewportXScale = (
     }
   }
 
-  return d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, innerWidth]);
+  // Add padding to prevent overlap with vertical domain line
+  const availableWidth = innerWidth - CHART_RIGHT_PADDING;
+
+  return d3.scaleLinear().domain([safeViewStart, safeViewEnd]).range([0, availableWidth]);
 };

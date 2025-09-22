@@ -42,6 +42,7 @@ export const PRICE_PADDING_MULTIPLIER = 0.2; // 20% padding on min/max
 // Layout configuration
 export const MIN_CHART_HEIGHT = 400; // Minimum chart height in pixels
 export const CHART_HEIGHT_OFFSET = 100; // Height offset for chart container
+export const CHART_RIGHT_PADDING = 8; // Right padding to prevent overlap with domain line
 
 // Timing configuration
 export const RIGHT_EDGE_CHECK_INTERVAL = 1000; // ms

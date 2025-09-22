@@ -8,6 +8,7 @@ import {
   AXIS_DOMAIN_AND_TICKS,
   AXIS_LABELS,
   X_AXIS_LABEL_CONFIGS,
+  CHART_RIGHT_PADDING,
 } from '../constants';
 
 // Types for cache values
@@ -178,7 +179,7 @@ export const memoizedCalculateChartState = ({
 
   // Calculate the scale range to accommodate the full dataset
   const totalDataWidth = availableDataLength * bandWidth;
-  const rightmostX = innerWidth;
+  const rightmostX = innerWidth - CHART_RIGHT_PADDING;
   const leftmostX = rightmostX - totalDataWidth;
 
   // Create X scale that maps the full dataset to a range that allows panning
