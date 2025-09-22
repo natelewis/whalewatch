@@ -11,6 +11,7 @@ import {
   LOAD_EDGE_TRIGGER,
   X_AXIS_MARKER_INTERVAL,
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
+  X_AXIS_LABEL_CONFIGS,
 } from '../constants';
 import { ChartDimensions, CandlestickData } from '../types';
 import {
@@ -150,12 +151,23 @@ export const createChart = ({
     console.warn('createIndexToTimeScale called with empty allChartData in initial render');
     return () => {}; // Return empty cleanup function
   }
+  // Get interval-based configuration
+  const interval = chartState.timeframe || '1m';
+  const labelConfig = X_AXIS_LABEL_CONFIGS[interval] || X_AXIS_LABEL_CONFIGS['1m'];
+
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
     .call(
-      createCustomTimeAxis(xScale, allChartData, X_AXIS_MARKER_INTERVAL, X_AXIS_MARKER_DATA_POINT_INTERVAL, visibleData)
+      createCustomTimeAxis(
+        xScale,
+        allChartData,
+        labelConfig.markerIntervalMinutes,
+        X_AXIS_MARKER_DATA_POINT_INTERVAL,
+        visibleData,
+        interval
+      )
     );
 
   // Create Y-axis group
@@ -319,9 +331,10 @@ export const createChart = ({
         createCustomTimeAxis(
           viewportXScale as unknown as d3.ScaleLinear<number, number>,
           currentData,
-          X_AXIS_MARKER_INTERVAL,
+          labelConfig.markerIntervalMinutes,
           X_AXIS_MARKER_DATA_POINT_INTERVAL,
-          visibleSlice
+          visibleSlice,
+          interval
         )
       );
       applyAxisStyling(xAxisGroup);
@@ -650,13 +663,19 @@ export const createChart = ({
         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
         const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, axisInnerWidth]);
         const visibleSlice = data.slice(Math.max(0, newStart), Math.min(total - 1, newEnd) + 1);
+
+        // Get interval-based configuration for panning
+        const panInterval = chartState.timeframe || '1m';
+        const panLabelConfig = X_AXIS_LABEL_CONFIGS[panInterval] || X_AXIS_LABEL_CONFIGS['1m'];
+
         xAxisGroup.call(
           createCustomTimeAxis(
             viewportXScale as unknown as d3.ScaleLinear<number, number>,
             data,
-            X_AXIS_MARKER_INTERVAL,
+            panLabelConfig.markerIntervalMinutes,
             X_AXIS_MARKER_DATA_POINT_INTERVAL,
-            visibleSlice
+            visibleSlice,
+            panInterval
           )
         );
         applyAxisStyling(xAxisGroup);

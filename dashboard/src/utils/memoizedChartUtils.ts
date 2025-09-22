@@ -7,6 +7,7 @@ import {
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
   AXIS_DOMAIN_AND_TICKS,
   AXIS_LABELS,
+  X_AXIS_LABEL_CONFIGS,
 } from '../constants';
 
 // Types for cache values
@@ -278,10 +279,38 @@ export const getCacheStats = () => {
 };
 
 /**
+ * Align time to consistent boundaries based on interval
+ * For example, 120 minutes (2 hours) should align to 00:00, 02:00, 04:00, etc.
+ */
+const alignToTimeBoundary = (date: Date, intervalMinutes: number): Date => {
+  const aligned = new Date(date);
+
+  // For intervals >= 60 minutes, align to consistent hour boundaries starting from midnight
+  if (intervalMinutes >= 60) {
+    // Calculate total minutes since midnight using UTC to avoid timezone issues
+    const totalMinutesSinceMidnight = aligned.getUTCHours() * 60 + aligned.getUTCMinutes();
+
+    // Find the nearest interval boundary
+    const intervalsSinceMidnight = Math.floor(totalMinutesSinceMidnight / intervalMinutes);
+    const alignedMinutes = intervalsSinceMidnight * intervalMinutes;
+
+    // Set the aligned time properly using UTC
+    const alignedHours = Math.floor(alignedMinutes / 60);
+    const remainingMinutes = alignedMinutes % 60;
+    aligned.setUTCHours(alignedHours, remainingMinutes, 0, 0);
+  } else {
+    // For intervals < 60 minutes, align to the nearest interval boundary starting from the top of the hour
+    const minutes = Math.floor(aligned.getUTCMinutes() / intervalMinutes) * intervalMinutes;
+    aligned.setUTCMinutes(minutes, 0, 0);
+  }
+
+  return aligned;
+};
+
+/**
  * Memoized time-based tick generation with configurable intervals
  * This is called on every axis update and can be expensive with large datasets
- * Now supports showing 1-minute markers only on specific intervals (e.g., 30-minute boundaries)
- * Uses a more dynamic approach to ensure all visible 30-minute boundaries are shown
+ * Now supports showing markers aligned to consistent time boundaries (e.g., every 2 hours at 00:00, 02:00, 04:00)
  */
 export const memoizedGenerateTimeBasedTicks = (
   allChartData: { timestamp: string }[],
@@ -303,19 +332,20 @@ export const memoizedGenerateTimeBasedTicks = (
 
   const ticks: Date[] = [];
 
-  // More intelligent approach: Generate ticks based on time intervals rather than data point intervals
-  // This ensures we don't miss any 30-minute boundaries regardless of data density
+  // Generate ticks based on time intervals aligned to consistent boundaries
   const startTime = new Date(allChartData[0].timestamp);
   const endTime = new Date(allChartData[allChartData.length - 1].timestamp);
 
-  // Round start time down to the nearest marker interval
-  const startMinutes = startTime.getMinutes();
-  const roundedStartMinutes = Math.floor(startMinutes / markerIntervalMinutes) * markerIntervalMinutes;
-  const roundedStartTime = new Date(startTime);
-  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0);
+  // Align start time to the nearest consistent boundary
+  const alignedStartTime = alignToTimeBoundary(startTime, markerIntervalMinutes);
 
-  // Generate ticks at regular intervals from the rounded start time
-  const currentTime = new Date(roundedStartTime);
+  // If the aligned start time is before our data, move to the next boundary
+  const currentTime = new Date(alignedStartTime);
+  if (currentTime < startTime) {
+    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
+  }
+
+  // Generate ticks at regular intervals from the aligned start time
   while (currentTime <= endTime) {
     // Check if this time exists in our data (within a reasonable tolerance)
     const timeInData = allChartData.some(d => {
@@ -340,6 +370,7 @@ export const memoizedGenerateTimeBasedTicks = (
 /**
  * Generate time-based ticks for visible data range only
  * This ensures consistent tick display when panning/zooming
+ * Uses the same alignment logic as the main tick generation
  */
 export const memoizedGenerateVisibleTimeBasedTicks = (
   visibleData: { timestamp: string }[],
@@ -360,18 +391,20 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
 
   const ticks: Date[] = [];
 
-  // Generate ticks based on the visible data range
+  // Generate ticks based on the visible data range with consistent alignment
   const startTime = new Date(visibleData[0].timestamp);
   const endTime = new Date(visibleData[visibleData.length - 1].timestamp);
 
-  // Round start time down to the nearest marker interval
-  const startMinutes = startTime.getMinutes();
-  const roundedStartMinutes = Math.floor(startMinutes / markerIntervalMinutes) * markerIntervalMinutes;
-  const roundedStartTime = new Date(startTime);
-  roundedStartTime.setMinutes(roundedStartMinutes, 0, 0);
+  // Align start time to the nearest consistent boundary
+  const alignedStartTime = alignToTimeBoundary(startTime, markerIntervalMinutes);
 
-  // Generate ticks at regular intervals from the rounded start time
-  const currentTime = new Date(roundedStartTime);
+  // If the aligned start time is before our data, move to the next boundary
+  const currentTime = new Date(alignedStartTime);
+  if (currentTime < startTime) {
+    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
+  }
+
+  // Generate ticks at regular intervals from the aligned start time
   while (currentTime <= endTime) {
     // Check if this time exists in our visible data (within a reasonable tolerance)
     const timeInData = visibleData.some(d => {
@@ -412,18 +445,77 @@ const calculateInnerDimensions = (dimensions: {
  * Memoized time formatting for axis labels
  * Expensive string operations that are repeated for the same timestamps
  */
-export const memoizedFormatTime = (timestamp: Date): string => {
+export const memoizedFormatTime = (timestamp: Date, interval?: string): string => {
   const timeKey = timestamp.getTime().toString();
-  const cacheKey = `timeFormat-${timeKey}`;
+  const cacheKey = `timeFormat-${timeKey}-${interval || 'default'}`;
 
   if (calculationCache.has(cacheKey)) {
     return calculationCache.get(cacheKey) as string;
   }
 
-  const result = timestamp.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  // Get configuration for the interval, fallback to 1m if not found
+  const config = X_AXIS_LABEL_CONFIGS[interval || '1m'] || X_AXIS_LABEL_CONFIGS['1m'];
+
+  let result: string;
+
+  switch (config.labelFormat) {
+    case 'time-only':
+      result = timestamp.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: config.showSeconds ? '2-digit' : undefined,
+      });
+      break;
+    case 'date-only':
+      result = timestamp.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: timestamp.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+      });
+      break;
+    case 'date-time': {
+      const month = String(timestamp.getMonth() + 1).padStart(2, '0');
+      const day = String(timestamp.getDate()).padStart(2, '0');
+      const year = timestamp.getFullYear();
+      const hour = String(timestamp.getHours()).padStart(2, '0');
+      const minute = String(timestamp.getMinutes()).padStart(2, '0');
+      result = `${month}-${day}-${year} ${hour}:${minute}`;
+      break;
+    }
+    case 'short':
+      result = timestamp.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      break;
+    case 'medium':
+      result = timestamp.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      break;
+    case 'long':
+      result = timestamp.toLocaleString('en-US', {
+        weekday: 'short',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: config.showSeconds ? '2-digit' : undefined,
+      });
+      break;
+    default:
+      result = timestamp.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+  }
 
   calculationCache.set(cacheKey, result);
   cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);

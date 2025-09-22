@@ -181,7 +181,8 @@ export const createCustomTimeAxis = (
   allChartData: { timestamp: string }[],
   markerIntervalMinutes?: number,
   dataPointInterval?: number,
-  visibleData?: { timestamp: string }[]
+  visibleData?: { timestamp: string }[],
+  interval?: string
 ): d3.Axis<number | Date> => {
   const timeTicks =
     visibleData && visibleData.length > 0
@@ -229,7 +230,7 @@ export const createCustomTimeAxis = (
         .attr('text-anchor', 'middle')
         .style('font-size', '12px')
         .style('fill', 'hsl(var(--muted-foreground))')
-        .text(d => memoizedFormatTime(d.timestamp));
+        .text(d => memoizedFormatTime(d.timestamp, interval));
     });
   };
 

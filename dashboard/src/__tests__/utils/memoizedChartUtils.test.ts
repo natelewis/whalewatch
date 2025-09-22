@@ -5,6 +5,7 @@ import {
   memoizedCalculateChartState,
   memoizedGetPriceRange,
   memoizedGetVisibleData,
+  memoizedFormatTime,
   clearCalculationCache,
   getCacheStats,
 } from '../../utils/memoizedChartUtils';
@@ -206,6 +207,104 @@ describe('memoizedChartUtils', () => {
 
       expect(stats2.visibleDataEntries).toBeGreaterThan(stats1.visibleDataEntries);
       expect(stats3.visibleDataEntries).toBe(stats2.visibleDataEntries); // Should not increase
+    });
+  });
+
+  describe('memoizedFormatTime', () => {
+    const testDate = new Date('2024-01-15T14:30:00Z');
+
+    it('should format time for 1m interval (time-only)', () => {
+      const result = memoizedFormatTime(testDate, '1m');
+
+      // Should show time only format (HH:MM AM/PM)
+      expect(result).toMatch(/^\d{1,2}:\d{2} [AP]M$/);
+      expect(result).toContain('09:30 AM');
+    });
+
+    it('should format time for 5m interval (date-time)', () => {
+      const result = memoizedFormatTime(testDate, '5m');
+
+      // Should show date-time format (MM-DD-YYYY HH:MM) in 24-hour format
+      expect(result).toMatch(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}$/);
+      expect(result).toContain('01-15-2024');
+      expect(result).toContain('09:30');
+    });
+
+    it('should format time for 1d interval (date-only)', () => {
+      const result = memoizedFormatTime(testDate, '1d');
+
+      // Should show date only format (MMM DD, YYYY)
+      expect(result).toMatch(/^[A-Za-z]{3} \d{1,2}, \d{4}$/);
+      expect(result).toContain('Jan 15');
+    });
+
+    it('should format time for 1w interval (date-only)', () => {
+      const result = memoizedFormatTime(testDate, '1w');
+
+      // Should show date only format (MMM DD, YYYY)
+      expect(result).toMatch(/^[A-Za-z]{3} \d{1,2}, \d{4}$/);
+      expect(result).toContain('Jan 15');
+    });
+
+    it('should format time for 1M interval (date-only)', () => {
+      const result = memoizedFormatTime(testDate, '1M');
+
+      // Should show date only format (MMM DD, YYYY)
+      expect(result).toMatch(/^[A-Za-z]{3} \d{1,2}, \d{4}$/);
+      expect(result).toContain('Jan 15');
+    });
+
+    it('should fallback to 1m format for unknown interval', () => {
+      const result = memoizedFormatTime(testDate, 'unknown');
+
+      // Should fallback to time-only format
+      expect(result).toMatch(/^\d{1,2}:\d{2} [AP]M$/);
+      expect(result).toContain('09:30 AM');
+    });
+
+    it('should use default format when no interval provided', () => {
+      const result = memoizedFormatTime(testDate);
+
+      // Should use 1m format as default
+      expect(result).toMatch(/^\d{1,2}:\d{2} [AP]M$/);
+      expect(result).toContain('09:30 AM');
+    });
+
+    it('should use cache for repeated calls', () => {
+      const stats1 = getCacheStats();
+
+      // First call
+      memoizedFormatTime(testDate, '1m');
+      const stats2 = getCacheStats();
+
+      // Second call with same parameters
+      memoizedFormatTime(testDate, '1m');
+      const stats3 = getCacheStats();
+
+      expect(stats2.totalEntries).toBeGreaterThan(stats1.totalEntries);
+      expect(stats3.totalEntries).toBe(stats2.totalEntries); // Should not increase
+    });
+
+    it('should handle different intervals with different cache keys', () => {
+      const stats1 = getCacheStats();
+
+      // Call with different intervals
+      memoizedFormatTime(testDate, '1m');
+      memoizedFormatTime(testDate, '5m');
+      memoizedFormatTime(testDate, '1d');
+      const stats2 = getCacheStats();
+
+      // Should have 3 different cache entries
+      expect(stats2.totalEntries).toBe(stats1.totalEntries + 3);
+    });
+
+    it('should include year for dates from different years', () => {
+      const oldDate = new Date('2023-01-15T14:30:00Z');
+      const result = memoizedFormatTime(oldDate, '5m');
+
+      // Should include year for dates from different years
+      expect(result).toContain('2023');
+      expect(result).toMatch(/^\d{2}-\d{2}-2023 \d{2}:\d{2}$/);
     });
   });
 

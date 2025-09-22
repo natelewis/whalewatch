@@ -53,5 +53,61 @@ export const RIGHT_EDGE_CHECK_INTERVAL = 1000; // ms
 export const X_AXIS_MARKER_INTERVAL = 30; // Show 1-minute markers every 30 minutes (3:30, 4:00, etc.)
 export const X_AXIS_MARKER_DATA_POINT_INTERVAL = 20; // Data points between major markers (for 1m data, 20 = 20 minutes)
 
+// X-axis label configuration based on time intervals
+export interface XAxisLabelConfig {
+  markerIntervalMinutes: number; // Minutes between markers
+  labelFormat: 'time-only' | 'date-only' | 'date-time' | 'short' | 'medium' | 'long';
+  showSeconds?: boolean;
+  timezone?: string;
+}
+
+export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
+  '1m': {
+    markerIntervalMinutes: 15, // Show labels every 30 minutes
+    labelFormat: 'time-only',
+    showSeconds: false,
+  },
+  '5m': {
+    markerIntervalMinutes: 90, // Show labels every hour and a half
+    labelFormat: 'date-time',
+    showSeconds: false,
+  },
+  '30m': {
+    markerIntervalMinutes: 60 * 8, // Show labels every 8 hours
+    labelFormat: 'date-time',
+    showSeconds: false,
+  },
+  '1h': {
+    markerIntervalMinutes: 60 * 17, // Show labels every 4 hours
+    labelFormat: 'date-only',
+    showSeconds: false,
+  },
+  '2h': {
+    markerIntervalMinutes: 480, // Show labels every 8 hours
+    labelFormat: 'date-time',
+    showSeconds: false,
+  },
+  '4h': {
+    markerIntervalMinutes: 960, // Show labels every 16 hours
+    labelFormat: 'date-time',
+    showSeconds: false,
+  },
+  '1d': {
+    markerIntervalMinutes: 1440, // Show labels every day
+    labelFormat: 'date-only',
+    showSeconds: false,
+  },
+  '1w': {
+    markerIntervalMinutes: 10080, // Show labels every week
+    labelFormat: 'date-only',
+    showSeconds: false,
+  },
+  '1M': {
+    markerIntervalMinutes: 43200, // Show labels every month
+    labelFormat: 'date-only',
+    showSeconds: false,
+  },
+} as const;
+
 // Defaults sourced from environment
 export const DEFAULT_CHART_DATA_POINTS = parseInt(import.meta.env.VITE_DEFAULT_CHART_DATA_POINTS || '500', 10);
