@@ -279,11 +279,46 @@ export const getCacheStats = () => {
 };
 
 /**
- * Align time to consistent boundaries based on interval
- * For example, 120 minutes (2 hours) should align to 00:00, 02:00, 04:00, etc.
+ * Find the first available time for a given date in the dataset
+ * Used for date-only format where markers should appear at the earliest available time of the day
  */
-const alignToTimeBoundary = (date: Date, intervalMinutes: number): Date => {
+const findFirstTimeForDate = (targetDate: Date, allChartData: { timestamp: string }[]): Date | null => {
+  const targetDateStr = targetDate.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+
+  // Find all data points for this date and get the earliest one
+  let earliestTime: Date | null = null;
+
+  for (const dataPoint of allChartData) {
+    const dataDate = new Date(dataPoint.timestamp);
+    const dataDateStr = dataDate.toISOString().split('T')[0];
+
+    if (dataDateStr === targetDateStr) {
+      if (!earliestTime || dataDate < earliestTime) {
+        earliestTime = dataDate;
+      }
+    }
+  }
+
+  return earliestTime;
+};
+
+/**
+ * Align time to consistent boundaries based on interval
+ * For date-only formats, finds the first available time for that date
+ * For other formats, aligns to consistent hour boundaries starting from midnight
+ */
+const alignToTimeBoundary = (date: Date, intervalMinutes: number, allChartData?: { timestamp: string }[]): Date => {
   const aligned = new Date(date);
+
+  // For date-only formats (1d, 1w, 1M), find the first available time for that date
+  // Ignore interval minutes - just find the first time for the date
+  if (intervalMinutes >= 1440 && allChartData) {
+    // 1 day or more
+    const firstTimeForDate = findFirstTimeForDate(aligned, allChartData);
+    if (firstTimeForDate) {
+      return firstTimeForDate;
+    }
+  }
 
   // For intervals >= 60 minutes, align to consistent hour boundaries starting from midnight
   if (intervalMinutes >= 60) {
@@ -336,30 +371,52 @@ export const memoizedGenerateTimeBasedTicks = (
   const startTime = new Date(allChartData[0].timestamp);
   const endTime = new Date(allChartData[allChartData.length - 1].timestamp);
 
-  // Align start time to the nearest consistent boundary
-  const alignedStartTime = alignToTimeBoundary(startTime, markerIntervalMinutes);
-
-  // If the aligned start time is before our data, move to the next boundary
-  const currentTime = new Date(alignedStartTime);
-  if (currentTime < startTime) {
-    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
-  }
-
-  // Generate ticks at regular intervals from the aligned start time
-  while (currentTime <= endTime) {
-    // Check if this time exists in our data (within a reasonable tolerance)
-    const timeInData = allChartData.some(d => {
-      const dataTime = new Date(d.timestamp);
-      const timeDiff = Math.abs(dataTime.getTime() - currentTime.getTime());
-      return timeDiff < 60000; // Within 1 minute tolerance
+  // For date-only formats (1d, 1w, 1M), generate one tick per date at the first available time
+  if (markerIntervalMinutes >= 1440) {
+    // Get all unique dates in the dataset
+    const uniqueDates = new Set<string>();
+    allChartData.forEach(dataPoint => {
+      const date = new Date(dataPoint.timestamp);
+      const dateStr = date.toISOString().split('T')[0];
+      uniqueDates.add(dateStr);
     });
 
-    if (timeInData) {
-      ticks.push(new Date(currentTime));
+    // Generate one tick per date at the first available time
+    Array.from(uniqueDates)
+      .sort()
+      .forEach(dateStr => {
+        const firstTimeForDate = findFirstTimeForDate(new Date(`${dateStr}T00:00:00Z`), allChartData);
+        if (firstTimeForDate) {
+          ticks.push(firstTimeForDate);
+        }
+      });
+  } else {
+    // For time-based intervals, use the existing logic
+    // Align start time to the nearest consistent boundary
+    const alignedStartTime = alignToTimeBoundary(startTime, markerIntervalMinutes, allChartData);
+
+    // If the aligned start time is before our data, move to the next boundary
+    const currentTime = new Date(alignedStartTime);
+    if (currentTime < startTime) {
+      currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
     }
 
-    // Move to next marker interval
-    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
+    // Generate ticks at regular intervals from the aligned start time
+    while (currentTime <= endTime) {
+      // Check if this time exists in our data (within a reasonable tolerance)
+      const timeInData = allChartData.some(d => {
+        const dataTime = new Date(d.timestamp);
+        const timeDiff = Math.abs(dataTime.getTime() - currentTime.getTime());
+        return timeDiff < 60000; // Within 1 minute tolerance
+      });
+
+      if (timeInData) {
+        ticks.push(new Date(currentTime));
+      }
+
+      // Move to next marker interval
+      currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
+    }
   }
 
   calculationCache.set(cacheKey, ticks);
@@ -374,7 +431,8 @@ export const memoizedGenerateTimeBasedTicks = (
  */
 export const memoizedGenerateVisibleTimeBasedTicks = (
   visibleData: { timestamp: string }[],
-  markerIntervalMinutes: number = X_AXIS_MARKER_INTERVAL
+  markerIntervalMinutes: number = X_AXIS_MARKER_INTERVAL,
+  allChartData?: { timestamp: string }[]
 ): Date[] => {
   if (!visibleData || visibleData.length === 0) {
     return [];
@@ -395,30 +453,52 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   const startTime = new Date(visibleData[0].timestamp);
   const endTime = new Date(visibleData[visibleData.length - 1].timestamp);
 
-  // Align start time to the nearest consistent boundary
-  const alignedStartTime = alignToTimeBoundary(startTime, markerIntervalMinutes);
-
-  // If the aligned start time is before our data, move to the next boundary
-  const currentTime = new Date(alignedStartTime);
-  if (currentTime < startTime) {
-    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
-  }
-
-  // Generate ticks at regular intervals from the aligned start time
-  while (currentTime <= endTime) {
-    // Check if this time exists in our visible data (within a reasonable tolerance)
-    const timeInData = visibleData.some(d => {
-      const dataTime = new Date(d.timestamp);
-      const timeDiff = Math.abs(dataTime.getTime() - currentTime.getTime());
-      return timeDiff < 60000; // Within 1 minute tolerance
+  // For date-only formats (1d, 1w, 1M), generate one tick per date at the first available time
+  if (markerIntervalMinutes >= 1440) {
+    // Get all unique dates in the visible data
+    const uniqueDates = new Set<string>();
+    visibleData.forEach(dataPoint => {
+      const date = new Date(dataPoint.timestamp);
+      const dateStr = date.toISOString().split('T')[0];
+      uniqueDates.add(dateStr);
     });
 
-    if (timeInData) {
-      ticks.push(new Date(currentTime));
+    // Generate one tick per date at the first available time
+    Array.from(uniqueDates)
+      .sort()
+      .forEach(dateStr => {
+        const firstTimeForDate = findFirstTimeForDate(new Date(`${dateStr}T00:00:00Z`), allChartData || visibleData);
+        if (firstTimeForDate) {
+          ticks.push(firstTimeForDate);
+        }
+      });
+  } else {
+    // For time-based intervals, use the existing logic
+    // Align start time to the nearest consistent boundary
+    const alignedStartTime = alignToTimeBoundary(startTime, markerIntervalMinutes, allChartData);
+
+    // If the aligned start time is before our data, move to the next boundary
+    const currentTime = new Date(alignedStartTime);
+    if (currentTime < startTime) {
+      currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
     }
 
-    // Move to next marker interval
-    currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
+    // Generate ticks at regular intervals from the aligned start time
+    while (currentTime <= endTime) {
+      // Check if this time exists in our visible data (within a reasonable tolerance)
+      const timeInData = visibleData.some(d => {
+        const dataTime = new Date(d.timestamp);
+        const timeDiff = Math.abs(dataTime.getTime() - currentTime.getTime());
+        return timeDiff < 60000; // Within 1 minute tolerance
+      });
+
+      if (timeInData) {
+        ticks.push(new Date(currentTime));
+      }
+
+      // Move to next marker interval
+      currentTime.setMinutes(currentTime.getMinutes() + markerIntervalMinutes);
+    }
   }
 
   calculationCache.set(cacheKey, ticks);

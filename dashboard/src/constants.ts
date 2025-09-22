@@ -93,17 +93,17 @@ export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
     showSeconds: false,
   },
   '1d': {
-    markerIntervalMinutes: 1440, // Show labels every day
+    markerIntervalMinutes: 0, // Show labels every day
     labelFormat: 'date-only',
     showSeconds: false,
   },
   '1w': {
-    markerIntervalMinutes: 10080, // Show labels every week
+    markerIntervalMinutes: 0, // Show labels every week
     labelFormat: 'date-only',
     showSeconds: false,
   },
   '1M': {
-    markerIntervalMinutes: 43200, // Show labels every month
+    markerIntervalMinutes: 0, // Show labels every month
     labelFormat: 'date-only',
     showSeconds: false,
   },

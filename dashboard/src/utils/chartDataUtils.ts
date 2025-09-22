@@ -186,7 +186,7 @@ export const createCustomTimeAxis = (
 ): d3.Axis<number | Date> => {
   const timeTicks =
     visibleData && visibleData.length > 0
-      ? memoizedGenerateVisibleTimeBasedTicks(visibleData, markerIntervalMinutes)
+      ? memoizedGenerateVisibleTimeBasedTicks(visibleData, markerIntervalMinutes, allChartData)
       : generateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
 
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {
