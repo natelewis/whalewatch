@@ -215,9 +215,7 @@ export const createChart = ({
     }
     isPanningRef.current = true;
 
-    // Hide crosshairs during panning
-    crosshair.select('.crosshair-x').style('opacity', 0);
-    crosshair.select('.crosshair-y').style('opacity', 0);
+    // Keep crosshairs visible during panning - they will follow the mouse
 
     // Lock Y-scale domain at pan start if not already locked to prevent jumps on data loads
     const existingFixed = stateCallbacks.getFixedYScaleDomain?.() || null;
@@ -450,25 +448,23 @@ export const createChart = ({
       const d = currentData[clampedIndex];
 
       if (d) {
-        // Only show crosshairs if not currently panning
-        if (!isPanningRef.current) {
-          // Update crosshair to follow cursor position exactly (with latest dimensions)
-          crosshair
-            .select('.crosshair-x')
-            .attr('x1', mouseX)
-            .attr('x2', mouseX)
-            .attr('y1', 0)
-            .attr('y2', currInnerHeight)
-            .style('opacity', 1);
+        // Always update crosshair to follow cursor position exactly (with latest dimensions)
+        // This works both during normal hover and during panning
+        crosshair
+          .select('.crosshair-x')
+          .attr('x1', mouseX)
+          .attr('x2', mouseX)
+          .attr('y1', 0)
+          .attr('y2', currInnerHeight)
+          .style('opacity', 1);
 
-          crosshair
-            .select('.crosshair-y')
-            .attr('x1', 0)
-            .attr('x2', currInnerWidth)
-            .attr('y1', mouseY)
-            .attr('y2', mouseY)
-            .style('opacity', 1);
-        }
+        crosshair
+          .select('.crosshair-y')
+          .attr('x1', 0)
+          .attr('x2', currInnerWidth)
+          .attr('y1', mouseY)
+          .attr('y2', mouseY)
+          .style('opacity', 1);
 
         // Update hover data (use current dimensions' margin for accurate positioning)
         if (stateCallbacks.setHoverData) {
