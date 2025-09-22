@@ -390,32 +390,72 @@ export const memoizedGenerateTimeBasedTicks = (
       .map(dateStr => new Date(`${dateStr}T00:00:00Z`))
       .sort((a, b) => a.getTime() - b.getTime());
 
-    // Align to calendar month boundaries (1st of each month)
-    // Find the first month that contains trading data
-    const firstTradingDay = sortedTradingDays[0];
-    const firstMonth = new Date(firstTradingDay.getFullYear(), firstTradingDay.getMonth(), 1);
-    
-    // Calculate how many months to skip based on the interval
-    const monthsInterval = Math.max(1, Math.floor(tradingDaysInterval / 30)); // Approximate months
-    
-    // Generate ticks aligned to month boundaries
-    const currentMonth = new Date(firstMonth);
-    while (currentMonth <= endTime) {
-      // Find the first trading day of this month
-      const firstTradingDayOfMonth = sortedTradingDays.find(day => 
-        day.getFullYear() === currentMonth.getFullYear() && 
-        day.getMonth() === currentMonth.getMonth()
-      );
-      
-      if (firstTradingDayOfMonth) {
-        const firstTimeForDate = findFirstTimeForDate(firstTradingDayOfMonth, allChartData);
+    // Choose alignment strategy based on interval length
+    if (tradingDaysInterval <= 7) {
+      // For short intervals (1-7 days), use every Nth trading day
+      for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
+        const tradingDay = sortedTradingDays[i];
+        const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData);
         if (firstTimeForDate) {
           ticks.push(firstTimeForDate);
         }
       }
-      
-      // Move to the next interval month
-      currentMonth.setMonth(currentMonth.getMonth() + monthsInterval);
+    } else if (tradingDaysInterval <= 30) {
+      // For medium intervals (1-4 weeks), align to week boundaries (Monday)
+      const firstTradingDay = sortedTradingDays[0];
+      const firstMonday = new Date(firstTradingDay);
+      // Find the Monday of the week containing the first trading day
+      const dayOfWeek = firstMonday.getDay();
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Sunday = 0, Monday = 1
+      firstMonday.setDate(firstMonday.getDate() + daysToMonday);
+
+      const weeksInterval = Math.max(1, Math.floor(tradingDaysInterval / 7));
+
+      const currentWeek = new Date(firstMonday);
+      while (currentWeek <= endTime) {
+        // Find the first trading day of this week
+        const firstTradingDayOfWeek = sortedTradingDays.find(day => {
+          const dayOfWeekForDay = day.getDay();
+          const daysToMondayForDay = dayOfWeekForDay === 0 ? -6 : 1 - dayOfWeekForDay;
+          const weekStart = new Date(day);
+          weekStart.setDate(weekStart.getDate() + daysToMondayForDay);
+          return weekStart.getTime() === currentWeek.getTime();
+        });
+
+        if (firstTradingDayOfWeek) {
+          const firstTimeForDate = findFirstTimeForDate(firstTradingDayOfWeek, allChartData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
+        }
+
+        // Move to the next interval week
+        currentWeek.setDate(currentWeek.getDate() + 7 * weeksInterval);
+      }
+    } else {
+      // For long intervals (1+ months), align to month boundaries (1st of each month)
+      const firstTradingDay = sortedTradingDays[0];
+      const firstMonth = new Date(firstTradingDay.getFullYear(), firstTradingDay.getMonth(), 1);
+
+      const monthsInterval = Math.max(1, Math.floor(tradingDaysInterval / 30));
+
+      const currentMonth = new Date(firstMonth);
+      while (currentMonth <= endTime) {
+        // Find the first trading day of this month
+        const firstTradingDayOfMonth = sortedTradingDays.find(
+          day => day.getFullYear() === currentMonth.getFullYear() && day.getMonth() === currentMonth.getMonth()
+        );
+
+        if (firstTradingDayOfMonth) {
+          const firstTimeForDate = findFirstTimeForDate(firstTradingDayOfMonth, allChartData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
+        }
+
+        // Move to the next interval month
+        currentMonth.setMonth(currentMonth.getMonth() + monthsInterval);
+      }
     }
   } else {
     // For time-based intervals, use the existing logic
@@ -498,12 +538,71 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
       .map(dateStr => new Date(`${dateStr}T00:00:00Z`))
       .sort((a, b) => a.getTime() - b.getTime());
 
-    // Select every Nth trading day
-    for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
-      const tradingDay = sortedTradingDays[i];
-      const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData || visibleData);
-      if (firstTimeForDate) {
-        ticks.push(firstTimeForDate);
+    // Choose alignment strategy based on interval length
+    if (tradingDaysInterval <= 7) {
+      // For short intervals (1-7 days), use every Nth trading day
+      for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
+        const tradingDay = sortedTradingDays[i];
+        const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData || visibleData);
+        if (firstTimeForDate) {
+          ticks.push(firstTimeForDate);
+        }
+      }
+    } else if (tradingDaysInterval <= 30) {
+      // For medium intervals (1-4 weeks), align to week boundaries (Monday)
+      const firstTradingDay = sortedTradingDays[0];
+      const firstMonday = new Date(firstTradingDay);
+      // Find the Monday of the week containing the first trading day
+      const dayOfWeek = firstMonday.getDay();
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Sunday = 0, Monday = 1
+      firstMonday.setDate(firstMonday.getDate() + daysToMonday);
+
+      const weeksInterval = Math.max(1, Math.floor(tradingDaysInterval / 7));
+
+      const currentWeek = new Date(firstMonday);
+      while (currentWeek <= endTime) {
+        // Find the first trading day of this week
+        const firstTradingDayOfWeek = sortedTradingDays.find(day => {
+          const dayOfWeekForDay = day.getDay();
+          const daysToMondayForDay = dayOfWeekForDay === 0 ? -6 : 1 - dayOfWeekForDay;
+          const weekStart = new Date(day);
+          weekStart.setDate(weekStart.getDate() + daysToMondayForDay);
+          return weekStart.getTime() === currentWeek.getTime();
+        });
+
+        if (firstTradingDayOfWeek) {
+          const firstTimeForDate = findFirstTimeForDate(firstTradingDayOfWeek, allChartData || visibleData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
+        }
+
+        // Move to the next interval week
+        currentWeek.setDate(currentWeek.getDate() + 7 * weeksInterval);
+      }
+    } else {
+      // For long intervals (1+ months), align to month boundaries (1st of each month)
+      const firstTradingDay = sortedTradingDays[0];
+      const firstMonth = new Date(firstTradingDay.getFullYear(), firstTradingDay.getMonth(), 1);
+
+      const monthsInterval = Math.max(1, Math.floor(tradingDaysInterval / 30));
+
+      const currentMonth = new Date(firstMonth);
+      while (currentMonth <= endTime) {
+        // Find the first trading day of this month
+        const firstTradingDayOfMonth = sortedTradingDays.find(
+          day => day.getFullYear() === currentMonth.getFullYear() && day.getMonth() === currentMonth.getMonth()
+        );
+
+        if (firstTradingDayOfMonth) {
+          const firstTimeForDate = findFirstTimeForDate(firstTradingDayOfMonth, allChartData || visibleData);
+          if (firstTimeForDate) {
+            ticks.push(firstTimeForDate);
+          }
+        }
+
+        // Move to the next interval month
+        currentMonth.setMonth(currentMonth.getMonth() + monthsInterval);
       }
     }
   } else {
