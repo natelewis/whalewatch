@@ -390,13 +390,32 @@ export const memoizedGenerateTimeBasedTicks = (
       .map(dateStr => new Date(`${dateStr}T00:00:00Z`))
       .sort((a, b) => a.getTime() - b.getTime());
 
-    // Select every Nth trading day
-    for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
-      const tradingDay = sortedTradingDays[i];
-      const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData);
-      if (firstTimeForDate) {
-        ticks.push(firstTimeForDate);
+    // Align to calendar month boundaries (1st of each month)
+    // Find the first month that contains trading data
+    const firstTradingDay = sortedTradingDays[0];
+    const firstMonth = new Date(firstTradingDay.getFullYear(), firstTradingDay.getMonth(), 1);
+    
+    // Calculate how many months to skip based on the interval
+    const monthsInterval = Math.max(1, Math.floor(tradingDaysInterval / 30)); // Approximate months
+    
+    // Generate ticks aligned to month boundaries
+    const currentMonth = new Date(firstMonth);
+    while (currentMonth <= endTime) {
+      // Find the first trading day of this month
+      const firstTradingDayOfMonth = sortedTradingDays.find(day => 
+        day.getFullYear() === currentMonth.getFullYear() && 
+        day.getMonth() === currentMonth.getMonth()
+      );
+      
+      if (firstTradingDayOfMonth) {
+        const firstTimeForDate = findFirstTimeForDate(firstTradingDayOfMonth, allChartData);
+        if (firstTimeForDate) {
+          ticks.push(firstTimeForDate);
+        }
       }
+      
+      // Move to the next interval month
+      currentMonth.setMonth(currentMonth.getMonth() + monthsInterval);
     }
   } else {
     // For time-based intervals, use the existing logic
@@ -465,7 +484,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   if (markerIntervalMinutes >= 1440) {
     // Generate ticks at the specified trading day interval
     const tradingDaysInterval = Math.floor(markerIntervalMinutes / (60 * 24)); // Convert minutes to days
-    
+
     // Get all unique trading days from the visible data
     const tradingDays = new Set<string>();
     visibleData.forEach(dataPoint => {
@@ -473,12 +492,12 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
       const dateStr = dataDate.toISOString().split('T')[0];
       tradingDays.add(dateStr);
     });
-    
+
     // Convert to sorted array of dates
     const sortedTradingDays = Array.from(tradingDays)
       .map(dateStr => new Date(`${dateStr}T00:00:00Z`))
       .sort((a, b) => a.getTime() - b.getTime());
-    
+
     // Select every Nth trading day
     for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
       const tradingDay = sortedTradingDays[i];
