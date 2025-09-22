@@ -222,51 +222,31 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       }`
     );
 
-    // Calculate how much raw data we need to fetch for proper aggregation
+    // Calculate data limit based on interval type
     const intervalMinutes = getIntervalMinutes(intervalKey);
-    let rawDataLimit: number;
+    let dataLimit: number;
 
     if (intervalMinutes === 1) {
       // For 1-minute intervals, we need exactly the requested limit
-      rawDataLimit = limitValue;
+      dataLimit = limitValue;
     } else {
-      // For larger intervals, we need more raw data to create the requested number of aggregated bars
-      // Add a buffer to account for potential gaps in data (e.g., weekends, market hours)
-      // Cap the multiplier to prevent excessive data fetching for very large intervals
-      const baseMultiplier = Math.ceil(intervalMinutes * 2); // 2x buffer for safety
-      const maxMultiplier = 100; // Cap at 100x to prevent excessive data fetching
-      const multiplier = Math.min(baseMultiplier, maxMultiplier);
-
-      // For very large intervals (daily+), use a more conservative approach
-      if (intervalMinutes >= 1440) {
-        // Daily or larger
-        // For daily+ intervals, use a more intelligent calculation
-        if (intervalMinutes >= 43200) {
-          // Monthly or larger
-          // For monthly data, we need more records to ensure we have enough data points
-          // Each month needs multiple daily records to aggregate properly
-          rawDataLimit = Math.min(limitValue * 50, 50000); // Cap at 50k records for monthly+
-        } else {
-          // For daily/weekly intervals, use a smaller multiplier
-          rawDataLimit = Math.min(limitValue * 20, 20000); // Cap at 20k records for daily/weekly
-        }
-      } else {
-        rawDataLimit = limitValue * multiplier;
-      }
+      // For aggregated intervals, QuestDB will handle the aggregation
+      // We can request the exact number of bars we need
+      dataLimit = limitValue;
     }
 
     console.log(
-      `🔍 DEBUG: Interval: ${intervalMinutes}min, Requested: ${limitValue} bars, Fetching: ${rawDataLimit} raw records`
+      `🔍 DEBUG: Interval: ${intervalMinutes}min, Requested: ${limitValue} bars, Fetching: ${dataLimit} records`
     );
 
     // For past direction: get records <= startTime, ordered DESC (most recent first),
-    // limit to calculated raw data count
+    // limit to calculated data count
     // For future direction: get records >= startTime, ordered ASC (earliest first),
-    // limit to calculated raw data count
+    // limit to calculated data count
     const params: QuestDBQueryParams = {
       order_by: 'timestamp',
       order_direction: direction === 'past' ? 'DESC' : 'ASC',
-      limit: rawDataLimit,
+      limit: dataLimit,
     };
 
     // Only set start_time for both directions
@@ -274,8 +254,18 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     console.log(`🔍 DEBUG: Query params:`, params);
 
-    let aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
-    console.log(`🔍 DEBUG: Retrieved ${aggregates.length} raw aggregates for ${symbol}`);
+    // Use QuestDB aggregation for better performance
+    let aggregates: QuestDBStockAggregate[];
+
+    if (intervalMinutes === 1) {
+      // For 1-minute intervals, use raw data without aggregation
+      aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
+      console.log(`🔍 DEBUG: Retrieved ${aggregates.length} raw aggregates for ${symbol}`);
+    } else {
+      // For all other intervals, use QuestDB's SAMPLE BY aggregation
+      aggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, params);
+      console.log(`🔍 DEBUG: Retrieved ${aggregates.length} aggregated bars for ${symbol}`);
+    }
 
     if (aggregates.length > 0) {
       console.log(`🔍 DEBUG: Data range: ${aggregates[0].timestamp} to ${aggregates[aggregates.length - 1].timestamp}`);
@@ -300,27 +290,34 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       console.log(`No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`);
     }
 
-    // Remove duplicates by timestamp and aggregate them properly
-    const uniqueAggregates = aggregates.reduce((acc, agg) => {
-      const timestamp = agg.timestamp;
-      const existing = acc.find(a => a.timestamp === timestamp);
+    // For 1-minute intervals, we still need to handle duplicates
+    let aggregatedData: QuestDBStockAggregate[];
 
-      if (!existing) {
-        acc.push(agg);
-      } else {
-        // If duplicate found, aggregate the data properly
-        existing.high = Math.max(existing.high, agg.high);
-        existing.low = Math.min(existing.low, agg.low);
-        existing.close = agg.close; // Use the latest close price
-        existing.volume += agg.volume;
-        existing.transaction_count += agg.transaction_count;
-        existing.vwap = (existing.vwap * existing.volume + agg.vwap * agg.volume) / (existing.volume + agg.volume);
-      }
-      return acc;
-    }, [] as typeof aggregates);
+    if (intervalMinutes === 1) {
+      // Remove duplicates by timestamp and aggregate them properly
+      const uniqueAggregates = aggregates.reduce((acc, agg) => {
+        const timestamp = agg.timestamp;
+        const existing = acc.find(a => a.timestamp === timestamp);
 
-    // Aggregate data using the new system that skips intervals without data
-    const aggregatedData = aggregateDataWithIntervals(uniqueAggregates, chartParams);
+        if (!existing) {
+          acc.push(agg);
+        } else {
+          // If duplicate found, aggregate the data properly
+          existing.high = Math.max(existing.high, agg.high);
+          existing.low = Math.min(existing.low, agg.low);
+          existing.close = agg.close; // Use the latest close price
+          existing.volume += agg.volume;
+          existing.transaction_count += agg.transaction_count;
+          existing.vwap = (existing.vwap * existing.volume + agg.vwap * agg.volume) / (existing.volume + agg.volume);
+        }
+        return acc;
+      }, [] as typeof aggregates);
+
+      aggregatedData = uniqueAggregates;
+    } else {
+      // For aggregated data from QuestDB, no additional processing needed
+      aggregatedData = aggregates;
+    }
 
     console.log(`🔍 DEBUG: Aggregated to ${aggregatedData.length} data points for ${symbol}`);
 

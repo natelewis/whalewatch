@@ -204,6 +204,77 @@ export class QuestDBService {
   }
 
   /**
+   * Get aggregated stock data using QuestDB's SAMPLE BY for time-based aggregation
+   */
+  async getAggregatedStockData(
+    symbol: string,
+    interval: string,
+    params: QuestDBQueryParams = {}
+  ): Promise<QuestDBStockAggregate[]> {
+    const { start_time, end_time, limit, order_direction = 'ASC' } = params;
+
+    // Convert interval to QuestDB SAMPLE BY format
+    const sampleByInterval = this.convertIntervalToSampleBy(interval);
+
+    // Build the aggregation query using QuestDB's SAMPLE BY
+    let query = `
+      SELECT 
+        timestamp,
+        first(open) as open,
+        max(high) as high,
+        min(low) as low,
+        last(close) as close,
+        sum(volume) as volume,
+        sum(transaction_count) as transaction_count,
+        sum(vwap * volume) / sum(volume) as vwap
+      FROM stock_aggregates 
+      WHERE symbol = '${symbol.toUpperCase()}'`;
+
+    if (start_time) {
+      if (order_direction === 'DESC') {
+        query += ` AND timestamp <= '${start_time}'`;
+      } else {
+        query += ` AND timestamp >= '${start_time}'`;
+      }
+    }
+
+    if (end_time) {
+      query += ` AND timestamp <= '${end_time}'`;
+    }
+
+    query += ` SAMPLE BY ${sampleByInterval}`;
+    query += ` ORDER BY timestamp ${order_direction}`;
+
+    if (limit) {
+      query += ` LIMIT ${limit}`;
+    }
+
+    console.log(`🔍 DEBUG: QuestDB Aggregation Query: ${query}`);
+    const response = await this.executeQuery<QuestDBStockAggregate>(query);
+    console.log(`🔍 DEBUG: QuestDB returned ${response.dataset.length} aggregated rows`);
+    return this.convertArrayToObject<QuestDBStockAggregate>(response.dataset, response.columns);
+  }
+
+  /**
+   * Convert interval format to QuestDB SAMPLE BY format
+   */
+  private convertIntervalToSampleBy(interval: string): string {
+    const intervalMap: Record<string, string> = {
+      '1m': '1m',
+      '5m': '5m',
+      '30m': '30m',
+      '1h': '1h',
+      '2h': '2h',
+      '4h': '4h',
+      '1d': '1d',
+      '1w': '1w',
+      '1M': '1M', // Monthly
+    };
+
+    return intervalMap[interval] || '1h';
+  }
+
+  /**
    * Get option contracts for an underlying symbol
    */
   async getOptionContracts(
