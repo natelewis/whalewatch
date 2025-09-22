@@ -5,8 +5,14 @@ import {
   getDataPointsForTimeframe,
   processChartData,
   fillMissingMinutes,
+  createFakeCandle,
+  isFakeCandle,
+  addRightPaddingFakeCandle,
+  addLeftPaddingFakeCandles,
+  addFakeCandlesForPadding,
+  getTimeframeIntervalMs,
 } from '../../utils/chartDataUtils';
-import { AlpacaBar, ChartTimeframe } from '../../types';
+import { AlpacaBar, ChartTimeframe, CandlestickData } from '../../types';
 
 describe('chartDataUtils', () => {
   const mockBars: AlpacaBar[] = [
@@ -89,8 +95,8 @@ describe('chartDataUtils', () => {
       const result = calculateDataRange(mockBars);
 
       expect(result).toEqual({
-        earliest: '2023-01-01T10:00:00Z',
-        latest: '2023-01-01T11:00:00Z',
+        start: new Date('2023-01-01T10:00:00Z').getTime(),
+        end: new Date('2023-01-01T11:00:00Z').getTime(),
       });
     });
 
@@ -129,17 +135,17 @@ describe('chartDataUtils', () => {
 
   describe('processChartData', () => {
     it('should process bars into formatted data and range', () => {
-      const result = processChartData(mockBars);
+      const result = processChartData(mockBars, '1m', 80);
 
-      expect(result.formattedData).toHaveLength(3); // After deduplication
+      expect(result.formattedData.length).toBeGreaterThanOrEqual(3); // After deduplication + fake candles
       expect(result.dataRange).toEqual({
-        earliest: '2023-01-01T09:00:00Z',
-        latest: '2023-01-01T11:00:00Z',
+        start: new Date('2023-01-01T09:00:00Z').getTime(),
+        end: new Date('2023-01-01T11:00:00Z').getTime(),
       });
     });
 
     it('should handle empty array', () => {
-      const result = processChartData([]);
+      const result = processChartData([], '1m', 80);
 
       expect(result.formattedData).toEqual([]);
       expect(result.dataRange).toBeNull();
@@ -170,8 +176,8 @@ describe('chartDataUtils', () => {
       const result = fillMissingMinutes(oneMinuteData, '1m');
 
       expect(result).toHaveLength(4); // Original 2 + 2 filled
-      expect(result[1].timestamp).toBe('2023-01-01T10:01:00Z');
-      expect(result[2].timestamp).toBe('2023-01-01T10:02:00Z');
+      expect(result[1].timestamp).toBe('2023-01-01T10:01:00.000Z');
+      expect(result[2].timestamp).toBe('2023-01-01T10:02:00.000Z');
     });
 
     it('should not fill for non-1m timeframes', () => {
@@ -206,6 +212,224 @@ describe('chartDataUtils', () => {
 
       const result = fillMissingMinutes(smallGapData, '1m');
       expect(result).toEqual(smallGapData);
+    });
+  });
+
+  describe('Fake Candle Functions', () => {
+    describe('createFakeCandle', () => {
+      it('should create a fake candle with all values set to -1 and isFake: true', () => {
+        const timestamp = '2023-01-01T10:00:00Z';
+        const fakeCandle = createFakeCandle(timestamp);
+
+        expect(fakeCandle).toEqual({
+          timestamp,
+          open: -1,
+          high: -1,
+          low: -1,
+          close: -1,
+          volume: -1,
+          isFake: true,
+        });
+      });
+    });
+
+    describe('isFakeCandle', () => {
+      it('should return true for candles with isFake: true', () => {
+        const fakeCandle: CandlestickData = {
+          timestamp: '2023-01-01T10:00:00Z',
+          open: 100,
+          high: 110,
+          low: 90,
+          close: 105,
+          volume: 1000,
+          isFake: true,
+        };
+
+        expect(isFakeCandle(fakeCandle)).toBe(true);
+      });
+
+      it('should return true for candles with all values -1', () => {
+        const fakeCandle: CandlestickData = {
+          timestamp: '2023-01-01T10:00:00Z',
+          open: -1,
+          high: -1,
+          low: -1,
+          close: -1,
+          volume: -1,
+        };
+
+        expect(isFakeCandle(fakeCandle)).toBe(true);
+      });
+
+      it('should return false for real candles', () => {
+        const realCandle: CandlestickData = {
+          timestamp: '2023-01-01T10:00:00Z',
+          open: 100,
+          high: 110,
+          low: 90,
+          close: 105,
+          volume: 1000,
+        };
+
+        expect(isFakeCandle(realCandle)).toBe(false);
+      });
+    });
+
+    describe('addRightPaddingFakeCandle', () => {
+      it('should add exactly one fake candle to the right of the last real candle', () => {
+        const data: CandlestickData[] = [
+          {
+            timestamp: '2023-01-01T09:00:00Z',
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 105,
+            volume: 1000,
+          },
+          {
+            timestamp: '2023-01-01T10:00:00Z',
+            open: 105,
+            high: 115,
+            low: 95,
+            close: 110,
+            volume: 1200,
+          },
+        ];
+
+        const result = addRightPaddingFakeCandle(data, '1m');
+
+        expect(result).toHaveLength(3);
+        expect(isFakeCandle(result[2])).toBe(true);
+        expect(result[2].timestamp).toBe('2023-01-01T10:01:00.000Z');
+      });
+
+      it('should not add fake candle if one already exists', () => {
+        const data: CandlestickData[] = [
+          {
+            timestamp: '2023-01-01T09:00:00Z',
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 105,
+            volume: 1000,
+          },
+          createFakeCandle('2023-01-01T10:00:00Z'),
+        ];
+
+        const result = addRightPaddingFakeCandle(data, '1m');
+
+        expect(result).toHaveLength(2);
+        expect(isFakeCandle(result[1])).toBe(true);
+      });
+
+      it('should handle empty data', () => {
+        const result = addRightPaddingFakeCandle([], '1m');
+        expect(result).toEqual([]);
+      });
+    });
+
+    describe('addLeftPaddingFakeCandles', () => {
+      it('should add fake candles to the left when data is less than target count', () => {
+        const data: CandlestickData[] = [
+          {
+            timestamp: '2023-01-01T10:00:00Z',
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 105,
+            volume: 1000,
+          },
+        ];
+
+        const result = addLeftPaddingFakeCandles(data, 80, '1m');
+
+        expect(result).toHaveLength(80);
+        expect(isFakeCandle(result[0])).toBe(true);
+        expect(isFakeCandle(result[79])).toBe(false); // Original data should not be fake
+        expect(result[79].timestamp).toBe('2023-01-01T10:00:00Z'); // Original data
+      });
+
+      it('should not add fake candles when data meets target count', () => {
+        const data: CandlestickData[] = Array.from({ length: 80 }, (_, i) => ({
+          timestamp: `2023-01-01T${9 + i}:00:00Z`,
+          open: 100,
+          high: 110,
+          low: 90,
+          close: 105,
+          volume: 1000,
+        }));
+
+        const result = addLeftPaddingFakeCandles(data, 80, '1m');
+
+        expect(result).toEqual(data);
+      });
+
+      it('should handle empty data', () => {
+        const result = addLeftPaddingFakeCandles([], 80, '1m');
+        expect(result).toEqual([]);
+      });
+    });
+
+    describe('addFakeCandlesForPadding', () => {
+      it('should add both left and right padding for small datasets', () => {
+        const data: CandlestickData[] = [
+          {
+            timestamp: '2023-01-01T10:00:00Z',
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 105,
+            volume: 1000,
+          },
+        ];
+
+        const result = addFakeCandlesForPadding(data, 80, '1m');
+
+        expect(result.length).toBeGreaterThan(80);
+        expect(isFakeCandle(result[0])).toBe(true); // Left padding
+        expect(isFakeCandle(result[result.length - 1])).toBe(true); // Right padding
+        // Find the original data (should be the only non-fake candle)
+        const originalDataIndex = result.findIndex(candle => !isFakeCandle(candle));
+        expect(result[originalDataIndex].timestamp).toBe('2023-01-01T10:00:00Z'); // Original data
+      });
+
+      it('should only add right padding for datasets that meet target count', () => {
+        const data: CandlestickData[] = Array.from({ length: 80 }, (_, i) => {
+          const date = new Date('2023-01-01T09:00:00Z');
+          date.setMinutes(date.getMinutes() + i);
+          return {
+            timestamp: date.toISOString(),
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 105,
+            volume: 1000,
+          };
+        });
+
+        const result = addFakeCandlesForPadding(data, 80, '1m');
+
+        expect(result).toHaveLength(81); // 80 real + 1 fake right padding
+        expect(isFakeCandle(result[80])).toBe(true); // Right padding
+        // Last real candle should be at 9:00 + 79 minutes = 10:19
+        const lastRealCandle = new Date('2023-01-01T09:00:00Z');
+        lastRealCandle.setMinutes(lastRealCandle.getMinutes() + 79);
+        expect(result[79].timestamp).toBe(lastRealCandle.toISOString()); // Last real candle
+      });
+    });
+
+    describe('getTimeframeIntervalMs', () => {
+      it('should return correct interval for different timeframes', () => {
+        expect(getTimeframeIntervalMs('1m')).toBe(60 * 1000);
+        expect(getTimeframeIntervalMs('5m')).toBe(5 * 60 * 1000);
+        expect(getTimeframeIntervalMs('1h')).toBe(60 * 60 * 1000);
+        expect(getTimeframeIntervalMs('1d')).toBe(24 * 60 * 60 * 1000);
+        expect(getTimeframeIntervalMs('1w')).toBe(7 * 24 * 60 * 60 * 1000);
+      });
+
+      it('should default to 1 minute for unknown timeframes', () => {
+        expect(getTimeframeIntervalMs('unknown' as ChartTimeframe)).toBe(60 * 1000);
+      });
     });
   });
 });

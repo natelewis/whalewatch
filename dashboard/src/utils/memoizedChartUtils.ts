@@ -242,7 +242,14 @@ export const memoizedGetPriceRange = (data: CandlestickData[]): PriceRange | nul
     return calculationCache.get(cacheKey) as PriceRange;
   }
 
-  const prices = data.flatMap(d => [d.open, d.high, d.low, d.close]);
+  // Filter out fake candles for price range calculation
+  const realData = data.filter(d => !d.isFake && d.open !== -1 && d.high !== -1 && d.low !== -1 && d.close !== -1);
+
+  if (realData.length === 0) {
+    return null;
+  }
+
+  const prices = realData.flatMap(d => [d.open, d.high, d.low, d.close]);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
 

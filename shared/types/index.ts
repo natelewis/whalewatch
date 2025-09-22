@@ -356,6 +356,7 @@ export interface CandlestickData {
   volume: number;
   vwap?: number;
   tradeCount?: number;
+  isFake?: boolean; // Indicates if this is a fake candle for padding
 }
 
 // Data Range

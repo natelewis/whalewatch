@@ -197,7 +197,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       apiService
         .getChartData(symbol, timeframe, fetchPoints, anchorTimestamp, direction === 'past' ? 'past' : 'future')
         .then(response => {
-          const { formattedData } = processChartData(response.bars);
+          const { formattedData } = processChartData(
+            response.bars,
+            chartState.timeframe || '1m',
+            DEFAULT_CHART_DATA_POINTS
+          );
 
           // Merge while preserving order and removing dups
           const mergedData = mergeHistoricalData(currentDataRef.current, formattedData);
@@ -335,7 +339,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     apiService
       .getChartData(symbol, timeframe, newDataPoints, endTime, 'past')
       .then(response => {
-        const { formattedData: newData } = processChartData(response.bars);
+        const { formattedData: newData } = processChartData(
+          response.bars,
+          chartState.timeframe || '1m',
+          DEFAULT_CHART_DATA_POINTS
+        );
 
         // Merge new data with existing data instead of replacing it
         const mergedData = mergeHistoricalData(chartState.allData, newData);
@@ -403,7 +411,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     apiService
       .getChartData(symbol, timeframe, newDataPoints, undefined, 'future')
       .then(response => {
-        const { formattedData: newData } = processChartData(response.bars);
+        const { formattedData: newData } = processChartData(
+          response.bars,
+          chartState.timeframe || '1m',
+          DEFAULT_CHART_DATA_POINTS
+        );
 
         // Merge new data with existing data instead of replacing it
         const mergedData = mergeHistoricalData(chartState.allData, newData);

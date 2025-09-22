@@ -281,7 +281,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         const response = await apiService.getChartData(symbol, timeframe, totalDataPoints, startTime, direction);
 
         // Process the data using utility functions
-        const { formattedData, dataRange } = processChartData(response.bars);
+        const { formattedData, dataRange } = processChartData(response.bars, timeframe, DEFAULT_CHART_DATA_POINTS);
 
         console.log('Initial data load:', {
           symbol,
@@ -348,7 +348,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         const response = await apiService.getChartData(symbol, timeframe, totalDataPoints, startTime, direction);
 
         // Process the new data
-        const { formattedData } = processChartData(response.bars);
+        const { formattedData } = processChartData(response.bars, timeframe, DEFAULT_CHART_DATA_POINTS);
 
         console.log('Loading more data:', {
           symbol,

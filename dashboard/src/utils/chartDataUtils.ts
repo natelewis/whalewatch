@@ -70,9 +70,12 @@ export const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes:
 
 /**
  * Process raw chart data into formatted candlestick data
+ * Now includes fake candle padding for proper chart spacing
  */
 export const processChartData = (
-  bars: AlpacaBar[]
+  bars: AlpacaBar[],
+  timeframe: ChartTimeframe = '1m',
+  viewWindowSize: number = 80
 ): {
   formattedData: CandlestickData[];
   dataRange: DataRange | null;
@@ -81,8 +84,11 @@ export const processChartData = (
   const formattedData = formatBarsToCandlestickData(uniqueBars);
   const dataRange = calculateDataRange(uniqueBars);
 
+  // Add fake candles for padding (right padding + left padding if needed)
+  const paddedData = addFakeCandlesForPadding(formattedData, viewWindowSize, timeframe);
+
   return {
-    formattedData,
+    formattedData: paddedData,
     dataRange,
   };
 };
@@ -349,8 +355,8 @@ export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTime
       const nextTime = new Date(data[i + 1].timestamp).getTime();
       const gapMs = nextTime - currentTime;
 
-      // If gap is more than 2 intervals but less than maxGapMultiplier, fill with last known price
-      if (gapMs > intervalMs * 2 && gapMs < intervalMs * maxGapMultiplier) {
+      // If gap is more than 2 intervals but less than or equal to maxGapMultiplier, fill with last known price
+      if (gapMs > intervalMs * 2 && gapMs <= intervalMs * maxGapMultiplier) {
         const missingIntervals = Math.floor(gapMs / intervalMs) - 1;
         const lastPrice = data[i].close;
 
@@ -400,8 +406,34 @@ export const createViewportXScale = (
 };
 
 /**
+ * Get interval in milliseconds based on timeframe
+ * Used for calculating proper timestamps for fake candles
+ */
+export const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
+  const intervalMap: Record<ChartTimeframe, number> = {
+    '1m': 60 * 1000, // 1 minute
+    '5m': 5 * 60 * 1000, // 5 minutes
+    '15m': 15 * 60 * 1000, // 15 minutes
+    '30m': 30 * 60 * 1000, // 30 minutes
+    '1h': 60 * 60 * 1000, // 1 hour
+    '1H': 60 * 60 * 1000, // 1 hour (alternative)
+    '1d': 24 * 60 * 60 * 1000, // 1 day
+    '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
+    '1w': 7 * 24 * 60 * 60 * 1000, // 1 week
+    '1W': 7 * 24 * 60 * 60 * 1000, // 1 week (alternative)
+    '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
+    '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
+    '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
+    '1M': 30 * 24 * 60 * 60 * 1000, // 1 month (30 days)
+    ALL: 60 * 1000, // Default to 1 minute for ALL
+  };
+  return intervalMap[timeframe] || 60 * 1000; // Default to 1 minute
+};
+
+/**
  * Creates a fake candle with all price and volume values set to -1
  * This is used for padding to ensure proper chart spacing
+ * Fake candles are never rendered to the right of the newest real candle
  */
 export const createFakeCandle = (timestamp: string): CandlestickData => {
   return {
@@ -427,10 +459,14 @@ export const isFakeCandle = (candle: CandlestickData): boolean => {
 };
 
 /**
- * Adds fake candles for right padding (always 1 candle to the right of the rightmost real candle)
- * This creates visual padding so the rightmost candle doesn't touch the domain line
+ * Adds exactly 1 fake candle to the right of the rightmost real candle for padding
+ * This creates visual padding so the rightmost real candle doesn't touch the domain line
+ * Never adds fake candles to the right of the newest real candle
  */
-export const addRightPaddingFakeCandle = (data: CandlestickData[]): CandlestickData[] => {
+export const addRightPaddingFakeCandle = (
+  data: CandlestickData[],
+  timeframe: ChartTimeframe = '1m'
+): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }
@@ -446,14 +482,21 @@ export const addRightPaddingFakeCandle = (data: CandlestickData[]): CandlestickD
     return data;
   }
 
+  // Check if there's already a fake candle immediately after the last real candle
+  const nextIndex = lastRealCandleIndex + 1;
+  if (nextIndex < data.length && isFakeCandle(data[nextIndex])) {
+    // Already has right padding, return as-is
+    return data;
+  }
+
   const lastRealCandle = data[lastRealCandleIndex];
   const lastRealTime = new Date(lastRealCandle.timestamp);
 
   // Calculate the next timestamp based on the timeframe
-  // For now, we'll assume 1-minute intervals, but this could be made configurable
-  const nextTimestamp = new Date(lastRealTime.getTime() + 60 * 1000).toISOString();
+  const intervalMs = getTimeframeIntervalMs(timeframe);
+  const nextTimestamp = new Date(lastRealTime.getTime() + intervalMs).toISOString();
 
-  // Create fake candle for right padding
+  // Create exactly 1 fake candle for right padding
   const rightPaddingCandle = createFakeCandle(nextTimestamp);
 
   return [...data, rightPaddingCandle];
@@ -462,8 +505,13 @@ export const addRightPaddingFakeCandle = (data: CandlestickData[]): CandlestickD
 /**
  * Adds fake candles for left padding when there are fewer than 80 data points
  * This ensures proper spacing when the dataset is small
+ * Only adds fake candles to the left, never to the right
  */
-export const addLeftPaddingFakeCandles = (data: CandlestickData[], targetCount: number = 80): CandlestickData[] => {
+export const addLeftPaddingFakeCandles = (
+  data: CandlestickData[],
+  targetCount: number = 80,
+  timeframe: ChartTimeframe = '1m'
+): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }
@@ -490,11 +538,11 @@ export const addLeftPaddingFakeCandles = (data: CandlestickData[], targetCount: 
     return data;
   }
 
-  // Create fake candles going backwards in time
+  // Create fake candles going backwards in time from the first real candle
   const fakeCandles: CandlestickData[] = [];
+  const intervalMs = getTimeframeIntervalMs(timeframe);
   for (let i = 1; i <= fakeCandlesNeeded; i++) {
-    // For now, we'll assume 1-minute intervals, but this could be made configurable
-    const fakeTimestamp = new Date(firstRealTime.getTime() - i * 60 * 1000).toISOString();
+    const fakeTimestamp = new Date(firstRealTime.getTime() - i * intervalMs).toISOString();
     fakeCandles.unshift(createFakeCandle(fakeTimestamp));
   }
 
@@ -504,17 +552,27 @@ export const addLeftPaddingFakeCandles = (data: CandlestickData[], targetCount: 
 /**
  * Processes chart data to add appropriate fake candles for padding
  * This is the main function that should be called to prepare data for rendering
+ *
+ * Requirements:
+ * 1. Always adds exactly 1 fake candle to the right of the rightmost real candle for padding
+ * 2. Adds fake candles to the left when there are fewer than 80 real data points
+ * 3. Never adds fake candles to the right of the newest real candle
+ * 4. Fake candles can be identified programmatically (isFake: true, all values -1)
  */
-export const addFakeCandlesForPadding = (data: CandlestickData[], viewWindowSize: number = 80): CandlestickData[] => {
+export const addFakeCandlesForPadding = (
+  data: CandlestickData[],
+  viewWindowSize: number = 80,
+  timeframe: ChartTimeframe = '1m'
+): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }
 
-  // First add left padding if needed
-  let processedData = addLeftPaddingFakeCandles(data, viewWindowSize);
+  // First add left padding if needed (when there are fewer than 80 real data points)
+  let processedData = addLeftPaddingFakeCandles(data, viewWindowSize, timeframe);
 
-  // Then add right padding (always add 1 fake candle to the right)
-  processedData = addRightPaddingFakeCandle(processedData);
+  // Then add right padding (always add exactly 1 fake candle to the right)
+  processedData = addRightPaddingFakeCandle(processedData, timeframe);
 
   return processedData;
 };
