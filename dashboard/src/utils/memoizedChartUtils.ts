@@ -8,6 +8,7 @@ import {
   AXIS_DOMAIN_AND_TICKS,
   AXIS_LABELS,
   X_AXIS_LABEL_CONFIGS,
+  Y_SCALE_REPRESENTATIVE_DATA_LENGTH,
 } from '../constants';
 
 // Types for cache values
@@ -195,7 +196,17 @@ export const memoizedCalculateChartState = ({
     .range([leftmostX, rightmostX]);
 
   // Create Y scale using memoized calculation
-  const yScaleDomain = memoizedCalculateYScaleDomain(allChartData, fixedYScaleDomain);
+  // If no fixed domain is provided, use representative data for consistency
+  let yScaleDomain: [number, number];
+  if (fixedYScaleDomain) {
+    yScaleDomain = fixedYScaleDomain;
+  } else {
+    // Use representative data (last Y_SCALE_REPRESENTATIVE_DATA_LENGTH points) for consistency
+    // This ensures the same zoom level as initial load even during panning
+    const representativeDataLength = Math.min(Y_SCALE_REPRESENTATIVE_DATA_LENGTH, allChartData.length);
+    const representativeData = allChartData.slice(-representativeDataLength);
+    yScaleDomain = memoizedCalculateYScaleDomain(representativeData, null);
+  }
   const baseYScale = d3.scaleLinear().domain(yScaleDomain).range([innerHeight, 0]);
 
   // Calculate transformed scales
