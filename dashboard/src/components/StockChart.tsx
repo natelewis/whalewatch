@@ -19,6 +19,8 @@ import {
   CHART_DATA_POINTS,
   MARGIN_SIZE,
   RIGHT_EDGE_CHECK_INTERVAL,
+  CANDLE_UP_COLOR,
+  CANDLE_DOWN_COLOR,
 } from '../constants';
 import { BarChart3, Settings, Play, Pause, RotateCcw, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 
@@ -1317,18 +1319,59 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                   <div className="flex gap-3 text-sm">
                     <span className="text-muted-foreground">
                       O:{' '}
-                      <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.open)}</span>
+                      <span
+                        className="font-mono"
+                        style={{
+                          color:
+                            chartState.hoverData.data.close >= chartState.hoverData.data.open
+                              ? CANDLE_UP_COLOR
+                              : CANDLE_DOWN_COLOR,
+                        }}
+                      >
+                        {formatPrice(chartState.hoverData.data.open)}
+                      </span>
                     </span>
                     <span className="text-muted-foreground">
                       H:{' '}
-                      <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.high)}</span>
+                      <span
+                        className="font-mono"
+                        style={{
+                          color:
+                            chartState.hoverData.data.close >= chartState.hoverData.data.open
+                              ? CANDLE_UP_COLOR
+                              : CANDLE_DOWN_COLOR,
+                        }}
+                      >
+                        {formatPrice(chartState.hoverData.data.high)}
+                      </span>
                     </span>
                     <span className="text-muted-foreground">
-                      L: <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.low)}</span>
+                      L:{' '}
+                      <span
+                        className="font-mono"
+                        style={{
+                          color:
+                            chartState.hoverData.data.close >= chartState.hoverData.data.open
+                              ? CANDLE_UP_COLOR
+                              : CANDLE_DOWN_COLOR,
+                        }}
+                      >
+                        {formatPrice(chartState.hoverData.data.low)}
+                      </span>
                     </span>
                     <span className="text-muted-foreground">
                       C:{' '}
-                      <span className="font-mono text-foreground">{formatPrice(chartState.hoverData.data.close)}</span>
+                      <span
+                        className="font-mono"
+                        style={{
+                          color:
+                            chartState.hoverData.data.close >= chartState.hoverData.data.open
+                              ? CANDLE_UP_COLOR
+                              : CANDLE_DOWN_COLOR,
+                        }}
+                      >
+                        {formatPrice(chartState.hoverData.data.close)}
+                      </span>
                     </span>
                   </div>
                 </div>
