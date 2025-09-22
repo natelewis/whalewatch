@@ -544,6 +544,7 @@ export const memoizedFormatTime = (timestamp: Date, interval?: string): string =
         hour: '2-digit',
         minute: '2-digit',
         second: config.showSeconds ? '2-digit' : undefined,
+        hour12: false, // Use 24-hour format
       });
       break;
     case 'date-only':
@@ -554,11 +555,12 @@ export const memoizedFormatTime = (timestamp: Date, interval?: string): string =
       });
       break;
     case 'date-time': {
-      const month = String(timestamp.getMonth() + 1).padStart(2, '0');
-      const day = String(timestamp.getDate()).padStart(2, '0');
+      // Friendly format without leading zeros for dates, but with leading zeros for time: 1-1-2025 9:30
+      const month = timestamp.getMonth() + 1;
+      const day = timestamp.getDate();
       const year = timestamp.getFullYear();
-      const hour = String(timestamp.getHours()).padStart(2, '0');
-      const minute = String(timestamp.getMinutes()).padStart(2, '0');
+      const hour = timestamp.getHours();
+      const minute = timestamp.getMinutes().toString().padStart(2, '0');
       result = `${month}-${day}-${year} ${hour}:${minute}`;
       break;
     }
@@ -568,6 +570,7 @@ export const memoizedFormatTime = (timestamp: Date, interval?: string): string =
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: false, // Use 24-hour format
       });
       break;
     case 'medium':
@@ -577,6 +580,7 @@ export const memoizedFormatTime = (timestamp: Date, interval?: string): string =
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: false, // Use 24-hour format
       });
       break;
     case 'long':
@@ -588,12 +592,14 @@ export const memoizedFormatTime = (timestamp: Date, interval?: string): string =
         hour: '2-digit',
         minute: '2-digit',
         second: config.showSeconds ? '2-digit' : undefined,
+        hour12: false, // Use 24-hour format
       });
       break;
     default:
       result = timestamp.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
+        hour12: false, // Use 24-hour format
       });
   }
 

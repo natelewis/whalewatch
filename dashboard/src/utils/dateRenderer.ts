@@ -25,7 +25,7 @@ export function renderDate(date: Date | number | string, options: DateRendererOp
     return 'Invalid Date';
   }
 
-  const { format, timezone = 'UTC' } = options;
+  const { format, timezone = Intl.DateTimeFormat().resolvedOptions().timeZone } = options;
 
   switch (format) {
     case 'short':
@@ -38,26 +38,35 @@ export function renderDate(date: Date | number | string, options: DateRendererOp
       });
 
     case 'medium':
-      // Format: 01-01-2025
-      return dateObj
-        .toLocaleDateString('en-US', {
-          timeZone: timezone,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        })
-        .replace(/\//g, '-');
+      // Format: 1-1-2025 (friendly format without leading zeros)
+      const month = dateObj.toLocaleDateString('en-US', {
+        timeZone: timezone,
+        month: 'numeric',
+      });
+      const day = dateObj.toLocaleDateString('en-US', {
+        timeZone: timezone,
+        day: 'numeric',
+      });
+      const year = dateObj.toLocaleDateString('en-US', {
+        timeZone: timezone,
+        year: 'numeric',
+      });
+      return `${month}-${day}-${year}`;
 
     case 'long':
-      // Format: 01-01-2025 23:10:12
-      const dateStr = dateObj
-        .toLocaleDateString('en-US', {
-          timeZone: timezone,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        })
-        .replace(/\//g, '-');
+      // Format: 1-1-2025 23:10:12 (friendly format without leading zeros)
+      const longMonth = dateObj.toLocaleDateString('en-US', {
+        timeZone: timezone,
+        month: 'numeric',
+      });
+      const longDay = dateObj.toLocaleDateString('en-US', {
+        timeZone: timezone,
+        day: 'numeric',
+      });
+      const longYear = dateObj.toLocaleDateString('en-US', {
+        timeZone: timezone,
+        year: 'numeric',
+      });
 
       const timeStr = dateObj.toLocaleTimeString('en-US', {
         timeZone: timezone,
@@ -67,7 +76,7 @@ export function renderDate(date: Date | number | string, options: DateRendererOp
         second: '2-digit',
       });
 
-      return `${dateStr} ${timeStr}`;
+      return `${longMonth}-${longDay}-${longYear} ${timeStr}`;
 
     case 'time-only':
       // Format: 23:10:10
@@ -124,29 +133,32 @@ export function smartDateRenderer(
   date: Date | number | string,
   context: 'chart-hover' | 'chart-axis' | 'table-cell' | 'tooltip' | 'header' = 'chart-hover'
 ): string {
+  // Use local timezone for all contexts
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   switch (context) {
     case 'chart-hover':
       // For chart hover, show medium format with time
-      return renderDate(date, { format: 'long' });
+      return renderDate(date, { format: 'long', timezone });
 
     case 'chart-axis':
       // For chart axis, show short format
-      return renderDate(date, { format: 'short' });
+      return renderDate(date, { format: 'short', timezone });
 
     case 'table-cell':
       // For table cells, show medium format
-      return renderDate(date, { format: 'medium' });
+      return renderDate(date, { format: 'medium', timezone });
 
     case 'tooltip':
       // For tooltips, show long format
-      return renderDate(date, { format: 'long' });
+      return renderDate(date, { format: 'long', timezone });
 
     case 'header':
       // For headers, show short format
-      return renderDate(date, { format: 'short' });
+      return renderDate(date, { format: 'short', timezone });
 
     default:
-      return renderDate(date, { format: 'medium' });
+      return renderDate(date, { format: 'medium', timezone });
   }
 }
 
