@@ -78,32 +78,32 @@ export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
     showSeconds: false,
   },
   '1h': {
-    markerIntervalMinutes: 60 * 17, // Show labels every 4 hours
+    markerIntervalMinutes: 60 * 24 * 4, // Show labels every 2 days
     labelFormat: 'date-only',
     showSeconds: false,
   },
   '2h': {
-    markerIntervalMinutes: 480, // Show labels every 8 hours
-    labelFormat: 'date-time',
+    markerIntervalMinutes: 60 * 24 * 2, // Show labels every 2 days
+    labelFormat: 'date-only',
     showSeconds: false,
   },
   '4h': {
-    markerIntervalMinutes: 960, // Show labels every 16 hours
-    labelFormat: 'date-time',
+    markerIntervalMinutes: 60 * 24 * 1, // Show labels every 1 day
+    labelFormat: 'date-only',
     showSeconds: false,
   },
   '1d': {
-    markerIntervalMinutes: 0, // Show labels every day
+    markerIntervalMinutes: 60 * 24 * 1, // Show labels every 1 day
     labelFormat: 'date-only',
     showSeconds: false,
   },
   '1w': {
-    markerIntervalMinutes: 0, // Show labels every week
+    markerIntervalMinutes: 60 * 24 * 7, // Show labels every 7 days
     labelFormat: 'date-only',
     showSeconds: false,
   },
   '1M': {
-    markerIntervalMinutes: 0, // Show labels every month
+    markerIntervalMinutes: 60 * 24 * 30, // Show labels every 30 days
     labelFormat: 'date-only',
     showSeconds: false,
   },

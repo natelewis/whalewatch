@@ -371,25 +371,33 @@ export const memoizedGenerateTimeBasedTicks = (
   const startTime = new Date(allChartData[0].timestamp);
   const endTime = new Date(allChartData[allChartData.length - 1].timestamp);
 
-  // For date-only formats (1d, 1w, 1M), generate one tick per date at the first available time
+  // For date-only intervals, generate ticks at the specified day intervals
   if (markerIntervalMinutes >= 1440) {
-    // Get all unique dates in the dataset
-    const uniqueDates = new Set<string>();
+    // 1 day or more
+    // Generate ticks at the specified trading day interval
+    const tradingDaysInterval = markerIntervalMinutes / (60 * 24); // Convert minutes to days
+
+    // Get all unique trading days from the data
+    const tradingDays = new Set<string>();
     allChartData.forEach(dataPoint => {
-      const date = new Date(dataPoint.timestamp);
-      const dateStr = date.toISOString().split('T')[0];
-      uniqueDates.add(dateStr);
+      const dataDate = new Date(dataPoint.timestamp);
+      const dateStr = dataDate.toISOString().split('T')[0];
+      tradingDays.add(dateStr);
     });
 
-    // Generate one tick per date at the first available time
-    Array.from(uniqueDates)
-      .sort()
-      .forEach(dateStr => {
-        const firstTimeForDate = findFirstTimeForDate(new Date(`${dateStr}T00:00:00Z`), allChartData);
-        if (firstTimeForDate) {
-          ticks.push(firstTimeForDate);
-        }
-      });
+    // Convert to sorted array of dates
+    const sortedTradingDays = Array.from(tradingDays)
+      .map(dateStr => new Date(`${dateStr}T00:00:00Z`))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    // Select every Nth trading day
+    for (let i = 0; i < sortedTradingDays.length; i += tradingDaysInterval) {
+      const tradingDay = sortedTradingDays[i];
+      const firstTimeForDate = findFirstTimeForDate(tradingDay, allChartData);
+      if (firstTimeForDate) {
+        ticks.push(firstTimeForDate);
+      }
+    }
   } else {
     // For time-based intervals, use the existing logic
     // Align start time to the nearest consistent boundary
@@ -547,13 +555,14 @@ export const memoizedFormatTime = (timestamp: Date, interval?: string): string =
         hour12: false, // Use 24-hour format
       });
       break;
-    case 'date-only':
-      result = timestamp.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: timestamp.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-      });
+    case 'date-only': {
+      // Format: 5-5-2025 (single digits, no leading zeros)
+      const dateMonth = timestamp.getMonth() + 1;
+      const dateDay = timestamp.getDate();
+      const dateYear = timestamp.getFullYear();
+      result = `${dateMonth}-${dateDay}-${dateYear}`;
       break;
+    }
     case 'date-time': {
       // Friendly format without leading zeros for dates, but with leading zeros for time: 1-1-2025 9:30
       const month = timestamp.getMonth() + 1;
