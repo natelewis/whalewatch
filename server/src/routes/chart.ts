@@ -232,8 +232,27 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     } else {
       // For larger intervals, we need more raw data to create the requested number of aggregated bars
       // Add a buffer to account for potential gaps in data (e.g., weekends, market hours)
-      const multiplier = Math.ceil(intervalMinutes * 2); // 2x buffer for safety
-      rawDataLimit = limitValue * multiplier;
+      // Cap the multiplier to prevent excessive data fetching for very large intervals
+      const baseMultiplier = Math.ceil(intervalMinutes * 2); // 2x buffer for safety
+      const maxMultiplier = 100; // Cap at 100x to prevent excessive data fetching
+      const multiplier = Math.min(baseMultiplier, maxMultiplier);
+
+      // For very large intervals (daily+), use a more conservative approach
+      if (intervalMinutes >= 1440) {
+        // Daily or larger
+        // For daily+ intervals, use a more intelligent calculation
+        if (intervalMinutes >= 43200) {
+          // Monthly or larger
+          // For monthly data, we need more records to ensure we have enough data points
+          // Each month needs multiple daily records to aggregate properly
+          rawDataLimit = Math.min(limitValue * 50, 50000); // Cap at 50k records for monthly+
+        } else {
+          // For daily/weekly intervals, use a smaller multiplier
+          rawDataLimit = Math.min(limitValue * 20, 20000); // Cap at 20k records for daily/weekly
+        }
+      } else {
+        rawDataLimit = limitValue * multiplier;
+      }
     }
 
     console.log(
@@ -282,26 +301,23 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     }
 
     // Remove duplicates by timestamp and aggregate them properly
-    const uniqueAggregates = aggregates.reduce(
-      (acc, agg) => {
-        const timestamp = agg.timestamp;
-        const existing = acc.find(a => a.timestamp === timestamp);
+    const uniqueAggregates = aggregates.reduce((acc, agg) => {
+      const timestamp = agg.timestamp;
+      const existing = acc.find(a => a.timestamp === timestamp);
 
-        if (!existing) {
-          acc.push(agg);
-        } else {
-          // If duplicate found, aggregate the data properly
-          existing.high = Math.max(existing.high, agg.high);
-          existing.low = Math.min(existing.low, agg.low);
-          existing.close = agg.close; // Use the latest close price
-          existing.volume += agg.volume;
-          existing.transaction_count += agg.transaction_count;
-          existing.vwap = (existing.vwap * existing.volume + agg.vwap * agg.volume) / (existing.volume + agg.volume);
-        }
-        return acc;
-      },
-      [] as typeof aggregates
-    );
+      if (!existing) {
+        acc.push(agg);
+      } else {
+        // If duplicate found, aggregate the data properly
+        existing.high = Math.max(existing.high, agg.high);
+        existing.low = Math.min(existing.low, agg.low);
+        existing.close = agg.close; // Use the latest close price
+        existing.volume += agg.volume;
+        existing.transaction_count += agg.transaction_count;
+        existing.vwap = (existing.vwap * existing.volume + agg.vwap * agg.volume) / (existing.volume + agg.volume);
+      }
+      return acc;
+    }, [] as typeof aggregates);
 
     // Aggregate data using the new system that skips intervals without data
     const aggregatedData = aggregateDataWithIntervals(uniqueAggregates, chartParams);

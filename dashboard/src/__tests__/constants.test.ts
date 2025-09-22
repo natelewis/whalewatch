@@ -4,7 +4,7 @@ import { X_AXIS_LABEL_CONFIGS, XAxisLabelConfig } from '../constants';
 describe('X-axis label configuration', () => {
   describe('X_AXIS_LABEL_CONFIGS', () => {
     it('should have configurations for all supported intervals', () => {
-      const expectedIntervals = ['1m', '5m', '30m', '1h', '2h', '4h', '1d', '1w', '1M'];
+      const expectedIntervals = ['1m', '5m', '30m', '1h', '1d', '1w', '1M'];
 
       expectedIntervals.forEach(interval => {
         expect(X_AXIS_LABEL_CONFIGS).toHaveProperty(interval);
@@ -38,14 +38,8 @@ describe('X-axis label configuration', () => {
       // 30m: 8-hour markers
       expect(X_AXIS_LABEL_CONFIGS['30m'].markerIntervalMinutes).toBe(480);
 
-      // 1h: 17-hour markers
-      expect(X_AXIS_LABEL_CONFIGS['1h'].markerIntervalMinutes).toBe(1020);
-
-      // 2h: 8-hour markers
-      expect(X_AXIS_LABEL_CONFIGS['2h'].markerIntervalMinutes).toBe(480);
-
-      // 4h: 16-hour markers
-      expect(X_AXIS_LABEL_CONFIGS['4h'].markerIntervalMinutes).toBe(960);
+      // 1h: 2-day markers
+      expect(X_AXIS_LABEL_CONFIGS['1h'].markerIntervalMinutes).toBe(2880);
 
       // 1d: daily markers
       expect(X_AXIS_LABEL_CONFIGS['1d'].markerIntervalMinutes).toBe(1440);
@@ -65,8 +59,6 @@ describe('X-axis label configuration', () => {
       expect(X_AXIS_LABEL_CONFIGS['5m'].labelFormat).toBe('date-time');
       expect(X_AXIS_LABEL_CONFIGS['30m'].labelFormat).toBe('date-time');
       expect(X_AXIS_LABEL_CONFIGS['1h'].labelFormat).toBe('date-only');
-      expect(X_AXIS_LABEL_CONFIGS['2h'].labelFormat).toBe('date-time');
-      expect(X_AXIS_LABEL_CONFIGS['4h'].labelFormat).toBe('date-time');
 
       // Long timeframes should show date only
       expect(X_AXIS_LABEL_CONFIGS['1d'].labelFormat).toBe('date-only');

@@ -324,9 +324,6 @@ export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTime
       '30m': 30 * 60 * 1000, // 30 minutes
       '1h': 60 * 60 * 1000, // 1 hour
       '1H': 60 * 60 * 1000, // 1 hour (alternative)
-      '2h': 2 * 60 * 60 * 1000, // 2 hours
-      '4h': 4 * 60 * 60 * 1000, // 4 hours
-      '4H': 4 * 60 * 60 * 1000, // 4 hours (alternative)
       '1d': 24 * 60 * 60 * 1000, // 1 day
       '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
       '1w': 7 * 24 * 60 * 60 * 1000, // 1 week
