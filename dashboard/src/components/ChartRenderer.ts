@@ -24,6 +24,7 @@ import {
   createViewportXScale,
 } from '../utils/chartDataUtils';
 import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
+import { smartDateRenderer } from '../utils/dateRenderer';
 
 // ============================================================================
 // CONFIGURATION CONSTANTS - imported from centralized constants
@@ -474,7 +475,7 @@ export const createChart = ({
         // Update date display
         if (stateCallbacks.setDateDisplay) {
           const currentMargin = currentDimensions.margin;
-          const dateText = new Date(d.timestamp).toLocaleString();
+          const dateText = smartDateRenderer(d.timestamp, 'chart-hover');
 
           // Position the date display below the vertical domain line
           const dateDisplayY = currInnerHeight + 20; // 20px below the chart

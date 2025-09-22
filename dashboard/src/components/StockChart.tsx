@@ -9,6 +9,7 @@ import { useChartStateManager } from '../hooks/useChartStateManager';
 import { apiService } from '../services/apiService';
 import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
 import { formatPrice, processChartData, calculateInnerDimensions, isValidChartData } from '../utils/chartDataUtils';
+import { smartDateRenderer } from '../utils/dateRenderer';
 import { TimeframeConfig } from '../types';
 import { createChart, renderCandlestickChart, updateClipPath, calculateChartState } from './ChartRenderer';
 import { memoizedCalculateYScaleDomain } from '../utils/memoizedChartUtils';
@@ -1314,7 +1315,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                   <div className="flex flex-col">
                     <span className="font-bold text-foreground text-lg">{symbol}</span>
                     <span className="text-sm text-muted-foreground">
-                      {new Date(chartState.hoverData.data.timestamp).toLocaleString()}
+                      {smartDateRenderer(chartState.hoverData.data.timestamp, 'chart-hover')}
                     </span>
                   </div>
                   <div className="flex gap-3 text-sm">
