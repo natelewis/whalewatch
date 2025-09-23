@@ -323,12 +323,6 @@ export class QuestDBWebSocketService extends EventEmitter {
       symbol: latestAggregate.symbol,
     };
 
-    console.log(`📡 Broadcasting new stock aggregate for ${latestAggregate.symbol}:`, {
-      timestamp: latestAggregate.timestamp,
-      close: latestAggregate.close,
-      volume: latestAggregate.volume,
-    });
-
     this.emit('stock_aggregate', message);
 
     // Return the timestamp of the data we just processed

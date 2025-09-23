@@ -231,13 +231,6 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
 
   // Handle real-time stock aggregates from QuestDB
   questdbWebSocketService.on('stock_aggregate', message => {
-    console.log('✅ Broadcasting stock aggregate from QuestDB:', {
-      symbol: message.symbol,
-      close: message.data.close,
-      volume: message.data.volume,
-      timestamp: message.data.timestamp,
-    });
-
     const barData = {
       symbol: message.symbol,
       bar: {
