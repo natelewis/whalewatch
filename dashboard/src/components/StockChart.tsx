@@ -24,7 +24,7 @@ import {
   CANDLE_DOWN_COLOR,
   Y_SCALE_REPRESENTATIVE_DATA_LENGTH,
 } from '../constants';
-import { BarChart3, Settings, Play, Pause, RotateCcw, ArrowRight, Wifi, WifiOff } from 'lucide-react';
+import { BarChart3, Settings, RotateCcw, ArrowRight } from 'lucide-react';
 
 interface StockChartProps {
   symbol: string;
@@ -620,20 +620,18 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // WebSocket for real-time data
   const chartWebSocket = useChartWebSocket({
     symbol,
-    isEnabled: chartState.isWebSocketEnabled,
     onChartData: bar => {
-      if (chartState.isLive) {
-        // Create a unique key for this data point to prevent duplicate processing
-        const dataKey = `${bar.t}-${bar.o}-${bar.h}-${bar.l}-${bar.c}`;
+      // Always process incoming websocket data
+      // Create a unique key for this data point to prevent duplicate processing
+      const dataKey = `${bar.t}-${bar.o}-${bar.h}-${bar.l}-${bar.c}`;
 
-        // Skip if we've already processed this exact data point
-        if (lastProcessedDataRef.current === dataKey) {
-          return;
-        }
-
-        lastProcessedDataRef.current = dataKey;
-        chartActions.updateChartWithLiveData(bar);
+      // Skip if we've already processed this exact data point
+      if (lastProcessedDataRef.current === dataKey) {
+        return;
       }
+
+      lastProcessedDataRef.current = dataKey;
+      chartActions.updateChartWithLiveData(bar);
     },
   });
 
@@ -742,14 +740,14 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     lastProcessedDataRef.current = null; // Reset WebSocket data tracking
   }, [symbol]);
 
-  // Subscribe to WebSocket when live mode is enabled and WebSocket is enabled
+  // Always subscribe to WebSocket for real-time data
   useEffect(() => {
-    if (chartState.isLive && chartState.isWebSocketEnabled) {
-      chartWebSocket.subscribeToChartData();
-    } else {
+    chartWebSocket.subscribeToChartData();
+
+    return () => {
       chartWebSocket.unsubscribeFromChartData();
-    }
-  }, [chartState.isLive, chartState.isWebSocketEnabled]); // Removed chartWebSocket from dependencies
+    };
+  }, [symbol]); // Subscribe when symbol changes
 
   // Handle container resize
   useEffect(() => {
@@ -886,15 +884,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       lastRightEdgeCheckRef.current = now;
       setIsAtRightEdge(atRightEdge);
 
-      if (atRightEdge && !chartState.isLive) {
-        console.log('User reached right edge - enabling live mode for real-time data');
-        chartActions.setIsLive(true);
-      } else if (!atRightEdge && chartState.isLive) {
-        console.log('User moved away from right edge - disabling live mode');
-        chartActions.setIsLive(false);
-      }
+      // Auto-live logic removed - websockets are always on
     }
-  }, [chartState.currentViewEnd, chartState.allData.length, chartState.isLive]); // Removed chartActions
+  }, [chartState.currentViewEnd, chartState.allData.length]); // Removed chartActions and isLive
 
   // Reset refs on mount to handle hot reload
   useEffect(() => {
@@ -1226,27 +1218,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 ← Pan 10
               </button>
               <button
-                onClick={() => chartActions.setIsLive(!chartState.isLive)}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                  chartState.isLive ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                {chartState.isLive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                {chartState.isLive ? 'Live' : 'Paused'}
-              </button>
-              <button
-                onClick={() => chartActions.setIsWebSocketEnabled(!chartState.isWebSocketEnabled)}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                  chartState.isWebSocketEnabled
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-                title={chartState.isWebSocketEnabled ? 'Disable WebSocket' : 'Enable WebSocket'}
-              >
-                {chartState.isWebSocketEnabled ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                {chartState.isWebSocketEnabled ? 'WebSocket' : 'No WS'}
-              </button>
-              <button
                 onClick={() =>
                   timeframe &&
                   chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
@@ -1466,8 +1437,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               <span>{chartState.chartLoaded ? 'Chart Ready' : 'Loading...'}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${chartState.isLive ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-              <span>{chartState.isLive ? 'Live' : 'Historical'}</span>
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span>Live</span>
             </div>
             <div className="flex items-center space-x-2">
               <div
@@ -1479,12 +1450,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                 <span className="text-xs text-blue-500">Zooming</span>
-              </div>
-            )}
-            {isAtRightEdge && !chartState.isLive && (
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                <span className="text-xs text-yellow-500">Auto-live</span>
               </div>
             )}
             {chartState.allData.length > DEFAULT_CHART_DATA_POINTS && (

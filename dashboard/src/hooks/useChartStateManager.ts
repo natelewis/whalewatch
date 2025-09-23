@@ -46,8 +46,6 @@ export interface ChartActions {
   setViewport: (start: number, end: number) => void;
 
   // UI actions
-  setIsLive: (isLive: boolean) => void;
-  setIsWebSocketEnabled: (isWebSocketEnabled: boolean) => void;
   setIsZooming: (isZooming: boolean) => void;
   setIsLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
@@ -99,8 +97,6 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     transform: DEFAULT_TRANSFORM,
     currentViewStart: 0,
     currentViewEnd: 0,
-    isLive: false,
-    isWebSocketEnabled: true,
     isZooming: false,
     isLoading: false,
     error: null,
@@ -176,14 +172,6 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
   }, []);
 
   // UI actions
-  const setIsLive = useCallback((isLive: boolean) => {
-    setState(prev => ({ ...prev, isLive }));
-  }, []);
-
-  const setIsWebSocketEnabled = useCallback((isWebSocketEnabled: boolean) => {
-    setState(prev => ({ ...prev, isWebSocketEnabled }));
-  }, []);
-
   const setIsZooming = useCallback((isZooming: boolean) => {
     setState(prev => ({ ...prev, isZooming }));
   }, []);
@@ -242,9 +230,6 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       transform: DEFAULT_TRANSFORM,
       currentViewStart: 0,
       currentViewEnd: 0,
-      isLive: false,
-      // Preserve isWebSocketEnabled state when resetting chart
-      // isWebSocketEnabled: prev.isWebSocketEnabled,
       isZooming: false,
       isLoading: false,
       error: null,
@@ -461,8 +446,6 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     setCurrentViewStart,
     setCurrentViewEnd,
     setViewport,
-    setIsLive,
-    setIsWebSocketEnabled,
     setIsZooming,
     setIsLoading,
     setError,

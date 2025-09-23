@@ -1,11 +1,10 @@
-import { useCallback, useEffect } from 'react';
-import { useWebSocket } from './useWebSocket';
+import { useCallback, useEffect, useRef } from 'react';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { AlpacaBar } from '../types';
 
 interface UseChartWebSocketProps {
   symbol: string;
   onChartData?: (bar: AlpacaBar) => void;
-  isEnabled?: boolean;
 }
 
 interface UseChartWebSocketReturn {
@@ -14,26 +13,13 @@ interface UseChartWebSocketReturn {
   isConnected: boolean;
 }
 
-export const useChartWebSocket = ({
-  symbol,
-  onChartData,
-  isEnabled = true,
-}: UseChartWebSocketProps): UseChartWebSocketReturn => {
-  const { lastMessage, sendMessage, isConnected } = useWebSocket();
-
-  // Handle incoming chart data messages
-  const handleChartData = useCallback(
-    (bar: AlpacaBar) => {
-      if (onChartData) {
-        onChartData(bar);
-      }
-    },
-    [onChartData]
-  );
+export const useChartWebSocket = ({ symbol, onChartData }: UseChartWebSocketProps): UseChartWebSocketReturn => {
+  const { lastMessage, sendMessage, isConnected } = useWebSocketContext();
+  const processedMessageRef = useRef<string | null>(null);
 
   // Subscribe to chart data for the current symbol
   const subscribeToChartData = useCallback(() => {
-    if (isEnabled && isConnected) {
+    if (isConnected) {
       console.log(`📊 Subscribing to chart data for ${symbol}`);
       sendMessage({
         type: 'subscribe',
@@ -41,13 +27,13 @@ export const useChartWebSocket = ({
         timestamp: new Date().toISOString(),
       });
     } else {
-      console.log(`⚠️ Cannot subscribe to chart data: enabled=${isEnabled}, connected=${isConnected}`);
+      console.log(`⚠️ Cannot subscribe to chart data: connected=${isConnected}`);
     }
-  }, [sendMessage, symbol, isConnected, isEnabled]);
+  }, [sendMessage, symbol, isConnected]);
 
   // Unsubscribe from chart data
   const unsubscribeFromChartData = useCallback(() => {
-    if (isEnabled && isConnected) {
+    if (isConnected) {
       console.log(`📊 Unsubscribing from chart data for ${symbol}`);
       sendMessage({
         type: 'unsubscribe',
@@ -55,13 +41,22 @@ export const useChartWebSocket = ({
         timestamp: new Date().toISOString(),
       });
     } else {
-      console.log(`⚠️ Cannot unsubscribe from chart data: enabled=${isEnabled}, connected=${isConnected}`);
+      console.log(`⚠️ Cannot unsubscribe from chart data: connected=${isConnected}`);
     }
-  }, [sendMessage, symbol, isConnected, isEnabled]);
+  }, [sendMessage, symbol, isConnected]);
 
   // Process incoming messages
   useEffect(() => {
-    if (isEnabled && lastMessage) {
+    if (lastMessage) {
+      // Create a unique key for this message to prevent duplicate processing
+      const messageKey = `${lastMessage.type}-${lastMessage.timestamp}-${JSON.stringify(lastMessage.data)}`;
+
+      // Skip if we've already processed this exact message
+      if (processedMessageRef.current === messageKey) {
+        return;
+      }
+
+      processedMessageRef.current = messageKey;
       console.log('📥 WebSocket message received:', lastMessage);
 
       // Check if this is a chart_quote message
@@ -70,7 +65,10 @@ export const useChartWebSocket = ({
         console.log('📊 Chart data received:', chartData);
 
         if (chartData.symbol === symbol) {
-          handleChartData(chartData.bar);
+          // Call onChartData directly to avoid dependency issues
+          if (onChartData) {
+            onChartData(chartData.bar);
+          }
         } else {
           console.log(`⚠️ Chart data symbol mismatch: expected ${symbol}, got ${chartData.symbol}`);
         }
@@ -84,7 +82,7 @@ export const useChartWebSocket = ({
         console.log('📥 Other WebSocket message:', lastMessage.type, lastMessage.data);
       }
     }
-  }, [lastMessage, symbol, handleChartData, isEnabled]);
+  }, [lastMessage, symbol, onChartData]);
 
   return {
     subscribeToChartData,

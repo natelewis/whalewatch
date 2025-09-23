@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlpacaOptionsContract } from '../types';
 import { apiService } from '../services/apiService';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { PageHeader } from '../components/PageHeader';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
@@ -14,7 +14,7 @@ export const WhaleFinderPage: React.FC = () => {
   const [hasRealTimeData, setHasRealTimeData] = useState<boolean>(false);
 
   // WebSocket for real-time options contracts
-  const { lastMessage, sendMessage, isConnected } = useWebSocket();
+  const { lastMessage, sendMessage, isConnected } = useWebSocketContext();
 
   useEffect(() => {
     loadOptionsContracts(selectedSymbol);

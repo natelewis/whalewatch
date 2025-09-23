@@ -7,7 +7,7 @@ export class QuestDBWebSocketService extends EventEmitter {
   private streamingInterval: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Map<string, QuestDBSubscription> = new Map();
   private lastTimestamps: Map<string, string> = new Map();
-  private streamingIntervalMs: number = 1000; // Poll every second
+  private streamingIntervalMs: number = 10000; // Poll every 10 seconds for stock aggregates
 
   constructor() {
     super();
@@ -128,6 +128,8 @@ export class QuestDBWebSocketService extends EventEmitter {
     const now = new Date().toISOString();
 
     try {
+      let newTimestamp: string | undefined = now; // Default to current time
+
       switch (subscription.type) {
         case 'stock_trades':
           await this.pollStockTrades(subscription, lastTimestamp, now);
@@ -139,14 +141,14 @@ export class QuestDBWebSocketService extends EventEmitter {
           await this.pollOptionQuotes(subscription, lastTimestamp, now);
           break;
         case 'stock_aggregates':
-          await this.pollStockAggregates(subscription, lastTimestamp, now);
+          newTimestamp = await this.pollStockAggregates(subscription, lastTimestamp);
           break;
         default:
           console.warn(`Unknown subscription type: ${subscription.type}`);
       }
 
-      // Update last timestamp
-      this.lastTimestamps.set(key, now);
+      // Update last timestamp with the actual timestamp of processed data (or current time if no data processed)
+      this.lastTimestamps.set(key, newTimestamp || now);
     } catch (error) {
       console.error(`Error polling ${subscription.type} data:`, error);
     }
@@ -281,52 +283,61 @@ export class QuestDBWebSocketService extends EventEmitter {
    */
   private async pollStockAggregates(
     subscription: QuestDBSubscription,
-    lastTimestamp: string | undefined,
-    currentTimestamp: string
-  ): Promise<void> {
+    lastTimestamp: string | undefined
+  ): Promise<string | undefined> {
     if (!subscription.symbol) {
       console.log('⚠️ No symbol provided for stock aggregates subscription');
       return;
     }
 
-    console.log(`🔍 Polling stock aggregates for ${subscription.symbol}:`, {
-      lastTimestamp: lastTimestamp || 'none (first poll)',
-      currentTimestamp,
-      timeRange: lastTimestamp ? `${lastTimestamp} to ${currentTimestamp}` : `up to ${currentTimestamp}`,
-    });
+    console.log(`🔍 Polling latest stock aggregate for ${subscription.symbol}`);
 
+    // Get the latest record for this symbol
     const aggregates = await questdbService.getStockAggregates(subscription.symbol, {
-      start_time: lastTimestamp || undefined,
-      end_time: currentTimestamp,
-      limit: 1000,
+      limit: 1,
+      order_by: 'timestamp',
+      order_direction: 'DESC', // Get the most recent record
     });
 
-    console.log(`📊 Found ${aggregates.length} new stock aggregates for ${subscription.symbol}`);
-
-    if (aggregates.length > 0) {
-      console.log('📈 Sample aggregate data:', {
-        first: aggregates[0],
-        last: aggregates[aggregates.length - 1],
-        count: aggregates.length,
-      });
+    if (aggregates.length === 0) {
+      console.log(`📊 No stock aggregates found for ${subscription.symbol}`);
+      return lastTimestamp; // Return the same timestamp since we didn't process anything
     }
 
-    for (const aggregate of aggregates) {
-      const message: QuestDBWebSocketMessage = {
-        type: 'stock_aggregate',
-        data: aggregate,
-        timestamp: new Date().toISOString(),
-        symbol: aggregate.symbol,
-      };
+    const latestAggregate = aggregates[0];
+    console.log(`📊 Latest stock aggregate for ${subscription.symbol}:`, {
+      timestamp: latestAggregate.timestamp,
+      close: latestAggregate.close,
+      volume: latestAggregate.volume,
+    });
 
-      console.log(`📡 Emitting stock aggregate for ${aggregate.symbol}:`, {
-        timestamp: aggregate.timestamp,
-        close: aggregate.close,
-        volume: aggregate.volume,
-      });
-
-      this.emit('stock_aggregate', message);
+    console.log('lastTimestamp', new Date(latestAggregate.timestamp), new Date(lastTimestamp || ''));
+    // Check if this is a new record we haven't processed yet
+    if (lastTimestamp && new Date(latestAggregate.timestamp) <= new Date(lastTimestamp)) {
+      console.log(
+        `📊 No new data for ${subscription.symbol} (latest: ${latestAggregate.timestamp}, last processed: ${lastTimestamp})`
+      );
+      return lastTimestamp; // Return the same timestamp since we didn't process anything
     }
+
+    // This is new data, emit it
+    const message: QuestDBWebSocketMessage = {
+      type: 'stock_aggregate',
+      data: latestAggregate,
+      timestamp: new Date().toISOString(),
+      symbol: latestAggregate.symbol,
+    };
+
+    console.log(`📡 Broadcasting new stock aggregate for ${latestAggregate.symbol}:`, {
+      timestamp: latestAggregate.timestamp,
+      close: latestAggregate.close,
+      volume: latestAggregate.volume,
+    });
+
+    this.emit('stock_aggregate', message);
+
+    // Return the timestamp of the data we just processed
+    return latestAggregate.timestamp;
   }
 
   /**

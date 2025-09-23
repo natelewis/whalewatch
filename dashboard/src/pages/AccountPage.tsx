@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlpacaAccount, AlpacaPosition, AlpacaActivity } from '../types';
 import { apiService } from '../services/apiService';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { AccountSummary } from '../components/AccountSummary';
 import { PositionsTable } from '../components/PositionsTable';
 import { ActivityHistory } from '../components/ActivityHistory';
@@ -16,7 +16,7 @@ export const AccountPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // WebSocket for real-time position updates
-  const { lastMessage, sendMessage } = useWebSocket();
+  const { lastMessage, sendMessage } = useWebSocketContext();
 
   useEffect(() => {
     loadAccountData();

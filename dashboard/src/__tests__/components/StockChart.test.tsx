@@ -198,8 +198,6 @@ const mockUseChartStateManager = {
     allData: mockChartData,
     isLoading: false,
     error: null,
-    isLive: false,
-    isWebSocketEnabled: true,
     isZooming: false,
     chartLoaded: false,
     chartExists: false,
@@ -287,7 +285,6 @@ describe('StockChart', () => {
       state: {
         ...mockUseChartStateManager.state,
         isLoading: true,
-        isWebSocketEnabled: true,
         isZooming: false,
       },
     });
@@ -303,7 +300,6 @@ describe('StockChart', () => {
       state: {
         ...mockUseChartStateManager.state,
         error: 'Failed to load data',
-        isWebSocketEnabled: true,
         isZooming: false,
       },
     });
@@ -491,7 +487,6 @@ describe('StockChart', () => {
         data: [],
         allData: [],
         timeframe: null,
-        isWebSocketEnabled: true,
         isZooming: false,
       },
     });

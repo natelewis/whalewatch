@@ -54,8 +54,6 @@ export interface ChartState {
   currentViewEnd: number;
 
   // UI state
-  isLive: boolean;
-  isWebSocketEnabled: boolean;
   isZooming: boolean;
   isLoading: boolean;
   error: string | null;
