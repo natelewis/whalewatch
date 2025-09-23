@@ -196,10 +196,7 @@ export class QuestDBService {
     if (limit) {
       query += ` LIMIT ${limit}`;
     }
-
-    console.log(`🔍 DEBUG: QuestDB Query: ${query}`);
     const response = await this.executeQuery<QuestDBStockAggregate>(query);
-    console.log(`🔍 DEBUG: QuestDB returned ${response.dataset.length} rows`);
     return this.convertArrayToObject<QuestDBStockAggregate>(response.dataset, response.columns);
   }
 

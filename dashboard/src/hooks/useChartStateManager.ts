@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData } from '../types';
 import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
-import { processChartData } from '../utils/chartDataUtils';
+import { processChartData, isFakeCandle } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 import { clearTimeFormatCache, clearAllChartCaches } from '../utils/memoizedChartUtils';
@@ -384,6 +384,15 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
   );
 
   const updateChartWithLiveData = useCallback((bar: AlpacaBar) => {
+    console.log('📡 New WebSocket data received:', {
+      timestamp: bar.t,
+      open: bar.o,
+      high: bar.h,
+      low: bar.l,
+      close: bar.c,
+      volume: bar.v ?? 0,
+    });
+
     const newCandle: CandlestickData = {
       timestamp: bar.t,
       open: bar.o,
@@ -395,21 +404,105 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
 
     // Update chart data directly
     setState(prev => {
-      const lastCandle = prev.allData[prev.allData.length - 1];
+      const allData = prev.allData;
       let updatedAllData: CandlestickData[];
 
-      if (lastCandle && getCandleTime(lastCandle) === getCandleTime(newCandle)) {
-        // Update existing candle
-        updatedAllData = [...prev.allData];
-        updatedAllData[updatedAllData.length - 1] = newCandle;
+      // Find the last real (non-fake) candle
+      let lastRealCandleIndex = allData.length - 1;
+      while (lastRealCandleIndex >= 0 && isFakeCandle(allData[lastRealCandleIndex])) {
+        lastRealCandleIndex--;
+      }
+
+      // If no real candles found, just add the new candle
+      if (lastRealCandleIndex < 0) {
+        updatedAllData = [newCandle];
       } else {
-        // Add new candle
-        updatedAllData = [...prev.allData, newCandle];
+        const lastRealCandle = allData[lastRealCandleIndex];
+
+        if (getCandleTime(lastRealCandle) === getCandleTime(newCandle)) {
+          // Update existing candle - replace the last real candle
+          updatedAllData = [...allData];
+          updatedAllData[lastRealCandleIndex] = newCandle;
+        } else {
+          // Add new candle - insert it just before any fake candles
+          // Split the array at the position where fake candles start
+          const realData = allData.slice(0, lastRealCandleIndex + 1);
+          const fakeData = allData.slice(lastRealCandleIndex + 1);
+
+          // Insert the new candle after the last real candle, before fake candles
+          updatedAllData = [...realData, newCandle, ...fakeData];
+        }
+      }
+
+      // Auto-redraw logic: Check if current view shows any of the 5 newest candles
+      const shouldAutoRedraw = (() => {
+        if (updatedAllData.length === 0) {
+          console.log('🔍 Auto-redraw check: No data available');
+          return false;
+        }
+
+        // Get the 5 newest real candles (excluding fake candles)
+        const realCandles = updatedAllData.filter(candle => !isFakeCandle(candle));
+        if (realCandles.length === 0) {
+          console.log('🔍 Auto-redraw check: No real candles found');
+          return false;
+        }
+
+        const newestCandles = realCandles.slice(-5); // Last 5 real candles
+        const newestCandleIndices = newestCandles.map(candle =>
+          updatedAllData.findIndex(d => d.timestamp === candle.timestamp)
+        );
+
+        // Check if current viewport overlaps with any of the 5 newest candles
+        const currentViewStart = prev.currentViewStart;
+        const currentViewEnd = prev.currentViewEnd;
+
+        // Only auto-redraw if the current viewport actually shows any of the 5 newest candles
+        const hasOverlap = newestCandleIndices.some(index => index >= currentViewStart && index <= currentViewEnd);
+
+        console.log('🔍 Auto-redraw decision:', {
+          totalDataLength: updatedAllData.length,
+          realCandlesCount: realCandles.length,
+          newestCandleIndices,
+          currentViewport: `${currentViewStart}-${currentViewEnd}`,
+          hasOverlap,
+          willAutoRedraw: hasOverlap,
+        });
+
+        return hasOverlap;
+      })();
+
+      // If auto-redraw is needed, slide to the newest candle
+      let newViewStart = prev.currentViewStart;
+      let newViewEnd = prev.currentViewEnd;
+
+      if (shouldAutoRedraw && updatedAllData.length > 0) {
+        const newestCandleIndex = updatedAllData.length - 1;
+        const viewportSize = prev.currentViewEnd - prev.currentViewStart;
+
+        // Slide viewport to show the newest candle at the right edge
+        newViewEnd = newestCandleIndex;
+        newViewStart = Math.max(0, newestCandleIndex - viewportSize);
+
+        console.log('🔄 Auto-redraw triggered:', {
+          newestCandleIndex,
+          previousView: `${prev.currentViewStart}-${prev.currentViewEnd}`,
+          newView: `${newViewStart}-${newViewEnd}`,
+          viewportSize,
+        });
+      } else {
+        console.log('⏸️ Auto-redraw skipped:', {
+          shouldAutoRedraw,
+          dataLength: updatedAllData.length,
+          currentViewport: `${prev.currentViewStart}-${prev.currentViewEnd}`,
+        });
       }
 
       return {
         ...prev,
         allData: updatedAllData,
+        currentViewStart: newViewStart,
+        currentViewEnd: newViewEnd,
       };
     });
   }, []);

@@ -156,11 +156,6 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       // For past direction, we got data in DESC order (most recent first), but we need ASC order for display
       if (direction === 'past') {
         aggregates = aggregates.reverse();
-        console.log(
-          `🔍 DEBUG: Reversed order for past direction - now ${aggregates[0].timestamp} to ${
-            aggregates[aggregates.length - 1].timestamp
-          }`
-        );
       }
     }
 

@@ -621,16 +621,28 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const chartWebSocket = useChartWebSocket({
     symbol,
     onChartData: bar => {
+      console.log('🌐 WebSocket data received in StockChart:', {
+        symbol,
+        timestamp: bar.t,
+        open: bar.o,
+        high: bar.h,
+        low: bar.l,
+        close: bar.c,
+        volume: bar.v,
+      });
+
       // Always process incoming websocket data
       // Create a unique key for this data point to prevent duplicate processing
       const dataKey = `${bar.t}-${bar.o}-${bar.h}-${bar.l}-${bar.c}`;
 
       // Skip if we've already processed this exact data point
       if (lastProcessedDataRef.current === dataKey) {
+        console.log('⏸️ WebSocket data skipped: Duplicate detected');
         return;
       }
 
       lastProcessedDataRef.current = dataKey;
+      console.log('📤 Calling updateChartWithLiveData...');
       chartActions.updateChartWithLiveData(bar);
     },
   });
@@ -642,6 +654,66 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartActions.setData(newVisibleData);
     }
   }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData, isValidData, getVisibleData]); // Removed chartActions
+
+  // Handle auto-redraw when viewport changes due to live data updates
+  useEffect(() => {
+    console.log('🎨 Auto-redraw useEffect triggered:', {
+      chartLoaded: chartState.chartLoaded,
+      svgRefExists: !!svgRef.current,
+      dataLength: chartState.allData.length,
+      currentViewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
+      isPanning: isPanningRef.current,
+      manualRenderInProgress: manualRenderInProgressRef.current,
+    });
+
+    // Only trigger auto-redraw if chart is loaded and we have valid data
+    if (!chartState.chartLoaded || !svgRef.current || chartState.allData.length === 0) {
+      console.log('⏸️ Auto-redraw skipped: Chart not ready');
+      return;
+    }
+
+    // Skip if we're currently panning to avoid conflicts
+    if (isPanningRef.current) {
+      console.log('⏸️ Auto-redraw skipped: Currently panning');
+      return;
+    }
+
+    // Skip if manual render is in progress
+    if (manualRenderInProgressRef.current) {
+      console.log('⏸️ Auto-redraw skipped: Manual render in progress');
+      return;
+    }
+
+    // Get current transform to preserve zoom level
+    const currentZoomTransform = d3.zoomTransform(svgRef.current);
+
+    // Calculate chart state with current data and viewport
+    const calculations = calculateChartState({
+      dimensions: chartState.dimensions,
+      allChartData: chartState.allData,
+      transform: currentZoomTransform,
+      fixedYScaleDomain: chartState.fixedYScaleDomain,
+    });
+
+    // Update clip-path to accommodate any data changes
+    updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
+
+    // Re-render candlesticks with updated viewport
+    renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
+
+    console.log('✅ Auto-redraw re-render completed:', {
+      viewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
+      dataLength: chartState.allData.length,
+      transform: `${currentZoomTransform.x}, ${currentZoomTransform.y}, ${currentZoomTransform.k}`,
+    });
+  }, [
+    chartState.currentViewStart,
+    chartState.currentViewEnd,
+    chartState.allData,
+    chartState.chartLoaded,
+    chartState.dimensions,
+    chartState.fixedYScaleDomain,
+  ]);
 
   // Load saved timeframe from localStorage (but don't load data here)
   useEffect(() => {
