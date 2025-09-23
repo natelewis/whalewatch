@@ -100,7 +100,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     currentViewStart: 0,
     currentViewEnd: 0,
     isLive: false,
-    isWebSocketEnabled: false,
+    isWebSocketEnabled: true,
     isZooming: false,
     isLoading: false,
     error: null,
