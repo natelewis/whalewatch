@@ -25,6 +25,7 @@ import {
   applyAxisStyling,
   createViewportXScale,
   isFakeCandle,
+  calculateXAxisParams,
 } from '../utils/chartDataUtils';
 import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 import { smartDateRenderer } from '../utils/dateRenderer';
@@ -157,18 +158,49 @@ export const createChart = ({
   const interval = chartState.timeframe || '1m';
   const labelConfig = X_AXIS_LABEL_CONFIGS[interval] || X_AXIS_LABEL_CONFIGS['1m'];
 
+  // Use shared calculation logic for consistency across all rendering scenarios
+  // If viewport is not set (both are 0), use a reasonable default showing the last ~80 data points
+  let viewStart, viewEnd;
+  if (chartState.currentViewStart === 0 && chartState.currentViewEnd === 0) {
+    // Default viewport: show the last CHART_DATA_POINTS data points
+    viewEnd = allChartData.length - 1;
+    viewStart = Math.max(0, allChartData.length - CHART_DATA_POINTS);
+  } else {
+    viewStart = Math.max(0, Math.floor(chartState.currentViewStart || 0));
+    viewEnd = Math.min(allChartData.length - 1, Math.ceil(chartState.currentViewEnd || allChartData.length - 1));
+  }
+
+  console.log('🔍 INITIAL RENDERING DEBUG:', {
+    chartStateCurrentViewStart: chartState.currentViewStart,
+    chartStateCurrentViewEnd: chartState.currentViewEnd,
+    calculatedViewStart: viewStart,
+    calculatedViewEnd: viewEnd,
+    allChartDataLength: allChartData.length,
+    interval,
+    viewportSize: viewEnd - viewStart + 1,
+    usingDefaultViewport: chartState.currentViewStart === 0 && chartState.currentViewEnd === 0,
+  });
+
+  const xAxisParams = calculateXAxisParams({
+    viewStart,
+    viewEnd,
+    allChartData,
+    innerWidth: chartInnerWidth,
+    timeframe: interval,
+  });
+
   const xAxis = g
     .append('g')
     .attr('class', 'x-axis')
     .attr('transform', `translate(0,${chartInnerHeight})`)
     .call(
       createCustomTimeAxis(
-        xScale,
+        xAxisParams.viewportXScale as unknown as d3.ScaleLinear<number, number>,
         allChartData,
-        labelConfig.markerIntervalMinutes,
+        xAxisParams.labelConfig.markerIntervalMinutes,
         X_AXIS_MARKER_DATA_POINT_INTERVAL,
-        visibleData,
-        interval
+        xAxisParams.visibleSlice,
+        xAxisParams.interval
       )
     );
 
@@ -328,24 +360,29 @@ export const createChart = ({
       chartContentGroup.attr('transform', null);
     }
 
-    // Update X-axis during zoom with viewport scale and visible slice
+    // Update X-axis during zoom using shared calculation logic
     const xAxisGroup = g.select<SVGGElement>('.x-axis');
     if (!xAxisGroup.empty()) {
       const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
       xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-      const availableWidth = currInnerWidth;
-      const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, availableWidth]);
-      const sliceStart = Math.max(0, Math.min(currentData.length - 1, newStart));
-      const sliceEnd = Math.max(sliceStart, Math.min(currentData.length - 1, newEnd));
-      const visibleSlice = currentData.slice(sliceStart, sliceEnd + 1);
+
+      // Use shared calculation logic for consistency
+      const zoomXAxisParams = calculateXAxisParams({
+        viewStart: newStart,
+        viewEnd: newEnd,
+        allChartData: currentData,
+        innerWidth: currInnerWidth,
+        timeframe: interval,
+      });
+
       xAxisGroup.call(
         createCustomTimeAxis(
-          viewportXScale as unknown as d3.ScaleLinear<number, number>,
+          zoomXAxisParams.viewportXScale as unknown as d3.ScaleLinear<number, number>,
           currentData,
-          labelConfig.markerIntervalMinutes,
+          zoomXAxisParams.labelConfig.markerIntervalMinutes,
           X_AXIS_MARKER_DATA_POINT_INTERVAL,
-          visibleSlice,
-          interval
+          zoomXAxisParams.visibleSlice,
+          zoomXAxisParams.interval
         )
       );
       applyAxisStyling(xAxisGroup);
@@ -778,22 +815,24 @@ export const createChart = ({
       if (!xAxisGroup.empty()) {
         const { innerHeight: axisInnerHeight, innerWidth: axisInnerWidth } = calculateInnerDimensions(dims);
         xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-        const availableWidth = axisInnerWidth;
-        const viewportXScale = d3.scaleLinear().domain([newStart, newEnd]).range([0, availableWidth]);
-        const visibleSlice = data.slice(Math.max(0, newStart), Math.min(total - 1, newEnd) + 1);
 
-        // Get interval-based configuration for panning
-        const panInterval = chartState.timeframe || '1m';
-        const panLabelConfig = X_AXIS_LABEL_CONFIGS[panInterval] || X_AXIS_LABEL_CONFIGS['1m'];
+        // Use shared calculation logic for consistency
+        const panXAxisParams = calculateXAxisParams({
+          viewStart: newStart,
+          viewEnd: newEnd,
+          allChartData: data,
+          innerWidth: axisInnerWidth,
+          timeframe: chartState.timeframe || '1m',
+        });
 
         xAxisGroup.call(
           createCustomTimeAxis(
-            viewportXScale as unknown as d3.ScaleLinear<number, number>,
+            panXAxisParams.viewportXScale as unknown as d3.ScaleLinear<number, number>,
             data,
-            panLabelConfig.markerIntervalMinutes,
+            panXAxisParams.labelConfig.markerIntervalMinutes,
             X_AXIS_MARKER_DATA_POINT_INTERVAL,
-            visibleSlice,
-            panInterval
+            panXAxisParams.visibleSlice,
+            panXAxisParams.interval
           )
         );
         applyAxisStyling(xAxisGroup);

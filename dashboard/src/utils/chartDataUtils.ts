@@ -15,7 +15,7 @@ import {
   TimeframeConfig,
   DataRange,
 } from '../types';
-import { CHART_DATA_POINTS } from '../constants';
+import { CHART_DATA_POINTS, X_AXIS_LABEL_CONFIGS } from '../constants';
 
 /**
  * Remove duplicate entries by timestamp and sort by time
@@ -178,9 +178,67 @@ export const createIndexToTimeScale = (
 // Removed unused createXAxis (custom axis implementation in use)
 
 /**
+ * Shared parameters for consistent x-axis calculations across all rendering scenarios
+ * This ensures the same calculation logic is used for initial rendering, zooming, and panning
+ */
+export interface XAxisCalculationParams {
+  viewStart: number;
+  viewEnd: number;
+  allChartData: { timestamp: string }[];
+  innerWidth: number;
+  timeframe: string;
+}
+
+/**
+ * Calculate consistent x-axis parameters for all rendering scenarios
+ * This is the single source of truth for x-axis calculations
+ */
+export const calculateXAxisParams = (params: XAxisCalculationParams) => {
+  const { viewStart, viewEnd, allChartData, innerWidth, timeframe } = params;
+
+  console.log('🔍 calculateXAxisParams DEBUG:', {
+    viewStart,
+    viewEnd,
+    allChartDataLength: allChartData.length,
+    innerWidth,
+    timeframe,
+    viewportSize: viewEnd - viewStart + 1,
+  });
+
+  // Get interval-based configuration - use the same logic everywhere
+  const labelConfig = X_AXIS_LABEL_CONFIGS[timeframe] || X_AXIS_LABEL_CONFIGS['1m'];
+
+  // Create consistent viewport scale
+  const viewportXScale = d3.scaleLinear().domain([viewStart, viewEnd]).range([0, innerWidth]);
+
+  // Create consistent visible slice
+  const sliceStart = Math.max(0, Math.min(allChartData.length - 1, viewStart));
+  const sliceEnd = Math.max(sliceStart, Math.min(allChartData.length - 1, viewEnd));
+  const visibleSlice = allChartData.slice(sliceStart, sliceEnd + 1);
+
+  console.log('🔍 calculateXAxisParams RESULT:', {
+    sliceStart,
+    sliceEnd,
+    visibleSliceLength: visibleSlice.length,
+    labelConfigMarkerInterval: labelConfig.markerIntervalMinutes,
+    interval: timeframe,
+  });
+
+  return {
+    viewportXScale,
+    visibleSlice,
+    labelConfig,
+    interval: timeframe,
+  };
+};
+
+/**
  * Create a custom X-axis that properly handles time compression
  * Positions ticks based on data indices to align with candlesticks.
  * Supports optional marker/data-point intervals and visible data.
+ *
+ * This function now uses the shared calculation logic to ensure consistency
+ * between initial rendering, zooming, and panning.
  */
 export const createCustomTimeAxis = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
@@ -190,10 +248,33 @@ export const createCustomTimeAxis = (
   visibleData?: { timestamp: string }[],
   interval?: string
 ): d3.Axis<number | Date> => {
-  const timeTicks =
-    visibleData && visibleData.length > 0
-      ? memoizedGenerateVisibleTimeBasedTicks(visibleData, markerIntervalMinutes, allChartData)
-      : generateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
+  console.log('🔍 createCustomTimeAxis DEBUG:', {
+    allChartDataLength: allChartData.length,
+    visibleDataLength: visibleData?.length || 0,
+    markerIntervalMinutes,
+    dataPointInterval,
+    interval,
+    scaleDomain: transformedLinearScale.domain(),
+    scaleRange: transformedLinearScale.range(),
+  });
+
+  // Always use visible data for tick generation when available to ensure consistency
+  // This prevents generating ticks for the entire dataset during initial rendering
+  const dataForTickGeneration = visibleData && visibleData.length > 0 ? visibleData : allChartData;
+
+  console.log('🔍 createCustomTimeAxis TICK GENERATION:', {
+    dataForTickGenerationLength: dataForTickGeneration.length,
+    usingVisibleData: dataForTickGeneration === visibleData,
+    usingAllData: dataForTickGeneration === allChartData,
+  });
+
+  const timeTicks = memoizedGenerateVisibleTimeBasedTicks(dataForTickGeneration, markerIntervalMinutes, allChartData);
+
+  console.log('🔍 createCustomTimeAxis TICKS GENERATED:', {
+    tickCount: timeTicks.length,
+    firstTick: timeTicks[0]?.toISOString(),
+    lastTick: timeTicks[timeTicks.length - 1]?.toISOString(),
+  });
 
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {
     selection.each(function () {

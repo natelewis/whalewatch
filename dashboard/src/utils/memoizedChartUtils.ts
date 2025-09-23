@@ -632,7 +632,16 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   markerIntervalMinutes: number = X_AXIS_MARKER_INTERVAL,
   allChartData?: { timestamp: string }[]
 ): Date[] => {
+  console.log('🔍 memoizedGenerateVisibleTimeBasedTicks DEBUG:', {
+    visibleDataLength: visibleData?.length || 0,
+    markerIntervalMinutes,
+    allChartDataLength: allChartData?.length || 0,
+    firstVisibleTimestamp: visibleData?.[0]?.timestamp,
+    lastVisibleTimestamp: visibleData?.[visibleData.length - 1]?.timestamp,
+  });
+
   if (!visibleData || visibleData.length === 0) {
+    console.log('🔍 memoizedGenerateVisibleTimeBasedTicks: No visible data, returning empty array');
     return [];
   }
 
@@ -849,6 +858,13 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
 
   calculationCache.set(cacheKey, ticks);
   cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
+
+  console.log('🔍 memoizedGenerateVisibleTimeBasedTicks RESULT:', {
+    tickCount: ticks.length,
+    firstTick: ticks[0]?.toISOString(),
+    lastTick: ticks[ticks.length - 1]?.toISOString(),
+  });
+
   return ticks;
 };
 

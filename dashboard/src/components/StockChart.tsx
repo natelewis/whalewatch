@@ -921,11 +921,23 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       allDataLength: chartState.allData.length,
       chartExists: chartState.chartExists,
       timeframe: chartState.timeframe,
+      currentViewStart: chartState.currentViewStart,
+      currentViewEnd: chartState.currentViewEnd,
+      viewportSize: chartState.currentViewEnd - chartState.currentViewStart + 1,
     });
 
     const gElementExists = svgRef.current ? !d3.select(svgRef.current).select('g').empty() : false;
+
+    // Check if viewport is properly set (not showing entire dataset)
+    const viewportSize = chartState.currentViewEnd - chartState.currentViewStart + 1;
+    const isViewportProperlySet = viewportSize < chartState.allData.length && viewportSize > 0;
+
     const shouldCreate =
-      isValidData && chartState.allData.length > 0 && svgRef.current && (!chartState.chartExists || !gElementExists);
+      isValidData &&
+      chartState.allData.length > 0 &&
+      svgRef.current &&
+      (!chartState.chartExists || !gElementExists) &&
+      isViewportProperlySet; // Only create chart if viewport is properly set
 
     // Force recreation when chartCreatedRef.current is false (timeframe change)
     const shouldForceRecreate =
@@ -939,6 +951,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       allDataLength: chartState.allData.length,
       chartExists: chartState.chartExists,
       svgRefExists: !!svgRef.current,
+      viewportSize,
+      isViewportProperlySet,
+      currentViewStart: chartState.currentViewStart,
+      currentViewEnd: chartState.currentViewEnd,
     });
     // Removed verbose chart creation condition logging
 
