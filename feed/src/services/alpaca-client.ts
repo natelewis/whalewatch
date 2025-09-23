@@ -19,11 +19,12 @@ export class AlpacaClient {
   constructor() {
     this.apiKey = config.alpaca.apiKey;
     this.secretKey = config.alpaca.secretKey;
-    
+
     if (!this.apiKey || !this.secretKey) {
-      throw new Error('Alpaca API credentials not configured. Please set ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables.');
+      throw new Error(
+        'Alpaca API credentials not configured. Please set ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables.'
+      );
     }
-    
 
     this.dataApi = axios.create({
       baseURL: config.alpaca.dataUrl,
@@ -123,11 +124,7 @@ export class AlpacaClient {
     });
   }
 
-  async getHistoricalTrades(
-    symbol: string,
-    start: Date,
-    end: Date
-  ): Promise<AlpacaTrade[]> {
+  async getHistoricalTrades(symbol: string, start: Date, end: Date): Promise<AlpacaTrade[]> {
     return this.rateLimiter.execute(async () => {
       try {
         const startStr = start.toISOString();
@@ -194,11 +191,7 @@ export class AlpacaClient {
     });
   }
 
-  async getHistoricalQuotes(
-    symbol: string,
-    start: Date,
-    end: Date
-  ): Promise<AlpacaQuote[]> {
+  async getHistoricalQuotes(symbol: string, start: Date, end: Date): Promise<AlpacaQuote[]> {
     return this.rateLimiter.execute(async () => {
       try {
         const startStr = start.toISOString();
@@ -282,6 +275,28 @@ export class AlpacaClient {
         return response.data.trade || null;
       } catch (error) {
         console.error(`Error fetching latest trade for ${symbol}:`, error);
+        return null;
+      }
+    });
+  }
+
+  async getLatestBar(symbol: string): Promise<AlpacaBar | null> {
+    return this.rateLimiter.execute(async () => {
+      try {
+        const endpoint = `/v2/stocks/${symbol}/bars/latest`;
+        const requestParams = {
+          feed: 'iex',
+        };
+
+        this.logRequest('GET', endpoint, requestParams);
+
+        const response = await this.dataApi.get<{ bar: AlpacaBar }>(endpoint, {
+          params: requestParams,
+        });
+
+        return response.data.bar || null;
+      } catch (error) {
+        console.error(`Error fetching latest bar for ${symbol}:`, error);
         return null;
       }
     });

@@ -22,21 +22,24 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const connect = () => {
     const token = localStorage.getItem('token');
     if (!token) {
+      console.warn('WebSocket connection skipped: No authentication token found');
       return;
     }
 
     const wsUrl = `${WS_BASE_URL}/ws?token=${token}`;
+    console.log('🔌 Attempting WebSocket connection to:', wsUrl);
+
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('✅ WebSocket connected successfully');
       setIsConnected(true);
       reconnectAttempts.current = 0;
       options.onOpen?.();
     };
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
+    ws.onclose = event => {
+      console.log('❌ WebSocket disconnected:', event.code, event.reason);
       setIsConnected(false);
       options.onClose?.();
 
@@ -46,14 +49,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log(`Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`);
+          console.log(`🔄 Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`);
           connect();
         }, delay);
+      } else {
+        console.error('❌ Max reconnection attempts reached');
       }
     };
 
     ws.onerror = error => {
-      console.error('WebSocket error:', error);
+      console.error('❌ WebSocket error:', error);
       options.onError?.(error);
     };
 
@@ -63,10 +68,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       });
 
       if (result.isOk()) {
+        console.log('📥 WebSocket message received:', result.value);
         setLastMessage(result.value);
         options.onMessage?.(result.value);
       } else {
-        console.error('Error parsing WebSocket message:', result.error);
+        console.error('❌ Error parsing WebSocket message:', result.error);
       }
     };
 

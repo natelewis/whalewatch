@@ -1,7 +1,6 @@
 import { db } from '../db/connection';
 import { PolygonClient } from './polygon-client';
 import { AlpacaClient } from './alpaca-client';
-import { AlpacaWebSocketClient } from './alpaca-websocket-client';
 import { UpsertService } from '../utils/upsert';
 import { StockAggregate, SyncState } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
@@ -10,33 +9,32 @@ import { config } from '../config';
 
 export class DataIngestionService {
   private alpacaClient: AlpacaClient;
-  private wsClient: AlpacaWebSocketClient;
   private isIngesting = false;
   private syncStates = new Map<string, SyncState>();
+  private pollingInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     this.alpacaClient = new AlpacaClient();
-    this.wsClient = new AlpacaWebSocketClient();
-    this.setupWebSocketHandlers();
   }
 
-  private setupWebSocketHandlers(): void {
-    this.wsClient.setEventHandlers({
-      onQuote: (quote: unknown, symbol: string) => this.handleAlpacaQuote(quote as AlpacaQuote, symbol),
-      onBar: (bar: unknown, symbol: string) => this.handleAlpacaBar(bar as AlpacaBar, symbol),
-      onError: (error: Error) => {
-        console.error('WebSocket error:', error);
-        this.handleIngestionError(error);
-      },
-      onConnect: () => {
-        console.log('WebSocket connected, starting data ingestion');
-        this.startStreaming();
-      },
-      onDisconnect: () => {
-        console.log('WebSocket disconnected, stopping data ingestion');
-        this.isIngesting = false;
-      },
-    });
+  private startPolling(): void {
+    console.log(`Starting polling for real-time data every 10 seconds for ${config.tickers.length} tickers`);
+
+    // Poll immediately first
+    this.pollLatestData();
+
+    // Then poll every 10 seconds
+    this.pollingInterval = setInterval(() => {
+      this.pollLatestData();
+    }, 10000);
+  }
+
+  private stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      console.log('Stopped polling for real-time data');
+    }
   }
 
   async startIngestion(): Promise<void> {
@@ -52,8 +50,8 @@ export class DataIngestionService {
       // Catch up on missing data before starting real-time
       await this.catchUpData();
 
-      // Connect to WebSocket
-      await this.wsClient.connect();
+      // Start polling for real-time data
+      this.startPolling();
 
       this.isIngesting = true;
       console.log('Data ingestion started successfully');
@@ -66,7 +64,7 @@ export class DataIngestionService {
   async stopIngestion(): Promise<void> {
     console.log('Stopping data ingestion...');
     this.isIngesting = false;
-    await this.wsClient.disconnect();
+    this.stopPolling();
     await db.disconnect();
     console.log('Data ingestion stopped');
   }
@@ -189,45 +187,41 @@ export class DataIngestionService {
     console.log(`Updated sync state for ${ticker}`);
   }
 
-  private startStreaming(): void {
-    // Subscribe to quotes and bars for all tickers
-    this.wsClient.subscribeToQuotes(config.tickers);
-    this.wsClient.subscribeToBars(config.tickers);
-
-    console.log(`Subscribed to real-time data for ${config.tickers.length} tickers`);
-  }
-
-  private async handleAlpacaQuote(quote: AlpacaQuote, symbol: string): Promise<void> {
+  private async pollLatestData(): Promise<void> {
     if (!this.isIngesting) return;
 
     try {
-      // Alpaca quotes don't directly map to our database schema
-      // We could store them in a separate quotes table if needed
-      console.log(`Received quote for ${symbol}: bid=${quote.bp}, ask=${quote.ap}`);
+      console.log('Polling for latest data...');
+
+      for (const ticker of config.tickers) {
+        try {
+          // Get the latest bar for this ticker
+          const latestBar = await this.alpacaClient.getLatestBar(ticker);
+
+          if (latestBar) {
+            const stockAggregate: StockAggregate = {
+              symbol: ticker,
+              timestamp: new Date(latestBar.t), // Convert ISO string to Date
+              open: latestBar.o,
+              high: latestBar.h,
+              low: latestBar.l,
+              close: latestBar.c,
+              volume: latestBar.v,
+              vwap: latestBar.vw,
+              transaction_count: latestBar.n,
+            };
+
+            await UpsertService.upsertStockAggregate(stockAggregate);
+            console.log(
+              `✓ Latest data for ${ticker}: $${stockAggregate.close} at ${stockAggregate.timestamp.toISOString()}`
+            );
+          }
+        } catch (error) {
+          console.error(`Error polling latest data for ${ticker}:`, error);
+        }
+      }
     } catch (error) {
-      console.error(`Error handling quote for ${symbol}:`, error);
-    }
-  }
-
-  private async handleAlpacaBar(bar: AlpacaBar, symbol: string): Promise<void> {
-    if (!this.isIngesting) return;
-
-    try {
-      const stockAggregate: StockAggregate = {
-        symbol: symbol,
-        timestamp: new Date(bar.t), // Convert ISO string to Date
-        open: bar.o,
-        high: bar.h,
-        low: bar.l,
-        close: bar.c,
-        volume: bar.v,
-        vwap: bar.vw,
-        transaction_count: bar.n,
-      };
-
-      await UpsertService.upsertStockAggregate(stockAggregate);
-    } catch (error) {
-      console.error(`Error handling bar for ${symbol}:`, error);
+      console.error('Error during polling:', error);
     }
   }
 

@@ -44,7 +44,7 @@ export class UpsertService {
             existingTimestamp,
           ]
         );
-        console.log(`Updated stock aggregate: ${aggregate.symbol} at ${existingTimestamp}`);
+        // Record updated successfully
       } else {
         // Insert new record
         await db.query(
@@ -62,7 +62,7 @@ export class UpsertService {
             aggregate.transaction_count,
           ]
         );
-        console.log(`Inserted new stock aggregate: ${aggregate.symbol} at ${aggregate.timestamp}`);
+        // Record inserted successfully
       }
     } catch (error) {
       console.error('Error upserting stock aggregate:', error);
