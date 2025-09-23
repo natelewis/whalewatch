@@ -268,7 +268,12 @@ export const createCustomTimeAxis = (
     usingAllData: dataForTickGeneration === allChartData,
   });
 
-  const timeTicks = memoizedGenerateVisibleTimeBasedTicks(dataForTickGeneration, markerIntervalMinutes, allChartData);
+  const timeTicks = memoizedGenerateVisibleTimeBasedTicks(
+    dataForTickGeneration,
+    markerIntervalMinutes,
+    allChartData,
+    interval
+  );
 
   console.log('🔍 createCustomTimeAxis TICKS GENERATED:', {
     tickCount: timeTicks.length,

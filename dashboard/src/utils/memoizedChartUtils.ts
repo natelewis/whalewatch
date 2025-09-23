@@ -630,7 +630,8 @@ export const memoizedGenerateTimeBasedTicks = (
 export const memoizedGenerateVisibleTimeBasedTicks = (
   visibleData: { timestamp: string }[],
   markerIntervalMinutes: number = X_AXIS_MARKER_INTERVAL,
-  allChartData?: { timestamp: string }[]
+  allChartData?: { timestamp: string }[],
+  interval?: string
 ): Date[] => {
   console.log('🔍 memoizedGenerateVisibleTimeBasedTicks DEBUG:', {
     visibleDataLength: visibleData?.length || 0,
@@ -648,7 +649,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   const dataKey = `${visibleData.length}-${visibleData[0]?.timestamp}-${
     visibleData[visibleData.length - 1]?.timestamp
   }`;
-  const cacheKey = `visibleTimeTicks-${dataKey}-${markerIntervalMinutes}`;
+  const cacheKey = `visibleTimeTicks-${dataKey}-${markerIntervalMinutes}-${interval || 'default'}`;
 
   if (calculationCache.has(cacheKey)) {
     return calculationCache.get(cacheKey) as Date[];
@@ -856,16 +857,33 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
     }
   }
 
-  calculationCache.set(cacheKey, ticks);
+  // Apply maxVisibleLabels limit if configured for this interval
+  let finalTicks = ticks;
+  if (interval) {
+    const labelConfig = X_AXIS_LABEL_CONFIGS[interval];
+    if (labelConfig?.maxVisibleLabels && ticks.length > labelConfig.maxVisibleLabels) {
+      // Keep the rightmost (most recent) labels, drop the far left ones
+      finalTicks = ticks.slice(-labelConfig.maxVisibleLabels);
+      
+      console.log('🔍 memoizedGenerateVisibleTimeBasedTicks LABEL LIMITING:', {
+        originalTickCount: ticks.length,
+        maxVisibleLabels: labelConfig.maxVisibleLabels,
+        finalTickCount: finalTicks.length,
+        droppedLeftLabels: ticks.length - finalTicks.length,
+      });
+    }
+  }
+
+  calculationCache.set(cacheKey, finalTicks);
   cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
 
   console.log('🔍 memoizedGenerateVisibleTimeBasedTicks RESULT:', {
-    tickCount: ticks.length,
-    firstTick: ticks[0]?.toISOString(),
-    lastTick: ticks[ticks.length - 1]?.toISOString(),
+    tickCount: finalTicks.length,
+    firstTick: finalTicks[0]?.toISOString(),
+    lastTick: finalTicks[finalTicks.length - 1]?.toISOString(),
   });
 
-  return ticks;
+  return finalTicks;
 };
 
 /**

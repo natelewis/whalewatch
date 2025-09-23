@@ -75,6 +75,7 @@ export interface XAxisLabelConfig {
   labelFormat: 'time-only' | 'date-only' | 'date-time' | 'short' | 'medium' | 'long';
   showSeconds?: boolean;
   timezone?: string;
+  maxVisibleLabels?: number; // Maximum number of visible labels on the X-axis
 }
 
 export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
@@ -102,6 +103,7 @@ export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
     markerIntervalMinutes: 60 * 24 * 30, // Show labels once a month
     labelFormat: 'date-only',
     showSeconds: false,
+    maxVisibleLabels: 4,
   },
   '1w': {
     markerIntervalMinutes: 60 * 24 * 30 * 3, // Show labels once every 3 months
