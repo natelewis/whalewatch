@@ -611,8 +611,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       { value: '30m', label: '30m', limit: DEFAULT_CHART_DATA_POINTS },
       { value: '1h', label: '1h', limit: DEFAULT_CHART_DATA_POINTS },
       { value: '1d', label: '1d', limit: DEFAULT_CHART_DATA_POINTS },
-      { value: '1w', label: '1w', limit: DEFAULT_CHART_DATA_POINTS },
-      { value: '1M', label: '1M', limit: DEFAULT_CHART_DATA_POINTS },
     ],
     []
   );

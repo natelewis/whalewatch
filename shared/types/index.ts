@@ -310,21 +310,7 @@ export interface ChartQuoteMessage extends WebSocketMessage {
 // CHART TYPES
 // ============================================================================
 
-export type ChartTimeframe =
-  | '1m'
-  | '15m'
-  | '30m'
-  | '1h'
-  | '1H'
-  | '1d'
-  | '1D'
-  | '1w'
-  | '1W'
-  | '3M'
-  | '6M'
-  | '1Y'
-  | '1M'
-  | 'ALL';
+export type ChartTimeframe = '1m' | '15m' | '30m' | '1h' | '1H' | '1d' | '1D' | '3M' | '6M' | '1Y' | 'ALL';
 
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 

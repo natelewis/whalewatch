@@ -195,8 +195,6 @@ export const AGGREGATION_INTERVALS = {
   '2h': 120,
   '4h': 240,
   '1d': 1440,
-  '1w': 10080,
-  '1M': 43200, // 30 days
 } as const;
 
 export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;

@@ -285,12 +285,9 @@ export type ChartTimeframe =
   | '4H'
   | '1d'
   | '1D'
-  | '1w'
-  | '1W'
   | '3M'
   | '6M'
   | '1Y'
-  | '1M'
   | 'ALL';
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 export interface ChartDimensions {

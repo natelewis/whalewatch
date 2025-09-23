@@ -424,7 +424,6 @@ describe('chartDataUtils', () => {
         expect(getTimeframeIntervalMs('15m')).toBe(15 * 60 * 1000);
         expect(getTimeframeIntervalMs('1h')).toBe(60 * 60 * 1000);
         expect(getTimeframeIntervalMs('1d')).toBe(24 * 60 * 60 * 1000);
-        expect(getTimeframeIntervalMs('1w')).toBe(7 * 24 * 60 * 60 * 1000);
       });
 
       it('should default to 1 minute for unknown timeframes', () => {

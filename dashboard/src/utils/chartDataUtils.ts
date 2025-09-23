@@ -417,12 +417,9 @@ export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTime
       '1H': 60 * 60 * 1000, // 1 hour (alternative)
       '1d': 24 * 60 * 60 * 1000, // 1 day
       '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
-      '1w': 7 * 24 * 60 * 60 * 1000, // 1 week
-      '1W': 7 * 24 * 60 * 60 * 1000, // 1 week (alternative)
       '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
       '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
       '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
-      '1M': 30 * 24 * 60 * 60 * 1000, // 1 month (30 days)
       ALL: 0, // All data
     };
     return intervalMap[tf] || 60 * 60 * 1000; // Default to 1 hour
@@ -503,12 +500,9 @@ export const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
     '1H': 60 * 60 * 1000, // 1 hour (alternative)
     '1d': 24 * 60 * 60 * 1000, // 1 day
     '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
-    '1w': 7 * 24 * 60 * 60 * 1000, // 1 week
-    '1W': 7 * 24 * 60 * 60 * 1000, // 1 week (alternative)
     '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
     '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
     '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
-    '1M': 30 * 24 * 60 * 60 * 1000, // 1 month (30 days)
     ALL: 60 * 1000, // Default to 1 minute for ALL
   };
   return intervalMap[timeframe] || 60 * 1000; // Default to 1 minute

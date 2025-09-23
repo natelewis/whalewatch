@@ -4,7 +4,7 @@ import { X_AXIS_LABEL_CONFIGS, XAxisLabelConfig } from '../constants';
 describe('X-axis label configuration', () => {
   describe('X_AXIS_LABEL_CONFIGS', () => {
     it('should have configurations for all supported intervals', () => {
-      const expectedIntervals = ['1m', '15m', '30m', '1h', '1d', '1w', '1M'];
+      const expectedIntervals = ['1m', '15m', '30m', '1h', '1d'];
 
       expectedIntervals.forEach(interval => {
         expect(X_AXIS_LABEL_CONFIGS).toHaveProperty(interval);
@@ -32,8 +32,8 @@ describe('X-axis label configuration', () => {
       // 1m: 15-minute markers
       expect(X_AXIS_LABEL_CONFIGS['1m'].markerIntervalMinutes).toBe(15);
 
-      // 15m: 90-minute markers
-      expect(X_AXIS_LABEL_CONFIGS['15m'].markerIntervalMinutes).toBe(90);
+      // 15m: 8-hour markers (480 minutes)
+      expect(X_AXIS_LABEL_CONFIGS['15m'].markerIntervalMinutes).toBe(480);
 
       // 30m: 8-hour markers
       expect(X_AXIS_LABEL_CONFIGS['30m'].markerIntervalMinutes).toBe(480);
@@ -43,12 +43,6 @@ describe('X-axis label configuration', () => {
 
       // 1d: monthly markers
       expect(X_AXIS_LABEL_CONFIGS['1d'].markerIntervalMinutes).toBe(43200);
-
-      // 1w: 14-day markers (2 weeks)
-      expect(X_AXIS_LABEL_CONFIGS['1w'].markerIntervalMinutes).toBe(20160);
-
-      // 1M: yearly markers (12 months)
-      expect(X_AXIS_LABEL_CONFIGS['1M'].markerIntervalMinutes).toBe(518400);
     });
 
     it('should have appropriate label formats for each timeframe', () => {
@@ -62,8 +56,6 @@ describe('X-axis label configuration', () => {
 
       // Long timeframes should show date only
       expect(X_AXIS_LABEL_CONFIGS['1d'].labelFormat).toBe('date-only');
-      expect(X_AXIS_LABEL_CONFIGS['1w'].labelFormat).toBe('date-only');
-      expect(X_AXIS_LABEL_CONFIGS['1M'].labelFormat).toBe('date-only');
     });
 
     it('should not show seconds by default', () => {

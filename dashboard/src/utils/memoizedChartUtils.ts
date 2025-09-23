@@ -358,7 +358,7 @@ const findFirstTimeForDate = (targetDate: Date, allChartData: { timestamp: strin
 const alignToTimeBoundary = (date: Date, intervalMinutes: number, allChartData?: { timestamp: string }[]): Date => {
   const aligned = new Date(date);
 
-  // For date-only formats (1d, 1w, 1M), find the first available time for that date
+  // For date-only formats (1d), find the first available time for that date
   // Ignore interval minutes - just find the first time for the date
   if (intervalMinutes >= 1440 && allChartData) {
     // 1 day or more
@@ -540,7 +540,7 @@ export const memoizedGenerateTimeBasedTicks = (
         }
       }
     } else if (tradingDaysInterval >= 360) {
-      // For yearly intervals (1M timeframe), align to month boundaries (1st of each month)
+      // For yearly intervals, align to month boundaries (1st of each month)
       const firstTradingDay = sortedTradingDays[0];
       const firstMonth = new Date(firstTradingDay.getFullYear(), firstTradingDay.getMonth(), 1);
 
@@ -661,7 +661,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   const startTime = new Date(visibleData[0].timestamp);
   const endTime = new Date(visibleData[visibleData.length - 1].timestamp);
 
-  // For date-only formats (1d, 1w, 1M), generate ticks at the specified trading day interval
+  // For date-only formats (1d), generate ticks at the specified trading day interval
   if (markerIntervalMinutes >= 1440) {
     // Generate ticks at the specified trading day interval
     const tradingDaysInterval = Math.floor(markerIntervalMinutes / (60 * 24)); // Convert minutes to days
@@ -780,7 +780,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
         }
       }
     } else if (tradingDaysInterval >= 360) {
-      // For yearly intervals (1M timeframe), align to month boundaries (1st of each month)
+      // For yearly intervals, align to month boundaries (1st of each month)
       const firstTradingDay = sortedTradingDays[0];
       const firstMonth = new Date(firstTradingDay.getFullYear(), firstTradingDay.getMonth(), 1);
 
@@ -864,7 +864,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
     if (labelConfig?.maxVisibleLabels && ticks.length > labelConfig.maxVisibleLabels) {
       // Keep the rightmost (most recent) labels, drop the far left ones
       finalTicks = ticks.slice(-labelConfig.maxVisibleLabels);
-      
+
       console.log('🔍 memoizedGenerateVisibleTimeBasedTicks LABEL LIMITING:', {
         originalTickCount: ticks.length,
         maxVisibleLabels: labelConfig.maxVisibleLabels,

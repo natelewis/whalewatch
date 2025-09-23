@@ -137,20 +137,6 @@ describe('Chart Routes', () => {
           order_direction: 'DESC',
         })
       );
-
-      // Test 1 week timeframe
-      await request(app)
-        .get('/api/chart/AAPL?interval=1w&start_time=2024-01-01T10:00:00Z&direction=future')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
-        'AAPL',
-        expect.objectContaining({
-          start_time: '2024-01-01T10:00:00.000Z',
-          order_by: 'timestamp',
-          order_direction: 'ASC',
-        })
-      );
     });
 
     it('should use provided start_time when available', async () => {
