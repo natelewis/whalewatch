@@ -79,17 +79,14 @@ export class AlpacaService {
         case '1m':
           startTime = new Date(endTime.getTime() - limit * 60 * 1000);
           break;
-        case '5m':
-          startTime = new Date(endTime.getTime() - limit * 5 * 60 * 1000);
+        case '15m':
+          startTime = new Date(endTime.getTime() - limit * 15 * 60 * 1000);
           break;
         case '15m':
           startTime = new Date(endTime.getTime() - limit * 15 * 60 * 1000);
           break;
         case '1H':
           startTime = new Date(endTime.getTime() - limit * 60 * 60 * 1000);
-          break;
-        case '4H':
-          startTime = new Date(endTime.getTime() - limit * 4 * 60 * 60 * 1000);
           break;
         case '1D':
           startTime = new Date(endTime.getTime() - limit * 24 * 60 * 60 * 1000);
@@ -199,14 +196,10 @@ export class AlpacaService {
   private mapTimeframe(timeframe: ChartTimeframe): string {
     const mapping: Record<ChartTimeframe, string> = {
       '1m': '1Min',
-      '5m': '5Min',
       '15m': '15Min',
       '30m': '30Min',
       '1h': '1Hour',
       '1H': '1Hour',
-      '2h': '2Hour',
-      '4h': '4Hour',
-      '4H': '4Hour',
       '1d': '1Day',
       '1D': '1Day',
       '1w': '1Week',

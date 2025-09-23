@@ -9,7 +9,7 @@ const router = Router();
  */
 export const AGGREGATION_INTERVALS = {
   '1m': 1,
-  '5m': 5,
+  '15m': 15,
   '30m': 30,
   '1h': 60,
   '2h': 120,
@@ -38,125 +38,6 @@ interface ChartQueryParams {
  */
 function getIntervalMinutes(interval: AggregationInterval): number {
   return AGGREGATION_INTERVALS[interval];
-}
-
-/**
- * Aggregate stock data with the new system that skips intervals without data
- */
-function aggregateDataWithIntervals(data: QuestDBStockAggregate[], params: ChartQueryParams): QuestDBStockAggregate[] {
-  if (data.length === 0) {
-    return data;
-  }
-
-  const intervalMinutes = getIntervalMinutes(params.interval);
-  const intervalMs = intervalMinutes * 60 * 1000;
-  const startTime = new Date(params.startTime).getTime();
-
-  // Sort data by timestamp to ensure proper aggregation
-  const sortedData = [...data].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-  // For 1-minute intervals, no aggregation needed - just return the data
-  if (intervalMinutes === 1) {
-    const totalPointsToCollect = params.viewBasedLoading
-      ? (params.viewSize || params.limit) * 3 // 1 view before + 1 current + 1 after
-      : params.limit;
-
-    // For 1-minute intervals, the data is already filtered by the time range query
-    // Just return the appropriate slice based on direction
-    if (params.direction === 'past') {
-      return sortedData.slice(-totalPointsToCollect);
-    } else {
-      return sortedData.slice(0, totalPointsToCollect);
-    }
-  }
-
-  // Use time-based bucketing for proper aggregation
-  const buckets = new Map<number, QuestDBStockAggregate[]>();
-
-  for (const item of sortedData) {
-    const itemTime = new Date(item.timestamp).getTime();
-    // Create buckets based on time intervals (floor to the nearest interval)
-    const bucketTime = Math.floor(itemTime / intervalMs) * intervalMs;
-
-    if (!buckets.has(bucketTime)) {
-      buckets.set(bucketTime, []);
-    }
-    const bucket = buckets.get(bucketTime);
-    if (bucket) {
-      bucket.push(item);
-    }
-  }
-
-  // Convert buckets to aggregated data based on direction
-  const aggregatedData: QuestDBStockAggregate[] = [];
-  let sortedBuckets: [number, QuestDBStockAggregate[]][];
-
-  if (params.direction === 'past') {
-    // For past direction, work backwards from start_time
-    sortedBuckets = Array.from(buckets.entries())
-      .sort(([a], [b]) => b - a) // Sort descending to work backwards
-      .filter(([bucketTime]) => bucketTime <= startTime); // Only include buckets up to start_time
-  } else {
-    // For future direction, work forwards from start_time
-    sortedBuckets = Array.from(buckets.entries())
-      .sort(([a], [b]) => a - b) // Sort ascending to work forwards
-      .filter(([bucketTime]) => bucketTime >= startTime); // Only include buckets from start_time onwards
-  }
-
-  let dataPointsCollected = 0;
-  const totalPointsToCollect = params.viewBasedLoading
-    ? (params.viewSize || params.limit) * 3 // 1 view before + 1 current + 1 after
-    : params.limit;
-
-  for (const [bucketTime, bucketData] of sortedBuckets) {
-    if (dataPointsCollected >= totalPointsToCollect) {
-      break;
-    }
-
-    if (bucketData.length > 0) {
-      const aggregated = aggregateGroup(bucketData);
-      // Use the bucket time as the timestamp for consistency
-      aggregated.timestamp = new Date(bucketTime).toISOString();
-
-      if (params.direction === 'past') {
-        aggregatedData.unshift(aggregated); // Add to beginning to maintain chronological order
-      } else {
-        aggregatedData.push(aggregated); // Add to end for future direction
-      }
-      dataPointsCollected++;
-    }
-  }
-
-  return aggregatedData;
-}
-
-/**
- * Aggregate a group of stock data into a single bar
- */
-function aggregateGroup(group: QuestDBStockAggregate[]): QuestDBStockAggregate {
-  if (group.length === 1) {
-    return group[0];
-  }
-
-  // Sort by timestamp to ensure proper order
-  const sortedGroup = group.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-  const first = sortedGroup[0];
-  const last = sortedGroup[sortedGroup.length - 1];
-
-  return {
-    symbol: first.symbol,
-    timestamp: first.timestamp, // Use the first timestamp as the bar timestamp
-    open: first.open,
-    high: Math.max(...sortedGroup.map(item => item.high)),
-    low: Math.min(...sortedGroup.map(item => item.low)),
-    close: last.close,
-    volume: sortedGroup.reduce((sum, item) => sum + item.volume, 0),
-    vwap:
-      sortedGroup.reduce((sum, item) => sum + item.vwap * item.volume, 0) /
-      sortedGroup.reduce((sum, item) => sum + item.volume, 0),
-    transaction_count: sortedGroup.reduce((sum, item) => sum + item.transaction_count, 0),
-  };
 }
 
 // Get chart data for a symbol from QuestDB with new parameters

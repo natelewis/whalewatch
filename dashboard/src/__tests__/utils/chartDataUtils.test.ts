@@ -421,7 +421,7 @@ describe('chartDataUtils', () => {
     describe('getTimeframeIntervalMs', () => {
       it('should return correct interval for different timeframes', () => {
         expect(getTimeframeIntervalMs('1m')).toBe(60 * 1000);
-        expect(getTimeframeIntervalMs('5m')).toBe(5 * 60 * 1000);
+        expect(getTimeframeIntervalMs('15m')).toBe(15 * 60 * 1000);
         expect(getTimeframeIntervalMs('1h')).toBe(60 * 60 * 1000);
         expect(getTimeframeIntervalMs('1d')).toBe(24 * 60 * 60 * 1000);
         expect(getTimeframeIntervalMs('1w')).toBe(7 * 24 * 60 * 60 * 1000);

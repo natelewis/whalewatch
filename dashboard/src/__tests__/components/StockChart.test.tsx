@@ -332,7 +332,9 @@ describe('StockChart', () => {
       .getAllByRole('button')
       .filter(
         button =>
-          button.textContent?.includes('1m') || button.textContent?.includes('5m') || button.textContent?.includes('1h')
+          button.textContent?.includes('1m') ||
+          button.textContent?.includes('15m') ||
+          button.textContent?.includes('1h')
       );
 
     expect(timeframeButtons.length).toBeGreaterThan(0);
@@ -436,23 +438,23 @@ describe('StockChart', () => {
   });
 
   it('loads saved timeframe from localStorage', () => {
-    localStorageMock.getItem.mockReturnValue('"5m"'); // JSON stringified
+    localStorageMock.getItem.mockReturnValue('"15m"'); // JSON stringified
 
     render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
 
     expect(localStorageMock.getItem).toHaveBeenCalledWith('chartTimeframe');
     // The component uses the saved timeframe from localStorage
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '5m' as const);
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '15m' as const);
   });
 
   it('saves timeframe to localStorage when changed', () => {
     render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
 
-    const timeframeButton = screen.getByText('5m');
+    const timeframeButton = screen.getByText('15m');
     fireEvent.click(timeframeButton);
 
     // The component saves the timeframe as a JSON string
-    expect(localStorageMock.setItem).toHaveBeenCalledWith('chartTimeframe', '"5m"');
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('chartTimeframe', '"15m"');
   });
 
   it('subscribes to WebSocket when live mode is enabled', () => {

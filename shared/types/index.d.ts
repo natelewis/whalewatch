@@ -276,7 +276,6 @@ export interface ChartQuoteMessage extends WebSocketMessage {
 }
 export type ChartTimeframe =
   | '1m'
-  | '5m'
   | '15m'
   | '30m'
   | '1h'

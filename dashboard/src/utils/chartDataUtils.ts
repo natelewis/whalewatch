@@ -325,7 +325,6 @@ export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTime
   const getIntervalMs = (tf: ChartTimeframe): number => {
     const intervalMap: Record<ChartTimeframe, number> = {
       '1m': 60 * 1000, // 1 minute
-      '5m': 5 * 60 * 1000, // 5 minutes
       '15m': 15 * 60 * 1000, // 15 minutes
       '30m': 30 * 60 * 1000, // 30 minutes
       '1h': 60 * 60 * 1000, // 1 hour
@@ -412,7 +411,6 @@ export const createViewportXScale = (
 export const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
   const intervalMap: Record<ChartTimeframe, number> = {
     '1m': 60 * 1000, // 1 minute
-    '5m': 5 * 60 * 1000, // 5 minutes
     '15m': 15 * 60 * 1000, // 15 minutes
     '30m': 30 * 60 * 1000, // 30 minutes
     '1h': 60 * 60 * 1000, // 1 hour

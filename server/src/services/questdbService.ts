@@ -261,7 +261,7 @@ export class QuestDBService {
   private convertIntervalToSampleBy(interval: string): string {
     const intervalMap: Record<string, string> = {
       '1m': '1m',
-      '5m': '5m',
+      '15m': '15m',
       '30m': '30m',
       '1h': '1h',
       '2h': '2h',
