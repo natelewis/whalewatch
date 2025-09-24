@@ -70,7 +70,7 @@ export const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes:
 
 /**
  * Process raw chart data into formatted candlestick data
- * Now includes fake candle padding for proper chart spacing (right padding only)
+ * No fake candle padding added (buffer candle on right removed per user request)
  */
 export const processChartData = (
   bars: AlpacaBar[],
@@ -84,7 +84,7 @@ export const processChartData = (
   const formattedData = formatBarsToCandlestickData(uniqueBars);
   const dataRange = calculateDataRange(uniqueBars);
 
-  // Add fake candles for padding (right padding only - left padding removed)
+  // No fake candles added (buffer candle on right removed per user request)
   const paddedData = addFakeCandlesForPadding(formattedData, viewWindowSize, timeframe);
 
   return {
@@ -617,7 +617,7 @@ export const addRightPaddingFakeCandle = (
  * This is the main function that should be called to prepare data for rendering
  *
  * Requirements:
- * 1. Always adds exactly 1 fake candle to the right of the rightmost real candle for padding
+ * 1. No fake candles added (buffer candle on right removed per user request)
  * 2. Never adds fake candles to the right of the newest real candle
  * 3. Fake candles can be identified programmatically (isFake: true, all values -1)
  * 4. Left padding removed to prevent interference with auto-load logic
@@ -631,9 +631,6 @@ export const addFakeCandlesForPadding = (
     return data;
   }
 
-  // Only add right padding (always add exactly 1 fake candle to the right)
-  // Left padding removed to prevent interference with auto-load logic
-  const processedData = addRightPaddingFakeCandle(data, timeframe);
-
-  return processedData;
+  // No padding added - return data as-is (buffer candle on right removed per user request)
+  return data;
 };

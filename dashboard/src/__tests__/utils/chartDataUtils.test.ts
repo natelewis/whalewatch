@@ -328,7 +328,7 @@ describe('chartDataUtils', () => {
     });
 
     describe('addFakeCandlesForPadding', () => {
-      it('should only add right padding for small datasets (left padding removed)', () => {
+      it('should return data as-is without adding any fake candles (buffer candle removed)', () => {
         const data: CandlestickData[] = [
           {
             timestamp: '2023-01-01T10:00:00Z',
@@ -342,13 +342,12 @@ describe('chartDataUtils', () => {
 
         const result = addFakeCandlesForPadding(data, 80, '1m');
 
-        expect(result.length).toBe(2); // 1 real + 1 fake right padding
-        expect(isFakeCandle(result[0])).toBe(false); // Original data (no left padding)
-        expect(isFakeCandle(result[1])).toBe(true); // Right padding
+        expect(result.length).toBe(1); // No fake candles added
+        expect(isFakeCandle(result[0])).toBe(false); // Original data unchanged
         expect(result[0].timestamp).toBe('2023-01-01T10:00:00Z'); // Original data
       });
 
-      it('should only add right padding for datasets that meet target count', () => {
+      it('should return data as-is for datasets that meet target count (no fake candles)', () => {
         const data: CandlestickData[] = Array.from({ length: 80 }, (_, i) => {
           const date = new Date('2023-01-01T09:00:00Z');
           date.setMinutes(date.getMinutes() + i);
@@ -364,8 +363,8 @@ describe('chartDataUtils', () => {
 
         const result = addFakeCandlesForPadding(data, 80, '1m');
 
-        expect(result).toHaveLength(81); // 80 real + 1 fake right padding
-        expect(isFakeCandle(result[80])).toBe(true); // Right padding
+        expect(result).toHaveLength(80); // No fake candles added
+        expect(result).toEqual(data); // Data unchanged
         // Last real candle should be at 9:00 + 79 minutes = 10:19
         const lastRealCandle = new Date('2023-01-01T09:00:00Z');
         lastRealCandle.setMinutes(lastRealCandle.getMinutes() + 79);
