@@ -520,4 +520,28 @@ describe('StockChart', () => {
     expect(screen.getByRole('heading', { name: 'AAPL' })).toBeInTheDocument();
     expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('AAPL', '1h' as const);
   });
+
+  it('displays WebSocket connection indicator when connected', () => {
+    vi.mocked(useChartWebSocket).mockReturnValue({
+      ...mockUseChartWebSocket,
+      isConnected: true,
+    });
+
+    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
+
+    expect(screen.getByText('TSLA')).toBeInTheDocument();
+    expect(screen.getByText('Live Data')).toBeInTheDocument();
+  });
+
+  it('displays WebSocket connection indicator when disconnected', () => {
+    vi.mocked(useChartWebSocket).mockReturnValue({
+      ...mockUseChartWebSocket,
+      isConnected: false,
+    });
+
+    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
+
+    expect(screen.getByText('TSLA')).toBeInTheDocument();
+    expect(screen.getByText('Disconnected')).toBeInTheDocument();
+  });
 });

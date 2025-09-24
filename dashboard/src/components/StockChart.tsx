@@ -915,23 +915,41 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       {/* Chart Header */}
       <div className="p-4 border-b border-border">
         {/* Controls */}
-        <div className="flex items-center space-x-4">
-          {/* Timeframe Selector */}
-          <div className="flex space-x-1">
-            {timeframes.map(tf => (
-              <button
-                key={tf.value}
-                onClick={() => setTimeframe(tf.value)}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                  timeframe === tf.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-                disabled={timeframe === null}
-              >
-                {tf.label}
-              </button>
-            ))}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            {/* Timeframe Selector */}
+            <div className="flex space-x-1">
+              {timeframes.map(tf => (
+                <button
+                  key={tf.value}
+                  onClick={() => setTimeframe(tf.value)}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    timeframe === tf.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                  disabled={timeframe === null}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* WebSocket Connection Indicator */}
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 px-3 py-1 rounded-md bg-muted/50">
+              <div className="flex items-center space-x-1">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    chartWebSocket.isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                  }`}
+                ></div>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {chartWebSocket.isConnected ? 'Live Data' : 'Disconnected'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
