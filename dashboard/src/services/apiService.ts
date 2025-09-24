@@ -69,7 +69,7 @@ export const createApiService = (getToken: () => Promise<string | null>) => {
       interval: string = '1h',
       limit?: number,
       startTime?: string,
-      direction: 'past' | 'future' = 'past',
+      direction: 'past' | 'future' | 'centered' = 'past',
       viewBasedLoading?: boolean,
       viewSize?: number
     ): Promise<ChartDataResponse> {
@@ -173,7 +173,7 @@ export const apiService = {
     interval: string = '1h',
     limit?: number,
     startTime?: string,
-    direction: 'past' | 'future' = 'past',
+    direction: 'past' | 'future' | 'centered' = 'past',
     viewBasedLoading?: boolean,
     viewSize?: number
   ): Promise<ChartDataResponse> {

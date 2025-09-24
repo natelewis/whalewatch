@@ -24,7 +24,7 @@ export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
  */
 interface ChartQueryParams {
   startTime: string; // ISO timestamp
-  direction: 'past' | 'future'; // Direction to load data from start_time
+  direction: 'past' | 'future' | 'centered'; // Direction to load data from start_time
   interval: AggregationInterval;
   limit: number; // Number of data points to return
   viewBasedLoading?: boolean; // Enable view-based preloading
@@ -56,8 +56,8 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     }
 
     // Validate direction parameter
-    if (direction !== 'past' && direction !== 'future') {
-      return res.status(400).json({ error: 'direction must be either "past" or "future"' });
+    if (direction !== 'past' && direction !== 'future' && direction !== 'centered') {
+      return res.status(400).json({ error: 'direction must be either "past", "future", or "centered"' });
     }
 
     const intervalKey = interval as AggregationInterval;
@@ -88,7 +88,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     const chartParams: ChartQueryParams = {
       startTime: startTime.toISOString(),
-      direction: direction as 'past' | 'future',
+      direction: direction as 'past' | 'future' | 'centered',
       interval: intervalKey,
       limit: limitValue,
       viewBasedLoading: viewBasedLoading,
@@ -108,39 +108,78 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       dataLimit = limitValue;
     }
 
-    // For past direction: get records <= startTime, ordered DESC (most recent first),
-    // limit to calculated data count
-    // For future direction: get records >= startTime, ordered ASC (earliest first),
-    // limit to calculated data count
-    const params: QuestDBQueryParams = {
-      order_by: 'timestamp',
-      order_direction: direction === 'past' ? 'DESC' : 'ASC',
-      limit: dataLimit,
-    };
+    // Handle different directions for data loading
+    let aggregates: QuestDBStockAggregate[] = [];
 
-    // Only set start_time for both directions
-    params.start_time = startTime.toISOString();
+    if (direction === 'centered') {
+      // For centered direction, load half the data before and half after the start time
+      const halfLimit = Math.floor(dataLimit / 2);
 
-    // Use QuestDB aggregation for better performance
-    let aggregates: QuestDBStockAggregate[];
+      // Load past data (before start time)
+      const pastParams: QuestDBQueryParams = {
+        order_by: 'timestamp',
+        order_direction: 'DESC',
+        limit: halfLimit,
+        start_time: startTime.toISOString(),
+      };
 
-    if (intervalMinutes === 1) {
-      // For 1-minute intervals, use raw data without aggregation
-      aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
+      // Load future data (after start time)
+      const futureParams: QuestDBQueryParams = {
+        order_by: 'timestamp',
+        order_direction: 'ASC',
+        limit: halfLimit,
+        start_time: startTime.toISOString(),
+      };
+
+      let pastAggregates: QuestDBStockAggregate[] = [];
+      let futureAggregates: QuestDBStockAggregate[] = [];
+
+      if (intervalMinutes === 1) {
+        // For 1-minute intervals, use raw data without aggregation
+        pastAggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), pastParams);
+        futureAggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), futureParams);
+      } else {
+        // For all other intervals, use QuestDB's SAMPLE BY aggregation
+        pastAggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, pastParams);
+        futureAggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, futureParams);
+      }
+
+      // Reverse past data to get chronological order
+      if (pastAggregates && pastAggregates.length > 0) {
+        pastAggregates = pastAggregates.reverse();
+      }
+
+      // Combine past and future data in chronological order
+      aggregates = [...(pastAggregates || []), ...(futureAggregates || [])];
     } else {
-      // For all other intervals, use QuestDB's SAMPLE BY aggregation
-      aggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, params);
-    }
+      // For past/future directions, use the original logic
+      const params: QuestDBQueryParams = {
+        order_by: 'timestamp',
+        order_direction: direction === 'past' ? 'DESC' : 'ASC',
+        limit: dataLimit,
+      };
 
-    if (aggregates.length > 0) {
-      // For past direction, we got data in DESC order (most recent first), but we need ASC order for display
-      if (direction === 'past') {
-        aggregates = aggregates.reverse();
+      // Only set start_time for both directions
+      params.start_time = startTime.toISOString();
+
+      if (intervalMinutes === 1) {
+        // For 1-minute intervals, use raw data without aggregation
+        aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
+      } else {
+        // For all other intervals, use QuestDB's SAMPLE BY aggregation
+        aggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, params);
+      }
+
+      if (aggregates && aggregates.length > 0) {
+        // For past direction, we got data in DESC order (most recent first), but we need ASC order for display
+        if (direction === 'past') {
+          aggregates = aggregates.reverse();
+        }
       }
     }
 
     // If no data found, return empty result
-    if (aggregates.length === 0) {
+    if (!aggregates || aggregates.length === 0) {
       console.log(`No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`);
     }
 
@@ -149,7 +188,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     if (intervalMinutes === 1) {
       // Remove duplicates by timestamp and aggregate them properly
-      const uniqueAggregates = aggregates.reduce((acc, agg) => {
+      const uniqueAggregates = (aggregates || []).reduce((acc, agg) => {
         const timestamp = agg.timestamp;
         const existing = acc.find(a => a.timestamp === timestamp);
 
@@ -174,7 +213,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     }
 
     // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
-    const bars = aggregatedData.map(agg => ({
+    const bars = (aggregatedData || []).map(agg => ({
       t: agg.timestamp,
       o: agg.open,
       h: agg.high,
@@ -204,7 +243,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
         view_size: chartParams.viewSize,
       },
       actual_data_range:
-        aggregatedData.length > 0
+        aggregatedData && aggregatedData.length > 0
           ? {
               earliest: aggregatedData[0]?.timestamp,
               latest: aggregatedData[aggregatedData.length - 1]?.timestamp,

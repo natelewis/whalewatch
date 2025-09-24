@@ -345,7 +345,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           chartState.timeframe,
           DEFAULT_CHART_DATA_POINTS,
           targetTimeString,
-          'past'
+          'centered'
         );
 
         console.log('✅ New data loaded for skip-to time:', targetTimeString);
@@ -869,15 +869,26 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         // Also handle initial candlestick rendering for timeframe changes
         // This ensures the chart is fully rendered when switching timeframes
         if (svgRef.current && chartState.allData.length > 0) {
-          // Use centralized render function for initial render
-          const renderResult = renderInitial(
-            svgRef.current as SVGSVGElement,
-            dimensionsToUse,
-            chartState.allData,
-            chartState.currentViewStart,
-            chartState.currentViewEnd,
-            loadMoreDataOnBufferedRender
-          );
+          // Use appropriate render function based on context
+          // If we just completed a skip-to operation, use renderSkipTo to respect the centered viewport
+          const renderResult = skipToJustCompletedRef.current
+            ? renderSkipTo(
+                svgRef.current as SVGSVGElement,
+                dimensionsToUse,
+                chartState.allData,
+                chartState.currentViewStart,
+                chartState.currentViewEnd,
+                initialTransform,
+                chartState.fixedYScaleDomain
+              )
+            : renderInitial(
+                svgRef.current as SVGSVGElement,
+                dimensionsToUse,
+                chartState.allData,
+                chartState.currentViewStart,
+                chartState.currentViewEnd,
+                loadMoreDataOnBufferedRender
+              );
 
           if (renderResult.success) {
             // Update the fixed Y-scale domain if it was recalculated
@@ -885,6 +896,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
               fixedYScaleDomainRef.current = renderResult.newFixedYScaleDomain;
             }
+
+            // Don't clear the skip-to flag here - let the auto-redraw effect handle it
+            // This prevents the auto-redraw from overriding our centered viewport
 
             // Set initial buffer range
             if (renderResult.calculations) {

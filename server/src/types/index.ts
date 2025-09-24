@@ -201,7 +201,7 @@ export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
 
 export interface ChartQueryParams {
   startTime: string; // ISO timestamp
-  direction: 'past' | 'future'; // Direction to load data from start_time
+  direction: 'past' | 'future' | 'centered'; // Direction to load data from start_time
   interval: AggregationInterval;
   limit: number; // Number of data points to return
   viewBasedLoading?: boolean; // Enable view-based preloading

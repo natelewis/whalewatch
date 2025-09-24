@@ -31,7 +31,7 @@ export interface ChartActions {
     timeframe: ChartTimeframe,
     dataPoints?: number,
     startTime?: string,
-    direction?: 'past' | 'future'
+    direction?: 'past' | 'future' | 'centered'
   ) => Promise<void>;
   loadMoreData: (
     symbol: string,
@@ -312,7 +312,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       timeframe: ChartTimeframe,
       dataPoints: number = DEFAULT_CHART_DATA_POINTS,
       startTime?: string,
-      direction: 'past' | 'future' = 'past'
+      direction: 'past' | 'future' | 'centered' = 'past'
     ) => {
       setIsLoading(true);
       setError(null);
@@ -345,6 +345,58 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         setAllData(result.value.formattedData);
         setSymbol(result.value.symbol);
         setTimeframe(result.value.timeframe);
+
+        // For centered direction, set viewport to center the loaded data
+        if (direction === 'centered' && result.value.formattedData.length > 0) {
+          const dataLength = result.value.formattedData.length;
+          // Use a smaller viewport size for centered view to show focused time range
+          const viewportSize = 80;
+
+          // Find the actual position of the target time in the data
+          // The target time should be the startTime parameter passed to loadChartData
+          let targetTimeIndex = Math.floor(dataLength / 2); // fallback to center
+
+          if (startTime) {
+            // Find the data point closest to the target time
+            const targetTime = new Date(startTime).getTime();
+            let closestIndex = 0;
+            let closestDiff = Math.abs(new Date(result.value.formattedData[0].timestamp).getTime() - targetTime);
+
+            for (let i = 1; i < dataLength; i++) {
+              const diff = Math.abs(new Date(result.value.formattedData[i].timestamp).getTime() - targetTime);
+              if (diff < closestDiff) {
+                closestDiff = diff;
+                closestIndex = i;
+              }
+            }
+            targetTimeIndex = closestIndex;
+          }
+
+          // Calculate viewport centered around target time, ensuring we show the full viewport size
+          let viewStart = Math.max(0, targetTimeIndex - Math.floor(viewportSize / 2));
+          let viewEnd = viewStart + viewportSize - 1;
+
+          // If we hit the end boundary, adjust the start to maintain viewport size
+          if (viewEnd >= dataLength) {
+            viewEnd = dataLength - 1;
+            viewStart = Math.max(0, viewEnd - viewportSize + 1);
+          }
+
+          console.log('🎯 Centering viewport for centered data:', {
+            dataLength,
+            targetTimeIndex,
+            viewportSize,
+            viewStart,
+            viewEnd,
+            direction,
+            startTime,
+            targetTimestamp: result.value.formattedData[targetTimeIndex]?.timestamp,
+          });
+
+          // Set the viewport to center the data
+          setCurrentViewStart(viewStart);
+          setCurrentViewEnd(viewEnd);
+        }
       } else {
         const userMessage = createUserFriendlyMessage(result.error);
         setError(userMessage);
@@ -353,7 +405,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
 
       setIsLoading(false);
     },
-    [setIsLoading, setError, setAllData, setSymbol, setTimeframe]
+    [setIsLoading, setError, setAllData, setSymbol, setTimeframe, setCurrentViewStart, setCurrentViewEnd]
   );
 
   const loadMoreData = useCallback(

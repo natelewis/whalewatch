@@ -91,7 +91,7 @@ describe('Chart Routes', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'direction must be either "past" or "future"');
+      expect(response.body).toHaveProperty('error', 'direction must be either "past", "future", or "centered"');
     });
 
     it('should validate timestamp formats', async () => {
@@ -167,6 +167,197 @@ describe('Chart Routes', () => {
       expect(response.body).toHaveProperty('error');
       expect(response.body).toHaveProperty('data_source', 'questdb');
       expect(response.body).toHaveProperty('success', false);
+    });
+
+    describe('centered direction', () => {
+      const pastAggregates: QuestDBStockAggregate[] = [
+        {
+          timestamp: '2024-01-01T08:00:00.000Z',
+          symbol: 'AAPL',
+          open: 100,
+          high: 105,
+          low: 98,
+          close: 103,
+          volume: 1000,
+          transaction_count: 10,
+          vwap: 101.5,
+        },
+        {
+          timestamp: '2024-01-01T09:00:00.000Z',
+          symbol: 'AAPL',
+          open: 103,
+          high: 107,
+          low: 102,
+          close: 106,
+          volume: 1200,
+          transaction_count: 12,
+          vwap: 104.2,
+        },
+      ];
+
+      const futureAggregates: QuestDBStockAggregate[] = [
+        {
+          timestamp: '2024-01-01T11:00:00.000Z',
+          symbol: 'AAPL',
+          open: 106,
+          high: 108,
+          low: 104,
+          close: 107,
+          volume: 1100,
+          transaction_count: 11,
+          vwap: 105.8,
+        },
+        {
+          timestamp: '2024-01-01T12:00:00.000Z',
+          symbol: 'AAPL',
+          open: 107,
+          high: 109,
+          low: 105,
+          close: 108,
+          volume: 1300,
+          transaction_count: 13,
+          vwap: 106.5,
+        },
+      ];
+
+      beforeEach(() => {
+        jest.clearAllMocks();
+      });
+
+      it('should load data centered around start_time', async () => {
+        // Mock both past and future data calls
+        mockQuestdbService.getStockAggregates
+          .mockResolvedValueOnce(pastAggregates) // First call for past data
+          .mockResolvedValueOnce(futureAggregates); // Second call for future data
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=centered&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('symbol', 'AAPL');
+        expect(response.body).toHaveProperty('direction', 'centered');
+        expect(response.body.bars).toHaveLength(4); // Combined past and future data
+
+        // Verify both calls were made with correct parameters
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledTimes(2);
+
+        // First call should be for past data (DESC order)
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenNthCalledWith(
+          1,
+          'AAPL',
+          expect.objectContaining({
+            start_time: '2024-01-01T10:00:00.000Z',
+            order_by: 'timestamp',
+            order_direction: 'DESC',
+            limit: 50, // Half of 100
+          })
+        );
+
+        // Second call should be for future data (ASC order)
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenNthCalledWith(
+          2,
+          'AAPL',
+          expect.objectContaining({
+            start_time: '2024-01-01T10:00:00.000Z',
+            order_by: 'timestamp',
+            order_direction: 'ASC',
+            limit: 50, // Half of 100
+          })
+        );
+      });
+
+      it('should handle odd limit values correctly', async () => {
+        mockQuestdbService.getStockAggregates
+          .mockResolvedValueOnce(pastAggregates)
+          .mockResolvedValueOnce(futureAggregates);
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=centered&limit=101')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+
+        // Should split 101 into 50 and 50 (floor(101/2) = 50)
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledTimes(2);
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenNthCalledWith(
+          1,
+          'AAPL',
+          expect.objectContaining({ limit: 50 })
+        );
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenNthCalledWith(
+          2,
+          'AAPL',
+          expect.objectContaining({ limit: 50 })
+        );
+      });
+
+      it('should handle aggregated intervals with centered direction', async () => {
+        mockQuestdbService.getAggregatedStockData
+          .mockResolvedValueOnce(pastAggregates)
+          .mockResolvedValueOnce(futureAggregates);
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?interval=1h&start_time=2024-01-01T10:00:00Z&direction=centered&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('direction', 'centered');
+
+        // Should use aggregated data service for non-1-minute intervals
+        expect(mockQuestdbService.getAggregatedStockData).toHaveBeenCalledTimes(2);
+        expect(mockQuestdbService.getStockAggregates).not.toHaveBeenCalled();
+      });
+
+      it('should return chronological order for centered data', async () => {
+        mockQuestdbService.getStockAggregates
+          .mockResolvedValueOnce(pastAggregates)
+          .mockResolvedValueOnce(futureAggregates);
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=centered&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+
+        const bars = response.body.bars;
+        expect(bars).toHaveLength(4);
+
+        // Verify chronological order (earliest to latest)
+        expect(bars[0].t).toBe('2024-01-01T08:00:00.000Z'); // Past data
+        expect(bars[1].t).toBe('2024-01-01T09:00:00.000Z'); // Past data
+        expect(bars[2].t).toBe('2024-01-01T11:00:00.000Z'); // Future data
+        expect(bars[3].t).toBe('2024-01-01T12:00:00.000Z'); // Future data
+      });
+
+      it('should handle empty results gracefully', async () => {
+        mockQuestdbService.getStockAggregates
+          .mockResolvedValueOnce([]) // No past data
+          .mockResolvedValueOnce([]); // No future data
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=centered&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.bars).toHaveLength(0);
+        expect(response.body.actual_data_range).toBeNull();
+      });
+
+      it('should handle partial results (only past or only future)', async () => {
+        mockQuestdbService.getStockAggregates
+          .mockResolvedValueOnce(pastAggregates) // Past data available
+          .mockResolvedValueOnce([]); // No future data
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=centered&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.bars).toHaveLength(2); // Only past data
+        expect(response.body.bars[0].t).toBe('2024-01-01T08:00:00.000Z');
+        expect(response.body.bars[1].t).toBe('2024-01-01T09:00:00.000Z');
+      });
     });
 
     it('should convert QuestDB aggregates to Alpaca bar format', async () => {

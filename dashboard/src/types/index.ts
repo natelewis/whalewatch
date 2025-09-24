@@ -274,7 +274,7 @@ export interface ChartDataResponse {
   symbol: string;
   interval: string;
   limit: number;
-  direction: 'past' | 'future';
+  direction: 'past' | 'future' | 'centered';
   view_based_loading?: boolean;
   view_size?: number;
   bars: AlpacaBar[];
@@ -282,7 +282,7 @@ export interface ChartDataResponse {
   success: boolean;
   query_params: {
     start_time: string;
-    direction: 'past' | 'future';
+    direction: 'past' | 'future' | 'centered';
     interval: string;
     requested_limit: number;
     view_based_loading?: boolean;
