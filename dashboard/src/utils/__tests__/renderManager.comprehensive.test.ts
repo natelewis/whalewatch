@@ -186,8 +186,8 @@ describe('RenderManager Comprehensive Tests', () => {
     it('should handle empty data gracefully', () => {
       const result = renderSkipTo(mockSvgElement, mockDimensions, [], 0, 0, d3.zoomIdentity);
 
-      expect(result.success).toBe(true); // Error handling is working correctly
-      expect(result.error).toBeUndefined();
+      expect(result.success).toBe(false); // Empty data should fail gracefully
+      expect(result.error).toBe('No data to render');
     });
 
     it('should handle invalid viewport indices', () => {

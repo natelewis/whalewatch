@@ -12,6 +12,7 @@ import { WebSocketProvider } from '../../contexts/WebSocketContext';
 vi.mock('../../services/apiService', () => ({
   apiService: {
     getOptionsTrades: vi.fn(),
+    getOptionsContracts: vi.fn(),
   },
 }));
 
@@ -23,13 +24,13 @@ vi.mock('../../hooks/useWebSocket', () => ({
 // Mock the WhaleWatchFeed component
 vi.mock('../../components/WhaleWatchFeed', () => ({
   WhaleWatchFeed: ({
-    trades,
+    contracts,
     selectedSymbol,
     onSymbolChange,
     isLoading,
     error,
   }: {
-    trades: AlpacaOptionsTrade[];
+    contracts: any[];
     selectedSymbol: string;
     onSymbolChange: (symbol: string) => void;
     isLoading: boolean;
@@ -39,7 +40,7 @@ vi.mock('../../components/WhaleWatchFeed', () => ({
       <span>Feed for {selectedSymbol}</span>
       <span>Loading: {isLoading.toString()}</span>
       {error && <span>Error: {error}</span>}
-      <span>Trades count: {trades?.length || 0}</span>
+      <span>Trades count: {contracts?.length || 0}</span>
       <button onClick={() => onSymbolChange('AAPL')}>Change to AAPL</button>
     </div>
   ),
@@ -105,6 +106,9 @@ describe('WhaleFinderPage', () => {
       trades: mockTrades,
       hours: 24,
     });
+    mockApiService.getOptionsContracts.mockResolvedValue({
+      contracts: [],
+    });
     mockUseWebSocket.mockReturnValue({
       socket: null,
       lastMessage: null,
@@ -122,22 +126,22 @@ describe('WhaleFinderPage', () => {
   it('renders the page title and description', () => {
     renderWithRouter(<WhaleFinderPage />);
 
-    expect(screen.getByText('Whale Finder')).toBeInTheDocument();
-    expect(screen.getByText('Monitor large options trades and discover whale activity')).toBeInTheDocument();
+    expect(screen.getByText('Options Contracts')).toBeInTheDocument();
+    expect(screen.getByText('Browse available options contracts for any symbol')).toBeInTheDocument();
   });
 
   it('renders the whale feed section', () => {
     renderWithRouter(<WhaleFinderPage />);
 
-    expect(screen.getByText('Options Whale Feed')).toBeInTheDocument();
+    expect(screen.getByText('Options Contracts Feed')).toBeInTheDocument();
     expect(screen.getByTestId('whale-watch-feed')).toBeInTheDocument();
   });
 
-  it('loads whale trades on mount', async () => {
+  it('loads options contracts on mount', async () => {
     renderWithRouter(<WhaleFinderPage />);
 
     await waitFor(() => {
-      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith('TSLA', 1);
+      expect(mockApiService.getOptionsContracts).toHaveBeenCalledWith('TSLA');
     });
   });
 
@@ -145,10 +149,12 @@ describe('WhaleFinderPage', () => {
     renderWithRouter(<WhaleFinderPage />);
 
     await waitFor(() => {
-      expect(mockSendMessage).toHaveBeenCalledWith({
-        type: 'subscribe',
-        data: { channel: 'options_whale', symbol: 'TSLA' },
-      });
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'subscribe',
+          data: { channel: 'options_contract', symbol: 'TSLA' },
+        })
+      );
     });
   });
 
@@ -159,12 +165,12 @@ describe('WhaleFinderPage', () => {
     changeButton.click();
 
     await waitFor(() => {
-      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith('AAPL', 1);
+      expect(mockApiService.getOptionsContracts).toHaveBeenCalledWith('AAPL');
     });
   });
 
   it('displays loading state', () => {
-    mockApiService.getOptionsTrades.mockImplementation(() => new Promise(() => {})); // Never resolves
+    mockApiService.getOptionsContracts.mockImplementation(() => new Promise(() => {})); // Never resolves
 
     renderWithRouter(<WhaleFinderPage />);
 
@@ -172,8 +178,8 @@ describe('WhaleFinderPage', () => {
   });
 
   it('displays error state', async () => {
-    const errorMessage = 'Failed to load trades';
-    mockApiService.getOptionsTrades.mockRejectedValue(new Error(errorMessage));
+    const errorMessage = 'Failed to load contracts';
+    mockApiService.getOptionsContracts.mockRejectedValue(new Error(errorMessage));
 
     renderWithRouter(<WhaleFinderPage />);
 
@@ -182,31 +188,21 @@ describe('WhaleFinderPage', () => {
     });
   });
 
-  it('updates trades when WebSocket message is received', () => {
-    const newTrade = {
+  it('updates contracts when WebSocket message is received', () => {
+    const newContract = {
       id: '3',
-      symbol: 'TSLA',
-      timestamp: '2023-01-01T00:00:00Z',
-      price: 210.0,
-      size: 200,
-      side: 'buy' as const,
-      conditions: [],
-      exchange: 'NASDAQ',
-      tape: 'A',
-      contract: {
-        symbol: 'TSLA240115C00210000',
-        underlying_symbol: 'TSLA',
-        exercise_style: 'american',
-        expiration_date: '2024-01-15',
-        strike_price: 210,
-        option_type: 'call' as const,
-      },
+      symbol: 'TSLA240115C00210000',
+      underlying_symbol: 'TSLA',
+      exercise_style: 'american',
+      expiration_date: '2024-01-15',
+      strike_price: 210,
+      option_type: 'call' as const,
     };
     mockUseWebSocket.mockReturnValue({
       socket: null,
       lastMessage: {
-        type: 'options_whale',
-        data: newTrade,
+        type: 'options_contract',
+        data: newContract,
         timestamp: '2023-01-01T00:00:00Z',
       },
       sendMessage: mockSendMessage,

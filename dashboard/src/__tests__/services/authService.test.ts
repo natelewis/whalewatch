@@ -5,6 +5,18 @@ import { authService } from '../../services/authService';
 // Mock axios
 vi.mock('axios', () => ({
   default: {
+    create: vi.fn(() => ({
+      interceptors: {
+        request: {
+          use: vi.fn(),
+        },
+        response: {
+          use: vi.fn(),
+        },
+      },
+      get: vi.fn(),
+      post: vi.fn(),
+    })),
     interceptors: {
       request: {
         use: vi.fn(),
@@ -32,7 +44,7 @@ Object.defineProperty(window, 'localStorage', {
 
 describe('authService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     localStorageMock.getItem.mockReturnValue('test-token');
   });
 

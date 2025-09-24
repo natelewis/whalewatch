@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import { OAuthCallbackPage } from '../../pages/OAuthCallbackPage';
 import { useAuth } from '../../hooks/useAuth';
+import { ThemeProvider } from '../../contexts/ThemeContext';
 
 // Mock the auth context
 vi.mock('../../hooks/useAuth', () => ({
@@ -13,14 +14,21 @@ const mockUseAuth = useAuth as ReturnType<typeof vi.fn>;
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
-vi.mock('react-router-dom', () => ({
-  ...vi.importActual('react-router-dom'),
-  useNavigate: () => mockNavigate,
-  useSearchParams: () => [new URLSearchParams('?token=test-token')],
-}));
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+    useSearchParams: () => [new URLSearchParams('?token=test-token')],
+  };
+});
 
 const renderWithRouter = (component: React.ReactElement) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+  return render(
+    <BrowserRouter>
+      <ThemeProvider>{component}</ThemeProvider>
+    </BrowserRouter>
+  );
 };
 
 describe('OAuthCallbackPage', () => {
@@ -67,8 +75,8 @@ describe('OAuthCallbackPage', () => {
 
   it('shows error when no token is provided', async () => {
     // Mock useSearchParams to return no token
-    jest.doMock('react-router-dom', () => ({
-      ...jest.requireActual('react-router-dom'),
+    vi.doMock('react-router-dom', () => ({
+      ...vi.importActual('react-router-dom'),
       useNavigate: () => mockNavigate,
       useSearchParams: () => [new URLSearchParams('')],
     }));
@@ -94,8 +102,8 @@ describe('OAuthCallbackPage', () => {
 
   it('shows error when error parameter is in URL', async () => {
     // Mock useSearchParams to return error
-    jest.doMock('react-router-dom', () => ({
-      ...jest.requireActual('react-router-dom'),
+    vi.doMock('react-router-dom', () => ({
+      ...vi.importActual('react-router-dom'),
       useNavigate: () => mockNavigate,
       useSearchParams: () => [new URLSearchParams('?error=access_denied')],
     }));
