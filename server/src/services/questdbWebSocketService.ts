@@ -162,37 +162,43 @@ export class QuestDBWebSocketService extends EventEmitter {
       return;
     }
 
-    const trades = await questdbService.getStockTrades(subscription.symbol, {
-      start_time: lastTimestamp || undefined,
-      end_time: currentTimestamp,
-      limit: 1000,
-    });
+    try {
+      const trades = await questdbService.getStockTrades(subscription.symbol, {
+        start_time: lastTimestamp || undefined,
+        end_time: currentTimestamp,
+        limit: 1000,
+      });
 
-    for (const trade of trades) {
-      // Apply filters if specified
-      if (subscription.filters) {
-        if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
-          continue;
+      for (const trade of trades) {
+        // Apply filters if specified
+        if (subscription.filters) {
+          if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
+            continue;
+          }
+          if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
+            continue;
+          }
+          if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
+            continue;
+          }
+          if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
+            continue;
+          }
         }
-        if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
-          continue;
-        }
-        if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
-          continue;
-        }
-        if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
-          continue;
-        }
+
+        const message: QuestDBWebSocketMessage = {
+          type: 'stock_trade',
+          data: trade,
+          timestamp: new Date().toISOString(),
+          symbol: trade.symbol,
+        };
+
+        this.emit('stock_trade', message);
       }
-
-      const message: QuestDBWebSocketMessage = {
-        type: 'stock_trade',
-        data: trade,
-        timestamp: new Date().toISOString(),
-        symbol: trade.symbol,
-      };
-
-      this.emit('stock_trade', message);
+    } catch (error) {
+      console.error(`Error polling stock_trades data:`, error);
+      // Re-throw the error to be handled by the calling method
+      throw error;
     }
   }
 
@@ -204,42 +210,48 @@ export class QuestDBWebSocketService extends EventEmitter {
     lastTimestamp: string | undefined,
     currentTimestamp: string
   ): Promise<void> {
-    const trades = await questdbService.getOptionTrades(
-      subscription.ticker || undefined,
-      subscription.underlying_ticker || undefined,
-      {
-        start_time: lastTimestamp || undefined,
-        end_time: currentTimestamp,
-        limit: 1000,
+    try {
+      const trades = await questdbService.getOptionTrades(
+        subscription.ticker || undefined,
+        subscription.underlying_ticker || undefined,
+        {
+          start_time: lastTimestamp || undefined,
+          end_time: currentTimestamp,
+          limit: 1000,
+        }
+      );
+
+      for (const trade of trades) {
+        // Apply filters if specified
+        if (subscription.filters) {
+          if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
+            continue;
+          }
+          if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
+            continue;
+          }
+          if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
+            continue;
+          }
+          if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
+            continue;
+          }
+        }
+
+        const message: QuestDBWebSocketMessage = {
+          type: 'option_trade',
+          data: trade,
+          timestamp: new Date().toISOString(),
+          symbol: trade.ticker,
+          underlying_ticker: trade.underlying_ticker,
+        };
+
+        this.emit('option_trade', message);
       }
-    );
-
-    for (const trade of trades) {
-      // Apply filters if specified
-      if (subscription.filters) {
-        if (subscription.filters.min_price && trade.price < subscription.filters.min_price) {
-          continue;
-        }
-        if (subscription.filters.max_price && trade.price > subscription.filters.max_price) {
-          continue;
-        }
-        if (subscription.filters.min_size && trade.size < subscription.filters.min_size) {
-          continue;
-        }
-        if (subscription.filters.max_size && trade.size > subscription.filters.max_size) {
-          continue;
-        }
-      }
-
-      const message: QuestDBWebSocketMessage = {
-        type: 'option_trade',
-        data: trade,
-        timestamp: new Date().toISOString(),
-        symbol: trade.ticker,
-        underlying_ticker: trade.underlying_ticker,
-      };
-
-      this.emit('option_trade', message);
+    } catch (error) {
+      console.error(`Error polling option_trades data:`, error);
+      // Re-throw the error to be handled by the calling method
+      throw error;
     }
   }
 
@@ -251,26 +263,32 @@ export class QuestDBWebSocketService extends EventEmitter {
     lastTimestamp: string | undefined,
     currentTimestamp: string
   ): Promise<void> {
-    const quotes = await questdbService.getOptionQuotes(
-      subscription.ticker || undefined,
-      subscription.underlying_ticker || undefined,
-      {
-        start_time: lastTimestamp || undefined,
-        end_time: currentTimestamp,
-        limit: 1000,
+    try {
+      const quotes = await questdbService.getOptionQuotes(
+        subscription.ticker || undefined,
+        subscription.underlying_ticker || undefined,
+        {
+          start_time: lastTimestamp || undefined,
+          end_time: currentTimestamp,
+          limit: 1000,
+        }
+      );
+
+      for (const quote of quotes) {
+        const message: QuestDBWebSocketMessage = {
+          type: 'option_quote',
+          data: quote,
+          timestamp: new Date().toISOString(),
+          symbol: quote.ticker,
+          underlying_ticker: quote.underlying_ticker,
+        };
+
+        this.emit('option_quote', message);
       }
-    );
-
-    for (const quote of quotes) {
-      const message: QuestDBWebSocketMessage = {
-        type: 'option_quote',
-        data: quote,
-        timestamp: new Date().toISOString(),
-        symbol: quote.ticker,
-        underlying_ticker: quote.underlying_ticker,
-      };
-
-      this.emit('option_quote', message);
+    } catch (error) {
+      console.error(`Error polling option_quotes data:`, error);
+      // Re-throw the error to be handled by the calling method
+      throw error;
     }
   }
 
@@ -286,47 +304,53 @@ export class QuestDBWebSocketService extends EventEmitter {
       return;
     }
 
-    // console.log(`🔍 Polling latest stock aggregate for ${subscription.symbol}`);
+    try {
+      // console.log(`🔍 Polling latest stock aggregate for ${subscription.symbol}`);
 
-    // Get the latest record for this symbol
-    const aggregates = await questdbService.getStockAggregates(subscription.symbol, {
-      limit: 1,
-      order_by: 'timestamp',
-      order_direction: 'DESC', // Get the most recent record
-    });
+      // Get the latest record for this symbol
+      const aggregates = await questdbService.getStockAggregates(subscription.symbol, {
+        limit: 1,
+        order_by: 'timestamp',
+        order_direction: 'DESC', // Get the most recent record
+      });
 
-    if (aggregates.length === 0) {
-      console.log(`📊 No stock aggregates found for ${subscription.symbol}`);
-      return lastTimestamp; // Return the same timestamp since we didn't process anything
+      if (aggregates.length === 0) {
+        console.log(`📊 No stock aggregates found for ${subscription.symbol}`);
+        return lastTimestamp; // Return the same timestamp since we didn't process anything
+      }
+
+      const latestAggregate = aggregates[0];
+      // console.log(`📊 Latest stock aggregate for ${subscription.symbol}:`, {
+      //   timestamp: latestAggregate.timestamp,
+      //   close: latestAggregate.close,
+      //   volume: latestAggregate.volume,
+      // });
+
+      // Check if this is a new record we haven't processed yet
+      if (lastTimestamp && new Date(latestAggregate.timestamp) <= new Date(lastTimestamp)) {
+        // console.log(
+        //   `📊 No new data for ${subscription.symbol} (latest: ${latestAggregate.timestamp}, last processed: ${lastTimestamp})`
+        // );
+        return lastTimestamp; // Return the same timestamp since we didn't process anything
+      }
+
+      // This is new data, emit it
+      const message: QuestDBWebSocketMessage = {
+        type: 'stock_aggregate',
+        data: latestAggregate,
+        timestamp: new Date().toISOString(),
+        symbol: latestAggregate.symbol,
+      };
+
+      this.emit('stock_aggregate', message);
+
+      // Return the timestamp of the data we just processed
+      return latestAggregate.timestamp;
+    } catch (error) {
+      console.error(`Error polling stock_aggregates data:`, error);
+      // Re-throw the error to be handled by the calling method
+      throw error;
     }
-
-    const latestAggregate = aggregates[0];
-    // console.log(`📊 Latest stock aggregate for ${subscription.symbol}:`, {
-    //   timestamp: latestAggregate.timestamp,
-    //   close: latestAggregate.close,
-    //   volume: latestAggregate.volume,
-    // });
-
-    // Check if this is a new record we haven't processed yet
-    if (lastTimestamp && new Date(latestAggregate.timestamp) <= new Date(lastTimestamp)) {
-      // console.log(
-      //   `📊 No new data for ${subscription.symbol} (latest: ${latestAggregate.timestamp}, last processed: ${lastTimestamp})`
-      // );
-      return lastTimestamp; // Return the same timestamp since we didn't process anything
-    }
-
-    // This is new data, emit it
-    const message: QuestDBWebSocketMessage = {
-      type: 'stock_aggregate',
-      data: latestAggregate,
-      timestamp: new Date().toISOString(),
-      symbol: latestAggregate.symbol,
-    };
-
-    this.emit('stock_aggregate', message);
-
-    // Return the timestamp of the data we just processed
-    return latestAggregate.timestamp;
   }
 
   /**

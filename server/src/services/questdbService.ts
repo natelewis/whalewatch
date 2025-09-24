@@ -152,6 +152,9 @@ export class QuestDBService {
   async getStockTrades(symbol: string, params: QuestDBQueryParams = {}): Promise<QuestDBStockTrade[]> {
     const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
 
+    // First check if the table exists
+    await this.ensureTableExists('stock_trades');
+
     let query = `SELECT * FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
 
     if (start_time) {
@@ -173,6 +176,9 @@ export class QuestDBService {
    */
   async getStockAggregates(symbol: string, params: QuestDBQueryParams = {}): Promise<QuestDBStockAggregate[]> {
     const { start_time, end_time, limit, order_by = 'timestamp', order_direction = 'ASC' } = params;
+
+    // First check if the table exists
+    await this.ensureTableExists('stock_aggregates');
 
     let query = `SELECT * FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
 
@@ -209,6 +215,9 @@ export class QuestDBService {
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBStockAggregate[]> {
     const { start_time, end_time, limit, order_direction = 'ASC' } = params;
+
+    // First check if the table exists
+    await this.ensureTableExists('stock_aggregates');
 
     // Convert interval to QuestDB SAMPLE BY format
     const sampleByInterval = this.convertIntervalToSampleBy(interval);
@@ -270,6 +279,30 @@ export class QuestDBService {
   }
 
   /**
+   * Ensure a table exists, throw descriptive error if it doesn't
+   */
+  private async ensureTableExists(tableName: string): Promise<void> {
+    try {
+      const tablesResponse = await this.executeQuery<{ table_name: string }>('SHOW TABLES');
+      const availableTables = tablesResponse.dataset.map(row => (row as { table_name: string }).table_name);
+
+      if (!availableTables.includes(tableName)) {
+        throw new Error(
+          `Table '${tableName}' does not exist. Available tables: ${availableTables.join(', ')}. ` +
+            `Please run the database schema initialization to create the required tables.`
+        );
+      }
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('does not exist')) {
+        throw error; // Re-throw our descriptive error
+      }
+      // If there's a different error (like connection issues), wrap it
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to check if table '${tableName}' exists: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Get option contracts for an underlying symbol
    */
   async getOptionContracts(
@@ -277,6 +310,9 @@ export class QuestDBService {
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionContract[]> {
     const { limit = 1000, order_by = 'created_at', order_direction = 'DESC' } = params;
+
+    // First check if the table exists
+    await this.ensureTableExists('option_contracts');
 
     const query = `SELECT * FROM option_contracts 
                    WHERE underlying_ticker = '${underlying_ticker.toUpperCase()}' 
@@ -296,6 +332,9 @@ export class QuestDBService {
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionTrade[]> {
     const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
+
+    // First check if the table exists
+    await this.ensureTableExists('option_trades');
 
     let query = 'SELECT * FROM option_trades WHERE 1=1';
 
@@ -331,6 +370,9 @@ export class QuestDBService {
   ): Promise<QuestDBOptionQuote[]> {
     const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
 
+    // First check if the table exists
+    await this.ensureTableExists('option_quotes');
+
     let query = 'SELECT * FROM option_quotes WHERE 1=1';
 
     if (ticker) {
@@ -359,6 +401,9 @@ export class QuestDBService {
    * Get sync state for a ticker
    */
   async getSyncState(ticker: string): Promise<QuestDBSyncState | null> {
+    // First check if the table exists
+    await this.ensureTableExists('sync_state');
+
     const query = `SELECT * FROM sync_state WHERE ticker = '${ticker.toUpperCase()}' LIMIT 1`;
 
     const response = await this.executeQuery<QuestDBSyncState>(query);
@@ -370,6 +415,9 @@ export class QuestDBService {
    * Update sync state for a ticker
    */
   async updateSyncState(ticker: string, updates: Partial<Omit<QuestDBSyncState, 'ticker'>>): Promise<void> {
+    // First check if the table exists
+    await this.ensureTableExists('sync_state');
+
     const setClause = Object.entries(updates)
       .filter(([_, value]) => value !== undefined)
       .map(([key, value]) => {
@@ -392,6 +440,9 @@ export class QuestDBService {
    * Get the latest trade timestamp for a symbol
    */
   async getLatestTradeTimestamp(symbol: string): Promise<string | null> {
+    // First check if the table exists
+    await this.ensureTableExists('stock_trades');
+
     const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
 
     const response = await this.executeQuery<{ latest_timestamp: string }>(query);
@@ -403,6 +454,9 @@ export class QuestDBService {
    * Get the latest aggregate timestamp for a symbol
    */
   async getLatestAggregateTimestamp(symbol: string): Promise<string | null> {
+    // First check if the table exists
+    await this.ensureTableExists('stock_aggregates');
+
     const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
 
     const response = await this.executeQuery<{ latest_timestamp: string }>(query);

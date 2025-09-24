@@ -1,10 +1,8 @@
 import { db } from '../db/connection';
-import { PolygonClient } from './polygon-client';
 import { AlpacaClient } from './alpaca-client';
 import { UpsertService } from '../utils/upsert';
 import { StockAggregate, SyncState } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
-import { AlpacaQuote, AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
 
 export class DataIngestionService {
@@ -245,10 +243,5 @@ export class DataIngestionService {
 
   private async updateSyncState(syncState: SyncState): Promise<void> {
     await UpsertService.upsertSyncState(syncState);
-  }
-
-  private handleIngestionError(error: Error): void {
-    console.error('Ingestion error:', error);
-    // Implement retry logic or error recovery here
   }
 }
