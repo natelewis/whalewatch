@@ -231,44 +231,109 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           }
 
           // Anchor viewport exactly like manual "Load Left": shift indices to keep the same candles visible
-          const prevStart = chartState.currentViewStart;
-          const prevEnd = chartState.currentViewEnd;
+          // Use ref values to avoid stale closure issues
+          const prevStart = currentViewStartRef.current;
+          const prevEnd = currentViewEndRef.current;
+
+          console.log('🔧 Original Viewport Before Auto-load:', {
+            prevStart,
+            prevEnd,
+            originalViewportSize: prevEnd - prevStart + 1,
+          });
           const prevLength = currentDataRef.current.length;
           const mergedLength = mergedData.length;
           const totalAfter = prunedData.length;
 
-          const addedLeft = direction === 'past' ? Math.max(0, mergedLength - prevLength) : 0;
-          const removedLeft =
-            direction === 'future' && prunedData.length !== mergedData.length
-              ? mergedData.length - prunedData.length
-              : 0;
+          // Calculate the actual shift that occurred due to data changes
+          let dataShift = 0;
+          if (direction === 'past') {
+            // When loading past data, the shift should be based on the actual new data fetched
+            // We requested fetchPoints (600) new data points, so the shift should be fetchPoints
+            dataShift = fetchPoints;
+            console.log('🔧 Past data shift calculation:', {
+              fetchPoints,
+              prevLength,
+              mergedLength,
+              actualNewData: formattedData.length,
+              calculatedShift: dataShift,
+            });
+          } else if (direction === 'future') {
+            // When loading future data, check if we pruned data from the left
+            const prunedFromLeft = mergedData.length - prunedData.length;
+            dataShift = -prunedFromLeft; // Negative shift if we removed data from left
+          }
 
-          let anchoredStart = Math.round(prevStart + addedLeft - removedLeft);
-          let anchoredEnd = Math.round(prevEnd + addedLeft - removedLeft);
+          console.log('🔧 Viewport Anchoring Debug:', {
+            direction,
+            prevStart,
+            prevEnd,
+            prevLength,
+            mergedLength,
+            prunedDataLength: prunedData.length,
+            dataShift,
+            calculatedStart: prevStart + dataShift,
+            calculatedEnd: prevEnd + dataShift,
+            // Additional debugging
+            currentDataRefLength: currentDataRef.current.length,
+            formattedDataLength: formattedData.length,
+            fetchPoints,
+            mergedDataLength: mergedData.length,
+            totalAfter: prunedData.length,
+            // Current state values
+            currentViewStart: chartState.currentViewStart,
+            currentViewEnd: chartState.currentViewEnd,
+            allDataLength: chartState.allData.length,
+            // Ref values (should be current)
+            refViewStart: currentViewStartRef.current,
+            refViewEnd: currentViewEndRef.current,
+          });
+
+          let anchoredStart = Math.round(prevStart + dataShift);
+          let anchoredEnd = Math.round(prevEnd + dataShift);
+
+          console.log('🔧 Immediately After Data Shift:', {
+            anchoredStart,
+            anchoredEnd,
+            calculatedWindowSize: anchoredEnd - anchoredStart + 1,
+          });
 
           // Ensure the viewport is expanded to the proper CHART_DATA_POINTS size
           const properWindowSize = CHART_DATA_POINTS;
           const currentWindowSize = anchoredEnd - anchoredStart + 1;
 
+          console.log('🔧 Viewport Expansion Check:', {
+            anchoredStart,
+            anchoredEnd,
+            currentWindowSize,
+            properWindowSize,
+            needsExpansion: currentWindowSize < properWindowSize,
+          });
+
           if (currentWindowSize < properWindowSize) {
-            // Expand the viewport to show the proper number of data points
-            const expansionNeeded = properWindowSize - currentWindowSize;
-            const halfExpansion = Math.floor(expansionNeeded / 2);
+            // For auto-load, we want to center the viewport around the anchored position
+            // Calculate the center point of the current viewport
+            const centerPoint = Math.round((anchoredStart + anchoredEnd) / 2);
 
-            // Try to expand equally on both sides
-            anchoredStart = Math.max(0, anchoredStart - halfExpansion);
-            anchoredEnd = Math.min(totalAfter - 1, anchoredEnd + halfExpansion);
+            // Calculate new start and end positions centered around this point
+            const halfWindow = Math.floor(properWindowSize / 2);
+            anchoredStart = Math.max(0, centerPoint - halfWindow);
+            anchoredEnd = Math.min(totalAfter - 1, centerPoint + halfWindow);
 
-            // If we couldn't expand enough on one side, expand more on the other
-            const finalWindowSize = anchoredEnd - anchoredStart + 1;
-            if (finalWindowSize < properWindowSize) {
-              if (anchoredStart === 0) {
-                // Can't expand left more, expand right
-                anchoredEnd = Math.min(totalAfter - 1, anchoredStart + properWindowSize - 1);
-              } else if (anchoredEnd === totalAfter - 1) {
-                // Can't expand right more, expand left
-                anchoredStart = Math.max(0, anchoredEnd - properWindowSize + 1);
+            // Adjust to ensure exactly properWindowSize points
+            const actualWindowSize = anchoredEnd - anchoredStart + 1;
+            if (actualWindowSize < properWindowSize) {
+              // Try to expand to the right first
+              const rightExpansion = Math.min(totalAfter - 1 - anchoredEnd, properWindowSize - actualWindowSize);
+              anchoredEnd += rightExpansion;
+
+              // If still not enough, expand to the left
+              const remainingExpansion = properWindowSize - (anchoredEnd - anchoredStart + 1);
+              if (remainingExpansion > 0) {
+                anchoredStart = Math.max(0, anchoredStart - remainingExpansion);
               }
+            } else if (actualWindowSize > properWindowSize) {
+              // Trim excess from the right
+              anchoredEnd = anchoredStart + properWindowSize - 1;
             }
           }
 
@@ -279,14 +344,49 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             anchoredStart = 0;
           }
 
+          console.log('🔧 Final Viewport Before Setting:', {
+            anchoredStart,
+            anchoredEnd,
+            viewportSize: anchoredEnd - anchoredStart + 1,
+            totalDataLength: prunedData.length,
+            properWindowSize: CHART_DATA_POINTS,
+            currentWindowSize: anchoredEnd - anchoredStart + 1,
+            needsExpansion: anchoredEnd - anchoredStart + 1 < CHART_DATA_POINTS,
+            centerPoint: Math.round((anchoredStart + anchoredEnd) / 2),
+            halfWindow: Math.floor(CHART_DATA_POINTS / 2),
+          });
+
           chartActions.setAllData(prunedData);
+
+          console.log('🔧 About to call setViewport:', {
+            anchoredStart,
+            anchoredEnd,
+            prunedDataLength: prunedData.length,
+            currentState: {
+              currentViewStart: chartState.currentViewStart,
+              currentViewEnd: chartState.currentViewEnd,
+              allDataLength: chartState.allData.length,
+            },
+            refValues: {
+              refViewStart: currentViewStartRef.current,
+              refViewEnd: currentViewEndRef.current,
+            },
+          });
+
           chartActions.setViewport(anchoredStart, anchoredEnd);
+
+          console.log('🔧 Viewport Set Called:', {
+            setViewportCalled: true,
+            anchoredStart,
+            anchoredEnd,
+          });
 
           console.log('✅ Successfully auto-loaded data:', {
             direction,
             fetched: formattedData.length,
             requested: fetchPoints,
             newTotal: prunedData.length,
+            finalViewport: `${anchoredStart}-${anchoredEnd}`,
           });
 
           // Reset the end-of-data flag since we successfully loaded new data
@@ -536,7 +636,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           console.log('🔄 Resetting auto-loading flag after timeout');
           isAutoLoadingRef.current = false;
         }
-      }, 10); // Small delay to ensure all re-renders are complete
+      }, 100); // Increased delay to ensure viewport clamping effect runs first
     }
   }, [
     chartState.currentViewStart,
@@ -722,9 +822,31 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       return;
     }
 
+    console.log('🔍 Viewport clamping effect triggered:', {
+      total,
+      currentViewStart: chartState.currentViewStart,
+      currentViewEnd: chartState.currentViewEnd,
+      isAutoLoading: isAutoLoadingRef.current,
+    });
+
+    // Skip viewport clamping if we're currently auto-loading to preserve anchored viewport
+    if (isAutoLoadingRef.current) {
+      console.log('⏸️ Viewport clamping skipped: Auto-loading in progress');
+      return;
+    }
+
     let start = Math.max(0, Math.floor(chartState.currentViewStart));
     let end = Math.min(total - 1, Math.ceil(chartState.currentViewEnd));
 
+    // Only clamp if the viewport is actually invalid (out of bounds or too small)
+    const isViewportInvalid = start < 0 || end >= total || end < start || end - start + 1 < 1;
+
+    if (!isViewportInvalid) {
+      // Viewport is valid, no clamping needed
+      return;
+    }
+
+    // Apply clamping only for invalid viewports
     if (end < start) {
       end = Math.min(total - 1, start + CHART_DATA_POINTS - 1);
     }
@@ -742,6 +864,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     }
 
     if (start !== chartState.currentViewStart || end !== chartState.currentViewEnd) {
+      console.log('🔧 Viewport clamping applied:', {
+        original: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
+        clamped: `${start}-${end}`,
+        total,
+        reason: 'Invalid viewport detected',
+      });
       chartActions.setViewport(start, end);
     }
   }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData.length]);
