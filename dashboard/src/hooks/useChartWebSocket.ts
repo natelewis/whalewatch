@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { AlpacaBar } from '../types';
+import { logger } from '../utils/logger';
 
 interface UseChartWebSocketProps {
   symbol: string;
@@ -20,28 +21,28 @@ export const useChartWebSocket = ({ symbol, onChartData }: UseChartWebSocketProp
   // Subscribe to chart data for the current symbol
   const subscribeToChartData = useCallback(() => {
     if (isConnected) {
-      console.log(`📊 Subscribing to chart data for ${symbol}`);
+      logger.chart.data(`Subscribing to chart data for ${symbol}`);
       sendMessage({
         type: 'subscribe',
         data: { channel: 'chart_quote', symbol },
         timestamp: new Date().toISOString(),
       });
     } else {
-      console.log(`⚠️ Cannot subscribe to chart data: connected=${isConnected}`);
+      logger.warn(`Cannot subscribe to chart data: connected=${isConnected}`);
     }
   }, [sendMessage, symbol, isConnected]);
 
   // Unsubscribe from chart data
   const unsubscribeFromChartData = useCallback(() => {
     if (isConnected) {
-      console.log(`📊 Unsubscribing from chart data for ${symbol}`);
+      logger.chart.data(`Unsubscribing from chart data for ${symbol}`);
       sendMessage({
         type: 'unsubscribe',
         data: { channel: 'chart_quote', symbol },
         timestamp: new Date().toISOString(),
       });
     } else {
-      console.log(`⚠️ Cannot unsubscribe from chart data: connected=${isConnected}`);
+      logger.warn(`Cannot unsubscribe from chart data: connected=${isConnected}`);
     }
   }, [sendMessage, symbol, isConnected]);
 
@@ -57,12 +58,12 @@ export const useChartWebSocket = ({ symbol, onChartData }: UseChartWebSocketProp
       }
 
       processedMessageRef.current = messageKey;
-      console.log('📥 WebSocket message received:', lastMessage);
+      logger.chart.websocket('WebSocket message received:', lastMessage);
 
       // Check if this is a chart_quote message
       if (lastMessage.type === 'chart_quote') {
         const chartData = lastMessage.data as { symbol: string; bar: AlpacaBar };
-        console.log('📊 Chart data received:', chartData);
+        logger.chart.data('Chart data received:', chartData);
 
         if (chartData.symbol === symbol) {
           // Call onChartData directly to avoid dependency issues
@@ -70,16 +71,16 @@ export const useChartWebSocket = ({ symbol, onChartData }: UseChartWebSocketProp
             onChartData(chartData.bar);
           }
         } else {
-          console.log(`⚠️ Chart data symbol mismatch: expected ${symbol}, got ${chartData.symbol}`);
+          logger.warn(`Chart data symbol mismatch: expected ${symbol}, got ${chartData.symbol}`);
         }
       } else if (lastMessage.type === 'subscription_confirmed') {
-        console.log('✅ Subscription confirmed:', lastMessage.data);
+        logger.chart.success('Subscription confirmed:', lastMessage.data);
       } else if (lastMessage.type === 'unsubscription_confirmed') {
-        console.log('✅ Unsubscription confirmed:', lastMessage.data);
+        logger.chart.success('Unsubscription confirmed:', lastMessage.data);
       } else if (lastMessage.type === 'error') {
         console.error('❌ WebSocket error:', lastMessage.data);
       } else {
-        console.log('📥 Other WebSocket message:', lastMessage.type, lastMessage.data);
+        logger.chart.websocket('Other WebSocket message:', lastMessage.type, lastMessage.data);
       }
     }
   }, [lastMessage, symbol, onChartData]);

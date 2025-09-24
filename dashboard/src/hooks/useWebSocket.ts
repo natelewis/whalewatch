@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { WebSocketMessage } from '../types';
 import { WS_BASE_URL } from '../constants';
 import { safeCall } from '@whalewatch/shared';
+import { logger } from '../utils/logger';
 
 interface UseWebSocketOptions {
   onOpen?: () => void;
@@ -27,19 +28,19 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     }
 
     const wsUrl = `${WS_BASE_URL}/ws?token=${token}`;
-    console.log('🔌 Attempting WebSocket connection to:', wsUrl);
+    logger.chart.websocket('Attempting WebSocket connection to:', wsUrl);
 
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      console.log('✅ WebSocket connected successfully');
+      logger.chart.success('WebSocket connected successfully');
       setIsConnected(true);
       reconnectAttempts.current = 0;
       options.onOpen?.();
     };
 
     ws.onclose = event => {
-      console.log('❌ WebSocket disconnected:', event.code, event.reason);
+      logger.chart.error('WebSocket disconnected:', event.code, event.reason);
       setIsConnected(false);
       options.onClose?.();
 
@@ -49,7 +50,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log(`🔄 Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`);
+          logger.chart.loading(`Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`);
           connect();
         }, delay);
       } else {
@@ -68,7 +69,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       });
 
       if (result.isOk()) {
-        console.log('📥 WebSocket message received:', result.value);
+        logger.chart.websocket('WebSocket message received:', result.value);
         setLastMessage(result.value);
         options.onMessage?.(result.value);
       } else {

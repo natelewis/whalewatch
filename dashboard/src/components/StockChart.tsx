@@ -8,6 +8,8 @@ import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
 import { apiService } from '../services/apiService';
 import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
+import { logger } from '../utils/logger';
+import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import {
   formatPrice,
   processChartData,
@@ -30,13 +32,7 @@ import {
   CHART_DATA_POINTS,
   MARGIN_SIZE,
   MAX_DATA_POINTS,
-  RIGHT_EDGE_CHECK_INTERVAL,
-  CANDLE_UP_COLOR,
-  CANDLE_DOWN_COLOR,
-  Y_SCALE_REPRESENTATIVE_DATA_LENGTH,
-  X_AXIS_MARKER_DATA_POINT_INTERVAL,
 } from '../constants';
-import { BarChart3 } from 'lucide-react';
 
 interface StockChartProps {
   symbol: string;
@@ -162,19 +158,19 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       const dataLoadStartTime = performance.now();
 
       if (timeframe === null) {
-        console.warn('Cannot auto-load more data: no timeframe selected');
+        logger.warn('Cannot auto-load more data: no timeframe selected');
         return false;
       }
 
       // Only load more data if we haven't reached the maximum yet
       if (chartState.allData.length >= MAX_DATA_POINTS) {
-        console.log('📊 Max data points reached, skipping auto-load');
+        logger.chart.data('Max data points reached, skipping auto-load');
         return false;
       }
 
       // Check if we've already reached the end of data in this direction
       if (reachedEndOfDataRef.current[direction]) {
-        console.log(`📊 Already reached end of ${direction} data, skipping auto-load`);
+        logger.chart.data(`Already reached end of ${direction} data, skipping auto-load`);
         return false;
       }
 
@@ -192,7 +188,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
       // Prevent multiple in-flight loads
       if (isLoadingDataRef.current) {
-        console.log('⏸️ Skipping auto-load, request in flight');
+        logger.chart.skip('Skipping auto-load, request in flight');
         return false;
       }
       isLoadingDataRef.current = true;
@@ -210,7 +206,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
           // Check if we actually got new data
           if (formattedData.length === 0) {
-            console.log(`📊 No new data available, reached end of ${direction} data`);
+            logger.chart.data(`No new data available, reached end of ${direction} data`);
             reachedEndOfDataRef.current[direction] = true;
             return;
           }
@@ -235,11 +231,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           const prevStart = currentViewStartRef.current;
           const prevEnd = currentViewEndRef.current;
 
-          console.log('🔧 Original Viewport Before Auto-load:', {
-            prevStart,
-            prevEnd,
-            originalViewportSize: prevEnd - prevStart + 1,
-          });
           const prevLength = currentDataRef.current.length;
           const mergedLength = mergedData.length;
           const totalAfter = prunedData.length;
@@ -250,64 +241,18 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             // When loading past data, the shift should be based on the actual new data fetched
             // We requested fetchPoints (600) new data points, so the shift should be fetchPoints
             dataShift = fetchPoints;
-            console.log('🔧 Past data shift calculation:', {
-              fetchPoints,
-              prevLength,
-              mergedLength,
-              actualNewData: formattedData.length,
-              calculatedShift: dataShift,
-            });
           } else if (direction === 'future') {
             // When loading future data, check if we pruned data from the left
             const prunedFromLeft = mergedData.length - prunedData.length;
             dataShift = -prunedFromLeft; // Negative shift if we removed data from left
           }
 
-          console.log('🔧 Viewport Anchoring Debug:', {
-            direction,
-            prevStart,
-            prevEnd,
-            prevLength,
-            mergedLength,
-            prunedDataLength: prunedData.length,
-            dataShift,
-            calculatedStart: prevStart + dataShift,
-            calculatedEnd: prevEnd + dataShift,
-            // Additional debugging
-            currentDataRefLength: currentDataRef.current.length,
-            formattedDataLength: formattedData.length,
-            fetchPoints,
-            mergedDataLength: mergedData.length,
-            totalAfter: prunedData.length,
-            // Current state values
-            currentViewStart: chartState.currentViewStart,
-            currentViewEnd: chartState.currentViewEnd,
-            allDataLength: chartState.allData.length,
-            // Ref values (should be current)
-            refViewStart: currentViewStartRef.current,
-            refViewEnd: currentViewEndRef.current,
-          });
-
           let anchoredStart = Math.round(prevStart + dataShift);
           let anchoredEnd = Math.round(prevEnd + dataShift);
-
-          console.log('🔧 Immediately After Data Shift:', {
-            anchoredStart,
-            anchoredEnd,
-            calculatedWindowSize: anchoredEnd - anchoredStart + 1,
-          });
 
           // Ensure the viewport is expanded to the proper CHART_DATA_POINTS size
           const properWindowSize = CHART_DATA_POINTS;
           const currentWindowSize = anchoredEnd - anchoredStart + 1;
-
-          console.log('🔧 Viewport Expansion Check:', {
-            anchoredStart,
-            anchoredEnd,
-            currentWindowSize,
-            properWindowSize,
-            needsExpansion: currentWindowSize < properWindowSize,
-          });
 
           if (currentWindowSize < properWindowSize) {
             // For auto-load, we want to center the viewport around the anchored position
@@ -344,44 +289,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             anchoredStart = 0;
           }
 
-          console.log('🔧 Final Viewport Before Setting:', {
-            anchoredStart,
-            anchoredEnd,
-            viewportSize: anchoredEnd - anchoredStart + 1,
-            totalDataLength: prunedData.length,
-            properWindowSize: CHART_DATA_POINTS,
-            currentWindowSize: anchoredEnd - anchoredStart + 1,
-            needsExpansion: anchoredEnd - anchoredStart + 1 < CHART_DATA_POINTS,
-            centerPoint: Math.round((anchoredStart + anchoredEnd) / 2),
-            halfWindow: Math.floor(CHART_DATA_POINTS / 2),
-          });
-
           chartActions.setAllData(prunedData);
-
-          console.log('🔧 About to call setViewport:', {
-            anchoredStart,
-            anchoredEnd,
-            prunedDataLength: prunedData.length,
-            currentState: {
-              currentViewStart: chartState.currentViewStart,
-              currentViewEnd: chartState.currentViewEnd,
-              allDataLength: chartState.allData.length,
-            },
-            refValues: {
-              refViewStart: currentViewStartRef.current,
-              refViewEnd: currentViewEndRef.current,
-            },
-          });
 
           chartActions.setViewport(anchoredStart, anchoredEnd);
 
-          console.log('🔧 Viewport Set Called:', {
-            setViewportCalled: true,
-            anchoredStart,
-            anchoredEnd,
-          });
-
-          console.log('✅ Successfully auto-loaded data:', {
+          logger.chart.success('Successfully auto-loaded data:', {
             direction,
             fetched: formattedData.length,
             requested: fetchPoints,
@@ -393,10 +305,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           reachedEndOfDataRef.current[direction] = false;
 
           const dataLoadEndTime = performance.now();
-          console.log(`⏱️ Data loading (async) took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
+          logger.chart.performance(`Data loading (async) took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
         })
         .catch(error => {
-          console.error('Failed to auto-load more data:', error);
+          logger.error('Failed to auto-load more data:', error);
         })
         .finally(() => {
           isLoadingDataRef.current = false;
@@ -467,7 +379,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const skipToTime = useCallback(
     async (hoursAgo: number) => {
       if (!chartState.timeframe) {
-        console.warn('Cannot skip to time: No timeframe set');
+        logger.warn('Cannot skip to time: No timeframe set');
         return;
       }
 
@@ -476,7 +388,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       const targetTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
       const targetTimeString = targetTime.toISOString();
 
-      console.log('Skipping to time:', {
+      logger.chart.data('Skipping to time:', {
         hoursAgo,
         targetTime: targetTimeString,
         timeframe: chartState.timeframe,
@@ -497,7 +409,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           'centered'
         );
 
-        console.log('✅ New data loaded for skip-to time:', targetTimeString);
+        logger.chart.success('New data loaded for skip-to time:', targetTimeString);
 
         // After loading new data, we need to recreate the chart structure
         // because the data has completely changed
@@ -508,9 +420,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         // Set a flag to prevent auto-redraw from interfering with chart recreation
         skipToJustCompletedRef.current = true;
 
-        console.log('🔄 Chart structure reset for skip-to operation');
+        logger.chart.loading('Chart structure reset for skip-to operation');
       } catch (error) {
-        console.error('❌ Failed to load data for skip-to time:', error);
+        logger.error('Failed to load data for skip-to time:', error);
       } finally {
         // Clear the skip-to flag
         skipToInProgressRef.current = false;
@@ -525,7 +437,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const chartWebSocket = useChartWebSocket({
     symbol,
     onChartData: bar => {
-      console.log('🌐 WebSocket data received in StockChart:', {
+      logger.chart.websocket('WebSocket data received in StockChart:', {
         symbol,
         timestamp: bar.t,
         open: bar.o,
@@ -541,12 +453,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
       // Skip if we've already processed this exact data point
       if (lastProcessedDataRef.current === dataKey) {
-        console.log('⏸️ WebSocket data skipped: Duplicate detected');
+        logger.chart.skip('WebSocket data skipped: Duplicate detected');
         return;
       }
 
       lastProcessedDataRef.current = dataKey;
-      console.log('📤 Calling updateChartWithLiveData...');
+      logger.chart.data('Calling updateChartWithLiveData...');
       chartActions.updateChartWithLiveData(bar);
     },
   });
@@ -561,7 +473,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Handle auto-redraw when viewport changes due to live data updates
   useEffect(() => {
-    console.log('🎨 Auto-redraw useEffect triggered:', {
+    logger.chart.render('Auto-redraw useEffect triggered:', {
       chartLoaded: chartState.chartLoaded,
       svgRefExists: !!svgRef.current,
       dataLength: chartState.allData.length,
@@ -573,31 +485,31 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
     // Only trigger auto-redraw if chart is loaded and we have valid data
     if (!chartState.chartLoaded || !svgRef.current || chartState.allData.length === 0) {
-      console.log('⏸️ Auto-redraw skipped: Chart not ready');
+      logger.chart.skip('Auto-redraw skipped: Chart not ready');
       return;
     }
 
     // Skip if we're currently panning to avoid conflicts
     if (isPanningRef.current) {
-      console.log('⏸️ Auto-redraw skipped: Currently panning');
+      logger.chart.skip('Auto-redraw skipped: Currently panning');
       return;
     }
 
     // Skip if manual render is in progress
     if (manualRenderInProgressRef.current) {
-      console.log('⏸️ Auto-redraw skipped: Manual render in progress');
+      logger.chart.skip('Auto-redraw skipped: Manual render in progress');
       return;
     }
 
     // Skip if skip-to operation is in progress
     if (skipToInProgressRef.current) {
-      console.log('⏸️ Auto-redraw skipped: Skip-to operation in progress');
+      logger.chart.skip('Auto-redraw skipped: Skip-to operation in progress');
       return;
     }
 
     // Skip if skip-to operation just completed (to prevent immediate overwrite)
     if (skipToJustCompletedRef.current) {
-      console.log('⏸️ Auto-redraw skipped: Skip-to operation just completed');
+      logger.chart.skip('Auto-redraw skipped: Skip-to operation just completed');
       skipToJustCompletedRef.current = false; // Clear the flag
       return;
     }
@@ -621,7 +533,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
     }
 
-    console.log('✅ Auto-redraw re-render completed:', {
+    logger.chart.success('Auto-redraw re-render completed:', {
       viewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
       dataLength: chartState.allData.length,
       transform: `${currentZoomTransform.x}, ${currentZoomTransform.y}, ${currentZoomTransform.k}`,
@@ -629,11 +541,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
     // Reset auto-loading flag after re-render is complete
     if (isAutoLoadingRef.current) {
-      console.log('🔄 Auto-load re-render detected, scheduling flag reset');
+      logger.chart.loading('Auto-load re-render detected, scheduling flag reset');
       // Use setTimeout to ensure all related re-renders are complete
       setTimeout(() => {
         if (isAutoLoadingRef.current) {
-          console.log('🔄 Resetting auto-loading flag after timeout');
+          logger.chart.loading('Resetting auto-loading flag after timeout');
           isAutoLoadingRef.current = false;
         }
       }, 100); // Increased delay to ensure viewport clamping effect runs first
@@ -650,7 +562,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Load saved timeframe from localStorage (but don't load data here)
   useEffect(() => {
     if (initialDataLoadedRef.current) {
-      console.log('🔄 Initial timeframe already loaded; skipping');
+      logger.chart.loading('Initial timeframe already loaded; skipping');
       return;
     }
 
@@ -663,7 +575,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       setTimeframe(savedTimeframe);
       initialDataLoadedRef.current = true;
     } else {
-      console.warn('Failed to load chart timeframe from localStorage:', createUserFriendlyMessage(result.error));
+      logger.warn('Failed to load chart timeframe from localStorage:', createUserFriendlyMessage(result.error));
       setTimeframe('1h');
       initialDataLoadedRef.current = true;
     }
@@ -677,7 +589,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       });
 
       if (result.isErr()) {
-        console.warn('Failed to save chart timeframe to localStorage:', createUserFriendlyMessage(result.error));
+        logger.warn('Failed to save chart timeframe to localStorage:', createUserFriendlyMessage(result.error));
       }
     }
   }, [timeframe]);
@@ -691,7 +603,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
     // Skip if already loading data
     if (isLoadingDataRef.current) {
-      console.log('🔄 Data load already in progress; skipping duplicate request');
+      logger.chart.loading('Data load already in progress; skipping duplicate request');
       return;
     }
 
@@ -707,7 +619,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     chartActions.setChartExists(false);
     chartActions.setChartLoaded(false);
 
-    console.log('🔄 Loading data for symbol/timeframe:', {
+    logger.chart.loading('Loading data for symbol/timeframe:', {
       symbol,
       timeframe,
       currentDataLength: chartState.allData.length,
@@ -715,7 +627,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     });
     isLoadingDataRef.current = true;
     chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
-      console.log('✅ Data loading completed for timeframe:', timeframe);
+      logger.chart.success('Data loading completed for timeframe:', timeframe);
       isLoadingDataRef.current = false;
     });
   }, [symbol, timeframe]); // Single effect handles all data loading
@@ -822,7 +734,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       return;
     }
 
-    console.log('🔍 Viewport clamping effect triggered:', {
+    logger.chart.viewport('Viewport clamping effect triggered:', {
       total,
       currentViewStart: chartState.currentViewStart,
       currentViewEnd: chartState.currentViewEnd,
@@ -831,7 +743,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
     // Skip viewport clamping if we're currently auto-loading to preserve anchored viewport
     if (isAutoLoadingRef.current) {
-      console.log('⏸️ Viewport clamping skipped: Auto-loading in progress');
+      logger.chart.skip('Viewport clamping skipped: Auto-loading in progress');
       return;
     }
 
@@ -864,7 +776,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     }
 
     if (start !== chartState.currentViewStart || end !== chartState.currentViewEnd) {
-      console.log('🔧 Viewport clamping applied:', {
+      logger.chart.fix('Viewport clamping applied:', {
         original: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
         clamped: `${start}-${end}`,
         total,
@@ -906,7 +818,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       return; // Chart already created, skip
     }
 
-    console.log('🎯 Chart creation effect triggered:', {
+    logger.chart.target('Chart creation effect triggered:', {
       chartCreatedRef: chartCreatedRef.current,
       isValidData,
       allDataLength: chartState.allData.length,
@@ -934,7 +846,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     const shouldForceRecreate =
       !chartCreatedRef.current && isValidData && chartState.allData.length > 0 && svgRef.current;
 
-    console.log('🎯 Chart creation conditions:', {
+    logger.chart.target('Chart creation conditions:', {
       gElementExists,
       shouldCreate,
       shouldForceRecreate,
@@ -961,7 +873,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Negative indices are normal when panning to historical data
 
       if (chartState.currentViewStart > chartState.currentViewEnd || chartState.currentViewEnd < 0) {
-        console.warn('Invalid view range in chart creation effect, resetting to valid values:', {
+        logger.warn('Invalid view range in chart creation effect, resetting to valid values:', {
           currentViewStart: chartState.currentViewStart,
           currentViewEnd: chartState.currentViewEnd,
           dataLength: chartState.allData.length,

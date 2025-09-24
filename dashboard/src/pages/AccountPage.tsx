@@ -7,6 +7,7 @@ import { PositionsTable } from '../components/PositionsTable';
 import { ActivityHistory } from '../components/ActivityHistory';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
+import { logger } from '../utils/logger';
 
 export const AccountPage: React.FC = () => {
   const [account, setAccount] = useState<AlpacaAccount | null>(null);
@@ -36,7 +37,9 @@ export const AccountPage: React.FC = () => {
 
       // Only resubscribe if positions have actually changed or we haven't subscribed yet
       if (!hasSubscribedRef.current || lastPositionsRef.current !== currentPositionsKey) {
-        console.log(`🔄 WebSocket reconnected, resubscribing to account quotes for ${positions.length} positions`);
+        logger.chart.loading(
+          `WebSocket reconnected, resubscribing to account quotes for ${positions.length} positions`
+        );
         const symbols = positions.map((p: AlpacaPosition) => p.symbol);
         sendMessage({
           type: 'subscribe',

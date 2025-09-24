@@ -10,6 +10,7 @@ import {
   X_AXIS_LABEL_CONFIGS,
   Y_SCALE_REPRESENTATIVE_DATA_LENGTH,
 } from '../constants';
+import { logger } from './logger';
 
 // Types for cache values
 type YScaleDomain = [number, number];
@@ -78,7 +79,7 @@ export const clearTimeFormatCache = (): void => {
  */
 export const clearAllChartCaches = (): void => {
   calculationCache.clear();
-  console.log('🧹 Cleared all chart caches');
+  logger.chart.cleanup('Cleared all chart caches');
 };
 
 /**
@@ -634,7 +635,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   interval?: string
 ): Date[] => {
   if (!visibleData || visibleData.length === 0) {
-    console.log('🔍 memoizedGenerateVisibleTimeBasedTicks: No visible data, returning empty array');
+    logger.chart.viewport('memoizedGenerateVisibleTimeBasedTicks: No visible data, returning empty array');
     return [];
   }
 
@@ -857,7 +858,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
       // Keep the rightmost (most recent) labels, drop the far left ones
       finalTicks = ticks.slice(-labelConfig.maxVisibleLabels);
 
-      console.log('🔍 memoizedGenerateVisibleTimeBasedTicks LABEL LIMITING:', {
+      logger.chart.viewport('memoizedGenerateVisibleTimeBasedTicks LABEL LIMITING:', {
         originalTickCount: ticks.length,
         maxVisibleLabels: labelConfig.maxVisibleLabels,
         finalTickCount: finalTicks.length,
@@ -869,7 +870,7 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   calculationCache.set(cacheKey, finalTicks);
   cleanupCache(calculationCache, CHART_STATE_CACHE_SIZE);
 
-  console.log('🔍 memoizedGenerateVisibleTimeBasedTicks RESULT:', {
+  logger.chart.viewport('memoizedGenerateVisibleTimeBasedTicks RESULT:', {
     tickCount: finalTicks.length,
     firstTick: finalTicks[0]?.toISOString(),
     lastTick: finalTicks[finalTicks.length - 1]?.toISOString(),

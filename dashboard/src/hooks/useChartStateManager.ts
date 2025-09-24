@@ -11,6 +11,7 @@ import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 import { clearTimeFormatCache, clearAllChartCaches } from '../utils/memoizedChartUtils';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
+import { logger } from '../utils/logger';
 
 // Import types from centralized location
 import { HoverData, ChartState, ChartTransform, DateDisplayData } from '../types';
@@ -327,7 +328,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         // Process the data using utility functions
         const { formattedData, dataRange } = processChartData(response.bars, timeframe, DEFAULT_CHART_DATA_POINTS);
 
-        console.log('Initial data load:', {
+        logger.chart.data('Initial data load:', {
           symbol,
           timeframe,
           dataPoints,
@@ -382,7 +383,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
             viewStart = Math.max(0, viewEnd - viewportSize + 1);
           }
 
-          console.log('🎯 Centering viewport for centered data:', {
+          logger.chart.target('Centering viewport for centered data:', {
             dataLength,
             targetTimeIndex,
             viewportSize,
@@ -400,7 +401,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       } else {
         const userMessage = createUserFriendlyMessage(result.error);
         setError(userMessage);
-        console.error('Error loading chart data:', userMessage);
+        logger.error('Error loading chart data:', userMessage);
       }
 
       setIsLoading(false);
@@ -446,7 +447,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         // Process the new data
         const { formattedData } = processChartData(response.bars, timeframe, DEFAULT_CHART_DATA_POINTS);
 
-        console.log('Loading more data:', {
+        logger.chart.data('Loading more data:', {
           symbol,
           timeframe,
           direction,
@@ -486,7 +487,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       } else {
         const userMessage = createUserFriendlyMessage(result.error);
         setError(userMessage);
-        console.error('Error loading more chart data:', userMessage);
+        logger.error('Error loading more chart data:', userMessage);
       }
 
       setIsLoading(false);
@@ -495,7 +496,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
   );
 
   const updateChartWithLiveData = useCallback((bar: AlpacaBar) => {
-    console.log('📡 New WebSocket data received:', {
+    logger.chart.websocket('New WebSocket data received:', {
       timestamp: bar.t,
       open: bar.o,
       high: bar.h,
@@ -548,14 +549,14 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       // Auto-redraw logic: Check if current view shows any of the 5 newest candles
       const shouldAutoRedraw = (() => {
         if (updatedAllData.length === 0) {
-          console.log('🔍 Auto-redraw check: No data available');
+          logger.chart.viewport('Auto-redraw check: No data available');
           return false;
         }
 
         // Get the 5 newest real candles (excluding fake candles)
         const realCandles = updatedAllData.filter(candle => !isFakeCandle(candle));
         if (realCandles.length === 0) {
-          console.log('🔍 Auto-redraw check: No real candles found');
+          logger.chart.viewport('Auto-redraw check: No real candles found');
           return false;
         }
 
@@ -571,7 +572,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         // Only auto-redraw if the current viewport actually shows any of the 5 newest candles
         const hasOverlap = newestCandleIndices.some(index => index >= currentViewStart && index <= currentViewEnd);
 
-        console.log('🔍 Auto-redraw decision:', {
+        logger.chart.viewport('Auto-redraw decision:', {
           totalDataLength: updatedAllData.length,
           realCandlesCount: realCandles.length,
           newestCandleIndices,
@@ -595,14 +596,14 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         newViewEnd = newestCandleIndex;
         newViewStart = Math.max(0, newestCandleIndex - viewportSize);
 
-        console.log('🔄 Auto-redraw triggered:', {
+        logger.chart.loading('Auto-redraw triggered:', {
           newestCandleIndex,
           previousView: `${prev.currentViewStart}-${prev.currentViewEnd}`,
           newView: `${newViewStart}-${newViewEnd}`,
           viewportSize,
         });
       } else {
-        console.log('⏸️ Auto-redraw skipped:', {
+        logger.chart.skip('Auto-redraw skipped:', {
           shouldAutoRedraw,
           dataLength: updatedAllData.length,
           currentViewport: `${prev.currentViewStart}-${prev.currentViewEnd}`,
@@ -634,7 +635,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
           if (restoredViewport) {
             newViewStart = restoredViewport.viewStart;
             newViewEnd = restoredViewport.viewEnd;
-            console.log('🔄 Restored viewport from localStorage:', {
+            logger.chart.loading('Restored viewport from localStorage:', {
               savedDateTime,
               restoredViewport: `${newViewStart}-${newViewEnd}`,
             });
@@ -642,19 +643,19 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
             // Fallback to default viewport
             newViewEnd = totalDataLength - 1;
             newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
-            console.log('⚠️ Could not restore viewport from localStorage, using default');
+            logger.warn('Could not restore viewport from localStorage, using default');
           }
         } else {
           // No saved date/time, use default viewport
           newViewEnd = totalDataLength - 1;
           newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
-          console.log('📅 No saved date/time found, using default viewport');
+          logger.chart.data('No saved date/time found, using default viewport');
         }
       } catch (error) {
         // Error loading from localStorage, use default viewport
         newViewEnd = totalDataLength - 1;
         newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
-        console.warn('Failed to restore viewport from localStorage:', error);
+        logger.warn('Failed to restore viewport from localStorage:', error);
       }
 
       setState(prev => ({

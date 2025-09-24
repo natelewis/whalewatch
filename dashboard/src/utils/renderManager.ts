@@ -5,6 +5,7 @@ import { updateClipPath, renderCandlestickChart } from '../components/ChartRende
 import { memoizedCalculateYScaleDomain } from './memoizedChartUtils';
 import { isValidChartData, calculateInnerDimensions } from './chartDataUtils';
 import { Y_SCALE_REPRESENTATIVE_DATA_LENGTH, LOAD_EDGE_TRIGGER } from '../constants';
+import { logger } from './logger';
 
 /**
  * Render type enumeration for different chart rendering scenarios
@@ -152,7 +153,7 @@ export const checkAutoLoadTrigger = (
   const distanceRight = Math.max(0, totalDataLength - 1 - viewEnd);
   const threshold = LOAD_EDGE_TRIGGER;
 
-  console.log('🔍 Auto-load check:', {
+  logger.chart.viewport('Auto-load check:', {
     viewport: `${viewStart}-${viewEnd}`,
     totalDataLength,
     distanceLeft,
@@ -169,7 +170,7 @@ export const checkAutoLoadTrigger = (
     if (lastLoadDataLengthLeft) {
       lastLoadDataLengthLeft.current = totalDataLength;
     }
-    console.log('📊 Triggering auto-load for past data');
+    logger.chart.data('Triggering auto-load for past data');
     setTimeout(() => {
       try {
         const result = onBufferedCandlesRendered('past');
@@ -202,7 +203,7 @@ export const checkAutoLoadTrigger = (
     if (lastLoadDataLengthRight) {
       lastLoadDataLengthRight.current = totalDataLength;
     }
-    console.log('📊 Triggering auto-load for future data');
+    logger.chart.data('Triggering auto-load for future data');
     setTimeout(() => {
       try {
         const result = onBufferedCandlesRendered('future');
@@ -262,7 +263,7 @@ export const renderChart = (params: RenderParams): RenderResult => {
       return { success: false, error: 'No data to render', yScaleRecalculated: false };
     }
 
-    console.log(`🎨 Rendering chart (${options.type}):`, {
+    logger.chart.render(`Rendering chart (${options.type}):`, {
       dataLength: allData.length,
       viewport: `${currentViewStart}-${currentViewEnd}`,
       recalculateYScale: options.recalculateYScale,
@@ -290,7 +291,7 @@ export const renderChart = (params: RenderParams): RenderResult => {
     // For panning and skip-to operations, we need to override the viewport calculation
     // to use the specific viewport indices provided
     let calculations: ChartCalculations;
-    console.log('🔧 Renter Type:', options.type);
+    logger.chart.fix('Render Type:', options.type);
 
     if (
       options.type === RenderType.PANNING ||
@@ -330,7 +331,7 @@ export const renderChart = (params: RenderParams): RenderResult => {
         transformString: transformToUse.toString(),
       };
     } else {
-      console.log('🔧 Using standard calculation for:', options.type, 'with transform:', transformToUse.toString());
+      logger.chart.fix('Using standard calculation for:', options.type, 'with transform:', transformToUse.toString());
       // For other render types, use the standard calculation
       calculations = calculateChartState({
         dimensions,
@@ -364,7 +365,7 @@ export const renderChart = (params: RenderParams): RenderResult => {
       }
     }
 
-    console.log('🔧 Final calculations before logging:', {
+    logger.chart.fix('Final calculations before logging:', {
       viewStart: calculations.viewStart,
       viewEnd: calculations.viewEnd,
       visibleDataLength: calculations.visibleData.length,
@@ -377,7 +378,7 @@ export const renderChart = (params: RenderParams): RenderResult => {
       newFixedYScaleDomain: yScaleRecalculated ? yScaleDomainToUse : null,
     };
   } catch (error) {
-    console.error(`❌ Chart render failed (${options.type}):`, error);
+    logger.error(`Chart render failed (${options.type}):`, error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown render error',

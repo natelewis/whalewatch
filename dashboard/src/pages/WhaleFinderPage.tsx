@@ -5,6 +5,7 @@ import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { PageHeader } from '../components/PageHeader';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
+import { logger } from '../utils/logger';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
@@ -23,7 +24,7 @@ export const WhaleFinderPage: React.FC = () => {
   // Resubscribe when WebSocket reconnects
   useEffect(() => {
     if (isConnected && selectedSymbol) {
-      console.log(`🔄 WebSocket reconnected, resubscribing to options contracts for ${selectedSymbol}`);
+      logger.chart.loading(`WebSocket reconnected, resubscribing to options contracts for ${selectedSymbol}`);
       sendMessage({
         type: 'subscribe',
         data: { channel: 'options_contract', symbol: selectedSymbol },

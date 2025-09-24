@@ -14,6 +14,7 @@ import {
   X_AXIS_LABEL_CONFIGS,
   HOVER_DISPLAY,
 } from '../constants';
+import { logger } from '../utils/logger';
 import { ChartDimensions, CandlestickData } from '../types';
 import {
   calculateInnerDimensions,
@@ -99,7 +100,7 @@ export const createChart = ({
   onBufferedCandlesRendered?: (direction: 'past' | 'future') => void;
 }): (() => void) => {
   if (!svgElement) {
-    console.log('createChart: No svgElement found, skipping chart creation (SVG element not mounted yet)');
+    logger.chart.render('createChart: No svgElement found, skipping chart creation (SVG element not mounted yet)');
     return () => {}; // Return empty cleanup function
   }
 
@@ -152,7 +153,7 @@ export const createChart = ({
   // Create X-axis using the same approach as pan/zoom for consistency
   // Add safety check to prevent error when allChartData is empty
   if (allChartData.length === 0) {
-    console.warn('createIndexToTimeScale called with empty allChartData in initial render');
+    logger.warn('createIndexToTimeScale called with empty allChartData in initial render');
     return () => {}; // Return empty cleanup function
   }
   // Get interval-based configuration
@@ -170,17 +171,6 @@ export const createChart = ({
     viewStart = Math.max(0, Math.floor(chartState.currentViewStart || 0));
     viewEnd = Math.min(allChartData.length - 1, Math.ceil(chartState.currentViewEnd || allChartData.length - 1));
   }
-
-  console.log('🔍 INITIAL RENDERING DEBUG:', {
-    chartStateCurrentViewStart: chartState.currentViewStart,
-    chartStateCurrentViewEnd: chartState.currentViewEnd,
-    calculatedViewStart: viewStart,
-    calculatedViewEnd: viewEnd,
-    allChartDataLength: allChartData.length,
-    interval,
-    viewportSize: viewEnd - viewStart + 1,
-    usingDefaultViewport: chartState.currentViewStart === 0 && chartState.currentViewEnd === 0,
-  });
 
   const xAxisParams = calculateXAxisParams({
     viewStart,
@@ -305,7 +295,7 @@ export const createChart = ({
 
     // Early return if no valid data - prevents errors during panning
     if (!currentData || currentData.length === 0) {
-      console.warn('handleZoom called with empty currentData, skipping zoom processing', {
+      logger.warn('handleZoom called with empty currentData, skipping zoom processing', {
         getCurrentDataResult: currentData,
         currentDataLength: currentData?.length || 0,
       });
@@ -317,7 +307,7 @@ export const createChart = ({
 
     // Early return if no valid dimensions
     if (!currentDimensions) {
-      console.warn('handleZoom called with no dimensions, skipping zoom processing');
+      logger.warn('handleZoom called with no dimensions, skipping zoom processing');
       return;
     }
 
@@ -912,7 +902,7 @@ export const createChart = ({
   if (stateCallbacks.setChartLoaded) {
     stateCallbacks.setChartLoaded(true);
   }
-  console.log('🎯 CHART LOADED - Axes ready');
+  logger.chart.target('CHART LOADED - Axes ready');
 
   // Return cleanup function to remove event listeners
   return () => {
@@ -930,7 +920,7 @@ export const renderCandlestickChart = (
   // Find the chart content group and remove existing candlesticks
   const chartContent = d3.select(svgElement).select('.chart-content');
   if (chartContent.empty()) {
-    console.warn('Chart content group not found, cannot render candlesticks');
+    logger.warn('Chart content group not found, cannot render candlesticks');
     return;
   }
 

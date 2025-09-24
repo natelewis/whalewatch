@@ -16,6 +16,7 @@ import {
   DataRange,
 } from '../types';
 import { CHART_DATA_POINTS, X_AXIS_LABEL_CONFIGS } from '../constants';
+import { logger } from './logger';
 
 /**
  * Remove duplicate entries by timestamp and sort by time
@@ -145,7 +146,7 @@ export const createIndexToTimeScale = (
 ): d3.ScaleTime<Date, number> => {
   // Safety check for empty or invalid data
   if (!allChartData || allChartData.length === 0) {
-    console.warn('createIndexToTimeScale called with empty or undefined allChartData');
+    logger.warn('createIndexToTimeScale called with empty or undefined allChartData');
     // Return a default scale that won't cause errors
     const defaultScale = d3.scaleTime();
     defaultScale.domain([new Date(), new Date()]);
@@ -154,7 +155,7 @@ export const createIndexToTimeScale = (
   }
 
   if (!allChartData[0] || !allChartData[0].timestamp) {
-    console.warn('createIndexToTimeScale called with invalid chart data - missing timestamp property');
+    logger.warn('createIndexToTimeScale called with invalid chart data - missing timestamp property');
     const defaultScale = d3.scaleTime();
     defaultScale.domain([new Date(), new Date()]);
     defaultScale.range([0, 1]);
@@ -207,7 +208,7 @@ export const calculateXAxisParams = (params: XAxisCalculationParams) => {
   const sliceEnd = Math.max(sliceStart, Math.min(allChartData.length - 1, viewEnd));
   const visibleSlice = allChartData.slice(sliceStart, sliceEnd + 1);
 
-  console.log('🔍 calculateXAxisParams RESULT:', {
+  logger.chart.viewport('calculateXAxisParams RESULT:', {
     sliceStart,
     sliceEnd,
     visibleSliceLength: visibleSlice.length,
@@ -307,7 +308,7 @@ export const createCustomTimeAxis = (
     interval
   );
 
-  console.log('🔍 createCustomTimeAxis TICKS GENERATED:', {
+  logger.chart.viewport('createCustomTimeAxis TICKS GENERATED:', {
     tickCount: timeTicks.length,
     firstTick: timeTicks[0]?.toISOString(),
     lastTick: timeTicks[timeTicks.length - 1]?.toISOString(),
@@ -449,6 +450,7 @@ export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTime
       '1H': 60 * 60 * 1000, // 1 hour (alternative)
       '1d': 24 * 60 * 60 * 1000, // 1 day
       '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
+      '1W': 7 * 24 * 60 * 60 * 1000, // 1 week
       '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
       '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
       '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
@@ -532,6 +534,7 @@ export const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
     '1H': 60 * 60 * 1000, // 1 hour (alternative)
     '1d': 24 * 60 * 60 * 1000, // 1 day
     '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
+    '1W': 7 * 24 * 60 * 60 * 1000, // 1 week
     '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
     '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
     '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
