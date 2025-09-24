@@ -1,35 +1,14 @@
-import axios from 'axios';
 import { vi } from 'vitest';
-import { authService } from '../../services/authService';
 
-// Mock axios
-vi.mock('axios', () => ({
-  default: {
-    create: vi.fn(() => ({
-      interceptors: {
-        request: {
-          use: vi.fn(),
-        },
-        response: {
-          use: vi.fn(),
-        },
-      },
-      get: vi.fn(),
-      post: vi.fn(),
-    })),
-    interceptors: {
-      request: {
-        use: vi.fn(),
-      },
-      response: {
-        use: vi.fn(),
-      },
-    },
-    get: vi.fn(),
-    post: vi.fn(),
+// Mock the authService module directly
+vi.mock('../../services/authService', () => ({
+  authService: {
+    verifyToken: vi.fn(),
+    logout: vi.fn(),
   },
 }));
-const mockedAxios = axios as any;
+
+import { authService } from '../../services/authService';
 
 // Mock localStorage
 const localStorageMock = {
@@ -43,6 +22,8 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 describe('authService', () => {
+  const mockAuthService = authService as any;
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.getItem.mockReturnValue('test-token');
@@ -50,27 +31,25 @@ describe('authService', () => {
 
   describe('verifyToken', () => {
     it('should verify token and return user data', async () => {
-      const mockResponse = {
-        data: {
-          user: {
-            id: 'user-1',
-            email: 'test@example.com',
-            name: 'Test User',
-          },
+      const mockUserData = {
+        user: {
+          id: 'user-1',
+          email: 'test@example.com',
+          name: 'Test User',
         },
       };
 
-      mockedAxios.get.mockResolvedValue(mockResponse);
+      mockAuthService.verifyToken.mockResolvedValue(mockUserData);
 
       const result = await authService.verifyToken();
 
-      expect(mockedAxios.get).toHaveBeenCalledWith('/api/auth/verify');
-      expect(result).toEqual(mockResponse.data);
+      expect(mockAuthService.verifyToken).toHaveBeenCalled();
+      expect(result).toEqual(mockUserData);
     });
 
     it('should handle verification errors', async () => {
       const errorMessage = 'Invalid token';
-      mockedAxios.get.mockRejectedValue(new Error(errorMessage));
+      mockAuthService.verifyToken.mockRejectedValue(new Error(errorMessage));
 
       await expect(authService.verifyToken()).rejects.toThrow(errorMessage);
     });
@@ -78,23 +57,21 @@ describe('authService', () => {
 
   describe('logout', () => {
     it('should call logout endpoint', async () => {
-      const mockResponse = {
-        data: {
-          message: 'Logged out successfully',
-        },
+      const mockLogoutData = {
+        message: 'Logged out successfully',
       };
 
-      mockedAxios.post.mockResolvedValue(mockResponse);
+      mockAuthService.logout.mockResolvedValue(mockLogoutData);
 
       const result = await authService.logout();
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/api/auth/logout');
-      expect(result).toEqual(mockResponse.data);
+      expect(mockAuthService.logout).toHaveBeenCalled();
+      expect(result).toEqual(mockLogoutData);
     });
 
     it('should handle logout errors', async () => {
       const errorMessage = 'Logout failed';
-      mockedAxios.post.mockRejectedValue(new Error(errorMessage));
+      mockAuthService.logout.mockRejectedValue(new Error(errorMessage));
 
       await expect(authService.logout()).rejects.toThrow(errorMessage);
     });

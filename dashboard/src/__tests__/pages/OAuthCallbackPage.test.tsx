@@ -6,6 +6,21 @@ import { OAuthCallbackPage } from '../../pages/OAuthCallbackPage';
 import { useAuth } from '../../hooks/useAuth';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 
+// Mock window.matchMedia
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 // Mock the auth context
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: vi.fn(),
@@ -14,12 +29,14 @@ const mockUseAuth = useAuth as ReturnType<typeof vi.fn>;
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
+const mockUseSearchParams = vi.fn();
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    useSearchParams: () => [new URLSearchParams('?token=test-token')],
+    useSearchParams: () => mockUseSearchParams(),
   };
 });
 
@@ -36,6 +53,7 @@ describe('OAuthCallbackPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSearchParams.mockReturnValue([new URLSearchParams('?token=test-token')]);
     mockUseAuth.mockReturnValue({
       user: null,
       isAuthenticated: false,
@@ -49,8 +67,7 @@ describe('OAuthCallbackPage', () => {
   it('renders loading state initially', () => {
     renderWithRouter(<OAuthCallbackPage />);
 
-    expect(screen.getByText('Completing authentication...')).toBeInTheDocument();
-    expect(screen.getByText('Please wait while we log you in.')).toBeInTheDocument();
+    expect(screen.getByText('Completing sign in...')).toBeInTheDocument();
   });
 
   it('calls handleOAuthCallback with token from URL', async () => {
@@ -64,60 +81,52 @@ describe('OAuthCallbackPage', () => {
   });
 
   it('navigates to dashboard after successful authentication', async () => {
-    mockHandleOAuthCallback.mockResolvedValue(undefined);
+    mockHandleOAuthCallback.mockResolvedValue({ success: true });
 
     renderWithRouter(<OAuthCallbackPage />);
 
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
-    });
+    await waitFor(
+      () => {
+        expect(mockNavigate).toHaveBeenCalledWith('/');
+      },
+      { timeout: 2000 }
+    );
   });
 
   it('shows error when no token is provided', async () => {
     // Mock useSearchParams to return no token
-    vi.doMock('react-router-dom', () => ({
-      ...vi.importActual('react-router-dom'),
-      useNavigate: () => mockNavigate,
-      useSearchParams: () => [new URLSearchParams('')],
-    }));
+    mockUseSearchParams.mockReturnValue([new URLSearchParams('')]);
 
     renderWithRouter(<OAuthCallbackPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Authentication Error')).toBeInTheDocument();
       expect(screen.getByText('No authentication token received.')).toBeInTheDocument();
     });
   });
 
   it('shows error when OAuth callback fails', async () => {
-    mockHandleOAuthCallback.mockRejectedValue(new Error('OAuth failed'));
+    mockHandleOAuthCallback.mockResolvedValue({ success: false, error: 'OAuth failed' });
 
     renderWithRouter(<OAuthCallbackPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Authentication Error')).toBeInTheDocument();
-      expect(screen.getByText('Authentication failed. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText('OAuth failed')).toBeInTheDocument();
     });
   });
 
   it('shows error when error parameter is in URL', async () => {
     // Mock useSearchParams to return error
-    vi.doMock('react-router-dom', () => ({
-      ...vi.importActual('react-router-dom'),
-      useNavigate: () => mockNavigate,
-      useSearchParams: () => [new URLSearchParams('?error=access_denied')],
-    }));
+    mockUseSearchParams.mockReturnValue([new URLSearchParams('?error=access_denied')]);
 
     renderWithRouter(<OAuthCallbackPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Authentication Error')).toBeInTheDocument();
       expect(screen.getByText('Authentication failed. Please try again.')).toBeInTheDocument();
     });
   });
 
   it('navigates to login when try again is clicked', async () => {
-    mockHandleOAuthCallback.mockRejectedValue(new Error('OAuth failed'));
+    mockHandleOAuthCallback.mockResolvedValue({ success: false, error: 'OAuth failed' });
 
     renderWithRouter(<OAuthCallbackPage />);
 
