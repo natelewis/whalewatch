@@ -24,16 +24,11 @@ import {
   CANDLE_DOWN_COLOR,
   Y_SCALE_REPRESENTATIVE_DATA_LENGTH,
 } from '../constants';
-import { BarChart3, Settings, RotateCcw, ArrowRight } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 interface StockChartProps {
   symbol: string;
-  onSymbolChange: (symbol: string) => void;
 }
-
-// ============================================================================
-// Constants are now imported from centralized constants
-// ============================================================================
 
 // Chart calculation types (matching ChartRenderer)
 interface ChartCalculations {
@@ -53,8 +48,6 @@ interface ChartCalculations {
 // Helper function for Y-scale domain calculation using memoized function
 const calculateYScaleDomain = memoizedCalculateYScaleDomain;
 
-// ============================================================================
-
 const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,61 +58,45 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Use new utility hooks
   const { isValidData, getVisibleData } = useChartDataProcessor(chartState.allData);
 
-  // Force re-render when D3 state changes
-  const [, forceUpdate] = useState({});
-  const _forceRerender = (): void => forceUpdate({});
-
   // Local state for timeframe management
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
 
-  // Keep major logs only; removed verbose data-state debug logging
-
-  // Local state for current transform (for debugging)
-  const [currentTransform, setCurrentTransform] = useState<d3.ZoomTransform | null>(null);
-
-  // Data points are now managed through chart state
   const manualRenderInProgressRef = useRef(false);
 
-  // Track current buffer range to know when to re-render (use ref to avoid stale closures)
+  // Track current buffer range to know when to re-render
   const currentBufferRangeRef = useRef<{ start: number; end: number } | null>(null);
 
-  // Track if we're currently in a panning operation to prevent infinite loops
+  // Track if we're currently in a panning operation
   const isPanningRef = useRef(false);
 
-  // Track if we're currently loading data to prevent duplicate requests
+  // Track if we're currently loading data
   const isLoadingDataRef = useRef(false);
 
-  // Track if chart has been created to prevent unnecessary re-creation
+  // Track if chart has been created
   const chartCreatedRef = useRef(false);
 
-  // Track if initial view has been set to prevent repeated setup
+  // Track if initial view has been set
   const initialViewSetRef = useRef(false);
 
-  // Track if initial render has been completed to prevent recursive rendering
-  const initialRenderCompletedRef = useRef(false);
-
-  // Track if initial data has been loaded to prevent duplicate loading
+  // Track if initial data has been loaded
   const initialDataLoadedRef = useRef(false);
 
-  // Track if this is the initial mount to prevent timeframe effect from running
-  const isInitialMountRef = useRef(true);
-
-  // Track last processed WebSocket data to prevent duplicate processing
+  // Track last processed WebSocket data
   const lastProcessedDataRef = useRef<string | null>(null);
 
   // Debounce timer for pruning
   const pruneTimeoutRef = useRef<number | null>(null);
 
-  // Store reference to the zoom behavior for programmatic control
+  // Store reference to the zoom behavior
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
-  // Store reference to the fixed Y-scale domain to avoid stale closure issues
+  // Store reference to the fixed Y-scale domain
   const fixedYScaleDomainRef = useRef<[number, number] | null>(null);
 
-  // Store reference to the current data to avoid stale closure issues
+  // Store reference to the current data
   const currentDataRef = useRef<CandlestickData[]>([]);
 
-  // Store reference to the current dimensions to avoid stale closure issues
+  // Store reference to the current dimensions
   const currentDimensionsRef = useRef<ChartDimensions>({
     width: 0,
     height: 0,
@@ -129,7 +106,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Store reference to chart cleanup function
   const chartCleanupRef = useRef<(() => void) | null>(null);
 
-  // Store reference to current view indices to avoid stale closures in D3 event handlers
+  // Store reference to current view indices
   const currentViewStartRef = useRef<number>(0);
   const currentViewEndRef = useRef<number>(0);
 
@@ -299,310 +276,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     );
   };
 
-  // Function to load more data to the left (historical data) using buffer size
-  const loadMoreDataLeft = (): void => {
-    if (timeframe === null) {
-      console.warn('Cannot load more data: no timeframe selected');
-      return;
-    }
-
-    // Only load more data if we haven't reached the maximum yet
-    if (chartState.allData.length >= 1000) {
-      console.log('📊 Max data points reached, skipping left data load');
-      return;
-    }
-
-    // Calculate buffer size the same way as in auto-loading
-    const bufferSize = BUFFER_SIZE;
-
-    // Add the same amount of data that we're rendering in the buffer
-    const newDataPoints = Math.min(chartState.allData.length + bufferSize, 1000);
-
-    // Calculate endTime based on the oldest data point we currently have
-    // Use ref to avoid stale closure issues
-    const currentData = currentDataRef.current;
-    const oldestDataPoint = currentData[0];
-    const endTime = oldestDataPoint ? oldestDataPoint.timestamp : undefined;
-
-    console.log('🔄 Loading more data to the LEFT (historical):', {
-      currentPoints: chartState.allData.length,
-      newPoints: newDataPoints,
-      bufferSize,
-      pointsToAdd: bufferSize,
-      symbol,
-      timeframe,
-      currentDataLength: currentData.length,
-      endTime: endTime ? new Date(endTime).toISOString() : 'current time',
-      oldestDataTime: oldestDataPoint ? new Date(oldestDataPoint.timestamp).toISOString() : 'none',
-    });
-
-    // Use the API service directly with the increased data points
-    apiService
-      .getChartData(symbol, timeframe, newDataPoints, endTime, 'past')
-      .then(response => {
-        const { formattedData: newData } = processChartData(
-          response.bars,
-          chartState.timeframe || '1m',
-          DEFAULT_CHART_DATA_POINTS
-        );
-
-        // Merge new data with existing data instead of replacing it
-        const mergedData = mergeHistoricalData(chartState.allData, newData);
-
-        // Preserve viewport by anchoring the same visible window after left-side insertion
-        const prevStart = chartState.currentViewStart;
-        const prevEnd = chartState.currentViewEnd;
-        const windowSize = Math.max(1, Math.round(prevEnd - prevStart));
-        const dataAdded = mergedData.length - chartState.allData.length;
-        let anchoredEnd = Math.max(0, Math.round(prevEnd + dataAdded));
-        let anchoredStart = Math.max(0, Math.round(prevStart + dataAdded));
-        const totalAfter = mergedData.length;
-        if (anchoredEnd > totalAfter - 1) {
-          anchoredEnd = totalAfter - 1;
-        }
-        if (anchoredStart < 0) {
-          anchoredStart = 0;
-        }
-        if (anchoredEnd - anchoredStart < windowSize) {
-          anchoredStart = Math.max(0, anchoredEnd - windowSize);
-        }
-
-        chartActions.setAllData(mergedData);
-        chartActions.setViewport(anchoredStart, anchoredEnd);
-
-        console.log('✅ Loaded more data to the LEFT:', {
-          mergedDataLength: mergedData.length,
-          limit: newDataPoints,
-          dataAdded: mergedData.length - chartState.allData.length,
-        });
-      })
-      .catch(error => {
-        console.error('Failed to load more data to the left:', error);
-        // No need to revert - data points are managed by allData.length
-      });
-  };
-
-  // Function to load more data to the right (future data) using buffer size
-  const loadMoreDataRight = (): void => {
-    if (timeframe === null) {
-      console.warn('Cannot load more data: no timeframe selected');
-      return;
-    }
-
-    // Only load more data if we haven't reached the maximum yet
-    if (chartState.allData.length >= 500) {
-      console.log('📊 Max data points reached, skipping right data load');
-      return;
-    }
-
-    // Calculate buffer size the same way as in auto-loading
-    const bufferSize = BUFFER_SIZE;
-
-    // Add the same amount of data that we're rendering in the buffer
-    const newDataPoints = Math.min(chartState.allData.length + bufferSize, 500);
-
-    // For right data loading, we want to get data from the newest point forward
-    // Use ref to avoid stale closure issues
-    const currentData = currentDataRef.current;
-    const newestDataPoint = currentData[currentData.length - 1];
-    const startTime = newestDataPoint ? newestDataPoint.timestamp : undefined;
-
-    // Use the API service directly with the increased data points
-    // For right data, we don't specify startTime to get the most recent data
-    apiService
-      .getChartData(symbol, timeframe, newDataPoints, undefined, 'future')
-      .then(response => {
-        const { formattedData: newData } = processChartData(
-          response.bars,
-          chartState.timeframe || '1m',
-          DEFAULT_CHART_DATA_POINTS
-        );
-
-        // Merge new data with existing data instead of replacing it
-        const mergedData = mergeHistoricalData(chartState.allData, newData);
-
-        chartActions.setAllData(mergedData);
-
-        console.log('✅ Loaded more data to the RIGHT:', {
-          mergedDataLength: mergedData.length,
-          limit: newDataPoints,
-          dataAdded: mergedData.length - chartState.allData.length,
-        });
-
-        // Force a re-render with the merged data immediately
-        if (svgRef.current && chartState.chartLoaded) {
-          // Set flag to prevent React effect from overriding
-          manualRenderInProgressRef.current = true;
-
-          // Get current transform to preserve the current view position
-          const currentZoomTransform = d3.zoomTransform(svgRef.current);
-
-          // Calculate chart state with the MERGED data
-          // Use the locked Y-scale domain from ref to prevent price level shifting
-          const lockedYScaleDomain = fixedYScaleDomainRef.current;
-
-          const calculations = calculateChartState({
-            dimensions: chartState.dimensions,
-            allChartData: mergedData, // Use the merged data
-            transform: currentZoomTransform, // Preserve current view position
-            fixedYScaleDomain: lockedYScaleDomain, // Use the LOCKED domain, never recalculate
-          });
-
-          // Update clip-path to accommodate the expanded dataset
-          updateClipPath(svgRef.current as SVGSVGElement, mergedData, chartState.dimensions);
-
-          // Legacy D3 axis updates removed
-
-          // Re-render with merged data (preserving current view position)
-          renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
-
-          console.log('✅ Right data re-render completed:', {
-            allDataLength: calculations.allData.length,
-            viewRange: `${calculations.viewStart}-${calculations.viewEnd}`,
-            currentTransformX: currentZoomTransform.x,
-            currentTransformY: currentZoomTransform.y,
-          });
-
-          // Reset flag after a delay
-          setTimeout(() => {
-            manualRenderInProgressRef.current = false;
-          }, 1000);
-        }
-      })
-      .catch(error => {
-        console.error('Failed to load more data to the right:', error);
-        // No need to revert - data points are managed by allData.length
-      });
-  };
-
-  // Function to move chart to rightmost position (newest data)
-  const moveToRightmost = (): void => {
-    if (!isValidData || chartState.allData.length === 0) {
-      return;
-    }
-
-    const totalDataLength = chartState.allData.length;
-    const newEndIndex = totalDataLength - 1;
-    const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
-
-    // Calculate the transform needed to show the rightmost data
-    const { innerWidth } = calculateInnerDimensions(chartState.dimensions);
-    const bandWidth = innerWidth / CHART_DATA_POINTS;
-
-    // Calculate how much we need to pan to the right to show the newest data
-    const rightmostDataIndex = totalDataLength - 1;
-    const panOffsetPixels = (rightmostDataIndex - newEndIndex) * bandWidth;
-
-    // Create a transform that pans to the rightmost position
-    const transform = d3.zoomIdentity.translate(panOffsetPixels, 0);
-
-    // Update the current transform state
-    setCurrentTransform(transform);
-
-    // Calculate the new chart state with this transform
-    const calculations = calculateChartState({
-      dimensions: chartState.dimensions,
-      allChartData: chartState.allData,
-      transform,
-      fixedYScaleDomain: chartState.fixedYScaleDomain,
-    });
-
-    // Update view state using centralized calculations
-    chartActions.setCurrentViewStart(calculations.viewStart);
-    chartActions.setCurrentViewEnd(calculations.viewEnd);
-
-    // Apply transform to the main chart content group
-    if (svgRef.current) {
-      const svg = d3.select(svgRef.current);
-
-      // Update the D3 zoom behavior's internal transform state
-      if (zoomBehaviorRef.current) {
-        svg.call(zoomBehaviorRef.current.transform, transform);
-      }
-
-      // Re-render candlesticks with the new view
-      renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
-
-      // Update buffer range with smart boundary-aware buffer
-      const bufferSize = BUFFER_SIZE;
-      const dataLength = chartState.allData.length;
-      const marginSize = MARGIN_SIZE;
-      const atDataStart = calculations.viewStart <= marginSize; // Within margin of data start
-      const atDataEnd = calculations.viewEnd >= dataLength - marginSize; // Within margin of data end
-
-      let actualStart, actualEnd;
-
-      if (atDataStart && atDataEnd) {
-        // At both boundaries - use the full data range
-        actualStart = 0;
-        actualEnd = dataLength - 1;
-      } else if (atDataStart) {
-        // At start boundary - only buffer forward
-        actualStart = 0;
-        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
-      } else if (atDataEnd) {
-        // At end boundary - only buffer backward
-        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-        actualEnd = dataLength - 1;
-      } else {
-        // In the middle - buffer both ways
-        actualStart = Math.max(0, Math.floor(calculations.viewStart) - bufferSize);
-        actualEnd = Math.min(dataLength - 1, Math.ceil(calculations.viewEnd) + bufferSize);
-      }
-
-      currentBufferRangeRef.current = { start: actualStart, end: actualEnd };
-    }
-  };
-
-  // Programmatic pan left by N data points (history)
-  const panLeft = (points: number = 10): void => {
-    if (!isValidData || chartState.allData.length === 0) {
-      return;
-    }
-
-    const total = chartState.allData.length;
-    const windowSize = CHART_DATA_POINTS;
-    const currentStart = Math.max(0, Math.floor(chartState.currentViewStart));
-    const currentEnd = Math.min(total - 1, Math.ceil(chartState.currentViewEnd));
-    const size = Math.max(1, currentEnd - currentStart + 1);
-    const w = Math.max(windowSize, size);
-
-    let newStart = Math.max(0, currentStart - points);
-    let newEnd = newStart + w - 1;
-    if (newEnd > total - 1) {
-      newEnd = total - 1;
-      newStart = Math.max(0, newEnd - w + 1);
-    }
-
-    chartActions.setViewport(newStart, newEnd);
-
-    if (!svgRef.current) {
-      return;
-    }
-
-    const currentZoomTransform = d3.zoomTransform(svgRef.current);
-    const baseCalcs = calculateChartState({
-      dimensions: chartState.dimensions,
-      allChartData: chartState.allData,
-      transform: currentZoomTransform,
-      fixedYScaleDomain: chartState.fixedYScaleDomain,
-    });
-
-    // Update axes
-    const svg = d3.select(svgRef.current);
-
-    // Render candles for the new viewport
-    const finalCalcs: ChartCalculations = {
-      ...baseCalcs,
-      viewStart: newStart,
-      viewEnd: newEnd,
-      visibleData: chartState.allData.slice(newStart, newEnd + 1),
-    };
-    renderCandlestickChart(svgRef.current as SVGSVGElement, finalCalcs);
-  };
-
-  // Centralized calculations will be used instead of useChartScales
-
   // Define timeframes array
   const timeframes: TimeframeConfig[] = useMemo(
     () => [
@@ -769,7 +442,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     chartActions.resetChart(); // Reset chart state for new symbol/timeframe
     chartActions.setTimeframe(timeframe);
     chartCreatedRef.current = false; // Allow chart recreation for new timeframe
-    initialRenderCompletedRef.current = false; // Allow initial render for new timeframe
     lastProcessedDataRef.current = null; // Reset WebSocket data tracking
 
     // Force chart recreation by clearing the chart state
@@ -806,9 +478,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     chartCreatedRef.current = false;
     initialViewSetRef.current = false;
-    initialRenderCompletedRef.current = false;
     initialDataLoadedRef.current = false;
-    isInitialMountRef.current = true; // Reset for new symbol
     lastProcessedDataRef.current = null; // Reset WebSocket data tracking
   }, [symbol]);
 
@@ -872,8 +542,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         fixedYScaleDomain: chartState.fixedYScaleDomain,
       });
 
-      // Removed verbose dimension-change logging
-
       // Update clip-path for new dimensions
       updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
 
@@ -932,40 +600,16 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         const newEndIndex = totalDataLength - 1;
         const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
 
-        // Removed verbose initial view index logging
-
         chartActions.setViewport(newStartIndex, newEndIndex);
         initialViewSetRef.current = true;
       }
     }
   }, [chartState.allData.length, isValidData]); // Removed chartState.data.length to prevent re-runs
 
-  // Auto-enable live mode when user pans to the rightmost edge
-  const [isAtRightEdge, setIsAtRightEdge] = useState(false);
-  const lastRightEdgeCheckRef = useRef<number>(0);
-  const RIGHT_EDGE_CHECK_INTERVAL_LOCAL = RIGHT_EDGE_CHECK_INTERVAL; // alias for local usage
-
-  useEffect(() => {
-    const dataLength = chartState.allData.length;
-    const atRightEdge = chartState.currentViewEnd >= dataLength - 5; // Within 5 points of the end
-    const now = Date.now();
-    const timeSinceLastCheck = now - lastRightEdgeCheckRef.current;
-
-    // Only check for right edge changes if enough time has passed
-    if (timeSinceLastCheck >= RIGHT_EDGE_CHECK_INTERVAL_LOCAL) {
-      lastRightEdgeCheckRef.current = now;
-      setIsAtRightEdge(atRightEdge);
-
-      // Auto-live logic removed - websockets are always on
-    }
-  }, [chartState.currentViewEnd, chartState.allData.length]); // Removed chartActions and isLive
-
   // Reset refs on mount to handle hot reload
   useEffect(() => {
     chartCreatedRef.current = false;
-    initialRenderCompletedRef.current = false;
     initialDataLoadedRef.current = false;
-    isInitialMountRef.current = true;
     lastProcessedDataRef.current = null;
   }, []); // Only run on mount
 
@@ -1018,7 +662,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       currentViewStart: chartState.currentViewStart,
       currentViewEnd: chartState.currentViewEnd,
     });
-    // Removed verbose chart creation condition logging
 
     // Set viewport if it's not set yet
     if (isValidData && chartState.allData.length > 0 && chartState.currentViewEnd === 0) {
@@ -1112,13 +755,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             setChartLoaded: chartActions.setChartLoaded,
             setFixedYScaleDomain: chartActions.setFixedYScaleDomain,
             setChartExists: chartActions.setChartExists,
-            setCurrentTransform: setCurrentTransform,
             setZoomBehavior: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => {
               zoomBehaviorRef.current = behavior;
             },
             getFixedYScaleDomain: () => fixedYScaleDomainRef.current,
             getCurrentData: () => currentDataRef.current,
-            getCurrentDimensions: () => currentDimensionsRef.current, // Add this to avoid stale dimensions
+            getCurrentDimensions: () => currentDimensionsRef.current,
           },
           chartState: chartState,
           bufferRangeRef: currentBufferRangeRef,
@@ -1197,9 +839,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             start: actualStart,
             end: actualEnd,
           };
-
-          // Mark initial render as completed
-          initialRenderCompletedRef.current = true;
         }
       }
     }
@@ -1262,8 +901,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Commit updates
       chartActions.setAllData(newAllData);
       chartActions.setViewport(newViewStart, newViewEnd);
-
-      // Removed verbose pruning log
     }, 200);
 
     return () => {
@@ -1277,61 +914,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
       {/* Chart Header */}
       <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-4">
-            <h3 className="text-lg font-semibold text-foreground">{symbol}</h3>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => panLeft(10)}
-                className="p-1 text-muted-foreground hover:text-foreground"
-                title="Pan left 10"
-                disabled={!isValidData || chartState.allData.length === 0}
-              >
-                ← Pan 10
-              </button>
-              <button
-                onClick={() =>
-                  timeframe &&
-                  chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past')
-                }
-                className="p-1 text-muted-foreground hover:text-foreground"
-                title="Refresh data"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
-              <button
-                onClick={moveToRightmost}
-                className="p-1 text-muted-foreground hover:text-foreground"
-                title="Move to newest data"
-                disabled={!isValidData || chartState.allData.length === 0}
-              >
-                <ArrowRight className="h-4 w-4" />
-              </button>
-              <button
-                onClick={loadMoreDataLeft}
-                className="flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors bg-blue-500 text-white hover:bg-blue-600"
-                title="Load more historical data to the left (using buffer size)"
-                disabled={!timeframe}
-              >
-                ← Load Left
-              </button>
-              <button
-                onClick={loadMoreDataRight}
-                className="flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors bg-green-500 text-white hover:bg-green-600"
-                title="Load more future data to the right (using buffer size)"
-                disabled={!timeframe}
-              >
-                Load Right →
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button className="p-2 text-muted-foreground hover:text-foreground">
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
         {/* Controls */}
         <div className="flex items-center space-x-4">
           {/* Timeframe Selector */}
@@ -1350,12 +932,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 {tf.label}
               </button>
             ))}
-          </div>
-
-          {/* Chart Type - Always Candlestick */}
-          <div className="flex items-center space-x-1 px-3 py-1 text-xs bg-primary text-primary-foreground rounded-md">
-            <BarChart3 className="h-4 w-4" />
-            <span>Candlestick</span>
           </div>
         </div>
       </div>
@@ -1398,9 +974,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 <div className="flex justify-between items-center w-full">
                   <div className="flex flex-col">
                     <span className="font-bold text-foreground text-lg">{symbol}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {smartDateRenderer(chartState.hoverData.data.timestamp, 'chart-hover')}
-                    </span>
                   </div>
                   <div className="flex gap-3 text-sm">
                     <span className="text-muted-foreground">
@@ -1500,7 +1073,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               })()}
             </span>
             <span>TF: {timeframe || 'Loading...'}</span>
-            <span>Pan: {Math.round(currentTransform?.x || 0)}px</span>
           </div>
           <div className="flex items-center space-x-4">
             {/* Chart State Information */}
