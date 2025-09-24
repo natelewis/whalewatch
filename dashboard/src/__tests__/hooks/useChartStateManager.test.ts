@@ -1,4 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
+import { vi } from 'vitest';
 import { useChartStateManager } from '../../hooks/useChartStateManager';
 import { AlpacaBar } from '../../types';
 

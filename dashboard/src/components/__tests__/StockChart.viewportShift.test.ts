@@ -37,8 +37,8 @@ describe('StockChart Viewport Shift Fix', () => {
     const currentViewEnd = 980;
 
     // Simulate the viewport validation logic
-    let start = Math.max(0, Math.floor(currentViewStart));
-    let end = Math.min(total - 1, Math.ceil(currentViewEnd));
+    const start = Math.max(0, Math.floor(currentViewStart));
+    const end = Math.min(total - 1, Math.ceil(currentViewEnd));
 
     const isViewportInvalid = start < 0 || end >= total || end < start || end - start + 1 < 1;
 
@@ -53,8 +53,8 @@ describe('StockChart Viewport Shift Fix', () => {
     const currentViewStart = 1200; // Out of bounds
     const currentViewEnd = 1250;
 
-    let start = Math.max(0, Math.floor(currentViewStart));
-    let end = Math.min(total - 1, Math.ceil(currentViewEnd));
+    const start = Math.max(0, Math.floor(currentViewStart));
+    const end = Math.min(total - 1, Math.ceil(currentViewEnd));
 
     const isViewportInvalid = start < 0 || end >= total || end < start || end - start + 1 < 1;
 

@@ -82,9 +82,6 @@ export class AlpacaService {
         case '15m':
           startTime = new Date(endTime.getTime() - limit * 15 * 60 * 1000);
           break;
-        case '15m':
-          startTime = new Date(endTime.getTime() - limit * 15 * 60 * 1000);
-          break;
         case '1H':
           startTime = new Date(endTime.getTime() - limit * 60 * 60 * 1000);
           break;

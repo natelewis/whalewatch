@@ -24,7 +24,9 @@ vi.mock('../chartDataUtils', () => ({
 
 vi.mock('../memoizedChartUtils', () => ({
   memoizedCalculateYScaleDomain: vi.fn(data => {
-    if (data.length === 0) return [0, 1];
+    if (data.length === 0) {
+return [0, 1];
+}
     const prices = data.flatMap(d => [d.open, d.high, d.low, d.close]);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
