@@ -300,12 +300,6 @@ export const createCustomTimeAxis = (
   // This prevents generating ticks for the entire dataset during initial rendering
   const dataForTickGeneration = visibleData && visibleData.length > 0 ? visibleData : allChartData;
 
-  console.log('🔍 createCustomTimeAxis TICK GENERATION:', {
-    dataForTickGenerationLength: dataForTickGeneration.length,
-    usingVisibleData: dataForTickGeneration === visibleData,
-    usingAllData: dataForTickGeneration === allChartData,
-  });
-
   const timeTicks = memoizedGenerateVisibleTimeBasedTicks(
     dataForTickGeneration,
     markerIntervalMinutes,

@@ -43,6 +43,8 @@ export const CHART_DATA_POINTS = 80; // Number of data points to display on char
 export const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
 // Pan-end load trigger: distance from edge (in points) to request more data
 export const LOAD_EDGE_TRIGGER = 300;
+// Maximum total data points that can be loaded in memory
+export const MAX_DATA_POINTS = 20000;
 
 // Zoom configuration
 export const ZOOM_SCALE_MIN = 0.5;

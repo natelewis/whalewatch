@@ -29,6 +29,7 @@ import {
   CHART_HEIGHT_OFFSET,
   CHART_DATA_POINTS,
   MARGIN_SIZE,
+  MAX_DATA_POINTS,
   RIGHT_EDGE_CHECK_INTERVAL,
   CANDLE_UP_COLOR,
   CANDLE_DOWN_COLOR,
@@ -126,6 +127,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Track when we've reached the end of available data to prevent repeated auto-load attempts
   const reachedEndOfDataRef = useRef<{ past: boolean; future: boolean }>({ past: false, future: false });
 
+  // Track when we're in the middle of an auto-load operation to prevent re-render loops
+  const isAutoLoadingRef = useRef<boolean>(false);
+
   // Update dimensions ref when dimensions change
   useEffect(() => {
     currentDimensionsRef.current = chartState.dimensions;
@@ -149,11 +153,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Update fixed Y-scale domain ref when it changes
   useEffect(() => {
-    console.log('🔍 Fixed Y-scale domain changed:', {
-      oldDomain: fixedYScaleDomainRef.current,
-      newDomain: chartState.fixedYScaleDomain,
-      changed: JSON.stringify(fixedYScaleDomainRef.current) !== JSON.stringify(chartState.fixedYScaleDomain),
-    });
     fixedYScaleDomainRef.current = chartState.fixedYScaleDomain;
   }, [chartState.fixedYScaleDomain]);
 
@@ -168,7 +167,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       }
 
       // Only load more data if we haven't reached the maximum yet
-      if (chartState.allData.length >= 1000) {
+      if (chartState.allData.length >= MAX_DATA_POINTS) {
         console.log('📊 Max data points reached, skipping auto-load');
         return false;
       }
@@ -197,6 +196,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         return false;
       }
       isLoadingDataRef.current = true;
+      isAutoLoadingRef.current = true;
 
       // Request exactly BUFFER_SIZE more bars from the chosen side
       apiService
@@ -233,8 +233,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Anchor viewport exactly like manual "Load Left": shift indices to keep the same candles visible
           const prevStart = chartState.currentViewStart;
           const prevEnd = chartState.currentViewEnd;
-          const windowSize = Math.max(1, Math.round(prevEnd - prevStart));
-
           const prevLength = currentDataRef.current.length;
           const mergedLength = mergedData.length;
           const totalAfter = prunedData.length;
@@ -248,14 +246,37 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           let anchoredStart = Math.round(prevStart + addedLeft - removedLeft);
           let anchoredEnd = Math.round(prevEnd + addedLeft - removedLeft);
 
+          // Ensure the viewport is expanded to the proper CHART_DATA_POINTS size
+          const properWindowSize = CHART_DATA_POINTS;
+          const currentWindowSize = anchoredEnd - anchoredStart + 1;
+
+          if (currentWindowSize < properWindowSize) {
+            // Expand the viewport to show the proper number of data points
+            const expansionNeeded = properWindowSize - currentWindowSize;
+            const halfExpansion = Math.floor(expansionNeeded / 2);
+
+            // Try to expand equally on both sides
+            anchoredStart = Math.max(0, anchoredStart - halfExpansion);
+            anchoredEnd = Math.min(totalAfter - 1, anchoredEnd + halfExpansion);
+
+            // If we couldn't expand enough on one side, expand more on the other
+            const finalWindowSize = anchoredEnd - anchoredStart + 1;
+            if (finalWindowSize < properWindowSize) {
+              if (anchoredStart === 0) {
+                // Can't expand left more, expand right
+                anchoredEnd = Math.min(totalAfter - 1, anchoredStart + properWindowSize - 1);
+              } else if (anchoredEnd === totalAfter - 1) {
+                // Can't expand right more, expand left
+                anchoredStart = Math.max(0, anchoredEnd - properWindowSize + 1);
+              }
+            }
+          }
+
           if (anchoredEnd > totalAfter - 1) {
             anchoredEnd = totalAfter - 1;
           }
           if (anchoredStart < 0) {
             anchoredStart = 0;
-          }
-          if (anchoredEnd - anchoredStart < windowSize) {
-            anchoredStart = Math.max(0, anchoredEnd - windowSize);
           }
 
           chartActions.setAllData(prunedData);
@@ -279,6 +300,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         })
         .finally(() => {
           isLoadingDataRef.current = false;
+          // Don't reset isAutoLoadingRef here - let the useEffect handle it after re-render
         });
 
       // Return true to indicate that data loading was initiated
@@ -490,7 +512,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartState.allData,
       chartState.currentViewStart,
       chartState.currentViewEnd,
-      loadMoreDataOnBufferedRender
+      loadMoreDataOnBufferedRender,
+      isAutoLoadingRef.current // Skip auto-load check if we're currently auto-loading
     );
 
     if (renderResult.success && renderResult.newFixedYScaleDomain) {
@@ -503,6 +526,18 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       dataLength: chartState.allData.length,
       transform: `${currentZoomTransform.x}, ${currentZoomTransform.y}, ${currentZoomTransform.k}`,
     });
+
+    // Reset auto-loading flag after re-render is complete
+    if (isAutoLoadingRef.current) {
+      console.log('🔄 Auto-load re-render detected, scheduling flag reset');
+      // Use setTimeout to ensure all related re-renders are complete
+      setTimeout(() => {
+        if (isAutoLoadingRef.current) {
+          console.log('🔄 Resetting auto-loading flag after timeout');
+          isAutoLoadingRef.current = false;
+        }
+      }, 10); // Small delay to ensure all re-renders are complete
+    }
   }, [
     chartState.currentViewStart,
     chartState.currentViewEnd,

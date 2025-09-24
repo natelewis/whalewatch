@@ -669,6 +669,7 @@ export const createChart = ({
       loadRequestedRight = false;
       lastLoadDataLengthLeft = null;
       lastLoadDataLengthRight = null;
+
       // Prefer live viewport from React state via callbacks to avoid stale or recomputed defaults
       const data = stateCallbacks.getCurrentData?.() || allChartData;
       const dims = stateCallbacks.getCurrentDimensions?.() || dimensions;

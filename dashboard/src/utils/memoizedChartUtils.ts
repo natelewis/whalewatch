@@ -633,14 +633,6 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   allChartData?: { timestamp: string }[],
   interval?: string
 ): Date[] => {
-  console.log('🔍 memoizedGenerateVisibleTimeBasedTicks DEBUG:', {
-    visibleDataLength: visibleData?.length || 0,
-    markerIntervalMinutes,
-    allChartDataLength: allChartData?.length || 0,
-    firstVisibleTimestamp: visibleData?.[0]?.timestamp,
-    lastVisibleTimestamp: visibleData?.[visibleData.length - 1]?.timestamp,
-  });
-
   if (!visibleData || visibleData.length === 0) {
     console.log('🔍 memoizedGenerateVisibleTimeBasedTicks: No visible data, returning empty array');
     return [];
