@@ -309,9 +309,9 @@ export class QuestDBWebSocketService extends EventEmitter {
 
     // Check if this is a new record we haven't processed yet
     if (lastTimestamp && new Date(latestAggregate.timestamp) <= new Date(lastTimestamp)) {
-      console.log(
-        `📊 No new data for ${subscription.symbol} (latest: ${latestAggregate.timestamp}, last processed: ${lastTimestamp})`
-      );
+      // console.log(
+      //   `📊 No new data for ${subscription.symbol} (latest: ${latestAggregate.timestamp}, last processed: ${lastTimestamp})`
+      // );
       return lastTimestamp; // Return the same timestamp since we didn't process anything
     }
 

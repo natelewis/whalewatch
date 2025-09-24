@@ -17,7 +17,7 @@ export const setupWebSocketServer = (server: Server): void => {
   });
 
   wss.on('connection', (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
-    console.log('New WebSocket connection');
+    console.log('🔌 New WebSocket connection');
 
     // Initialize subscriptions
     ws.subscriptions = new Set();
@@ -33,9 +33,9 @@ export const setupWebSocketServer = (server: Server): void => {
 
         const decoded = jwt.verify(token, secret) as JWTPayload;
         ws.user = decoded;
-        console.log(`Authenticated user: ${decoded.email}`);
+        console.log(`✅ Authenticated user: ${decoded.email}`);
       } catch (error) {
-        console.error('WebSocket authentication failed:', error);
+        console.error('❌ WebSocket authentication failed:', error);
         ws.close(1008, 'Authentication failed');
         return;
       }
@@ -45,16 +45,19 @@ export const setupWebSocketServer = (server: Server): void => {
     ws.on('message', (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString());
+        console.log(`📨 Received message from ${ws.user?.email || 'unknown'}:`, message.type, message.data);
         handleClientMessage(ws, message);
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+        console.error('❌ Error parsing WebSocket message:', error);
         sendError(ws, 'Invalid message format');
       }
     });
 
     // Handle connection close
     ws.on('close', () => {
-      console.log('WebSocket connection closed');
+      console.log(
+        `🔌 WebSocket connection closed for ${ws.user?.email || 'unknown'} (had ${ws.subscriptions.size} subscriptions)`
+      );
     });
 
     // Handle errors
@@ -115,7 +118,7 @@ const handleSubscription = (ws: AuthenticatedWebSocket, data: { channel: string;
   const subscriptionKey = symbol ? `${channel}:${symbol}` : channel;
   ws.subscriptions.add(subscriptionKey);
 
-  console.log(`User subscribed to: ${subscriptionKey}`);
+  console.log(`✅ User subscribed to: ${subscriptionKey} (Total subscriptions: ${ws.subscriptions.size})`);
 
   // Subscribe to QuestDB WebSocket for real-time data
   if (symbol) {

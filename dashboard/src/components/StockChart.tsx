@@ -819,7 +819,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     return () => {
       chartWebSocket.unsubscribeFromChartData();
     };
-  }, [symbol]); // Subscribe when symbol changes
+  }, [symbol, chartWebSocket.isConnected]); // Subscribe when symbol changes OR when connection status changes
 
   // Handle container resize
   useEffect(() => {

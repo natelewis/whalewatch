@@ -20,6 +20,18 @@ export const WhaleFinderPage: React.FC = () => {
     loadOptionsContracts(selectedSymbol);
   }, [selectedSymbol]);
 
+  // Resubscribe when WebSocket reconnects
+  useEffect(() => {
+    if (isConnected && selectedSymbol) {
+      console.log(`🔄 WebSocket reconnected, resubscribing to options contracts for ${selectedSymbol}`);
+      sendMessage({
+        type: 'subscribe',
+        data: { channel: 'options_contract', symbol: selectedSymbol },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [isConnected, selectedSymbol, sendMessage]);
+
   useEffect(() => {
     if (lastMessage?.type === 'options_contract') {
       const contractData = lastMessage.data as AlpacaOptionsContract;

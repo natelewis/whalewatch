@@ -16,11 +16,24 @@ export const AccountPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // WebSocket for real-time position updates
-  const { lastMessage, sendMessage } = useWebSocketContext();
+  const { lastMessage, sendMessage, isConnected } = useWebSocketContext();
 
   useEffect(() => {
     loadAccountData();
   }, []);
+
+  // Resubscribe when WebSocket reconnects
+  useEffect(() => {
+    if (isConnected && positions.length > 0) {
+      console.log(`🔄 WebSocket reconnected, resubscribing to account quotes for ${positions.length} positions`);
+      const symbols = positions.map((p: AlpacaPosition) => p.symbol);
+      sendMessage({
+        type: 'subscribe',
+        data: { channel: 'account_quote', symbols },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [isConnected, positions, sendMessage]);
 
   useEffect(() => {
     if (lastMessage?.type === 'account_quote') {
