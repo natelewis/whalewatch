@@ -8,7 +8,16 @@ import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
 import { apiService } from '../services/apiService';
 import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
-import { formatPrice, processChartData, calculateInnerDimensions, isValidChartData } from '../utils/chartDataUtils';
+import {
+  formatPrice,
+  processChartData,
+  calculateInnerDimensions,
+  isValidChartData,
+  calculateXAxisParams,
+  createCustomTimeAxis,
+  applyAxisStyling,
+  createYAxis,
+} from '../utils/chartDataUtils';
 import { smartDateRenderer } from '../utils/dateRenderer';
 import { TimeframeConfig } from '../types';
 import { createChart, renderCandlestickChart, updateClipPath, calculateChartState } from './ChartRenderer';
@@ -24,6 +33,7 @@ import {
   CANDLE_UP_COLOR,
   CANDLE_DOWN_COLOR,
   Y_SCALE_REPRESENTATIVE_DATA_LENGTH,
+  X_AXIS_MARKER_DATA_POINT_INTERVAL,
 } from '../constants';
 import { BarChart3 } from 'lucide-react';
 
@@ -63,6 +73,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
 
   const manualRenderInProgressRef = useRef(false);
+  const skipToInProgressRef = useRef(false);
+  const skipToJustCompletedRef = useRef(false);
 
   // Track current buffer range to know when to re-render
   const currentBufferRangeRef = useRef<{ start: number; end: number } | null>(null);
@@ -350,33 +362,81 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Update the viewport
       chartActions.setViewport(viewStart, viewEnd);
 
-      // Manually trigger a re-render after a short delay to ensure state is updated
-      setTimeout(() => {
-        if (svgRef.current && chartState.chartLoaded && chartState.chartExists) {
-          console.log('🔄 Manual re-render triggered after time skip');
+      // Set flag to prevent auto-redraw from interfering
+      skipToInProgressRef.current = true;
 
-          // Get current transform to preserve zoom level
-          const currentZoomTransform = d3.zoomTransform(svgRef.current);
+      // Manually trigger a re-render immediately
+      if (svgRef.current && chartState.chartLoaded && chartState.chartExists) {
+        console.log('🔄 Manual re-render triggered after time skip');
 
-          // Use centralized render function for skip-to scenario
-          const renderResult = renderSkipTo(
-            svgRef.current as SVGSVGElement,
-            chartState.dimensions,
-            chartState.allData,
-            chartState.currentViewStart,
-            chartState.currentViewEnd,
-            currentZoomTransform,
-            chartState.fixedYScaleDomain
-          );
+        // Get current transform to preserve zoom level
+        const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
-          if (renderResult.success && renderResult.newFixedYScaleDomain) {
-            // Update the fixed Y-scale domain if it was recalculated
-            chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
+        // Use centralized render function for skip-to scenario
+        // Use the newly calculated viewport indices, not the old ones
+        const renderResult = renderSkipTo(
+          svgRef.current as SVGSVGElement,
+          chartState.dimensions,
+          chartState.allData,
+          viewStart, // Use the newly calculated viewStart
+          viewEnd, // Use the newly calculated viewEnd
+          currentZoomTransform,
+          chartState.fixedYScaleDomain
+        );
+
+        if (renderResult.success && renderResult.newFixedYScaleDomain) {
+          // Update the fixed Y-scale domain if it was recalculated
+          chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
+        }
+
+        // Force update the axes to ensure they reflect the new viewport
+        if (renderResult.success && renderResult.calculations) {
+          const svg = d3.select(svgRef.current);
+
+          // Update X-axis
+          const xAxisGroup = svg.select<SVGGElement>('.x-axis');
+          if (!xAxisGroup.empty()) {
+            const { innerHeight } = calculateInnerDimensions(chartState.dimensions);
+            xAxisGroup.attr('transform', `translate(0,${innerHeight})`);
+
+            // Re-call the axis with the new calculations
+            const xAxisParams = calculateXAxisParams({
+              viewStart: viewStart,
+              viewEnd: viewEnd,
+              allChartData: chartState.allData,
+              innerWidth: renderResult.calculations.innerWidth,
+              timeframe: chartState.timeframe || '1m',
+            });
+
+            xAxisGroup.call(
+              createCustomTimeAxis(
+                xAxisParams.viewportXScale as unknown as d3.ScaleLinear<number, number>,
+                chartState.allData,
+                xAxisParams.labelConfig.markerIntervalMinutes,
+                X_AXIS_MARKER_DATA_POINT_INTERVAL,
+                xAxisParams.visibleSlice,
+                xAxisParams.interval
+              )
+            );
+            applyAxisStyling(xAxisGroup);
           }
 
-          console.log('✅ Manual re-render completed after time skip');
+          // Update Y-axis
+          const yAxisGroup = svg.select<SVGGElement>('.y-axis');
+          if (!yAxisGroup.empty()) {
+            yAxisGroup.call(createYAxis(renderResult.calculations.transformedYScale));
+            applyAxisStyling(yAxisGroup);
+          }
         }
-      }, 50); // Small delay to ensure state updates are processed
+
+        console.log('✅ Manual re-render completed after time skip');
+
+        // Clear the skip-to flag immediately after render
+        skipToInProgressRef.current = false;
+
+        // Set flag to prevent immediate auto-redraw from overwriting our viewport
+        skipToJustCompletedRef.current = true;
+      }
     },
     [
       chartState.allData,
@@ -437,6 +497,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       currentViewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
       isPanning: isPanningRef.current,
       manualRenderInProgress: manualRenderInProgressRef.current,
+      skipToInProgress: skipToInProgressRef.current,
     });
 
     // Only trigger auto-redraw if chart is loaded and we have valid data
@@ -454,6 +515,19 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Skip if manual render is in progress
     if (manualRenderInProgressRef.current) {
       console.log('⏸️ Auto-redraw skipped: Manual render in progress');
+      return;
+    }
+
+    // Skip if skip-to operation is in progress
+    if (skipToInProgressRef.current) {
+      console.log('⏸️ Auto-redraw skipped: Skip-to operation in progress');
+      return;
+    }
+
+    // Skip if skip-to operation just completed (to prevent immediate overwrite)
+    if (skipToJustCompletedRef.current) {
+      console.log('⏸️ Auto-redraw skipped: Skip-to operation just completed');
+      skipToJustCompletedRef.current = false; // Clear the flag
       return;
     }
 

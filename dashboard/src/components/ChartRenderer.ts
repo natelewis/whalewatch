@@ -322,8 +322,8 @@ export const createChart = ({
     }
 
     // Single source of truth for all calculations
-    // Build calculations ignoring transform.x (index-based panning)
-    const transformForCalc = d3.zoomIdentity.translate(0, transform.y).scale(transform.k);
+    // EXPERIMENT: Disable vertical zooming - always use identity transform
+    const transformForCalc = d3.zoomIdentity;
     const calcStartTime = performance.now();
     const baseCalcs = calculateChartState({
       dimensions: currentDimensions,
@@ -739,17 +739,17 @@ export const createChart = ({
       }
 
       // Render live
-      // Apply vertical pan by adjusting the Y-transform based on pointer dy (zoom level preserved)
-      const newTransformY = panStartTransformY + dy;
-      currentTransformY = newTransformY;
-      currentTransformK = panStartTransformK;
+      // EXPERIMENT: Disable vertical panning - always use identity transform
+      // This means the Y-axis will always be recalculated based on visible data
+      currentTransformY = 0; // Always reset to 0
+      currentTransformK = 1; // Always reset to 1
 
       // Persist the vertical pan state for re-renders
       if (stateCallbacks.setCurrentVerticalPan) {
         stateCallbacks.setCurrentVerticalPan(currentTransformY, currentTransformK);
       }
 
-      const currentTransform = d3.zoomIdentity.translate(0, currentTransformY).scale(currentTransformK);
+      const currentTransform = d3.zoomIdentity; // EXPERIMENT: Always use identity transform
       if (stateCallbacks.setCurrentTransform) {
         stateCallbacks.setCurrentTransform(currentTransform);
       }
@@ -923,7 +923,11 @@ export const createChart = ({
   };
 };
 
-export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
+export const renderCandlestickChart = (
+  svgElement: SVGSVGElement,
+  calculations: ChartCalculations,
+  useProvidedViewport: boolean = false
+): void => {
   const renderStartTime = performance.now();
 
   // Find the chart content group and remove existing candlesticks
@@ -946,19 +950,45 @@ export const renderCandlestickChart = (svgElement: SVGSVGElement, calculations: 
   const candleWidth = Math.max(1, 4);
   const hoverWidth = Math.max(8, candleWidth * 2); // Wider hover area
 
-  // Render constant-size viewport slice with padding if needed
-  const windowSize = Math.max(1, CHART_DATA_POINTS);
-  const halfWindow = Math.floor(windowSize / 2);
-  const centerIndex = Math.floor((calculations.viewStart + calculations.viewEnd) / 2);
-  const desiredStart = centerIndex - halfWindow + 1;
-  const desiredEnd = desiredStart + windowSize - 1;
-  const actualStart = desiredStart;
-  const actualEnd = desiredEnd;
-  const sliceStart = Math.max(0, Math.min(calculations.allData.length - 1, desiredStart));
-  const sliceEnd = Math.max(sliceStart, Math.min(calculations.allData.length - 1, desiredEnd));
+  // Render viewport slice - either provided or calculated
+  let sliceStart: number;
+  let sliceEnd: number;
+  let actualStart: number;
+  let actualEnd: number;
+
+  if (useProvidedViewport) {
+    // Use the provided viewport directly for skip-to and panning operations
+    sliceStart = calculations.viewStart;
+    sliceEnd = calculations.viewEnd;
+    actualStart = sliceStart;
+    actualEnd = sliceEnd;
+  } else {
+    // Use constant-size viewport slice with padding for other operations
+    const windowSize = Math.max(1, CHART_DATA_POINTS);
+    const halfWindow = Math.floor(windowSize / 2);
+    const centerIndex = Math.floor((calculations.viewStart + calculations.viewEnd) / 2);
+    const desiredStart = centerIndex - halfWindow + 1;
+    const desiredEnd = desiredStart + windowSize - 1;
+    actualStart = desiredStart;
+    actualEnd = desiredEnd;
+    sliceStart = Math.max(0, Math.min(calculations.allData.length - 1, desiredStart));
+    sliceEnd = Math.max(sliceStart, Math.min(calculations.allData.length - 1, desiredEnd));
+  }
   const core = calculations.allData.slice(sliceStart, sliceEnd + 1);
-  const padLeftCount = Math.max(0, sliceStart - desiredStart);
-  const padRightCount = Math.max(0, desiredEnd - sliceEnd);
+
+  let padLeftCount: number;
+  let padRightCount: number;
+
+  if (useProvidedViewport) {
+    // No padding when using provided viewport
+    padLeftCount = 0;
+    padRightCount = 0;
+  } else {
+    // Calculate padding for constant-size viewport
+    padLeftCount = Math.max(0, sliceStart - actualStart);
+    padRightCount = Math.max(0, actualEnd - sliceEnd);
+  }
+
   const leftFill = core.length > 0 ? core[0] : null;
   const rightFill = core.length > 0 ? core[core.length - 1] : null;
   const padLeft: typeof core = leftFill ? Array.from({ length: padLeftCount }, () => leftFill) : [];
