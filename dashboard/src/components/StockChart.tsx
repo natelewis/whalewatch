@@ -316,9 +316,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Function to skip to a specific time
   const skipToTime = useCallback(
-    (hoursAgo: number) => {
-      if (!chartState.allData || chartState.allData.length === 0) {
-        console.warn('Cannot skip to time: No data available');
+    async (hoursAgo: number) => {
+      if (!chartState.timeframe) {
+        console.warn('Cannot skip to time: No timeframe set');
         return;
       }
 
@@ -330,122 +330,44 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       console.log('Skipping to time:', {
         hoursAgo,
         targetTime: targetTimeString,
-        dataLength: chartState.allData.length,
+        timeframe: chartState.timeframe,
+        symbol,
       });
-
-      // Find the closest data point to the target time
-      const targetTimeMs = targetTime.getTime();
-      let closestIndex = 0;
-      let minTimeDiff = Math.abs(new Date(chartState.allData[0].timestamp).getTime() - targetTimeMs);
-
-      for (let i = 1; i < chartState.allData.length; i++) {
-        const timeDiff = Math.abs(new Date(chartState.allData[i].timestamp).getTime() - targetTimeMs);
-        if (timeDiff < minTimeDiff) {
-          minTimeDiff = timeDiff;
-          closestIndex = i;
-        }
-      }
-
-      // Center the viewport around the closest data point
-      const viewportSize = CHART_DATA_POINTS;
-      const halfViewport = Math.floor(viewportSize / 2);
-      const viewStart = Math.max(0, closestIndex - halfViewport);
-      const viewEnd = Math.min(chartState.allData.length - 1, viewStart + viewportSize - 1);
-
-      console.log('Setting viewport to:', {
-        closestIndex,
-        viewStart,
-        viewEnd,
-        closestTimestamp: chartState.allData[closestIndex]?.timestamp,
-      });
-
-      // Update the viewport
-      chartActions.setViewport(viewStart, viewEnd);
 
       // Set flag to prevent auto-redraw from interfering
       skipToInProgressRef.current = true;
 
-      // Manually trigger a re-render immediately
-      if (svgRef.current && chartState.chartLoaded && chartState.chartExists) {
-        console.log('🔄 Manual re-render triggered after time skip');
-
-        // Get current transform to preserve zoom level
-        const currentZoomTransform = d3.zoomTransform(svgRef.current);
-
-        // Use centralized render function for skip-to scenario
-        // Use the newly calculated viewport indices, not the old ones
-        const renderResult = renderSkipTo(
-          svgRef.current as SVGSVGElement,
-          chartState.dimensions,
-          chartState.allData,
-          viewStart, // Use the newly calculated viewStart
-          viewEnd, // Use the newly calculated viewEnd
-          currentZoomTransform,
-          chartState.fixedYScaleDomain
+      try {
+        // Fetch new data centered around the target time
+        // We'll load data with the target time as the center point
+        await chartActions.loadChartData(
+          symbol,
+          chartState.timeframe,
+          DEFAULT_CHART_DATA_POINTS,
+          targetTimeString,
+          'past'
         );
 
-        if (renderResult.success && renderResult.newFixedYScaleDomain) {
-          // Update the fixed Y-scale domain if it was recalculated
-          chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
-        }
+        console.log('✅ New data loaded for skip-to time:', targetTimeString);
 
-        // Force update the axes to ensure they reflect the new viewport
-        if (renderResult.success && renderResult.calculations) {
-          const svg = d3.select(svgRef.current);
+        // After loading new data, we need to recreate the chart structure
+        // because the data has completely changed
+        chartActions.setChartExists(false);
+        chartActions.setChartLoaded(false);
+        chartCreatedRef.current = false; // Allow chart recreation
 
-          // Update X-axis
-          const xAxisGroup = svg.select<SVGGElement>('.x-axis');
-          if (!xAxisGroup.empty()) {
-            const { innerHeight } = calculateInnerDimensions(chartState.dimensions);
-            xAxisGroup.attr('transform', `translate(0,${innerHeight})`);
-
-            // Re-call the axis with the new calculations
-            const xAxisParams = calculateXAxisParams({
-              viewStart: viewStart,
-              viewEnd: viewEnd,
-              allChartData: chartState.allData,
-              innerWidth: renderResult.calculations.innerWidth,
-              timeframe: chartState.timeframe || '1m',
-            });
-
-            xAxisGroup.call(
-              createCustomTimeAxis(
-                xAxisParams.viewportXScale as unknown as d3.ScaleLinear<number, number>,
-                chartState.allData,
-                xAxisParams.labelConfig.markerIntervalMinutes,
-                X_AXIS_MARKER_DATA_POINT_INTERVAL,
-                xAxisParams.visibleSlice,
-                xAxisParams.interval
-              )
-            );
-            applyAxisStyling(xAxisGroup);
-          }
-
-          // Update Y-axis
-          const yAxisGroup = svg.select<SVGGElement>('.y-axis');
-          if (!yAxisGroup.empty()) {
-            yAxisGroup.call(createYAxis(renderResult.calculations.transformedYScale));
-            applyAxisStyling(yAxisGroup);
-          }
-        }
-
-        console.log('✅ Manual re-render completed after time skip');
-
-        // Clear the skip-to flag immediately after render
-        skipToInProgressRef.current = false;
-
-        // Set flag to prevent immediate auto-redraw from overwriting our viewport
+        // Set a flag to prevent auto-redraw from interfering with chart recreation
         skipToJustCompletedRef.current = true;
+
+        console.log('🔄 Chart structure reset for skip-to operation');
+      } catch (error) {
+        console.error('❌ Failed to load data for skip-to time:', error);
+      } finally {
+        // Clear the skip-to flag
+        skipToInProgressRef.current = false;
       }
     },
-    [
-      chartState.allData,
-      chartActions,
-      chartState.chartLoaded,
-      chartState.chartExists,
-      chartState.dimensions,
-      chartState.fixedYScaleDomain,
-    ]
+    [chartState.timeframe, chartActions, symbol]
   );
 
   // Chart data management is now handled by useChartStateManager
@@ -1093,10 +1015,10 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             {/* Time Skip Dropdown */}
             <div className="relative">
               <select
-                onChange={e => {
+                onChange={async e => {
                   const hoursAgo = parseInt(e.target.value);
                   if (!isNaN(hoursAgo)) {
-                    skipToTime(hoursAgo);
+                    await skipToTime(hoursAgo);
                     e.target.value = ''; // Reset selection
                   }
                 }}
