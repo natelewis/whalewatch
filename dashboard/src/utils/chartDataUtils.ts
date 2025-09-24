@@ -70,7 +70,7 @@ export const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes:
 
 /**
  * Process raw chart data into formatted candlestick data
- * Now includes fake candle padding for proper chart spacing
+ * Now includes fake candle padding for proper chart spacing (right padding only)
  */
 export const processChartData = (
   bars: AlpacaBar[],
@@ -84,7 +84,7 @@ export const processChartData = (
   const formattedData = formatBarsToCandlestickData(uniqueBars);
   const dataRange = calculateDataRange(uniqueBars);
 
-  // Add fake candles for padding (right padding + left padding if needed)
+  // Add fake candles for padding (right padding only - left padding removed)
   const paddedData = addFakeCandlesForPadding(formattedData, viewWindowSize, timeframe);
 
   return {
@@ -619,61 +619,14 @@ export const addRightPaddingFakeCandle = (
 };
 
 /**
- * Adds fake candles for left padding when there are fewer than 80 data points
- * This ensures proper spacing when the dataset is small
- * Only adds fake candles to the left, never to the right
- */
-export const addLeftPaddingFakeCandles = (
-  data: CandlestickData[],
-  targetCount: number = 80,
-  timeframe: ChartTimeframe = '1m'
-): CandlestickData[] => {
-  if (data.length === 0) {
-    return data;
-  }
-
-  // Find the first real (non-fake) candle
-  let firstRealCandleIndex = 0;
-  while (firstRealCandleIndex < data.length && isFakeCandle(data[firstRealCandleIndex])) {
-    firstRealCandleIndex++;
-  }
-
-  // If no real candles found, return original data
-  if (firstRealCandleIndex >= data.length) {
-    return data;
-  }
-
-  const firstRealCandle = data[firstRealCandleIndex];
-  const firstRealTime = new Date(firstRealCandle.timestamp);
-
-  // Calculate how many fake candles we need to add
-  const currentRealCandleCount = data.filter(candle => !isFakeCandle(candle)).length;
-  const fakeCandlesNeeded = Math.max(0, targetCount - currentRealCandleCount);
-
-  if (fakeCandlesNeeded === 0) {
-    return data;
-  }
-
-  // Create fake candles going backwards in time from the first real candle
-  const fakeCandles: CandlestickData[] = [];
-  const intervalMs = getTimeframeIntervalMs(timeframe);
-  for (let i = 1; i <= fakeCandlesNeeded; i++) {
-    const fakeTimestamp = new Date(firstRealTime.getTime() - i * intervalMs).toISOString();
-    fakeCandles.unshift(createFakeCandle(fakeTimestamp));
-  }
-
-  return [...fakeCandles, ...data];
-};
-
-/**
  * Processes chart data to add appropriate fake candles for padding
  * This is the main function that should be called to prepare data for rendering
  *
  * Requirements:
  * 1. Always adds exactly 1 fake candle to the right of the rightmost real candle for padding
- * 2. Adds fake candles to the left when there are fewer than 80 real data points
- * 3. Never adds fake candles to the right of the newest real candle
- * 4. Fake candles can be identified programmatically (isFake: true, all values -1)
+ * 2. Never adds fake candles to the right of the newest real candle
+ * 3. Fake candles can be identified programmatically (isFake: true, all values -1)
+ * 4. Left padding removed to prevent interference with auto-load logic
  */
 export const addFakeCandlesForPadding = (
   data: CandlestickData[],
@@ -684,11 +637,9 @@ export const addFakeCandlesForPadding = (
     return data;
   }
 
-  // First add left padding if needed (when there are fewer than 80 real data points)
-  let processedData = addLeftPaddingFakeCandles(data, viewWindowSize, timeframe);
-
-  // Then add right padding (always add exactly 1 fake candle to the right)
-  processedData = addRightPaddingFakeCandle(processedData, timeframe);
+  // Only add right padding (always add exactly 1 fake candle to the right)
+  // Left padding removed to prevent interference with auto-load logic
+  const processedData = addRightPaddingFakeCandle(data, timeframe);
 
   return processedData;
 };

@@ -123,6 +123,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const currentViewStartRef = useRef<number>(0);
   const currentViewEndRef = useRef<number>(0);
 
+  // Track when we've reached the end of available data to prevent repeated auto-load attempts
+  const reachedEndOfDataRef = useRef<{ past: boolean; future: boolean }>({ past: false, future: false });
+
   // Update dimensions ref when dimensions change
   useEffect(() => {
     currentDimensionsRef.current = chartState.dimensions;
@@ -139,6 +142,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     currentViewEndRef.current = chartState.currentViewEnd;
   }, [chartState.currentViewStart, chartState.currentViewEnd]);
 
+  // Reset end-of-data flags when symbol or timeframe changes
+  useEffect(() => {
+    reachedEndOfDataRef.current = { past: false, future: false };
+  }, [symbol, timeframe]);
+
   // Update fixed Y-scale domain ref when it changes
   useEffect(() => {
     console.log('🔍 Fixed Y-scale domain changed:', {
@@ -151,18 +159,24 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Function to automatically load more data when buffered candles are rendered
   const loadMoreDataOnBufferedRender = useCallback(
-    (direction: 'past' | 'future' = 'past'): void => {
+    (direction: 'past' | 'future' = 'past'): boolean => {
       const dataLoadStartTime = performance.now();
 
       if (timeframe === null) {
         console.warn('Cannot auto-load more data: no timeframe selected');
-        return;
+        return false;
       }
 
       // Only load more data if we haven't reached the maximum yet
       if (chartState.allData.length >= 1000) {
         console.log('📊 Max data points reached, skipping auto-load');
-        return;
+        return false;
+      }
+
+      // Check if we've already reached the end of data in this direction
+      if (reachedEndOfDataRef.current[direction]) {
+        console.log(`📊 Already reached end of ${direction} data, skipping auto-load`);
+        return false;
       }
 
       // Fetch exactly BUFFER_SIZE each time
@@ -180,7 +194,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Prevent multiple in-flight loads
       if (isLoadingDataRef.current) {
         console.log('⏸️ Skipping auto-load, request in flight');
-        return;
+        return false;
       }
       isLoadingDataRef.current = true;
 
@@ -193,6 +207,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             chartState.timeframe || '1m',
             DEFAULT_CHART_DATA_POINTS
           );
+
+          // Check if we actually got new data
+          if (formattedData.length === 0) {
+            console.log(`📊 No new data available, reached end of ${direction} data`);
+            reachedEndOfDataRef.current[direction] = true;
+            return;
+          }
 
           // Merge while preserving order and removing dups
           const mergedData = mergeHistoricalData(currentDataRef.current, formattedData);
@@ -247,6 +268,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             newTotal: prunedData.length,
           });
 
+          // Reset the end-of-data flag since we successfully loaded new data
+          reachedEndOfDataRef.current[direction] = false;
+
           const dataLoadEndTime = performance.now();
           console.log(`⏱️ Data loading (async) took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
         })
@@ -256,6 +280,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         .finally(() => {
           isLoadingDataRef.current = false;
         });
+
+      // Return true to indicate that data loading was initiated
+      return true;
     },
     [timeframe, chartState.allData.length, symbol, chartActions]
   );

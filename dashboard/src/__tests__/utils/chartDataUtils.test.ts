@@ -8,7 +8,6 @@ import {
   createFakeCandle,
   isFakeCandle,
   addRightPaddingFakeCandle,
-  addLeftPaddingFakeCandles,
   addFakeCandlesForPadding,
   getTimeframeIntervalMs,
 } from '../../utils/chartDataUtils';
@@ -328,50 +327,8 @@ describe('chartDataUtils', () => {
       });
     });
 
-    describe('addLeftPaddingFakeCandles', () => {
-      it('should add fake candles to the left when data is less than target count', () => {
-        const data: CandlestickData[] = [
-          {
-            timestamp: '2023-01-01T10:00:00Z',
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 105,
-            volume: 1000,
-          },
-        ];
-
-        const result = addLeftPaddingFakeCandles(data, 80, '1m');
-
-        expect(result).toHaveLength(80);
-        expect(isFakeCandle(result[0])).toBe(true);
-        expect(isFakeCandle(result[79])).toBe(false); // Original data should not be fake
-        expect(result[79].timestamp).toBe('2023-01-01T10:00:00Z'); // Original data
-      });
-
-      it('should not add fake candles when data meets target count', () => {
-        const data: CandlestickData[] = Array.from({ length: 80 }, (_, i) => ({
-          timestamp: `2023-01-01T${9 + i}:00:00Z`,
-          open: 100,
-          high: 110,
-          low: 90,
-          close: 105,
-          volume: 1000,
-        }));
-
-        const result = addLeftPaddingFakeCandles(data, 80, '1m');
-
-        expect(result).toEqual(data);
-      });
-
-      it('should handle empty data', () => {
-        const result = addLeftPaddingFakeCandles([], 80, '1m');
-        expect(result).toEqual([]);
-      });
-    });
-
     describe('addFakeCandlesForPadding', () => {
-      it('should add both left and right padding for small datasets', () => {
+      it('should only add right padding for small datasets (left padding removed)', () => {
         const data: CandlestickData[] = [
           {
             timestamp: '2023-01-01T10:00:00Z',
@@ -385,12 +342,10 @@ describe('chartDataUtils', () => {
 
         const result = addFakeCandlesForPadding(data, 80, '1m');
 
-        expect(result.length).toBeGreaterThan(80);
-        expect(isFakeCandle(result[0])).toBe(true); // Left padding
-        expect(isFakeCandle(result[result.length - 1])).toBe(true); // Right padding
-        // Find the original data (should be the only non-fake candle)
-        const originalDataIndex = result.findIndex(candle => !isFakeCandle(candle));
-        expect(result[originalDataIndex].timestamp).toBe('2023-01-01T10:00:00Z'); // Original data
+        expect(result.length).toBe(2); // 1 real + 1 fake right padding
+        expect(isFakeCandle(result[0])).toBe(false); // Original data (no left padding)
+        expect(isFakeCandle(result[1])).toBe(true); // Right padding
+        expect(result[0].timestamp).toBe('2023-01-01T10:00:00Z'); // Original data
       });
 
       it('should only add right padding for datasets that meet target count', () => {

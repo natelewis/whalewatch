@@ -29,7 +29,7 @@ import {
 } from '../utils/chartDataUtils';
 import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 import { smartDateRenderer } from '../utils/dateRenderer';
-import { renderPanning } from '../utils/renderManager';
+import { renderPanning, checkAutoLoadTrigger } from '../utils/renderManager';
 
 // ============================================================================
 // CONFIGURATION CONSTANTS - imported from centralized constants
@@ -647,6 +647,9 @@ export const createChart = ({
   let loadRequestedRight = false;
   let lastLoadDataLengthLeft: number | null = null;
   let lastLoadDataLengthRight: number | null = null;
+  let currentViewStart = 0;
+  let currentViewEnd = 0;
+  let currentDataLength = 0;
 
   const getWindowSize = (): number => CHART_DATA_POINTS;
 
@@ -723,6 +726,11 @@ export const createChart = ({
       let newStart = center - halfWindow + 1;
       let newEnd = newStart + windowSize - 1;
       const total = data.length;
+
+      // Update current viewport for auto-load check
+      currentViewStart = newStart;
+      currentViewEnd = newEnd;
+      currentDataLength = total;
       if (newStart < 0) {
         newStart = 0;
         newEnd = Math.min(total - 1, newStart + windowSize - 1);
@@ -849,37 +857,25 @@ export const createChart = ({
         );
         applyAxisStyling(xAxisGroup);
       }
-      // Edge auto-load trigger during pan
-      if (onBufferedCandlesRendered) {
-        // Reset per-edge lock when data length changes
-        if (lastLoadDataLengthLeft !== null && data.length !== lastLoadDataLengthLeft) {
-          loadRequestedLeft = false;
-          lastLoadDataLengthLeft = null;
-        }
-        if (lastLoadDataLengthRight !== null && data.length !== lastLoadDataLengthRight) {
-          loadRequestedRight = false;
-          lastLoadDataLengthRight = null;
-        }
-
-        const distanceLeft = Math.max(0, newStart);
-        const distanceRight = Math.max(0, total - 1 - newEnd);
-        const threshold = LOAD_EDGE_TRIGGER;
-
-        if (distanceLeft <= threshold && !loadRequestedLeft) {
-          loadRequestedLeft = true;
-          lastLoadDataLengthLeft = data.length;
-          setTimeout(() => onBufferedCandlesRendered('past'), 0);
-        }
-        if (distanceRight <= threshold && !loadRequestedRight) {
-          loadRequestedRight = true;
-          lastLoadDataLengthRight = data.length;
-          setTimeout(() => onBufferedCandlesRendered('future'), 0);
-        }
-      }
     })
     .on('pointerup', () => {
       isPointerDown = false;
       isPanningRef.current = false;
+
+      // Check auto-load trigger when pan operation is completed
+      if (onBufferedCandlesRendered) {
+        checkAutoLoadTrigger(
+          currentViewStart,
+          currentViewEnd,
+          currentDataLength,
+          onBufferedCandlesRendered,
+          { current: loadRequestedLeft },
+          { current: loadRequestedRight },
+          { current: lastLoadDataLengthLeft },
+          { current: lastLoadDataLengthRight }
+        );
+      }
+
       loadRequestedLeft = false;
       loadRequestedRight = false;
       lastLoadDataLengthLeft = null;
