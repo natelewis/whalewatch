@@ -1098,16 +1098,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               <div className={`w-2 h-2 rounded-full ${chartState.chartLoaded ? 'bg-green-500' : 'bg-gray-500'}`}></div>
               <span>{chartState.chartLoaded ? 'Chart Ready' : 'Loading...'}</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span>Live</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div
-                className={`w-2 h-2 rounded-full ${chartWebSocket.isConnected ? 'bg-green-500' : 'bg-red-500'}`}
-              ></div>
-              <span>{chartWebSocket.isConnected ? 'WebSocket Connected' : 'WebSocket Disconnected'}</span>
-            </div>
             {chartState.isZooming && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>

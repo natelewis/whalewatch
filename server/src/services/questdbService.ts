@@ -284,7 +284,11 @@ export class QuestDBService {
   private async ensureTableExists(tableName: string): Promise<void> {
     try {
       const tablesResponse = await this.executeQuery<{ table_name: string }>('SHOW TABLES');
-      const availableTables = tablesResponse.dataset.map(row => (row as { table_name: string }).table_name);
+      // QuestDB returns data as arrays, so we need to convert it properly
+      const availableTables = this.convertArrayToObject<{ table_name: string }>(
+        tablesResponse.dataset,
+        tablesResponse.columns
+      ).map(row => row.table_name);
 
       if (!availableTables.includes(tableName)) {
         throw new Error(

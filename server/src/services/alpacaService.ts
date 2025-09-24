@@ -202,6 +202,7 @@ export class AlpacaService {
       '1H': '1Hour',
       '1d': '1Day',
       '1D': '1Day',
+      '1W': '1Week',
       '3M': '3Month',
       '6M': '6Month',
       '1Y': '1Year',
