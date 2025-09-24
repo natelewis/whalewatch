@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, requireAuth } from '../middleware/auth';
 import { alpacaService } from '../services/alpacaService';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.get('/info', async (_req: Request, res: Response) => {
     const account = await alpacaService.getAccount();
     return res.json({ account });
   } catch (error) {
-    console.error('Error fetching account info:', error);
+    logger.server.error('Error fetching account info:', error);
     return res.status(500).json({ error: 'Failed to fetch account information' });
   }
 });
@@ -25,7 +26,7 @@ router.get('/positions', async (_req: Request, res: Response) => {
     const positions = await alpacaService.getPositions();
     return res.json({ positions });
   } catch (error) {
-    console.error('Error fetching positions:', error);
+    logger.server.error('Error fetching positions:', error);
     return res.status(500).json({ error: 'Failed to fetch positions' });
   }
 });
@@ -39,7 +40,7 @@ router.get('/activity', async (req: Request, res: Response) => {
 
     return res.json({ activities });
   } catch (error) {
-    console.error('Error fetching activities:', error);
+    logger.server.error('Error fetching activities:', error);
     return res.status(500).json({ error: 'Failed to fetch activities' });
   }
 });

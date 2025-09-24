@@ -9,6 +9,7 @@ import {
   CreateOrderResponse,
   ChartTimeframe,
 } from '../types';
+import { logger } from '../utils/logger';
 // Polygon service removed - now using QuestDB
 
 export class AlpacaService {
@@ -31,7 +32,7 @@ export class AlpacaService {
       });
       return response.data as AlpacaAccount;
     } catch (error) {
-      console.error('Error fetching account:', error);
+      logger.server.error('Error fetching account:', error);
       throw new Error('Failed to fetch account information');
     }
   }
@@ -43,7 +44,7 @@ export class AlpacaService {
       });
       return response.data as AlpacaPosition[];
     } catch (error) {
-      console.error('Error fetching positions:', error);
+      logger.server.error('Error fetching positions:', error);
       throw new Error('Failed to fetch positions');
     }
   }
@@ -64,7 +65,7 @@ export class AlpacaService {
       });
       return response.data as AlpacaActivity[];
     } catch (error) {
-      console.error('Error fetching activities:', error);
+      logger.server.error('Error fetching activities:', error);
       throw new Error('Failed to fetch activities');
     }
   }
@@ -121,7 +122,7 @@ export class AlpacaService {
         })) || []
       );
     } catch (error: unknown) {
-      console.error('Error fetching bars:', error);
+      logger.server.error('Error fetching bars:', error);
 
       // Handle specific Alpaca API errors
       const isAxiosError = error && typeof error === 'object' && 'response' in error;

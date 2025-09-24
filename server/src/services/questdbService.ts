@@ -13,6 +13,7 @@ import {
   QuestDBConfig,
   QuestDBError,
 } from '../types/questdb';
+import { logger } from '../utils/logger';
 
 // Load environment variables from the server directory
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -83,7 +84,7 @@ export class QuestDBService {
           ).response
         : null;
 
-      console.error('QuestDB query execution failed:', {
+      logger.server.database('QuestDB query execution failed:', {
         query,
         error: errorMessage,
         status: response?.status,
@@ -479,7 +480,7 @@ export class QuestDBService {
       return true;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ QuestDB connection failed:', errorMessage);
+      logger.server.error('❌ QuestDB connection failed:', errorMessage);
       return false;
     }
   }
@@ -538,7 +539,7 @@ export class QuestDBService {
       return stats;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Failed to get database stats:', errorMessage);
+      logger.server.error('Failed to get database stats:', errorMessage);
       throw new Error('Failed to retrieve database statistics');
     }
   }

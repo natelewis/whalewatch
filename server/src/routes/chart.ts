@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { questdbService } from '../services/questdbService';
 import { QuestDBQueryParams, QuestDBStockAggregate } from '../types/questdb';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -180,7 +181,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     // If no data found, return empty result
     if (!aggregates || aggregates.length === 0) {
-      console.log(`No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`);
+      logger.debug(`No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`);
     }
 
     // For 1-minute intervals, we still need to handle duplicates
@@ -251,7 +252,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
           : null,
     });
   } catch (error: unknown) {
-    console.error('Error fetching chart data from QuestDB:', error);
+    logger.server.error('Error fetching chart data from QuestDB:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return res.status(500).json({
       error: `Failed to fetch chart data: ${errorMessage}`,
