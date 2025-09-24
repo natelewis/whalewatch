@@ -95,12 +95,6 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       viewSize: viewSize,
     };
 
-    console.log(
-      `🔍 DEBUG: Querying ${symbol} from ${startTime.toISOString()} in ${direction} direction with ${intervalKey} intervals, requesting ${limitValue} data points${
-        viewBasedLoading ? ` (view-based loading: ${viewSize} per view)` : ''
-      }`
-    );
-
     // Calculate data limit based on interval type
     const intervalMinutes = getIntervalMinutes(intervalKey);
     let dataLimit: number;
@@ -113,10 +107,6 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       // We can request the exact number of bars we need
       dataLimit = limitValue;
     }
-
-    console.log(
-      `🔍 DEBUG: Interval: ${intervalMinutes}min, Requested: ${limitValue} bars, Fetching: ${dataLimit} records`
-    );
 
     // For past direction: get records <= startTime, ordered DESC (most recent first),
     // limit to calculated data count
@@ -131,28 +121,18 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     // Only set start_time for both directions
     params.start_time = startTime.toISOString();
 
-    console.log(`🔍 DEBUG: Query params:`, params);
-
     // Use QuestDB aggregation for better performance
     let aggregates: QuestDBStockAggregate[];
 
     if (intervalMinutes === 1) {
       // For 1-minute intervals, use raw data without aggregation
       aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
-      console.log(`🔍 DEBUG: Retrieved ${aggregates.length} raw aggregates for ${symbol}`);
     } else {
       // For all other intervals, use QuestDB's SAMPLE BY aggregation
       aggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, params);
-      console.log(`🔍 DEBUG: Retrieved ${aggregates.length} aggregated bars for ${symbol}`);
     }
 
     if (aggregates.length > 0) {
-      console.log(`🔍 DEBUG: Data range: ${aggregates[0].timestamp} to ${aggregates[aggregates.length - 1].timestamp}`);
-      console.log(
-        `🔍 DEBUG: First few records:`,
-        aggregates.slice(0, 3).map(agg => ({ timestamp: agg.timestamp, close: agg.close }))
-      );
-
       // For past direction, we got data in DESC order (most recent first), but we need ASC order for display
       if (direction === 'past') {
         aggregates = aggregates.reverse();

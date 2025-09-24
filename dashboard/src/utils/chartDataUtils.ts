@@ -196,15 +196,6 @@ export interface XAxisCalculationParams {
 export const calculateXAxisParams = (params: XAxisCalculationParams) => {
   const { viewStart, viewEnd, allChartData, innerWidth, timeframe } = params;
 
-  console.log('🔍 calculateXAxisParams DEBUG:', {
-    viewStart,
-    viewEnd,
-    allChartDataLength: allChartData.length,
-    innerWidth,
-    timeframe,
-    viewportSize: viewEnd - viewStart + 1,
-  });
-
   // Get interval-based configuration - use the same logic everywhere
   const labelConfig = X_AXIS_LABEL_CONFIGS[timeframe] || X_AXIS_LABEL_CONFIGS['1m'];
 
@@ -248,16 +239,6 @@ export const createCustomTimeAxis = (
   visibleData?: { timestamp: string }[],
   interval?: string
 ): d3.Axis<number | Date> => {
-  console.log('🔍 createCustomTimeAxis DEBUG:', {
-    allChartDataLength: allChartData.length,
-    visibleDataLength: visibleData?.length || 0,
-    markerIntervalMinutes,
-    dataPointInterval,
-    interval,
-    scaleDomain: transformedLinearScale.domain(),
-    scaleRange: transformedLinearScale.range(),
-  });
-
   // Always use visible data for tick generation when available to ensure consistency
   // This prevents generating ticks for the entire dataset during initial rendering
   const dataForTickGeneration = visibleData && visibleData.length > 0 ? visibleData : allChartData;
