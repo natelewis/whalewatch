@@ -1,10 +1,16 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData } from '../types';
 import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
-import { processChartData, isFakeCandle } from '../utils/chartDataUtils';
+import {
+  processChartData,
+  isFakeCandle,
+  calculateCurrentDateTimeFromViewport,
+  calculateViewportFromDateTime,
+} from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 import { clearTimeFormatCache, clearAllChartCaches } from '../utils/memoizedChartUtils';
+import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 
 // Import types from centralized location
 import { HoverData, ChartState, ChartTransform, DateDisplayData } from '../types';
@@ -59,6 +65,9 @@ export interface ChartActions {
   setSymbol: (symbol: string) => void;
   setDimensions: (dimensions: ChartDimensions) => void;
   setFixedYScaleDomain: (domain: [number, number] | null) => void;
+
+  // Transform actions for vertical panning
+  setCurrentVerticalPan: (y: number, k: number) => void;
 
   // Utility actions
   resetChart: () => void;
@@ -156,19 +165,61 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
 
   // Viewport actions
   const setCurrentViewStart = useCallback((start: number) => {
-    setState(prev => ({ ...prev, currentViewStart: start }));
+    setState(prev => {
+      const newState = { ...prev, currentViewStart: start };
+
+      // Persist current date/time to localStorage
+      const currentDateTime = calculateCurrentDateTimeFromViewport(start, prev.currentViewEnd, prev.allData);
+      if (currentDateTime) {
+        try {
+          setLocalStorageItem('chartCurrentDateTime', currentDateTime);
+        } catch (error) {
+          console.warn('Failed to save current date/time to localStorage:', error);
+        }
+      }
+
+      return newState;
+    });
   }, []);
 
   const setCurrentViewEnd = useCallback((end: number) => {
-    setState(prev => ({ ...prev, currentViewEnd: end }));
+    setState(prev => {
+      const newState = { ...prev, currentViewEnd: end };
+
+      // Persist current date/time to localStorage
+      const currentDateTime = calculateCurrentDateTimeFromViewport(prev.currentViewStart, end, prev.allData);
+      if (currentDateTime) {
+        try {
+          setLocalStorageItem('chartCurrentDateTime', currentDateTime);
+        } catch (error) {
+          console.warn('Failed to save current date/time to localStorage:', error);
+        }
+      }
+
+      return newState;
+    });
   }, []);
 
   const setViewport = useCallback((start: number, end: number) => {
-    setState(prev => ({
-      ...prev,
-      currentViewStart: start,
-      currentViewEnd: end,
-    }));
+    setState(prev => {
+      const newState = {
+        ...prev,
+        currentViewStart: start,
+        currentViewEnd: end,
+      };
+
+      // Persist current date/time to localStorage
+      const currentDateTime = calculateCurrentDateTimeFromViewport(start, end, prev.allData);
+      if (currentDateTime) {
+        try {
+          setLocalStorageItem('chartCurrentDateTime', currentDateTime);
+        } catch (error) {
+          console.warn('Failed to save current date/time to localStorage:', error);
+        }
+      }
+
+      return newState;
+    });
   }, []);
 
   // UI actions
@@ -217,6 +268,14 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
 
   const setFixedYScaleDomain = useCallback((domain: [number, number] | null) => {
     setState(prev => ({ ...prev, fixedYScaleDomain: domain }));
+  }, []);
+
+  const setCurrentVerticalPan = useCallback((y: number, k: number) => {
+    setState(prev => ({
+      ...prev,
+      currentTransformY: y,
+      currentTransformK: k,
+    }));
   }, []);
 
   // Utility actions
@@ -507,18 +566,49 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     });
   }, []);
 
-  // Handle initial data load
+  // Handle initial data load and restore viewport from localStorage
   useEffect(() => {
     if (state.allData.length > 0 && isInitialLoadRef.current) {
       const totalDataLength = state.allData.length;
-      const newEndIndex = totalDataLength - 1;
-      // Use centralized default view size
-      const newStartIndex = Math.max(0, newEndIndex - CHART_DATA_POINTS + 1);
+
+      // Try to restore viewport from localStorage
+      let newViewStart: number;
+      let newViewEnd: number;
+
+      try {
+        const savedDateTime = getLocalStorageItem<string>('chartCurrentDateTime', '');
+        if (savedDateTime) {
+          const restoredViewport = calculateViewportFromDateTime(savedDateTime, state.allData, CHART_DATA_POINTS);
+          if (restoredViewport) {
+            newViewStart = restoredViewport.viewStart;
+            newViewEnd = restoredViewport.viewEnd;
+            console.log('🔄 Restored viewport from localStorage:', {
+              savedDateTime,
+              restoredViewport: `${newViewStart}-${newViewEnd}`,
+            });
+          } else {
+            // Fallback to default viewport
+            newViewEnd = totalDataLength - 1;
+            newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
+            console.log('⚠️ Could not restore viewport from localStorage, using default');
+          }
+        } else {
+          // No saved date/time, use default viewport
+          newViewEnd = totalDataLength - 1;
+          newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
+          console.log('📅 No saved date/time found, using default viewport');
+        }
+      } catch (error) {
+        // Error loading from localStorage, use default viewport
+        newViewEnd = totalDataLength - 1;
+        newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
+        console.warn('Failed to restore viewport from localStorage:', error);
+      }
 
       setState(prev => ({
         ...prev,
-        currentViewStart: newStartIndex,
-        currentViewEnd: newEndIndex,
+        currentViewStart: newViewStart,
+        currentViewEnd: newViewEnd,
       }));
 
       isInitialLoadRef.current = false;
@@ -550,6 +640,7 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     setSymbol,
     setDimensions,
     setFixedYScaleDomain,
+    setCurrentVerticalPan,
     resetChart,
     updateMultiple,
   };

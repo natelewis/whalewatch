@@ -70,6 +70,10 @@ export interface ChartState {
 
   // Y-scale management
   fixedYScaleDomain: [number, number] | null;
+
+  // Transform state for vertical panning
+  currentTransformY?: number;
+  currentTransformK?: number;
 }
 
 // ChartActions is defined in useChartStateManager.ts
@@ -110,6 +114,7 @@ export interface ChartStateCallbacks {
   getCurrentData?: () => CandlestickData[];
   getCurrentDimensions?: () => ChartDimensions;
   setChartLoaded?: (value: boolean) => void;
+  setCurrentVerticalPan?: (y: number, k: number) => void;
 }
 
 // ============================================================================
