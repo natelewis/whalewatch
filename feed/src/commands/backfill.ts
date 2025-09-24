@@ -32,23 +32,21 @@ function showUsage() {
   console.log(chalk.blue('Usage:'));
   console.log('  npm run backfill                    # Backfill all tickers from last sync');
   console.log('  npm run backfill <ticker>           # Backfill specific ticker from last sync');
-  console.log(
-    '  npm run backfill <ticker> <date>    # Backfill specific ticker from specific date (replaces existing data)'
-  );
-  console.log('  npm run backfill <ticker> <date> --skip-replace  # Skip data replacement (may create duplicates)');
-  console.log(
-    '  npm run backfill <date>             # Backfill all tickers from specific date (replaces existing data)'
-  );
+  console.log('  npm run backfill <ticker> <date>    # Backfill specific ticker TO specific date');
+  console.log('  npm run backfill <date>             # Backfill all tickers TO specific date');
   console.log('');
   console.log(chalk.blue('Date format: YYYY-MM-DD (e.g., 2025-09-01)'));
   console.log('');
   console.log(chalk.blue('Examples:'));
-  console.log('  npm run backfill AAPL 2025-09-01');
-  console.log('  npm run backfill AAPL 2025-09-01 --skip-replace');
-  console.log('  npm run backfill 2025-09-01         # Backfill all tickers from date');
+  console.log('  npm run backfill AAPL 2025-09-01        # Backfill AAPL TO 2025-09-01');
+  console.log('  npm run backfill 2025-09-01             # Backfill all tickers TO 2025-09-01');
   console.log('');
-  console.log(chalk.yellow('Note: Data replacement is enabled by default to prevent duplicates.'));
-  console.log(chalk.yellow('Use --skip-replace only if you are certain no duplicates will occur.'));
+  console.log(
+    chalk.yellow(
+      'Note: All dates are treated as "TO" dates - backfill will ensure data exists through the specified date.'
+    )
+  );
+  console.log(chalk.yellow('The system will automatically determine the starting point based on existing data.'));
 }
 
 async function main() {
@@ -61,46 +59,41 @@ async function main() {
   }
 
   let ticker: string | undefined;
-  let startDate: Date | undefined;
-  let skipReplace = false;
+  let date: Date | undefined;
 
   // Parse arguments
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
 
-    if (arg === '--skip-replace') {
-      skipReplace = true;
-    } else if (!ticker && !startDate) {
+    if (!ticker && !date) {
       // First argument could be ticker or date
       if (arg.match(/^\d{4}-\d{2}-\d{2}$/)) {
         // It's a date
-        startDate = parseDate(arg);
+        date = parseDate(arg);
       } else {
         // It's a ticker
         ticker = arg;
       }
-    } else if (!startDate) {
+    } else if (!date) {
       // Second argument should be date
-      startDate = parseDate(arg);
+      date = parseDate(arg);
     }
   }
 
   console.log(chalk.blue('Starting data backfill...'));
 
-  if (ticker && startDate) {
+  if (ticker && date) {
     console.log(
-      chalk.yellow(
-        `Backfilling data for ${ticker} from ${startDate.toISOString().split('T')[0]}${
-          skipReplace ? ' (skipping data replacement)' : ' (replacing existing data)'
-        }`
-      )
+      chalk.yellow(`Backfilling data for ${ticker} TO ${date.toISOString().split('T')[0]} (from oldest available data)`)
     );
   } else if (ticker) {
     console.log(chalk.yellow(`Backfilling data for specific ticker: ${ticker}`));
-  } else if (startDate) {
+  } else if (date) {
     console.log(
       chalk.yellow(
-        `Backfilling data for all tickers from ${startDate.toISOString().split('T')[0]} (replacing existing data)`
+        `Backfilling data for all tickers TO ${
+          date.toISOString().split('T')[0]
+        } (ensuring all tickers have data through this date)`
       )
     );
   } else {
@@ -111,12 +104,12 @@ async function main() {
   const startTime = Date.now();
 
   try {
-    if (ticker && startDate) {
-      await backfillService.backfillTickerFromDate(ticker, startDate, skipReplace);
+    if (ticker && date) {
+      await backfillService.backfillTickerToDate(ticker, date);
     } else if (ticker) {
       await backfillService.backfillTicker(ticker);
-    } else if (startDate) {
-      await backfillService.backfillAllFromDate(startDate);
+    } else if (date) {
+      await backfillService.backfillAllToDate(date);
     } else {
       await backfillService.backfillAll();
     }

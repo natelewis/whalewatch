@@ -250,6 +250,140 @@ export class BackfillService {
     }
   }
 
+  async backfillAllToDate(endDate: Date): Promise<void> {
+    console.log(
+      `Starting backfill for all tickers TO ${
+        endDate.toISOString().split('T')[0]
+      } (ensuring all tickers have data through this date)`
+    );
+    const startTime = Date.now();
+
+    try {
+      await db.connect();
+
+      // Get current sync states to find the oldest data point
+      const syncStates = await this.getSyncStates();
+
+      // Find the oldest last sync date across all tickers
+      const timestamps = Array.from(syncStates.values())
+        .map(state => state.last_aggregate_timestamp?.getTime())
+        .filter(ts => ts !== undefined) as number[];
+
+      // Use the oldest sync date as the starting point, or default to a reasonable historical date
+      const oldestSync = timestamps.length > 0 ? Math.min(...timestamps) : null;
+      const backfillStart = oldestSync ? new Date(oldestSync) : new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // Default to 1 year back if no data
+
+      console.log(
+        `Backfilling all tickers from ${backfillStart.toISOString().split('T')[0]} to ${
+          endDate.toISOString().split('T')[0]
+        }`
+      );
+
+      let totalItemsProcessed = 0;
+
+      // Backfill each ticker to ensure they all have data through the end date
+      for (const ticker of config.tickers) {
+        try {
+          const tickerStartTime = Date.now();
+
+          // Get the oldest data date for this ticker
+          const oldestDataDate = await this.getOldestDataDate(ticker);
+
+          if (oldestDataDate) {
+            // Check if the oldest data is at or before the target date
+            if (oldestDataDate <= endDate) {
+              console.log(
+                `${ticker} already has data through ${endDate.toISOString().split('T')[0]} (oldest data: ${
+                  oldestDataDate.toISOString().split('T')[0]
+                }), skipping`
+              );
+            } else {
+              // Oldest data is after the target date, so we need to backfill from oldest data backwards to target date
+              console.log(
+                `${ticker} oldest data is ${oldestDataDate.toISOString().split('T')[0]}, backfilling from ${
+                  oldestDataDate.toISOString().split('T')[0]
+                } TO ${endDate.toISOString().split('T')[0]}`
+              );
+              const itemsProcessed = await this.backfillTickerData(ticker, endDate, oldestDataDate);
+              totalItemsProcessed += itemsProcessed;
+
+              // Also backfill option contracts and trades for this ticker
+              console.log(`Backfilling option data for ${ticker}...`);
+              await this.optionIngestionService.backfillOptionData(ticker, endDate, oldestDataDate);
+            }
+          } else {
+            // No data exists for this ticker, backfill from a reasonable historical date
+            console.log(
+              `${ticker} has no existing data, backfilling from historical date to ${
+                endDate.toISOString().split('T')[0]
+              }`
+            );
+            const historicalStart = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // 1 year back
+            const itemsProcessed = await this.backfillTickerData(ticker, historicalStart, endDate);
+            totalItemsProcessed += itemsProcessed;
+
+            // Also backfill option contracts and trades for this ticker
+            console.log(`Backfilling option data for ${ticker}...`);
+            await this.optionIngestionService.backfillOptionData(ticker, historicalStart, endDate);
+          }
+
+          const tickerDuration = Date.now() - tickerStartTime;
+          console.log(`Completed ${ticker} in ${this.formatDuration(tickerDuration)}`);
+        } catch (error) {
+          console.error(`Error backfilling ${ticker}:`, error);
+        }
+      }
+
+      const totalDuration = Date.now() - startTime;
+      console.log(
+        `Backfill completed for all tickers in ${this.formatDuration(
+          totalDuration
+        )} - Total items processed: ${totalItemsProcessed}`
+      );
+    } catch (error) {
+      console.error('Backfill failed:', error);
+      throw error;
+    } finally {
+      await db.disconnect();
+    }
+  }
+
+  async backfillTickerToDate(ticker: string, endDate: Date): Promise<void> {
+    console.log(`Starting backfill for ticker: ${ticker} TO ${endDate.toISOString().split('T')[0]}`);
+    const startTime = Date.now();
+
+    try {
+      await db.connect();
+
+      // Get the current sync state for this ticker to determine where to start
+      const tickerSyncState = await this.getSyncState(ticker);
+      const backfillStart =
+        tickerSyncState.last_aggregate_timestamp || new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // Default to 1 year back if no data
+
+      console.log(
+        `Backfilling ${ticker} from ${backfillStart.toISOString().split('T')[0]} to ${
+          endDate.toISOString().split('T')[0]
+        }`
+      );
+
+      const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, endDate);
+
+      // Also backfill option contracts and trades for this ticker
+      console.log(`Backfilling option data for ${ticker}...`);
+      await this.optionIngestionService.backfillOptionData(ticker, backfillStart, endDate);
+
+      const duration = Date.now() - startTime;
+      console.log(
+        `Backfill completed for ${ticker} in ${this.formatDuration(duration)} - ${itemsProcessed} items processed`
+      );
+    } catch (error) {
+      console.error(`Backfill failed for ${ticker}:`, error);
+      throw error;
+    } finally {
+      await db.disconnect();
+    }
+  }
+
   private async backfillTickerData(ticker: string, startDate: Date, endDate: Date): Promise<number> {
     console.log(`Backfilling ${ticker} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
@@ -397,6 +531,28 @@ export class BackfillService {
       last_sync: new Date(),
       is_streaming: false,
     };
+  }
+
+  private async getOldestDataDate(ticker: string): Promise<Date | null> {
+    const result = await db.query(
+      `
+      SELECT MIN(timestamp) as oldest_timestamp
+      FROM stock_aggregates
+      WHERE symbol = $1
+    `,
+      [ticker]
+    );
+
+    const questResult = result as {
+      columns: { name: string; type: string }[];
+      dataset: unknown[][];
+    };
+
+    if (questResult.dataset.length > 0 && questResult.dataset[0][0]) {
+      return new Date(questResult.dataset[0][0] as string);
+    }
+
+    return null;
   }
 
   private async insertAlpacaAggregates(ticker: string, aggregates: any[]): Promise<void> {
