@@ -288,6 +288,103 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     []
   );
 
+  // Define time skip options
+  const timeSkipOptions = useMemo(
+    () => [
+      { label: '1 day ago', hours: 24 },
+      { label: '1 week ago', hours: 24 * 7 },
+      { label: '1 month ago', hours: 24 * 30 },
+      { label: '3 months ago', hours: 24 * 30 * 3 },
+      { label: '6 months ago', hours: 24 * 30 * 6 },
+      { label: '1 year ago', hours: 24 * 365 },
+    ],
+    []
+  );
+
+  // Function to skip to a specific time
+  const skipToTime = useCallback(
+    (hoursAgo: number) => {
+      if (!chartState.allData || chartState.allData.length === 0) {
+        console.warn('Cannot skip to time: No data available');
+        return;
+      }
+
+      // Calculate target time (hours ago from now)
+      const now = new Date();
+      const targetTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
+      const targetTimeString = targetTime.toISOString();
+
+      console.log('Skipping to time:', {
+        hoursAgo,
+        targetTime: targetTimeString,
+        dataLength: chartState.allData.length,
+      });
+
+      // Find the closest data point to the target time
+      const targetTimeMs = targetTime.getTime();
+      let closestIndex = 0;
+      let minTimeDiff = Math.abs(new Date(chartState.allData[0].timestamp).getTime() - targetTimeMs);
+
+      for (let i = 1; i < chartState.allData.length; i++) {
+        const timeDiff = Math.abs(new Date(chartState.allData[i].timestamp).getTime() - targetTimeMs);
+        if (timeDiff < minTimeDiff) {
+          minTimeDiff = timeDiff;
+          closestIndex = i;
+        }
+      }
+
+      // Center the viewport around the closest data point
+      const viewportSize = CHART_DATA_POINTS;
+      const halfViewport = Math.floor(viewportSize / 2);
+      const viewStart = Math.max(0, closestIndex - halfViewport);
+      const viewEnd = Math.min(chartState.allData.length - 1, viewStart + viewportSize - 1);
+
+      console.log('Setting viewport to:', {
+        closestIndex,
+        viewStart,
+        viewEnd,
+        closestTimestamp: chartState.allData[closestIndex]?.timestamp,
+      });
+
+      // Update the viewport
+      chartActions.setViewport(viewStart, viewEnd);
+
+      // Manually trigger a re-render after a short delay to ensure state is updated
+      setTimeout(() => {
+        if (svgRef.current && chartState.chartLoaded && chartState.chartExists) {
+          console.log('🔄 Manual re-render triggered after time skip');
+
+          // Get current transform to preserve zoom level
+          const currentZoomTransform = d3.zoomTransform(svgRef.current);
+
+          // Calculate chart state with current data and viewport
+          const calculations = calculateChartState({
+            dimensions: chartState.dimensions,
+            allChartData: chartState.allData,
+            transform: currentZoomTransform,
+            fixedYScaleDomain: chartState.fixedYScaleDomain,
+          });
+
+          // Update clip-path to accommodate any data changes
+          updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
+
+          // Re-render candlesticks with updated viewport
+          renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
+
+          console.log('✅ Manual re-render completed after time skip');
+        }
+      }, 50); // Small delay to ensure state updates are processed
+    },
+    [
+      chartState.allData,
+      chartActions,
+      chartState.chartLoaded,
+      chartState.chartExists,
+      chartState.dimensions,
+      chartState.fixedYScaleDomain,
+    ]
+  );
+
   // Chart data management is now handled by useChartStateManager
 
   // WebSocket for real-time data
@@ -933,6 +1030,31 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                   {tf.label}
                 </button>
               ))}
+            </div>
+
+            {/* Time Skip Dropdown */}
+            <div className="relative">
+              <select
+                onChange={e => {
+                  const hoursAgo = parseInt(e.target.value);
+                  if (!isNaN(hoursAgo)) {
+                    skipToTime(hoursAgo);
+                    e.target.value = ''; // Reset selection
+                  }
+                }}
+                className="px-3 py-1 text-xs rounded-md bg-muted text-muted-foreground hover:bg-muted/80 border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                disabled={timeframe === null || chartState.allData.length === 0}
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Skip to...
+                </option>
+                {timeSkipOptions.map(option => (
+                  <option key={option.label} value={option.hours}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
