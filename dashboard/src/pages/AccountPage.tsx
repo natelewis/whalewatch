@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AlpacaAccount, AlpacaPosition, AlpacaActivity } from '../types';
 import { apiService } from '../services/apiService';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
@@ -18,20 +18,35 @@ export const AccountPage: React.FC = () => {
   // WebSocket for real-time position updates
   const { lastMessage, sendMessage, isConnected } = useWebSocketContext();
 
+  // Track if we've already subscribed to prevent duplicate subscriptions
+  const hasSubscribedRef = useRef(false);
+  const lastPositionsRef = useRef<string>('');
+
   useEffect(() => {
     loadAccountData();
   }, []);
 
-  // Resubscribe when WebSocket reconnects
+  // Resubscribe when WebSocket reconnects or positions change
   useEffect(() => {
     if (isConnected && positions.length > 0) {
-      console.log(`🔄 WebSocket reconnected, resubscribing to account quotes for ${positions.length} positions`);
-      const symbols = positions.map((p: AlpacaPosition) => p.symbol);
-      sendMessage({
-        type: 'subscribe',
-        data: { channel: 'account_quote', symbols },
-        timestamp: new Date().toISOString(),
-      });
+      const currentPositionsKey = positions
+        .map(p => p.symbol)
+        .sort()
+        .join(',');
+
+      // Only resubscribe if positions have actually changed or we haven't subscribed yet
+      if (!hasSubscribedRef.current || lastPositionsRef.current !== currentPositionsKey) {
+        console.log(`🔄 WebSocket reconnected, resubscribing to account quotes for ${positions.length} positions`);
+        const symbols = positions.map((p: AlpacaPosition) => p.symbol);
+        sendMessage({
+          type: 'subscribe',
+          data: { channel: 'account_quote', symbols },
+          timestamp: new Date().toISOString(),
+        });
+
+        hasSubscribedRef.current = true;
+        lastPositionsRef.current = currentPositionsKey;
+      }
     }
   }, [isConnected, positions, sendMessage]);
 
@@ -93,17 +108,25 @@ export const AccountPage: React.FC = () => {
     // Subscribe to real-time quotes for positions
     if (positionsResult.value.positions.length > 0) {
       const symbols = positionsResult.value.positions.map((p: AlpacaPosition) => p.symbol);
+      const positionsKey = symbols.sort().join(',');
+
       sendMessage({
         type: 'subscribe',
         data: { channel: 'account_quote', symbols },
         timestamp: new Date().toISOString(),
       });
+
+      hasSubscribedRef.current = true;
+      lastPositionsRef.current = positionsKey;
     }
 
     setIsLoading(false);
   };
 
   const handleRefresh = () => {
+    // Reset subscription tracking when refreshing
+    hasSubscribedRef.current = false;
+    lastPositionsRef.current = '';
     loadAccountData();
   };
 

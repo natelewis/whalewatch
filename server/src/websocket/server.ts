@@ -107,91 +107,121 @@ const handleClientMessage = (ws: AuthenticatedWebSocket, message: WebSocketMessa
   }
 };
 
-const handleSubscription = (ws: AuthenticatedWebSocket, data: { channel: string; symbol?: string }): void => {
-  const { channel, symbol } = data;
+const handleSubscription = (
+  ws: AuthenticatedWebSocket,
+  data: { channel: string; symbol?: string; symbols?: string[] }
+): void => {
+  const { channel, symbol, symbols } = data;
 
   if (!channel) {
     sendError(ws, 'Channel is required for subscription');
     return;
   }
 
-  const subscriptionKey = symbol ? `${channel}:${symbol}` : channel;
-  ws.subscriptions.add(subscriptionKey);
+  // Handle both single symbol and array of symbols
+  const symbolsToSubscribe = symbols || (symbol ? [symbol] : []);
 
-  console.log(`✅ User subscribed to: ${subscriptionKey} (Total subscriptions: ${ws.subscriptions.size})`);
+  if (symbolsToSubscribe.length === 0) {
+    // Subscribe to channel without specific symbols
+    const subscriptionKey = channel;
+    ws.subscriptions.add(subscriptionKey);
+    console.log(`✅ User subscribed to: ${subscriptionKey} (Total subscriptions: ${ws.subscriptions.size})`);
+  } else {
+    // Subscribe to each symbol individually
+    symbolsToSubscribe.forEach(sym => {
+      const subscriptionKey = `${channel}:${sym}`;
+      ws.subscriptions.add(subscriptionKey);
 
-  // Subscribe to QuestDB WebSocket for real-time data
-  if (symbol) {
-    switch (channel) {
-      case 'options_whale':
-        questdbWebSocketService.subscribe({
-          type: 'option_trades',
-          underlying_ticker: symbol,
-        });
-        break;
-      case 'account_quote':
-        questdbWebSocketService.subscribe({
-          type: 'stock_trades',
-          symbol: symbol,
-        });
-        break;
-      case 'chart_quote':
-        console.log(`📊 Client subscribing to chart data for ${symbol}`);
-        questdbWebSocketService.subscribe({
-          type: 'stock_aggregates',
-          symbol: symbol,
-        });
-        break;
-    }
+      // Subscribe to QuestDB WebSocket for real-time data
+      switch (channel) {
+        case 'options_whale':
+          questdbWebSocketService.subscribe({
+            type: 'option_trades',
+            underlying_ticker: sym,
+          });
+          break;
+        case 'account_quote':
+          questdbWebSocketService.subscribe({
+            type: 'stock_trades',
+            symbol: sym,
+          });
+          break;
+        case 'chart_quote':
+          console.log(`📊 Client subscribing to chart data for ${sym}`);
+          questdbWebSocketService.subscribe({
+            type: 'stock_aggregates',
+            symbol: sym,
+          });
+          break;
+      }
+    });
+
+    console.log(
+      `✅ User subscribed to: ${channel} for ${symbolsToSubscribe.length} symbols (Total subscriptions: ${ws.subscriptions.size})`
+    );
   }
 
   sendMessage(ws, {
     type: 'subscription_confirmed',
-    data: { channel, symbol },
+    data: { channel, symbols: symbolsToSubscribe },
     timestamp: new Date().toISOString(),
   });
 };
 
-const handleUnsubscription = (ws: AuthenticatedWebSocket, data: { channel: string; symbol?: string }): void => {
-  const { channel, symbol } = data;
+const handleUnsubscription = (
+  ws: AuthenticatedWebSocket,
+  data: { channel: string; symbol?: string; symbols?: string[] }
+): void => {
+  const { channel, symbol, symbols } = data;
 
   if (!channel) {
     sendError(ws, 'Channel is required for unsubscription');
     return;
   }
 
-  const subscriptionKey = symbol ? `${channel}:${symbol}` : channel;
-  ws.subscriptions.delete(subscriptionKey);
+  // Handle both single symbol and array of symbols
+  const symbolsToUnsubscribe = symbols || (symbol ? [symbol] : []);
 
-  console.log(`User unsubscribed from: ${subscriptionKey}`);
+  if (symbolsToUnsubscribe.length === 0) {
+    // Unsubscribe from channel without specific symbols
+    const subscriptionKey = channel;
+    ws.subscriptions.delete(subscriptionKey);
+    console.log(`User unsubscribed from: ${subscriptionKey}`);
+  } else {
+    // Unsubscribe from each symbol individually
+    symbolsToUnsubscribe.forEach(sym => {
+      const subscriptionKey = `${channel}:${sym}`;
+      ws.subscriptions.delete(subscriptionKey);
 
-  // Unsubscribe from QuestDB WebSocket
-  if (symbol) {
-    switch (channel) {
-      case 'options_whale':
-        questdbWebSocketService.unsubscribe({
-          type: 'option_trades',
-          underlying_ticker: symbol,
-        });
-        break;
-      case 'account_quote':
-        questdbWebSocketService.unsubscribe({
-          type: 'stock_trades',
-          symbol: symbol,
-        });
-        break;
-      case 'chart_quote':
-        questdbWebSocketService.unsubscribe({
-          type: 'stock_aggregates',
-          symbol: symbol,
-        });
-        break;
-    }
+      // Unsubscribe from QuestDB WebSocket
+      switch (channel) {
+        case 'options_whale':
+          questdbWebSocketService.unsubscribe({
+            type: 'option_trades',
+            underlying_ticker: sym,
+          });
+          break;
+        case 'account_quote':
+          questdbWebSocketService.unsubscribe({
+            type: 'stock_trades',
+            symbol: sym,
+          });
+          break;
+        case 'chart_quote':
+          questdbWebSocketService.unsubscribe({
+            type: 'stock_aggregates',
+            symbol: sym,
+          });
+          break;
+      }
+    });
+
+    console.log(`User unsubscribed from: ${channel} for ${symbolsToUnsubscribe.length} symbols`);
   }
 
   sendMessage(ws, {
     type: 'unsubscription_confirmed',
-    data: { channel, symbol },
+    data: { channel, symbols: symbolsToUnsubscribe },
     timestamp: new Date().toISOString(),
   });
 };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { WebSocketMessage } from '../types';
 import { WS_BASE_URL } from '../constants';
 import { safeCall } from '@whalewatch/shared';
@@ -89,13 +89,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     }
   };
 
-  const sendMessage = (message: WebSocketMessage) => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket is not connected');
-    }
-  };
+  const sendMessage = useCallback(
+    (message: WebSocketMessage) => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(message));
+      } else {
+        console.warn('WebSocket is not connected');
+      }
+    },
+    [socket]
+  );
 
   useEffect(() => {
     connect();
