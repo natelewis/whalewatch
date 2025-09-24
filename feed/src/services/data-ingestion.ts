@@ -137,7 +137,9 @@ export class DataIngestionService {
 
   private async catchUpTickerData(ticker: string): Promise<void> {
     const syncState = this.syncStates.get(ticker);
-    if (!syncState) return;
+    if (!syncState) {
+      return;
+    }
 
     const now = new Date();
 
@@ -188,11 +190,11 @@ export class DataIngestionService {
   }
 
   private async pollLatestData(): Promise<void> {
-    if (!this.isIngesting) return;
+    if (!this.isIngesting) {
+      return;
+    }
 
     try {
-      console.log('Polling for latest data...');
-
       for (const ticker of config.tickers) {
         try {
           // Get the latest bar for this ticker

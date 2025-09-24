@@ -193,13 +193,6 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       aggregatedData = aggregates;
     }
 
-    console.log(`🔍 DEBUG: Aggregated to ${aggregatedData.length} data points for ${symbol}`);
-
-    // If no data is available, return empty result
-    if (aggregatedData.length === 0) {
-      console.log('🔍 DEBUG: No data found, returning empty result');
-    }
-
     // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
     const bars = aggregatedData.map(agg => ({
       t: agg.timestamp,
