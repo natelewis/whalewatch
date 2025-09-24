@@ -208,14 +208,6 @@ export const calculateXAxisParams = (params: XAxisCalculationParams) => {
   const sliceEnd = Math.max(sliceStart, Math.min(allChartData.length - 1, viewEnd));
   const visibleSlice = allChartData.slice(sliceStart, sliceEnd + 1);
 
-  logger.chart.viewport('calculateXAxisParams RESULT:', {
-    sliceStart,
-    sliceEnd,
-    visibleSliceLength: visibleSlice.length,
-    labelConfigMarkerInterval: labelConfig.markerIntervalMinutes,
-    interval: timeframe,
-  });
-
   return {
     viewportXScale,
     visibleSlice,
@@ -307,12 +299,6 @@ export const createCustomTimeAxis = (
     allChartData,
     interval
   );
-
-  logger.chart.viewport('createCustomTimeAxis TICKS GENERATED:', {
-    tickCount: timeTicks.length,
-    firstTick: timeTicks[0]?.toISOString(),
-    lastTick: timeTicks[timeTicks.length - 1]?.toISOString(),
-  });
 
   const customAxis = (selection: d3.Selection<SVGGElement, unknown, null, undefined>) => {
     selection.each(function () {
