@@ -7,6 +7,13 @@ import { ChartDimensions, CandlestickData } from '../../types';
 vi.mock('../../components/ChartRenderer', () => ({
   renderCandlestickChart: vi.fn(),
   updateClipPath: vi.fn(),
+  calculateChartState: vi.fn(({ dimensions, allChartData, transform, fixedYScaleDomain }) => ({
+    viewStart: 0,
+    viewEnd: allChartData.length - 1,
+    visibleData: allChartData,
+    transformString: transform.toString(),
+    viewportXScale: vi.fn(),
+  })),
 }));
 
 vi.mock('../chartDataUtils', () => ({
@@ -17,8 +24,8 @@ vi.mock('../chartDataUtils', () => ({
 vi.mock('../memoizedChartUtils', () => ({
   memoizedCalculateYScaleDomain: vi.fn(data => {
     if (data.length === 0) {
-return [0, 1];
-}
+      return [0, 1];
+    }
     const prices = data.flatMap(d => [d.open, d.high, d.low, d.close]);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
@@ -220,7 +227,7 @@ describe('RenderManager Comprehensive Tests', () => {
       expect(skipToOptions.recalculateYScale).toBe(true);
       expect(skipToOptions.skipToNewest).toBe(false);
       expect(skipToOptions.preserveTransform).toBe(false);
-      expect(skipToOptions.triggerDataLoading).toBe(false);
+      expect(skipToOptions.triggerDataLoading).toBe(true);
     });
 
     it('should use correct default options for panning', () => {

@@ -3,25 +3,25 @@ import { useChartWebSocket } from '../../hooks/useChartWebSocket';
 import { useWebSocket } from '../../hooks/useWebSocket';
 
 // Mock the useWebSocket hook
-jest.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: jest.fn(),
+vi.mock('../../hooks/useWebSocket', () => ({
+  useWebSocket: vi.fn(),
 }));
 
-const mockUseWebSocket = useWebSocket as jest.MockedFunction<typeof useWebSocket>;
+const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 describe('useChartWebSocket', () => {
-  const mockSendMessage = jest.fn();
-  const mockOnChartData = jest.fn();
+  const mockSendMessage = vi.fn();
+  const mockOnChartData = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockUseWebSocket.mockReturnValue({
       socket: null,
       lastMessage: null,
       sendMessage: mockSendMessage,
       isConnected: true,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
   });
 
@@ -96,8 +96,8 @@ describe('useChartWebSocket', () => {
       },
       sendMessage: mockSendMessage,
       isConnected: true,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
 
     renderHook(() =>
@@ -132,8 +132,8 @@ describe('useChartWebSocket', () => {
       },
       sendMessage: mockSendMessage,
       isConnected: true,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
 
     renderHook(() =>
@@ -174,8 +174,8 @@ describe('useChartWebSocket', () => {
       },
       sendMessage: mockSendMessage,
       isConnected: true,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
 
     renderHook(() =>
@@ -194,8 +194,8 @@ describe('useChartWebSocket', () => {
       lastMessage: null,
       sendMessage: mockSendMessage,
       isConnected: true,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
 
     renderHook(() =>
@@ -248,8 +248,8 @@ describe('useChartWebSocket', () => {
       lastMessage: null,
       sendMessage: mockSendMessage,
       isConnected: false,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
 
     const { result } = renderHook(() =>

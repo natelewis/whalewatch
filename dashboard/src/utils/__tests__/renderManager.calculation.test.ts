@@ -15,6 +15,13 @@ vi.mock('../../components/ChartRenderer', () => ({
     });
   }),
   updateClipPath: vi.fn(),
+  calculateChartState: vi.fn(({ dimensions, allChartData, transform, fixedYScaleDomain }) => ({
+    viewStart: 0,
+    viewEnd: allChartData.length - 1,
+    visibleData: allChartData,
+    transformString: transform.toString(),
+    viewportXScale: vi.fn(),
+  })),
 }));
 
 vi.mock('../chartDataUtils', () => ({
@@ -25,8 +32,8 @@ vi.mock('../chartDataUtils', () => ({
 vi.mock('../memoizedChartUtils', () => ({
   memoizedCalculateYScaleDomain: vi.fn(data => {
     if (data.length === 0) {
-return [0, 1];
-}
+      return [0, 1];
+    }
     const prices = data.flatMap(d => [d.open, d.high, d.low, d.close]);
     const min = Math.min(...prices);
     const max = Math.max(...prices);

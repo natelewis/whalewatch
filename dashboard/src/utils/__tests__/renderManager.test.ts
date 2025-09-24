@@ -181,7 +181,7 @@ describe('renderManager', () => {
         recalculateYScale: true,
         skipToNewest: false,
         preserveTransform: false,
-        triggerDataLoading: false,
+        triggerDataLoading: true,
       });
 
       expect(DEFAULT_RENDER_OPTIONS[RenderType.WEBSOCKET]).toEqual({

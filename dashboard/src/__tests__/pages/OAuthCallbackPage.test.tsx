@@ -1,17 +1,18 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import { OAuthCallbackPage } from '../../pages/OAuthCallbackPage';
 import { useAuth } from '../../hooks/useAuth';
 
 // Mock the auth context
-jest.mock('../../contexts/AuthContext');
-const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+vi.mock('../../contexts/AuthContext');
+const mockUseAuth = useAuth as ReturnType<typeof vi.fn>;
 
 // Mock react-router-dom
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  ...vi.importActual('react-router-dom'),
   useNavigate: () => mockNavigate,
   useSearchParams: () => [new URLSearchParams('?token=test-token')],
 }));
@@ -21,17 +22,17 @@ const renderWithRouter = (component: React.ReactElement) => {
 };
 
 describe('OAuthCallbackPage', () => {
-  const mockHandleOAuthCallback = jest.fn();
+  const mockHandleOAuthCallback = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockUseAuth.mockReturnValue({
       user: null,
       isAuthenticated: false,
       isLoading: false,
-      loginWithGoogle: jest.fn(),
+      loginWithGoogle: vi.fn(),
       handleOAuthCallback: mockHandleOAuthCallback,
-      logout: jest.fn(),
+      logout: vi.fn(),
     });
   });
 

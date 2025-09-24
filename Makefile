@@ -1,7 +1,7 @@
 # WhaleWatch Makefile
 # Comprehensive build and development commands
 
-.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs
+.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier
 
 # Default target
 help:
@@ -38,6 +38,7 @@ help:
 	@echo "  make clean            Clean all build artifacts and node_modules"
 	@echo "  make logs             Show logs from running processes"
 	@echo "  make stop             Stop all running processes"
+	@echo "  make prettier         Format code with Prettier"
 
 # Install all dependencies
 install:
@@ -149,6 +150,11 @@ stop:
 	@pkill -f "tsx watch" || true
 	@pkill -f "vite" || true
 	@echo "✅ All processes stopped!"
+
+prettier:
+	@echo "🎨 Formatting code with Prettier..."
+	npx prettier . --write
+	@echo "✅ Code formatting completed!"
 
 # Development with logs
 dev-with-logs: dev

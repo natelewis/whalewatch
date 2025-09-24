@@ -74,7 +74,8 @@ describe('PositionsTable', () => {
   it('displays exchange information', () => {
     render(<PositionsTable positions={mockPositions} />);
 
-    expect(screen.getByText('NASDAQ')).toBeInTheDocument();
+    const nasdaqElements = screen.getAllByText('NASDAQ');
+    expect(nasdaqElements).toHaveLength(2); // Both AAPL and TSLA are on NASDAQ
   });
 
   it('shows no positions message when empty', () => {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 import { WhaleFinderPage } from '../../pages/WhaleFinderPage';
 import { BrowserRouter } from 'react-router-dom';
 import { apiService } from '../../services/apiService';
@@ -7,19 +8,19 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 import { AlpacaOptionsTrade } from '../../types';
 
 // Mock the apiService
-jest.mock('../../services/apiService', () => ({
+vi.mock('../../services/apiService', () => ({
   apiService: {
-    getOptionsTrades: jest.fn(),
+    getOptionsTrades: vi.fn(),
   },
 }));
 
 // Mock the useWebSocket hook
-jest.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: jest.fn(),
+vi.mock('../../hooks/useWebSocket', () => ({
+  useWebSocket: vi.fn(),
 }));
 
 // Mock the WhaleWatchFeed component
-jest.mock('../../components/WhaleWatchFeed', () => ({
+vi.mock('../../components/WhaleWatchFeed', () => ({
   WhaleWatchFeed: ({
     trades,
     selectedSymbol,
@@ -43,15 +44,15 @@ jest.mock('../../components/WhaleWatchFeed', () => ({
   ),
 }));
 
-const mockApiService = apiService as jest.Mocked<typeof apiService>;
-const mockUseWebSocket = useWebSocket as jest.MockedFunction<typeof useWebSocket>;
+const mockApiService = apiService as ReturnType<typeof vi.fn>;
+const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 const renderWithRouter = (component: React.ReactElement) => {
   return render(<BrowserRouter>{component}</BrowserRouter>);
 };
 
 describe('WhaleFinderPage', () => {
-  const mockSendMessage = jest.fn();
+  const mockSendMessage = vi.fn();
   const mockTrades = [
     {
       id: '1',
@@ -104,13 +105,13 @@ describe('WhaleFinderPage', () => {
       lastMessage: null,
       sendMessage: mockSendMessage,
       isConnected: true,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders the page title and description', () => {
@@ -205,8 +206,8 @@ describe('WhaleFinderPage', () => {
       },
       sendMessage: mockSendMessage,
       isConnected: true,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
     });
 
     renderWithRouter(<WhaleFinderPage />);

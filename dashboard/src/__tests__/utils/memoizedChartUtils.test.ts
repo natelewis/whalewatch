@@ -27,8 +27,8 @@ describe('memoizedGenerateTimeBasedTicks - Date Anchoring', () => {
     memoizedGenerateTimeBasedTicks = module.memoizedGenerateTimeBasedTicks;
 
     // Clear cache before each test
-    const { calculationCache } = require('../../utils/memoizedChartUtils');
-    calculationCache.clear();
+    const { clearAllChartCaches } = await import('../../utils/memoizedChartUtils');
+    clearAllChartCaches();
   });
 
   describe('2-day interval anchoring', () => {

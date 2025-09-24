@@ -1,17 +1,19 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import { AccountPage } from '../../pages/AccountPage';
 import { apiService } from '../../services/apiService';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { WebSocketProvider } from '../../contexts/WebSocketContext';
 
 // Mock the API service
-jest.mock('../../services/apiService');
-const mockApiService = apiService as jest.Mocked<typeof apiService>;
+vi.mock('../../services/apiService');
+const mockApiService = apiService as ReturnType<typeof vi.fn>;
 
 // Mock the WebSocket hook
-jest.mock('../../hooks/useWebSocket');
-const mockUseWebSocket = useWebSocket as jest.MockedFunction<typeof useWebSocket>;
+vi.mock('../../hooks/useWebSocket');
+const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 // Mock the API responses
 const mockAccount = {
@@ -126,30 +128,35 @@ const mockActivities = {
 const mockWebSocket = {
   socket: null,
   lastMessage: null,
-  sendMessage: jest.fn(),
+  sendMessage: vi.fn(),
   isConnected: true,
-  connect: jest.fn(),
-  disconnect: jest.fn(),
+  connect: vi.fn(),
+  disconnect: vi.fn(),
 };
 
 const renderWithRouter = (component: React.ReactElement) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+  return render(
+    <BrowserRouter>
+      <WebSocketProvider>{component}</WebSocketProvider>
+    </BrowserRouter>
+  );
 };
 
 describe('AccountPage', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockUseWebSocket.mockReturnValue(mockWebSocket);
   });
 
   it('renders loading state initially', () => {
-    mockApiService.getAccount.mockImplementation(() => new Promise(() => {})); // Never resolves
-    mockApiService.getPositions.mockImplementation(() => new Promise(() => {}));
-    mockApiService.getActivities.mockImplementation(() => new Promise(() => {}));
+    mockApiService.getAccount = vi.fn(() => new Promise(() => {})); // Never resolves
+    mockApiService.getPositions = vi.fn(() => new Promise(() => {}));
+    mockApiService.getActivities = vi.fn(() => new Promise(() => {}));
 
     renderWithRouter(<AccountPage />);
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    // Check for the loading spinner element
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
   it('renders account data when loaded successfully', async () => {

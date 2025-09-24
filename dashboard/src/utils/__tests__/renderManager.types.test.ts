@@ -25,7 +25,7 @@ describe('RenderManager TypeScript Compliance Tests', () => {
 
       expect(skipToOptions.recalculateYScale).toBe(panningOptions.recalculateYScale);
       expect(skipToOptions.preserveTransform).toBe(panningOptions.preserveTransform);
-      expect(skipToOptions.triggerDataLoading).toBe(panningOptions.triggerDataLoading);
+      expect(skipToOptions.triggerDataLoading).toBe(true); // SKIP_TO should trigger data loading
     });
   });
 

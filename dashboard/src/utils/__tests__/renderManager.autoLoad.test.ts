@@ -452,7 +452,7 @@ describe('checkAutoLoadTrigger', () => {
 
       checkAutoLoadTrigger(100, 200, 1000, mockCallback);
 
-      expect(consoleSpy).toHaveBeenCalledWith('🔍 Auto-load check:', {
+      expect(consoleSpy).toHaveBeenCalledWith('🔍', 'Auto-load check:', {
         viewport: '100-200',
         totalDataLength: 1000,
         distanceLeft: 100,
@@ -468,7 +468,7 @@ describe('checkAutoLoadTrigger', () => {
 
       checkAutoLoadTrigger(LOAD_EDGE_TRIGGER - 10, 200, 1000, mockCallback);
 
-      expect(consoleSpy).toHaveBeenCalledWith('📊 Triggering auto-load for past data');
+      expect(consoleSpy).toHaveBeenCalledWith('📊', 'Triggering auto-load for past data');
     });
 
     it('should log when triggering future data load', () => {
@@ -476,7 +476,7 @@ describe('checkAutoLoadTrigger', () => {
 
       checkAutoLoadTrigger(200, 1000 - LOAD_EDGE_TRIGGER + 10, 1000, mockCallback);
 
-      expect(consoleSpy).toHaveBeenCalledWith('📊 Triggering auto-load for future data');
+      expect(consoleSpy).toHaveBeenCalledWith('📊', 'Triggering auto-load for future data');
     });
   });
 

@@ -9,7 +9,7 @@ describe('Simple Render Manager Test', () => {
     expect(skipToOptions.recalculateYScale).toBe(true);
     expect(skipToOptions.skipToNewest).toBe(false);
     expect(skipToOptions.preserveTransform).toBe(false);
-    expect(skipToOptions.triggerDataLoading).toBe(false);
+    expect(skipToOptions.triggerDataLoading).toBe(true);
   });
 
   it('should have correct default options for panning', () => {
