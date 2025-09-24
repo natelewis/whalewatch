@@ -29,6 +29,7 @@ import {
 } from '../utils/chartDataUtils';
 import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 import { smartDateRenderer } from '../utils/dateRenderer';
+import { renderPanning } from '../utils/renderManager';
 
 // ============================================================================
 // CONFIGURATION CONSTANTS - imported from centralized constants
@@ -395,16 +396,21 @@ export const createChart = ({
       applyAxisStyling(yAxisGroup);
     }
 
-    // Re-render candles during zoom for real-time visuals
-    const calculations = {
-      ...baseCalcs,
-      viewStart: newStart,
-      viewEnd: newEnd,
-      visibleData: currentData.slice(newStart, newEnd + 1),
-    } as ChartCalculations;
-    // Update latest transformed Y scale used for rendering
-    lastTransformedYScale = baseCalcs.transformedYScale;
-    renderCandlestickChart(svgElement, calculations);
+    // Use centralized render function for panning/zoom operations
+    const renderResult = renderPanning(
+      svgElement,
+      currentDimensions,
+      currentData,
+      newStart,
+      newEnd,
+      transformForCalc,
+      currentFixedYScaleDomain
+    );
+
+    if (renderResult.success && renderResult.calculations) {
+      // Update latest transformed Y scale used for rendering
+      lastTransformedYScale = renderResult.calculations.transformedYScale;
+    }
   };
 
   // Add crosshair
@@ -753,15 +759,21 @@ export const createChart = ({
         transform: currentTransform,
         fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
       });
-      const calculations = {
-        ...baseCalcs,
-        viewStart: newStart,
-        viewEnd: newEnd,
-        visibleData: data.slice(Math.max(0, newStart), Math.min(data.length - 1, newEnd) + 1),
-      } as ChartCalculations;
-      // Update latest transformed Y scale used for rendering
-      lastTransformedYScale = baseCalcs.transformedYScale;
-      renderCandlestickChart(svgElement, calculations);
+      // Use centralized render function for panning operations
+      const renderResult = renderPanning(
+        svgElement,
+        dims,
+        data,
+        newStart,
+        newEnd,
+        currentTransform,
+        stateCallbacks.getFixedYScaleDomain?.() || null
+      );
+
+      if (renderResult.success && renderResult.calculations) {
+        // Update latest transformed Y scale used for rendering
+        lastTransformedYScale = renderResult.calculations.transformedYScale;
+      }
 
       // Keep crosshair and price display synced with pointer during pan
       crosshair

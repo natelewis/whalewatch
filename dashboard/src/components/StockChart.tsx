@@ -13,6 +13,7 @@ import { smartDateRenderer } from '../utils/dateRenderer';
 import { TimeframeConfig } from '../types';
 import { createChart, renderCandlestickChart, updateClipPath, calculateChartState } from './ChartRenderer';
 import { memoizedCalculateYScaleDomain } from '../utils/memoizedChartUtils';
+import { renderInitial, renderPanning, renderSkipTo, renderWebSocket, RenderType } from '../utils/renderManager';
 import {
   BUFFER_SIZE,
   MIN_CHART_HEIGHT,
@@ -357,19 +358,21 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           // Get current transform to preserve zoom level
           const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
-          // Calculate chart state with current data and viewport
-          const calculations = calculateChartState({
-            dimensions: chartState.dimensions,
-            allChartData: chartState.allData,
-            transform: currentZoomTransform,
-            fixedYScaleDomain: chartState.fixedYScaleDomain,
-          });
+          // Use centralized render function for skip-to scenario
+          const renderResult = renderSkipTo(
+            svgRef.current as SVGSVGElement,
+            chartState.dimensions,
+            chartState.allData,
+            chartState.currentViewStart,
+            chartState.currentViewEnd,
+            currentZoomTransform,
+            chartState.fixedYScaleDomain
+          );
 
-          // Update clip-path to accommodate any data changes
-          updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
-
-          // Re-render candlesticks with updated viewport
-          renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
+          if (renderResult.success && renderResult.newFixedYScaleDomain) {
+            // Update the fixed Y-scale domain if it was recalculated
+            chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
+          }
 
           console.log('✅ Manual re-render completed after time skip');
         }
@@ -457,19 +460,20 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     // Get current transform to preserve zoom level
     const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
-    // Calculate chart state with current data and viewport
-    const calculations = calculateChartState({
-      dimensions: chartState.dimensions,
-      allChartData: chartState.allData,
-      transform: currentZoomTransform,
-      fixedYScaleDomain: chartState.fixedYScaleDomain,
-    });
+    // Use centralized render function for auto-redraw (WebSocket-like behavior)
+    const renderResult = renderWebSocket(
+      svgRef.current as SVGSVGElement,
+      chartState.dimensions,
+      chartState.allData,
+      chartState.currentViewStart,
+      chartState.currentViewEnd,
+      loadMoreDataOnBufferedRender
+    );
 
-    // Update clip-path to accommodate any data changes
-    updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
-
-    // Re-render candlesticks with updated viewport
-    renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
+    if (renderResult.success && renderResult.newFixedYScaleDomain) {
+      // Update the fixed Y-scale domain if it was recalculated
+      chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
+    }
 
     console.log('✅ Auto-redraw re-render completed:', {
       viewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
@@ -631,26 +635,24 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // Get current transform
       const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
-      // Calculate new chart state with updated dimensions
-      const calculations = calculateChartState({
-        dimensions: chartState.dimensions,
-        allChartData: chartState.allData,
-        transform: currentZoomTransform,
-        fixedYScaleDomain: chartState.fixedYScaleDomain,
-      });
+      // Use centralized render function for dimension changes (panning-like behavior)
+      const renderResult = renderPanning(
+        svgRef.current as SVGSVGElement,
+        chartState.dimensions,
+        chartState.allData,
+        chartState.currentViewStart,
+        chartState.currentViewEnd,
+        currentZoomTransform,
+        chartState.fixedYScaleDomain
+      );
 
-      // Update clip-path for new dimensions
-      updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, chartState.dimensions);
-
-      // Re-render candlesticks with new dimensions
-      // Note: candlesticks will use base scales since transform is applied to chart content group
-      renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, calculations);
-
-      // Update overlay for new dimensions
-      const overlay = d3.select(svgRef.current).select<SVGRectElement>('.overlay');
-      if (!overlay.empty()) {
-        const { innerWidth, innerHeight } = calculateInnerDimensions(chartState.dimensions);
-        overlay.attr('width', innerWidth).attr('height', innerHeight);
+      if (renderResult.success) {
+        // Update overlay for new dimensions
+        const overlay = d3.select(svgRef.current).select<SVGRectElement>('.overlay');
+        if (!overlay.empty()) {
+          const { innerWidth, innerHeight } = calculateInnerDimensions(chartState.dimensions);
+          overlay.attr('width', innerWidth).attr('height', innerHeight);
+        }
       }
     }
   }, [chartState.dimensions.width, chartState.dimensions.height]); // Trigger when dimensions change
@@ -871,71 +873,53 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         // Also handle initial candlestick rendering for timeframe changes
         // This ensures the chart is fully rendered when switching timeframes
         if (svgRef.current && chartState.allData.length > 0) {
-          // Create calculations for initial render (no transform)
-          const initialTransformForRender = d3.zoomIdentity;
-          const calculationsForRender = calculateChartState({
-            dimensions: dimensionsToUse,
-            allChartData: chartState.allData,
-            transform: initialTransformForRender,
-            fixedYScaleDomain: chartState.fixedYScaleDomain,
-          });
+          // Use centralized render function for initial render
+          const renderResult = renderInitial(
+            svgRef.current as SVGSVGElement,
+            dimensionsToUse,
+            chartState.allData,
+            chartState.currentViewStart,
+            chartState.currentViewEnd,
+            loadMoreDataOnBufferedRender
+          );
 
-          // Calculate the fixed Y-scale domain using centralized calculation
-          // Only calculate if we don't already have a fixed domain (first time only)
-          let fixedYScaleDomain: [number, number] | null = chartState.fixedYScaleDomain;
-          if (!fixedYScaleDomain && isValidChartData(calculationsForRender.visibleData)) {
-            // Use a representative sample of recent data for Y-scale domain
-            // This provides a good balance between being zoomed in and maintaining consistency
-            const representativeDataLength = Math.min(Y_SCALE_REPRESENTATIVE_DATA_LENGTH, chartState.allData.length);
-            const representativeData = chartState.allData.slice(-representativeDataLength);
-            fixedYScaleDomain = calculateYScaleDomain(representativeData);
+          if (renderResult.success) {
+            // Update the fixed Y-scale domain if it was recalculated
+            if (renderResult.newFixedYScaleDomain) {
+              chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
+              fixedYScaleDomainRef.current = renderResult.newFixedYScaleDomain;
+            }
 
-            // Set the fixed Y-scale domain for future renders
-            chartActions.setFixedYScaleDomain(fixedYScaleDomain);
-            fixedYScaleDomainRef.current = fixedYScaleDomain;
+            // Set initial buffer range
+            if (renderResult.calculations) {
+              const bufferSize = BUFFER_SIZE;
+              const dataLength = renderResult.calculations.allData.length;
+              const marginSize = MARGIN_SIZE;
+              const atDataStart = renderResult.calculations.viewStart <= marginSize;
+              const atDataEnd = renderResult.calculations.viewEnd >= dataLength - marginSize;
+
+              let actualStart, actualEnd;
+
+              if (atDataStart && atDataEnd) {
+                actualStart = 0;
+                actualEnd = dataLength - 1;
+              } else if (atDataStart) {
+                actualStart = 0;
+                actualEnd = Math.min(dataLength - 1, Math.ceil(renderResult.calculations.viewEnd) + bufferSize);
+              } else if (atDataEnd) {
+                actualStart = Math.max(0, Math.floor(renderResult.calculations.viewStart) - bufferSize);
+                actualEnd = dataLength - 1;
+              } else {
+                actualStart = Math.max(0, Math.floor(renderResult.calculations.viewStart) - bufferSize);
+                actualEnd = Math.min(dataLength - 1, Math.ceil(renderResult.calculations.viewEnd) + bufferSize);
+              }
+
+              currentBufferRangeRef.current = {
+                start: actualStart,
+                end: actualEnd,
+              };
+            }
           }
-
-          // Recalculate with the fixed Y-scale domain
-          const finalCalculations = calculateChartState({
-            dimensions: dimensionsToUse,
-            allChartData: chartState.allData,
-            transform: initialTransformForRender,
-            fixedYScaleDomain: fixedYScaleDomain,
-          });
-
-          // Update clip-path to accommodate the current dataset
-          updateClipPath(svgRef.current as SVGSVGElement, chartState.allData, dimensionsToUse);
-
-          // Render candlesticks
-          renderCandlestickChartWithCallback(svgRef.current as SVGSVGElement, finalCalculations);
-
-          // Set initial buffer range
-          const bufferSize = BUFFER_SIZE;
-          const dataLength = finalCalculations.allData.length;
-          const marginSize = MARGIN_SIZE;
-          const atDataStart = finalCalculations.viewStart <= marginSize;
-          const atDataEnd = finalCalculations.viewEnd >= dataLength - marginSize;
-
-          let actualStart, actualEnd;
-
-          if (atDataStart && atDataEnd) {
-            actualStart = 0;
-            actualEnd = dataLength - 1;
-          } else if (atDataStart) {
-            actualStart = 0;
-            actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
-          } else if (atDataEnd) {
-            actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
-            actualEnd = dataLength - 1;
-          } else {
-            actualStart = Math.max(0, Math.floor(finalCalculations.viewStart) - bufferSize);
-            actualEnd = Math.min(dataLength - 1, Math.ceil(finalCalculations.viewEnd) + bufferSize);
-          }
-
-          currentBufferRangeRef.current = {
-            start: actualStart,
-            end: actualEnd,
-          };
         }
       }
     }
