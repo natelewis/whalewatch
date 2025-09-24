@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { apiService } from '../../services/apiService';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { AlpacaOptionsTrade } from '../../types';
+import { WebSocketProvider } from '../../contexts/WebSocketContext';
 
 // Mock the apiService
 vi.mock('../../services/apiService', () => ({
@@ -38,7 +39,7 @@ vi.mock('../../components/WhaleWatchFeed', () => ({
       <span>Feed for {selectedSymbol}</span>
       <span>Loading: {isLoading.toString()}</span>
       {error && <span>Error: {error}</span>}
-      <span>Trades count: {trades.length}</span>
+      <span>Trades count: {trades?.length || 0}</span>
       <button onClick={() => onSymbolChange('AAPL')}>Change to AAPL</button>
     </div>
   ),
@@ -48,7 +49,11 @@ const mockApiService = apiService as ReturnType<typeof vi.fn>;
 const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 const renderWithRouter = (component: React.ReactElement) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+  return render(
+    <BrowserRouter>
+      <WebSocketProvider>{component}</WebSocketProvider>
+    </BrowserRouter>
+  );
 };
 
 describe('WhaleFinderPage', () => {

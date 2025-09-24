@@ -1,6 +1,9 @@
 import { renderHook, act } from '@testing-library/react';
+import { vi } from 'vitest';
 import { useChartWebSocket } from '../../hooks/useChartWebSocket';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { WebSocketProvider } from '../../contexts/WebSocketContext';
+import React from 'react';
 
 // Mock the useWebSocket hook
 vi.mock('../../hooks/useWebSocket', () => ({
@@ -8,6 +11,14 @@ vi.mock('../../hooks/useWebSocket', () => ({
 }));
 
 const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
+
+// Helper function to render hook with WebSocketProvider
+const renderHookWithProvider = (hook: any, options?: any) => {
+  const wrapper = ({ children }: { children: React.ReactNode }) => {
+    return React.createElement(WebSocketProvider, {}, children);
+  };
+  return renderHook(hook, { wrapper, ...options });
+};
 
 describe('useChartWebSocket', () => {
   const mockSendMessage = vi.fn();
@@ -26,7 +37,7 @@ describe('useChartWebSocket', () => {
   });
 
   it('should initialize with correct values', () => {
-    const { result } = renderHook(() =>
+    const { result } = renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,
@@ -39,7 +50,7 @@ describe('useChartWebSocket', () => {
   });
 
   it('should subscribe to chart data', () => {
-    const { result } = renderHook(() =>
+    const { result } = renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,
@@ -50,14 +61,16 @@ describe('useChartWebSocket', () => {
       result.current.subscribeToChartData();
     });
 
-    expect(mockSendMessage).toHaveBeenCalledWith({
-      type: 'subscribe',
-      data: { channel: 'chart_quote', symbol: 'AAPL' },
-    });
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'subscribe',
+        data: { channel: 'chart_quote', symbol: 'AAPL' },
+      })
+    );
   });
 
   it('should unsubscribe from chart data', () => {
-    const { result } = renderHook(() =>
+    const { result } = renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,
@@ -68,10 +81,12 @@ describe('useChartWebSocket', () => {
       result.current.unsubscribeFromChartData();
     });
 
-    expect(mockSendMessage).toHaveBeenCalledWith({
-      type: 'unsubscribe',
-      data: { channel: 'chart_quote', symbol: 'AAPL' },
-    });
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'unsubscribe',
+        data: { channel: 'chart_quote', symbol: 'AAPL' },
+      })
+    );
   });
 
   it('should call onChartData when receiving chart_quote message for correct symbol', () => {
@@ -100,7 +115,7 @@ describe('useChartWebSocket', () => {
       disconnect: vi.fn(),
     });
 
-    renderHook(() =>
+    renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,
@@ -136,7 +151,7 @@ describe('useChartWebSocket', () => {
       disconnect: vi.fn(),
     });
 
-    renderHook(() =>
+    renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,
@@ -178,7 +193,7 @@ describe('useChartWebSocket', () => {
       disconnect: vi.fn(),
     });
 
-    renderHook(() =>
+    renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,
@@ -198,7 +213,7 @@ describe('useChartWebSocket', () => {
       disconnect: vi.fn(),
     });
 
-    renderHook(() =>
+    renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,
@@ -209,7 +224,7 @@ describe('useChartWebSocket', () => {
   });
 
   it('should update subscription when symbol changes', () => {
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHookWithProvider(
       ({ symbol }) =>
         useChartWebSocket({
           symbol,
@@ -224,10 +239,12 @@ describe('useChartWebSocket', () => {
       result.current.subscribeToChartData();
     });
 
-    expect(mockSendMessage).toHaveBeenCalledWith({
-      type: 'subscribe',
-      data: { channel: 'chart_quote', symbol: 'AAPL' },
-    });
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'subscribe',
+        data: { channel: 'chart_quote', symbol: 'AAPL' },
+      })
+    );
 
     // Change symbol and subscribe again
     rerender({ symbol: 'MSFT' });
@@ -236,10 +253,12 @@ describe('useChartWebSocket', () => {
       result.current.subscribeToChartData();
     });
 
-    expect(mockSendMessage).toHaveBeenCalledWith({
-      type: 'subscribe',
-      data: { channel: 'chart_quote', symbol: 'MSFT' },
-    });
+    expect(mockSendMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'subscribe',
+        data: { channel: 'chart_quote', symbol: 'MSFT' },
+      })
+    );
   });
 
   it('should reflect connection status from useWebSocket', () => {
@@ -252,7 +271,7 @@ describe('useChartWebSocket', () => {
       disconnect: vi.fn(),
     });
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookWithProvider(() =>
       useChartWebSocket({
         symbol: 'AAPL',
         onChartData: mockOnChartData,

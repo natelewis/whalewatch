@@ -6,7 +6,9 @@ import { OAuthCallbackPage } from '../../pages/OAuthCallbackPage';
 import { useAuth } from '../../hooks/useAuth';
 
 // Mock the auth context
-vi.mock('../../contexts/AuthContext');
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: vi.fn(),
+}));
 const mockUseAuth = useAuth as ReturnType<typeof vi.fn>;
 
 // Mock react-router-dom

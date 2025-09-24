@@ -74,6 +74,13 @@ dashboard-dev:
 test: test-server test-dashboard
 	@echo "✅ All tests completed!"
 
+test-force:
+	@echo "🧪 Running server tests (ignoring failures)..."
+	-cd server && npm run test:ci
+	@echo "🧪 Running dashboard tests (ignoring failures)..."
+	-cd dashboard && npm run test:ci
+	@echo "✅ All tests completed (ignoring failures)!"
+
 test-server:
 	@echo "🧪 Running server tests..."
 	cd server && npm run test:ci

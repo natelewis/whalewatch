@@ -3,8 +3,21 @@ import { vi } from 'vitest';
 import { authService } from '../../services/authService';
 
 // Mock axios
-vi.mock('axios');
-const mockedAxios = axios as ReturnType<typeof vi.fn>;
+vi.mock('axios', () => ({
+  default: {
+    interceptors: {
+      request: {
+        use: vi.fn(),
+      },
+      response: {
+        use: vi.fn(),
+      },
+    },
+    get: vi.fn(),
+    post: vi.fn(),
+  },
+}));
+const mockedAxios = axios as any;
 
 // Mock localStorage
 const localStorageMock = {
