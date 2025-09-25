@@ -264,7 +264,9 @@ export class UpsertService {
    * This ensures proper duplicate checking for each record
    */
   static async batchUpsertStockAggregates(aggregates: StockAggregate[]): Promise<void> {
-    if (aggregates.length === 0) return;
+    if (aggregates.length === 0) {
+return;
+}
 
     try {
       // Process in batches to avoid overwhelming the database
@@ -297,7 +299,9 @@ export class UpsertService {
    * Uses QuestDB's deduplication feature to handle upserts efficiently
    */
   static async batchUpsertOptionTrades(trades: OptionTrade[]): Promise<void> {
-    if (trades.length === 0) return;
+    if (trades.length === 0) {
+return;
+}
 
     try {
       // Process in batches to avoid query size limits
@@ -347,7 +351,9 @@ VALUES ${values}`;
    * Implements retry logic and smaller batch sizes to prevent socket hang up errors
    */
   static async batchUpsertOptionQuotes(quotes: OptionQuote[]): Promise<void> {
-    if (quotes.length === 0) return;
+    if (quotes.length === 0) {
+return;
+}
 
     try {
       // Use smaller batch size to prevent URL length issues and socket hang ups

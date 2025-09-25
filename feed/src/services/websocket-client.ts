@@ -92,7 +92,7 @@ export class PolygonWebSocketClient {
     // Handle both single messages and arrays of messages
     const messages = Array.isArray(data) ? data : [data];
 
-    messages.forEach((message: any) => {
+    messages.forEach((message: Record<string, unknown>) => {
       if (!message || typeof message !== 'object') {
         console.log('Invalid message format:', message);
         return;
@@ -112,7 +112,7 @@ export class PolygonWebSocketClient {
 
         case 'T': // Trade
           if (message.results && Array.isArray(message.results)) {
-            message.results.forEach((trade: any) => {
+            message.results.forEach((trade: Record<string, unknown>) => {
               const symbol = this.extractSymbolFromTrade(trade);
               this.eventHandlers.onTrade?.(trade, symbol);
             });
@@ -121,7 +121,7 @@ export class PolygonWebSocketClient {
 
         case 'Q': // Quote
           if (message.results && Array.isArray(message.results)) {
-            message.results.forEach((quote: any) => {
+            message.results.forEach((quote: Record<string, unknown>) => {
               const symbol = this.extractSymbolFromQuote(quote);
               // Check if this is an option quote by looking at the symbol pattern
               if (this.isOptionSymbol(symbol)) {
@@ -135,7 +135,7 @@ export class PolygonWebSocketClient {
 
         case 'A': // Aggregate
           if (message.results && Array.isArray(message.results)) {
-            message.results.forEach((aggregate: any) => {
+            message.results.forEach((aggregate: Record<string, unknown>) => {
               const symbol = this.extractSymbolFromAggregate(aggregate);
               this.eventHandlers.onAggregate?.(aggregate, symbol);
             });

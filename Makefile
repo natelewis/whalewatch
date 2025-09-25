@@ -1,7 +1,7 @@
 # WhaleWatch Makefile
 # Comprehensive build and development commands
 
-.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill reset dev-feed clean-feed build-feed
+.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard lint-feed tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill reset dev-feed clean-feed build-feed
 
 # Default target
 help:
@@ -24,6 +24,7 @@ help:
 	@echo "  make lint             Run linting for all projects"
 	@echo "  make lint-server      Run server linting only"
 	@echo "  make lint-dashboard   Run dashboard linting only"
+	@echo "  make lint-feed        Run feed linting only"
 	@echo ""
 	@echo "TypeScript:"
 	@echo "  make tsc              Run TypeScript compilation checks for all projects"
@@ -147,7 +148,7 @@ test-coverage:
 	cd dashboard && npm run test:coverage
 
 # Linting commands
-lint: lint-server lint-dashboard
+lint: lint-server lint-dashboard lint-feed
 	@echo "✅ All linting completed!"
 
 lint-server:
@@ -157,6 +158,10 @@ lint-server:
 lint-dashboard:
 	@echo "🔍 Linting dashboard code..."
 	npx eslint dashboard/src --ext .ts,.tsx --fix
+
+lint-feed:
+	@echo "🔍 Linting feed code..."
+	npx eslint feed/src --ext .ts,.tsx --fix
 
 # TypeScript compilation commands
 tsc: tsc-server tsc-dashboard

@@ -168,7 +168,7 @@ export class OptionIngestionService {
       `);
 
       // Handle QuestDB result format
-      const rows = (result as any)?.dataset || [];
+      const rows = (result as { dataset: unknown[][] })?.dataset || [];
       return rows.map((row: string[]) => row[0]);
     } catch (error) {
       console.error('Error getting option tickers:', error);
@@ -371,7 +371,7 @@ export class OptionIngestionService {
       );
 
       // Handle QuestDB result format
-      const rows = (result as any)?.dataset || [];
+      const rows = (result as { dataset: unknown[][] })?.dataset || [];
       return rows.map((row: string[]) => row[0]);
     } catch (error) {
       console.error('Error getting option tickers for underlying:', error);

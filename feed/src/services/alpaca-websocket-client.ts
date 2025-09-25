@@ -147,9 +147,15 @@ export class AlpacaWebSocketClient {
     };
 
     // Remove empty arrays
-    if (subscription.trades?.length === 0) delete subscription.trades;
-    if (subscription.quotes?.length === 0) delete subscription.quotes;
-    if (subscription.bars?.length === 0) delete subscription.bars;
+    if (subscription.trades?.length === 0) {
+delete subscription.trades;
+}
+    if (subscription.quotes?.length === 0) {
+delete subscription.quotes;
+}
+    if (subscription.bars?.length === 0) {
+delete subscription.bars;
+}
 
     this.ws.send(JSON.stringify(subscription));
     
@@ -171,9 +177,15 @@ export class AlpacaWebSocketClient {
     };
 
     // Remove empty arrays
-    if (subscription.trades?.length === 0) delete subscription.trades;
-    if (subscription.quotes?.length === 0) delete subscription.quotes;
-    if (subscription.bars?.length === 0) delete subscription.bars;
+    if (subscription.trades?.length === 0) {
+delete subscription.trades;
+}
+    if (subscription.quotes?.length === 0) {
+delete subscription.quotes;
+}
+    if (subscription.bars?.length === 0) {
+delete subscription.bars;
+}
 
     this.ws.send(JSON.stringify(subscription));
     

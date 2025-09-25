@@ -91,12 +91,16 @@ export class DataIngestionService {
 
       for (const row of rows) {
         const ticker = row[0] as string;
+        // eslint-disable-next-line camelcase
         const last_aggregate_timestamp = row[1] ? new Date(row[1] as string) : null;
+        // eslint-disable-next-line camelcase
         const last_sync = new Date(row[2] as string);
+        // eslint-disable-next-line camelcase
         const is_streaming = Boolean(row[3]);
 
         this.syncStates.set(ticker, {
           ticker,
+          // eslint-disable-next-line camelcase
           last_aggregate_timestamp: last_aggregate_timestamp ?? undefined,
           last_sync,
           is_streaming,

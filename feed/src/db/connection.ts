@@ -10,7 +10,9 @@ export class QuestDBConnection {
   }
 
   async connect(): Promise<void> {
-    if (this.isConnected) return;
+    if (this.isConnected) {
+return;
+}
 
     try {
       // Test connection with a simple query

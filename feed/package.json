@@ -13,7 +13,9 @@
     "install-deps": "npm install",
     "test:catchup-demo": "tsx test-catchup-demo.ts",
     "test:catchup-unit": "tsx test-catchup-unit.ts",
-    "test:catchup-behavior": "tsx test-catchup-behavior.ts"
+    "test:catchup-behavior": "tsx test-catchup-behavior.ts",
+    "lint": "eslint src --ext .ts,.tsx --fix",
+    "lint:check": "eslint src --ext .ts,.tsx"
   },
   "keywords": [
     "trading",
@@ -37,7 +39,9 @@
     "@types/inquirer": "^9.0.7",
     "@types/node": "^20.10.0",
     "@types/ws": "^8.5.10",
+    "eslint": "^9.36.0",
     "tsx": "^4.6.0",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "typescript-eslint": "^8.44.1"
   }
 }

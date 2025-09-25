@@ -519,12 +519,16 @@ export class BackfillService {
 
     for (const row of questResult.dataset) {
       const ticker = row[0] as string;
+      // eslint-disable-next-line camelcase
       const last_aggregate_timestamp = row[1] ? new Date(row[1] as string) : null;
+      // eslint-disable-next-line camelcase
       const last_sync = new Date(row[2] as string);
+      // eslint-disable-next-line camelcase
       const is_streaming = row[3] as boolean;
 
       syncStates.set(ticker, {
         ticker,
+        // eslint-disable-next-line camelcase
         last_aggregate_timestamp: last_aggregate_timestamp ?? undefined,
         last_sync,
         is_streaming,
@@ -551,16 +555,16 @@ export class BackfillService {
 
     if (questResult.dataset.length > 0) {
       const row = questResult.dataset[0];
-      const ticker = row[0] as string;
-      const last_aggregate_timestamp = row[1] ? new Date(row[1] as string) : null;
-      const last_sync = new Date(row[2] as string);
-      const is_streaming = row[3] as boolean;
+      const tickerValue = row[0] as string;
+      const lastAggregateTimestamp = row[1] ? new Date(row[1] as string) : null;
+      const lastSync = new Date(row[2] as string);
+      const isStreaming = row[3] as boolean;
 
       return {
-        ticker,
-        last_aggregate_timestamp: last_aggregate_timestamp ?? undefined,
-        last_sync,
-        is_streaming,
+        ticker: tickerValue,
+        last_aggregate_timestamp: lastAggregateTimestamp ?? undefined,
+        last_sync: lastSync,
+        is_streaming: isStreaming,
       };
     }
 
@@ -594,7 +598,20 @@ export class BackfillService {
     return null;
   }
 
-  private async insertAlpacaAggregates(ticker: string, aggregates: any[]): Promise<void> {
+  private async insertAlpacaAggregates(
+    ticker: string,
+    aggregates: Array<{
+      symbol: string;
+      timestamp: Date;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+      vw: number;
+      n: number;
+    }>
+  ): Promise<void> {
     const stockAggregates: StockAggregate[] = aggregates.map(aggregate => ({
       symbol: ticker,
       timestamp: aggregate.timestamp, // Already converted to Date in the mapping above
@@ -650,10 +667,10 @@ export class BackfillService {
         ) AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
       );
 
-      const aggregatesCount = (aggregatesCheck as any)?.dataset?.[0]?.[0] || 0;
-      const optionContractsCount = (optionContractsCheck as any)?.dataset?.[0]?.[0] || 0;
-      const optionTradesCount = (optionTradesCheck as any)?.dataset?.[0]?.[0] || 0;
-      const optionQuotesCount = (optionQuotesCheck as any)?.dataset?.[0]?.[0] || 0;
+      const aggregatesCount = (aggregatesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
+      const optionContractsCount = (optionContractsCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
+      const optionTradesCount = (optionTradesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
+      const optionQuotesCount = (optionQuotesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
 
       if (aggregatesCount > 0) {
         console.log(`Found ${aggregatesCount} stock aggregates to delete for ${ticker}`);
