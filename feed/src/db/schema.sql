@@ -27,9 +27,9 @@ CREATE TABLE IF NOT EXISTS stock_aggregates (
 
 -- Option contracts
 CREATE TABLE IF NOT EXISTS option_contracts (
-    ticker SYMBOL,
-    contract_type SYMBOL,
-    exercise_style SYMBOL,
+    ticker STRING,
+    contract_type STRING,
+    exercise_style STRING,
     expiration_date TIMESTAMP,
     shares_per_contract LONG,
     strike_price DOUBLE,

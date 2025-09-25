@@ -286,46 +286,9 @@ export class BackfillService {
         try {
           const tickerStartTime = Date.now();
 
-          // Get the oldest data date for this ticker
-          const oldestDataDate = await this.getOldestDataDate(ticker);
-
-          if (oldestDataDate) {
-            // Check if the oldest data is at or before the target date
-            if (oldestDataDate <= endDate) {
-              console.log(
-                `${ticker} already has data through ${endDate.toISOString().split('T')[0]} (oldest data: ${
-                  oldestDataDate.toISOString().split('T')[0]
-                }), skipping`
-              );
-            } else {
-              // Oldest data is after the target date, so we need to backfill from oldest data backwards to target date
-              console.log(
-                `${ticker} oldest data is ${oldestDataDate.toISOString().split('T')[0]}, backfilling from ${
-                  oldestDataDate.toISOString().split('T')[0]
-                } TO ${endDate.toISOString().split('T')[0]}`
-              );
-              const itemsProcessed = await this.backfillTickerData(ticker, endDate, oldestDataDate);
-              totalItemsProcessed += itemsProcessed;
-
-              // Also backfill option contracts and trades for this ticker
-              console.log(`Backfilling option data for ${ticker}...`);
-              await this.optionIngestionService.backfillOptionData(ticker, endDate, oldestDataDate);
-            }
-          } else {
-            // No data exists for this ticker, backfill from a reasonable historical date
-            console.log(
-              `${ticker} has no existing data, backfilling from historical date to ${
-                endDate.toISOString().split('T')[0]
-              }`
-            );
-            const historicalStart = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // 1 year back
-            const itemsProcessed = await this.backfillTickerData(ticker, historicalStart, endDate);
-            totalItemsProcessed += itemsProcessed;
-
-            // Also backfill option contracts and trades for this ticker
-            console.log(`Backfilling option data for ${ticker}...`);
-            await this.optionIngestionService.backfillOptionData(ticker, historicalStart, endDate);
-          }
+          // Check stocks and options independently
+          await this.backfillTickerStocksAndOptions(ticker, endDate);
+          totalItemsProcessed += 1; // Count ticker as processed
 
           const tickerDuration = Date.now() - tickerStartTime;
           console.log(`Completed ${ticker} in ${this.formatDuration(tickerDuration)}`);
@@ -355,32 +318,108 @@ export class BackfillService {
     try {
       await db.connect();
 
-      // Get the current sync state for this ticker to determine where to start
-      const tickerSyncState = await this.getSyncState(ticker);
-      const backfillStart =
-        tickerSyncState.last_aggregate_timestamp || new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // Default to 1 year back if no data
-
-      console.log(
-        `Backfilling ${ticker} from ${backfillStart.toISOString().split('T')[0]} to ${
-          endDate.toISOString().split('T')[0]
-        }`
-      );
-
-      const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, endDate);
-
-      // Also backfill option contracts and trades for this ticker
-      console.log(`Backfilling option data for ${ticker}...`);
-      await this.optionIngestionService.backfillOptionData(ticker, backfillStart, endDate);
+      // Use the new independent check logic
+      await this.backfillTickerStocksAndOptions(ticker, endDate);
 
       const duration = Date.now() - startTime;
-      console.log(
-        `Backfill completed for ${ticker} in ${this.formatDuration(duration)} - ${itemsProcessed} items processed`
-      );
+      console.log(`Backfill completed for ${ticker} in ${this.formatDuration(duration)}`);
     } catch (error) {
       console.error(`Backfill failed for ${ticker}:`, error);
       throw error;
     } finally {
       await db.disconnect();
+    }
+  }
+
+  private async backfillTickerStocksAndOptions(ticker: string, endDate: Date): Promise<void> {
+    console.log(`Checking backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
+
+    // Check stocks independently
+    const oldestStockDataDate = await this.getOldestDataDate(ticker);
+    let stocksNeedBackfill = false;
+    let stockBackfillStart: Date | null = null;
+
+    if (oldestStockDataDate) {
+      if (oldestStockDataDate <= endDate) {
+        console.log(
+          `${ticker} stocks already have data through ${endDate.toISOString().split('T')[0]} (oldest data: ${
+            oldestStockDataDate.toISOString().split('T')[0]
+          }), skipping stock backfill`
+        );
+      } else {
+        stocksNeedBackfill = true;
+        stockBackfillStart = endDate;
+        console.log(
+          `${ticker} stocks oldest data is ${
+            oldestStockDataDate.toISOString().split('T')[0]
+          }, backfilling stocks from ${endDate.toISOString().split('T')[0]} TO ${
+            oldestStockDataDate.toISOString().split('T')[0]
+          }`
+        );
+      }
+    } else {
+      stocksNeedBackfill = true;
+      stockBackfillStart = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // 1 year back
+      console.log(
+        `${ticker} has no existing stock data, backfilling stocks from historical date to ${
+          endDate.toISOString().split('T')[0]
+        }`
+      );
+    }
+
+    // Check options independently
+    const oldestOptionAsOfDate = await this.optionIngestionService.getOldestDataDate(ticker);
+    let optionsNeedBackfill = false;
+    let optionBackfillStart: Date | null = null;
+
+    if (oldestOptionAsOfDate) {
+      if (oldestOptionAsOfDate <= endDate) {
+        console.log(
+          `${ticker} options already have data through ${endDate.toISOString().split('T')[0]} (oldest as_of: ${
+            oldestOptionAsOfDate.toISOString().split('T')[0]
+          }), skipping option backfill`
+        );
+      } else {
+        optionsNeedBackfill = true;
+        // Start from the oldest as_of date and work backwards to the target date
+        optionBackfillStart = new Date(oldestOptionAsOfDate);
+
+        console.log(
+          `${ticker} options oldest as_of is ${
+            oldestOptionAsOfDate.toISOString().split('T')[0]
+          }, backfilling options from ${optionBackfillStart.toISOString().split('T')[0]} TO ${
+            endDate.toISOString().split('T')[0]
+          }`
+        );
+      }
+    } else {
+      optionsNeedBackfill = true;
+      // If no existing option data, only backfill the target date itself
+      optionBackfillStart = new Date(endDate);
+      console.log(
+        `${ticker} has no existing option data, backfilling options for target date only: ${
+          endDate.toISOString().split('T')[0]
+        }`
+      );
+    }
+
+    // Backfill stocks if needed
+    if (stocksNeedBackfill && stockBackfillStart) {
+      try {
+        await this.backfillTickerData(ticker, stockBackfillStart, endDate);
+      } catch (error) {
+        console.error(`Error backfilling stocks for ${ticker}:`, error);
+      }
+    }
+
+    // Backfill options if needed
+    if (optionsNeedBackfill && optionBackfillStart) {
+      try {
+        console.log(`Backfilling option data for ${ticker}...`);
+        await this.optionIngestionService.backfillOptionData(ticker, optionBackfillStart, endDate);
+      } catch (error) {
+        console.error(`Error backfilling options for ${ticker}:`, error);
+      }
     }
   }
 
@@ -396,23 +435,23 @@ export class BackfillService {
       console.warn(`WARNING: Start date ${startDate.toISOString()} is after end date ${endDate.toISOString()}`);
     }
 
-    // Start from the end date and work backwards
-    let currentDate = new Date(endDate);
+    // Start from the start date and work forwards to end date
+    let currentDate = new Date(startDate);
     let totalItemsProcessed = 0;
 
-    while (currentDate > startDate) {
-      // Process one day at a time, going backwards
-      const dayStart = new Date(currentDate.getTime() - 24 * 60 * 60 * 1000);
-      const actualStart = dayStart < startDate ? startDate : dayStart;
+    while (currentDate <= endDate) {
+      // Process one day at a time, going forwards
+      const dayEnd = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+      const actualEnd = dayEnd > endDate ? endDate : dayEnd;
 
       try {
-        const bars = await this.alpacaClient.getHistoricalBars(ticker, actualStart, currentDate, '1Min');
+        const bars = await this.alpacaClient.getHistoricalBars(ticker, currentDate, actualEnd, '1Min');
 
         console.log(
-          `Fetched ${bars.length} bars from Alpaca for ${ticker} on ${actualStart.toISOString().split('T')[0]}`
+          `Fetched ${bars.length} bars from Alpaca for ${ticker} on ${currentDate.toISOString().split('T')[0]}`
         );
         if (bars.length > 0) {
-          console.log(`Processing ${bars.length} bars for ${ticker} on ${actualStart.toISOString().split('T')[0]}`);
+          console.log(`Processing ${bars.length} bars for ${ticker} on ${currentDate.toISOString().split('T')[0]}`);
 
           // Convert Alpaca bars to the format expected by insertAlpacaAggregates
           const aggregates = bars.map(bar => ({
@@ -433,7 +472,7 @@ export class BackfillService {
             totalItemsProcessed += aggregates.length;
             console.log(
               `Successfully inserted ${aggregates.length} aggregates for ${ticker} on ${
-                actualStart.toISOString().split('T')[0]
+                currentDate.toISOString().split('T')[0]
               }`
             );
           } catch (insertError) {
@@ -444,15 +483,15 @@ export class BackfillService {
           // Update sync state
           await this.updateSyncState(ticker, new Date(parseInt(bars[bars.length - 1].t) / 1000000));
         } else {
-          console.log(`No data found for ${ticker} on ${actualStart.toISOString().split('T')[0]}`);
+          console.log(`No data found for ${ticker} on ${currentDate.toISOString().split('T')[0]}`);
         }
       } catch (error) {
-        console.error(`Error backfilling ${ticker} for ${actualStart.toISOString().split('T')[0]}:`, error);
+        console.error(`Error backfilling ${ticker} for ${currentDate.toISOString().split('T')[0]}:`, error);
         // Continue with next day
       }
 
-      // Move to the previous day
-      currentDate = new Date(actualStart);
+      // Move to the next day
+      currentDate = new Date(actualEnd);
 
       // Small delay to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 100));

@@ -1,5 +1,6 @@
 import { db } from '../db/connection';
 import { AlpacaClient } from './alpaca-client';
+import { OptionIngestionService } from './option-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { StockAggregate, SyncState } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
@@ -7,12 +8,14 @@ import { config } from '../config';
 
 export class DataIngestionService {
   private alpacaClient: AlpacaClient;
+  private optionIngestionService: OptionIngestionService;
   private isIngesting = false;
   private syncStates = new Map<string, SyncState>();
   private pollingInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     this.alpacaClient = new AlpacaClient();
+    this.optionIngestionService = new OptionIngestionService();
   }
 
   private startPolling(): void {
@@ -125,6 +128,13 @@ export class DataIngestionService {
     for (const ticker of config.tickers) {
       try {
         await this.catchUpTickerData(ticker);
+
+        // Also catch up option contracts for this ticker
+        try {
+          await this.optionIngestionService.catchUpOptionContracts(ticker);
+        } catch (error) {
+          console.error(`Error catching up option contracts for ${ticker}:`, error);
+        }
       } catch (error) {
         console.error(`Error catching up data for ${ticker}:`, error);
       }

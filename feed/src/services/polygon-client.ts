@@ -50,7 +50,7 @@ export class PolygonClient {
     }
   }
 
-  async getOptionContracts(underlyingTicker: string, expirationDate?: string): Promise<PolygonOptionContract[]> {
+  async getOptionContracts(underlyingTicker: string, asOf: Date): Promise<PolygonOptionContract[]> {
     return this.rateLimiter.execute(async () => {
       try {
         const allContracts: PolygonOptionContract[] = [];
@@ -60,10 +60,11 @@ export class PolygonClient {
         const params: Record<string, string> = {
           underlying_ticker: underlyingTicker,
           limit: config.polygon.optionContractsLimit.toString(),
+          expired: 'false',
         };
 
-        if (expirationDate) {
-          params.expiration_date = expirationDate;
+        if (asOf) {
+          params.as_of = asOf.toISOString().split('T')[0]; // Format as YYYY-MM-DD
         }
 
         const endpoint = '/v3/reference/options/contracts';

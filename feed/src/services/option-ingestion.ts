@@ -12,17 +12,18 @@ export class OptionIngestionService {
     this.polygonClient = new PolygonClient();
   }
 
-  async ingestOptionContracts(underlyingTicker: string): Promise<void> {
+  async ingestOptionContracts(underlyingTicker: string, asOf: Date): Promise<void> {
     try {
-      console.log(`Ingesting option contracts for ${underlyingTicker}...`);
+      const asOfStr = asOf ? asOf.toISOString().split('T')[0] : 'current';
+      console.log(`Ingesting option contracts for ${underlyingTicker} as of ${asOfStr}...`);
 
-      const contracts = await this.polygonClient.getOptionContracts(underlyingTicker);
+      const contracts = await this.polygonClient.getOptionContracts(underlyingTicker, asOf);
 
       for (const contract of contracts) {
-        await this.insertOptionContract(contract);
+        await this.insertOptionContract(contract, asOf);
       }
 
-      console.log(`Ingested ${contracts.length} option contracts for ${underlyingTicker}`);
+      console.log(`Ingested ${contracts.length} option contracts for ${underlyingTicker} as of ${asOfStr}`);
     } catch (error) {
       console.error(`Error ingesting option contracts for ${underlyingTicker}:`, error);
       throw error;
@@ -143,7 +144,7 @@ export class OptionIngestionService {
     }
   }
 
-  private async insertOptionContract(contract: PolygonOptionContract): Promise<void> {
+  private async insertOptionContract(contract: PolygonOptionContract, asOf?: Date): Promise<void> {
     const optionContract: OptionContract = {
       ticker: contract.ticker,
       contract_type: contract.contract_type,
@@ -152,7 +153,7 @@ export class OptionIngestionService {
       shares_per_contract: contract.shares_per_contract,
       strike_price: contract.strike_price,
       underlying_ticker: contract.underlying_ticker,
-      as_of: new Date(), // Use current timestamp for as_of field
+      as_of: asOf || new Date(), // Use provided as_of date or current timestamp
     };
 
     await UpsertService.upsertOptionContract(optionContract);
@@ -175,11 +176,135 @@ export class OptionIngestionService {
     }
   }
 
+  async getNewestAsOfDate(underlyingTicker: string): Promise<Date | null> {
+    try {
+      const result = await db.query(
+        `
+        SELECT MAX(as_of) as newest_as_of
+        FROM option_contracts
+        WHERE underlying_ticker = $1
+      `,
+        [underlyingTicker]
+      );
+
+      // Handle QuestDB result format
+      const questResult = result as {
+        columns: { name: string; type: string }[];
+        dataset: unknown[][];
+      };
+
+      if (questResult.dataset.length > 0 && questResult.dataset[0][0]) {
+        const newestDate = new Date(questResult.dataset[0][0] as string);
+        return newestDate;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting newest as_of date:', error);
+      return null;
+    }
+  }
+
+  async getOldestDataDate(underlyingTicker: string): Promise<Date | null> {
+    try {
+      const result = await db.query(
+        `
+        SELECT MIN(as_of) as oldest_as_of
+        FROM option_contracts
+        WHERE underlying_ticker = $1
+      `,
+        [underlyingTicker]
+      );
+
+      // Handle QuestDB result format
+      const questResult = result as {
+        columns: { name: string; type: string }[];
+        dataset: unknown[][];
+      };
+
+      if (questResult.dataset.length > 0 && questResult.dataset[0][0]) {
+        const oldestDate = new Date(questResult.dataset[0][0] as string);
+        return oldestDate;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting oldest as_of date:', error);
+      return null;
+    }
+  }
+
+  async catchUpOptionContracts(underlyingTicker: string): Promise<void> {
+    try {
+      console.log(`Catching up option contracts for ${underlyingTicker}...`);
+
+      // Get the newest as_of date for this underlying ticker
+      const newestAsOf = await this.getNewestAsOfDate(underlyingTicker);
+
+      if (!newestAsOf) {
+        // No existing data, fetch current contracts
+        console.log(`No existing option contracts found for ${underlyingTicker}, fetching current contracts`);
+        await this.ingestOptionContracts(underlyingTicker, new Date()); // just get todays
+        return;
+      }
+
+      // Calculate the date range from newest as_of to current day
+      const now = new Date();
+      const startDate = new Date(newestAsOf);
+      startDate.setDate(startDate.getDate() + 1); // Start from the day after the newest as_of
+
+      if (startDate >= now) {
+        console.log(
+          `Option contracts for ${underlyingTicker} are already up to date (newest as_of: ${
+            newestAsOf.toISOString().split('T')[0]
+          })`
+        );
+        return;
+      }
+
+      console.log(
+        `Catching up option contracts for ${underlyingTicker} from ${startDate.toISOString().split('T')[0]} to ${
+          now.toISOString().split('T')[0]
+        }`
+      );
+
+      // Fetch contracts day by day from startDate to now
+      const currentDate = new Date(startDate);
+
+      while (currentDate <= now) {
+        const asOfDate = new Date(currentDate);
+        asOfDate.setHours(0, 0, 0, 0); // Set to start of day
+
+        try {
+          console.log(
+            `Fetching option contracts for ${underlyingTicker} as of ${asOfDate.toISOString().split('T')[0]}`
+          );
+          await this.ingestOptionContracts(underlyingTicker, asOfDate);
+
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error(
+            `Error fetching option contracts for ${underlyingTicker} as of ${asOfDate.toISOString().split('T')[0]}:`,
+            error
+          );
+          // Continue with next day instead of failing completely
+        }
+
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      console.log(`Completed catching up option contracts for ${underlyingTicker}`);
+    } catch (error) {
+      console.error(`Error catching up option contracts for ${underlyingTicker}:`, error);
+      throw error;
+    }
+  }
+
   async backfillOptionData(underlyingTicker: string, from: Date, to: Date): Promise<void> {
     try {
       // First, get all option contracts for this underlying (if not skipped)
       if (!config.polygon.skipOptionContracts) {
-        await this.ingestOptionContracts(underlyingTicker);
+        await this.backfillOptionContractsWithAsOf(underlyingTicker, from, to);
       } else {
         console.log(`Skipping option contracts ingestion (POLYGON_SKIP_OPTION_CONTACTS=true)`);
       }
@@ -251,6 +376,53 @@ export class OptionIngestionService {
     } catch (error) {
       console.error('Error getting option tickers for underlying:', error);
       return [];
+    }
+  }
+
+  private async backfillOptionContractsWithAsOf(underlyingTicker: string, from: Date, to: Date): Promise<void> {
+    try {
+      console.log(
+        `Backfilling option contracts for ${underlyingTicker} with as_of dates from ${
+          from.toISOString().split('T')[0]
+        } to ${to.toISOString().split('T')[0]}`
+      );
+
+      // Start from the oldest date -1 and work backwards day by day
+      const currentDate = new Date(from);
+      currentDate.setDate(currentDate.getDate() - 1); // Start from oldest date -1
+
+      // Work backwards until we reach the target date (to parameter)
+      while (currentDate >= to) {
+        console.log(
+          `Processing date: ${currentDate.toISOString().split('T')[0]} (from ${from.toISOString().split('T')[0]} to ${
+            to.toISOString().split('T')[0]
+          })`
+        );
+
+        try {
+          console.log(
+            `Fetching option contracts for ${underlyingTicker} as of ${currentDate.toISOString().split('T')[0]}`
+          );
+          await this.ingestOptionContracts(underlyingTicker, currentDate);
+
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error(
+            `Error fetching option contracts for ${underlyingTicker} as of ${currentDate.toISOString().split('T')[0]}:`,
+            error
+          );
+          // Continue with next day instead of failing completely
+        }
+
+        // Move to previous day AFTER processing current day
+        currentDate.setDate(currentDate.getDate() - 1);
+      }
+
+      console.log(`Completed backfilling option contracts for ${underlyingTicker} with as_of dates`);
+    } catch (error) {
+      console.error(`Error backfilling option contracts with as_of dates for ${underlyingTicker}:`, error);
+      throw error;
     }
   }
 
