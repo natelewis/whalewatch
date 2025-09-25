@@ -71,57 +71,28 @@ export class UpsertService {
   }
 
   /**
-   * Upsert an option contract record
+   * Insert an option contract record
    */
   static async upsertOptionContract(contract: OptionContract): Promise<void> {
     try {
-      // Check if record exists
-      const existing = await db.query(`SELECT ticker FROM option_contracts WHERE ticker = $1`, [contract.ticker]);
-
-      const questResult = existing as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
-
-      if (questResult.dataset && questResult.dataset.length > 0) {
-        // Update existing record
-        await db.query(
-          `UPDATE option_contracts 
-           SET contract_type = $1, exercise_style = $2, expiration_date = $3, 
-               shares_per_contract = $4, strike_price = $5, underlying_ticker = $6, as_of = $7
-           WHERE ticker = $8`,
-          [
-            contract.contract_type,
-            contract.exercise_style,
-            contract.expiration_date,
-            contract.shares_per_contract,
-            contract.strike_price,
-            contract.underlying_ticker,
-            contract.as_of,
-            contract.ticker,
-          ]
-        );
-        console.log(`Updated option contract: ${contract.ticker}`);
-      } else {
-        // Insert new record (as_of is now the designated timestamp column)
-        await db.query(
-          `INSERT INTO option_contracts (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker, as_of)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            contract.ticker,
-            contract.contract_type,
-            contract.exercise_style,
-            contract.expiration_date,
-            contract.shares_per_contract,
-            contract.strike_price,
-            contract.underlying_ticker,
-            contract.as_of,
-          ]
-        );
-        console.log(`Inserted new option contract: ${contract.ticker}`);
-      }
+      // Since there's no existing data, we can just insert directly
+      await db.query(
+        `INSERT INTO option_contracts (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker, as_of)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          contract.ticker,
+          contract.contract_type,
+          contract.exercise_style,
+          contract.expiration_date,
+          contract.shares_per_contract,
+          contract.strike_price,
+          contract.underlying_ticker,
+          contract.as_of,
+        ]
+      );
+      console.log(`Inserted option contract: ${contract.ticker}`);
     } catch (error) {
-      console.error('Error upserting option contract:', error);
+      console.error('Error inserting option contract:', error);
       throw error;
     }
   }
