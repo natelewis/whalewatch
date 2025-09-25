@@ -84,12 +84,12 @@ export class UpsertService {
       };
 
       if (questResult.dataset && questResult.dataset.length > 0) {
-        // Update existing record (excluding created_at as it's the designated timestamp column)
+        // Update existing record
         await db.query(
           `UPDATE option_contracts 
            SET contract_type = $1, exercise_style = $2, expiration_date = $3, 
-               shares_per_contract = $4, strike_price = $5, underlying_ticker = $6
-           WHERE ticker = $7`,
+               shares_per_contract = $4, strike_price = $5, underlying_ticker = $6, as_of = $7
+           WHERE ticker = $8`,
           [
             contract.contract_type,
             contract.exercise_style,
@@ -97,14 +97,15 @@ export class UpsertService {
             contract.shares_per_contract,
             contract.strike_price,
             contract.underlying_ticker,
+            contract.as_of,
             contract.ticker,
           ]
         );
         console.log(`Updated option contract: ${contract.ticker}`);
       } else {
-        // Insert new record
+        // Insert new record (as_of is now the designated timestamp column)
         await db.query(
-          `INSERT INTO option_contracts (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker, created_at)
+          `INSERT INTO option_contracts (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker, as_of)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [
             contract.ticker,
@@ -114,7 +115,7 @@ export class UpsertService {
             contract.shares_per_contract,
             contract.strike_price,
             contract.underlying_ticker,
-            contract.created_at,
+            contract.as_of,
           ]
         );
         console.log(`Inserted new option contract: ${contract.ticker}`);

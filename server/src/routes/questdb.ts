@@ -92,7 +92,7 @@ router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
 router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Response) => {
   try {
     const { underlying_ticker } = req.params;
-    const { limit = '1000', order_by = 'created_at', order_direction = 'DESC' } = req.query;
+    const { limit = '1000', order_by = 'expiration_date', order_direction = 'ASC' } = req.query;
 
     if (!underlying_ticker) {
       return res.status(400).json({ error: 'Underlying ticker is required' });

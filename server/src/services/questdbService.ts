@@ -314,7 +314,7 @@ export class QuestDBService {
     underlying_ticker: string,
     params: QuestDBQueryParams = {}
   ): Promise<QuestDBOptionContract[]> {
-    const { limit = 1000, order_by = 'created_at', order_direction = 'DESC' } = params;
+    const { limit = 1000, order_by = 'expiration_date', order_direction = 'ASC' } = params;
 
     // First check if the table exists
     await this.ensureTableExists('option_contracts');

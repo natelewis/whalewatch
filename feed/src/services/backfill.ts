@@ -596,7 +596,7 @@ export class BackfillService {
 
       // Check for option contracts, trades, and quotes
       const optionContractsCheck = await db.query(
-        `SELECT COUNT(*) as count FROM option_contracts WHERE underlying_ticker = '${ticker}' AND created_at >= '${startDate.toISOString()}' AND created_at <= '${endDate.toISOString()}'`
+        `SELECT COUNT(*) as count FROM option_contracts WHERE underlying_ticker = '${ticker}' AND expiration_date >= '${startDate.toISOString()}' AND expiration_date <= '${endDate.toISOString()}'`
       );
 
       const optionTradesCheck = await db.query(

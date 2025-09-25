@@ -15,12 +15,12 @@ export interface StockAggregate {
 export interface OptionContract {
   contract_type: 'call' | 'put';
   exercise_style: 'american' | 'european';
-  expiration_date: string; // YYYY-MM-DD
+  expiration_date: Date; // TIMESTAMP for QuestDB partitioning
   shares_per_contract: number;
   strike_price: number;
   ticker: string;
   underlying_ticker: string;
-  created_at: Date;
+  as_of: Date; // TIMESTAMP for QuestDB partitioning
 }
 
 export interface OptionTrade {

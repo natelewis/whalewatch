@@ -22,8 +22,8 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
 
     const params: QuestDBQueryParams = {
       limit: limitNum,
-      order_by: 'created_at',
-      order_direction: 'DESC',
+      order_by: 'expiration_date',
+      order_direction: 'ASC',
     };
 
     // Get QuestDB options contracts

@@ -798,19 +798,29 @@ describe('QuestDBService', () => {
     it('should get option contracts for underlying ticker', async () => {
       const mockResponse: AxiosResponse<QuestDBResponse<unknown>> = {
         data: {
-          query: "SELECT * FROM option_contracts WHERE underlying_ticker = 'AAPL' ORDER BY created_at DESC LIMIT 1000",
+          query:
+            "SELECT * FROM option_contracts WHERE underlying_ticker = 'AAPL' ORDER BY expiration_date ASC LIMIT 1000",
           columns: [
             { name: 'ticker', type: 'STRING' },
             { name: 'contract_type', type: 'STRING' },
             { name: 'exercise_style', type: 'STRING' },
-            { name: 'expiration_date', type: 'STRING' },
+            { name: 'expiration_date', type: 'TIMESTAMP' },
             { name: 'shares_per_contract', type: 'INT' },
             { name: 'strike_price', type: 'DOUBLE' },
             { name: 'underlying_ticker', type: 'STRING' },
-            { name: 'created_at', type: 'TIMESTAMP' },
+            { name: 'as_of', type: 'TIMESTAMP' },
           ],
           dataset: [
-            ['AAPL240315C00150000', 'call', 'american', '2024-03-15', 100, 150.0, 'AAPL', '2024-01-01T10:00:00Z'],
+            [
+              'AAPL240315C00150000',
+              'call',
+              'american',
+              '2024-03-15T00:00:00Z',
+              100,
+              150.0,
+              'AAPL',
+              '2024-01-15T10:30:00Z',
+            ],
           ],
           count: 1,
           execution_time_ms: 10,
@@ -845,11 +855,11 @@ describe('QuestDBService', () => {
           ticker: 'AAPL240315C00150000',
           contract_type: 'call',
           exercise_style: 'american',
-          expiration_date: '2024-03-15',
+          expiration_date: '2024-03-15T00:00:00Z',
           shares_per_contract: 100,
           strike_price: 150.0,
           underlying_ticker: 'AAPL',
-          created_at: '2024-01-01T10:00:00Z',
+          as_of: '2024-01-15T10:30:00Z',
         },
       ]);
     });

@@ -63,11 +63,11 @@ export interface QuestDBOptionContract {
   ticker: string;
   contract_type: string; // Keep as string since QuestDB data might have other values
   exercise_style: string;
-  expiration_date: string;
+  expiration_date: string; // ISO timestamp from QuestDB
   shares_per_contract: number;
   strike_price: number;
   underlying_ticker: string;
-  created_at: string; // ISO timestamp
+  as_of: string; // ISO timestamp from QuestDB
 }
 
 export interface QuestDBOptionTrade {

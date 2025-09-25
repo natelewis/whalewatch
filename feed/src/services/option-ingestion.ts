@@ -148,11 +148,11 @@ export class OptionIngestionService {
       ticker: contract.ticker,
       contract_type: contract.contract_type,
       exercise_style: contract.exercise_style,
-      expiration_date: contract.expiration_date,
+      expiration_date: new Date(contract.expiration_date), // Convert string to Date for TIMESTAMP
       shares_per_contract: contract.shares_per_contract,
       strike_price: contract.strike_price,
       underlying_ticker: contract.underlying_ticker,
-      created_at: new Date(),
+      as_of: new Date(), // Use current timestamp for as_of field
     };
 
     await UpsertService.upsertOptionContract(optionContract);

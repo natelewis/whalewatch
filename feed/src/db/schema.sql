@@ -30,12 +30,12 @@ CREATE TABLE IF NOT EXISTS option_contracts (
     ticker SYMBOL,
     contract_type SYMBOL,
     exercise_style SYMBOL,
-    expiration_date STRING,
+    expiration_date TIMESTAMP,
     shares_per_contract LONG,
     strike_price DOUBLE,
     underlying_ticker SYMBOL,
-    created_at TIMESTAMP
-) TIMESTAMP(created_at) PARTITION BY DAY;
+    as_of TIMESTAMP
+) TIMESTAMP(as_of) PARTITION BY DAY;
 
 -- Option trades
 CREATE TABLE IF NOT EXISTS option_trades (
