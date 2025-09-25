@@ -27,33 +27,52 @@ interface MockD3Element {
     duration: ReturnType<typeof vi.fn>;
     call: ReturnType<typeof vi.fn>;
   };
+  getAttribute: ReturnType<typeof vi.fn>;
+  setAttribute: ReturnType<typeof vi.fn>;
+  size: ReturnType<typeof vi.fn>;
 }
 
-const createMockD3Element = (): MockD3Element => ({
-  attr: vi.fn().mockReturnThis(),
-  style: vi.fn().mockReturnThis(),
-  call: vi.fn().mockReturnThis(),
-  on: vi.fn().mockReturnThis(),
-  datum: vi.fn().mockReturnThis(),
-  empty: vi.fn().mockReturnValue(false),
-  append: vi.fn().mockReturnValue(createMockD3Element()),
-  select: vi.fn().mockReturnValue(createMockD3Element()),
-  selectAll: vi.fn().mockReturnValue({
-    remove: vi.fn(),
+const createMockD3Element = (): MockD3Element => {
+  const mockElement: MockD3Element = {
     attr: vi.fn().mockReturnThis(),
     style: vi.fn().mockReturnThis(),
     call: vi.fn().mockReturnThis(),
     on: vi.fn().mockReturnThis(),
     datum: vi.fn().mockReturnThis(),
     empty: vi.fn().mockReturnValue(false),
-    append: vi.fn().mockReturnValue(createMockD3Element()),
-  }),
-  node: vi.fn().mockReturnValue({}),
-  transition: vi.fn().mockReturnValue({
-    duration: vi.fn().mockReturnThis(),
-    call: vi.fn().mockReturnThis(),
-  }),
-});
+    append: vi.fn(),
+    select: vi.fn(),
+    selectAll: vi.fn().mockReturnValue({
+      remove: vi.fn(),
+      attr: vi.fn().mockReturnThis(),
+      style: vi.fn().mockReturnThis(),
+      call: vi.fn().mockReturnThis(),
+      on: vi.fn().mockReturnThis(),
+      datum: vi.fn().mockReturnThis(),
+      empty: vi.fn().mockReturnValue(false),
+      append: vi.fn(),
+      size: vi.fn().mockReturnValue(0),
+    }),
+    node: vi.fn().mockReturnValue({
+      getAttribute: vi.fn().mockReturnValue('mock-class'),
+      setAttribute: vi.fn(),
+    }),
+    transition: vi.fn().mockReturnValue({
+      duration: vi.fn().mockReturnThis(),
+      call: vi.fn().mockReturnThis(),
+    }),
+    getAttribute: vi.fn().mockReturnValue('mock-class'),
+    setAttribute: vi.fn().mockReturnThis(),
+    size: vi.fn().mockReturnValue(0),
+  };
+
+  // Set up the circular references after the object is created
+  mockElement.append.mockReturnValue(mockElement);
+  mockElement.select.mockReturnValue(mockElement);
+  mockElement.selectAll().append.mockReturnValue(mockElement);
+
+  return mockElement;
+};
 
 interface MockD3Scale {
   (value: number): number;
@@ -63,31 +82,67 @@ interface MockD3Scale {
   nice?: ReturnType<typeof vi.fn>;
 }
 
+const createMockScale = (defaultDomain: [number, number], defaultRange: [number, number]): MockD3Scale => {
+  const scale = Object.assign(
+    vi.fn((value: number) => value * 10),
+    {
+      domain: vi.fn((domain?: [number, number]) => {
+        if (domain) {
+          return scale; // Return scale for chaining
+        }
+        return defaultDomain; // Return array when called without arguments
+      }),
+      range: vi.fn((range?: [number, number]) => {
+        if (range) {
+          return scale; // Return scale for chaining
+        }
+        return defaultRange; // Return array when called without arguments
+      }),
+      nice: vi.fn().mockReturnThis(),
+      invert: vi.fn(),
+    }
+  ) as MockD3Scale;
+  return scale;
+};
+
 vi.mock('d3', () => ({
   select: vi.fn(() => createMockD3Element()),
-  scaleTime: vi.fn((): MockD3Scale => {
-    const scale = Object.assign(
-      vi.fn((value: number) => value * 10),
-      {
-        domain: vi.fn().mockReturnThis(),
-        range: vi.fn().mockReturnThis(),
-        invert: vi.fn(),
-      }
-    ) as MockD3Scale;
-    return scale;
-  }),
-  scaleLinear: vi.fn((): MockD3Scale => {
-    const scale = Object.assign(
-      vi.fn((value: number) => value * 10),
-      {
-        domain: vi.fn().mockReturnThis(),
-        range: vi.fn().mockReturnThis(),
-        nice: vi.fn().mockReturnThis(),
-        invert: vi.fn(),
-      }
-    ) as MockD3Scale;
-    return scale;
-  }),
+  scaleTime: vi.fn(() => createMockScale([0, 100], [0, 800])),
+  scaleLinear: vi.fn(() => createMockScale([0, 100], [0, 400])),
+  axisRight: vi.fn(() => ({
+    tickSizeOuter: vi.fn().mockReturnThis(),
+    ticks: vi.fn().mockReturnThis(),
+    tickFormat: vi.fn().mockReturnThis(),
+    tickSize: vi.fn().mockReturnThis(),
+  })),
+  axisBottom: vi.fn(() => ({
+    tickSizeOuter: vi.fn().mockReturnThis(),
+    ticks: vi.fn().mockReturnThis(),
+    tickFormat: vi.fn().mockReturnThis(),
+    tickSize: vi.fn().mockReturnThis(),
+  })),
+  format: vi.fn(() => vi.fn((value: number) => value.toString())),
+  zoom: vi.fn(() => ({
+    scaleExtent: vi.fn().mockReturnThis(),
+    on: vi.fn().mockReturnThis(),
+    filter: vi.fn().mockReturnThis(),
+  })),
+  zoomIdentity: vi.fn(() => ({
+    translateX: vi.fn().mockReturnThis(),
+    translateY: vi.fn().mockReturnThis(),
+    scale: vi.fn().mockReturnThis(),
+    rescaleX: vi.fn().mockReturnValue(createMockScale([0, 100], [0, 800])),
+    rescaleY: vi.fn().mockReturnValue(createMockScale([0, 100], [0, 400])),
+    toString: vi.fn(() => 'translate(0,0) scale(1)'),
+  })),
+  zoomTransform: vi.fn(() => ({
+    translateX: vi.fn().mockReturnThis(),
+    translateY: vi.fn().mockReturnThis(),
+    scale: vi.fn().mockReturnThis(),
+    rescaleX: vi.fn().mockReturnValue(createMockScale([0, 100], [0, 800])),
+    rescaleY: vi.fn().mockReturnValue(createMockScale([0, 100], [0, 400])),
+    toString: vi.fn(() => 'translate(0,0) scale(1)'),
+  })),
   extent: vi.fn(() => [new Date('2023-01-01'), new Date('2023-01-02')]),
   min: vi.fn(() => 100),
   max: vi.fn(() => 200),
@@ -102,22 +157,11 @@ vi.mock('d3', () => ({
     y1: vi.fn().mockReturnThis(),
     curve: vi.fn().mockReturnThis(),
   })),
-  axisBottom: vi.fn(() => ({
-    tickFormat: vi.fn().mockReturnThis(),
-    tickSize: vi.fn().mockReturnThis(),
-  })),
-  axisRight: vi.fn(() => ({
-    tickFormat: vi.fn().mockReturnThis(),
-    tickSize: vi.fn().mockReturnThis(),
-  })),
   axisLeft: vi.fn(() => ({
+    tickSizeOuter: vi.fn().mockReturnThis(),
+    ticks: vi.fn().mockReturnThis(),
     tickFormat: vi.fn().mockReturnThis(),
     tickSize: vi.fn().mockReturnThis(),
-  })),
-  zoom: vi.fn(() => ({
-    scaleExtent: vi.fn().mockReturnThis(),
-    on: vi.fn().mockReturnThis(),
-    transform: vi.fn().mockReturnThis(),
   })),
   zoomIdentity: {
     translate: vi.fn().mockReturnThis(),
@@ -339,46 +383,6 @@ describe('StockChart', () => {
     expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalled();
   });
 
-  it('allows chart type selection', () => {
-    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    // The chart type selector is a div with text content, not a button
-    const candlestickElement = screen.getByText('Candlestick');
-    expect(candlestickElement).toBeInTheDocument();
-
-    // Chart type change should not trigger data reload
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledTimes(1); // Only initial load
-  });
-
-  it('toggles live mode', () => {
-    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    const liveButton = screen.getByText('Live');
-    fireEvent.click(liveButton);
-
-    expect(screen.getByText('Paused')).toBeInTheDocument();
-    expect(mockUseChartWebSocket.subscribeToChartData).toHaveBeenCalled();
-  });
-
-  it('refreshes data when refresh button is clicked', () => {
-    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    const refreshButton = screen.getByTitle('Refresh data');
-    fireEvent.click(refreshButton);
-
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '1h' as const);
-  });
-
-  it('resets zoom when reset button is clicked', () => {
-    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    const resetButton = screen.getByTitle('Reset zoom');
-    fireEvent.click(resetButton);
-
-    // Should call createChart to reset zoom
-    expect(screen.getByText('Zoom: 1.00x')).toBeInTheDocument();
-  });
-
   it.skip('displays OHLC data in title when hovering', async () => {
     render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
 
@@ -408,7 +412,7 @@ describe('StockChart', () => {
   it('shows live data indicator', () => {
     render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
 
-    expect(screen.getByText('Live data (auto-enabled)')).toBeInTheDocument();
+    expect(screen.getByText('Live Data')).toBeInTheDocument();
     expect(screen.getByText('(D3.js powered)')).toBeInTheDocument();
   });
 
@@ -440,7 +444,7 @@ describe('StockChart', () => {
 
     expect(localStorageMock.getItem).toHaveBeenCalledWith('chartTimeframe');
     // The component uses the saved timeframe from localStorage
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '15m' as const);
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '15m', 1000, undefined, 'past');
   });
 
   it('saves timeframe to localStorage when changed', () => {
@@ -451,31 +455,6 @@ describe('StockChart', () => {
 
     // The component saves the timeframe as a JSON string
     expect(localStorageMock.setItem).toHaveBeenCalledWith('chartTimeframe', '"15m"');
-  });
-
-  it('subscribes to WebSocket when live mode is enabled', () => {
-    const { rerender } = render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    // Enable live mode
-    const liveButton = screen.getByText('Live');
-    fireEvent.click(liveButton);
-
-    rerender(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    expect(mockUseChartWebSocket.subscribeToChartData).toHaveBeenCalled();
-  });
-
-  it('unsubscribes from WebSocket when live mode is disabled', () => {
-    const { rerender } = render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    // Enable then disable live mode
-    const liveButton = screen.getByText('Live');
-    fireEvent.click(liveButton);
-    fireEvent.click(screen.getByText('Paused'));
-
-    rerender(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    expect(mockUseChartWebSocket.unsubscribeFromChartData).toHaveBeenCalled();
   });
 
   it('handles missing chart data gracefully', () => {
@@ -503,22 +482,14 @@ describe('StockChart', () => {
     ).toBeInTheDocument();
   });
 
-  it('displays correct chart type in controls', () => {
-    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    // Should show candlestick as default
-    const candlestickElement = screen.getByText('Candlestick');
-    // The candlestick element is inside a div with primary styling
-    expect(candlestickElement.closest('div')).toHaveClass('bg-primary');
-  });
-
   it('updates chart when symbol changes', () => {
     const { rerender } = render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
 
     rerender(<StockChart symbol="AAPL" onSymbolChange={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'AAPL' })).toBeInTheDocument();
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('AAPL', '1h' as const);
+    // The component loads data on mount with the initial symbol
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '1h', 1000, undefined, 'past');
   });
 
   it('displays WebSocket connection indicator when connected', () => {

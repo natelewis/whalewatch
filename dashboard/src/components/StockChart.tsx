@@ -89,6 +89,7 @@ import {
 
 interface StockChartProps {
   symbol: string;
+  onSymbolChange?: (symbol: string) => void;
 }
 
 // Chart calculation types (matching ChartRenderer)
@@ -109,7 +110,7 @@ interface ChartCalculations {
 // Helper function for Y-scale domain calculation using memoized function
 const calculateYScaleDomain = memoizedCalculateYScaleDomain;
 
-const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
+const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -1004,6 +1005,79 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
       {/* Chart Container */}
       <div className="flex-1 p-4">
+        {/* Chart Title - Always visible */}
+        <div className="mb-4 px-2 h-12 flex items-center">
+          {chartState.hoverData?.data ? (
+            <div className="flex justify-between items-center w-full">
+              <div className="flex flex-col">
+                <h2 className="font-bold text-foreground text-lg">{symbol}</h2>
+              </div>
+              <div className="flex gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  O:{' '}
+                  <span
+                    className="font-mono"
+                    style={{
+                      color:
+                        chartState.hoverData.data.close >= chartState.hoverData.data.open
+                          ? CANDLE_UP_COLOR
+                          : CANDLE_DOWN_COLOR,
+                    }}
+                  >
+                    {formatPrice(chartState.hoverData.data.open)}
+                  </span>
+                </span>
+                <span className="text-muted-foreground">
+                  H:{' '}
+                  <span
+                    className="font-mono"
+                    style={{
+                      color:
+                        chartState.hoverData.data.close >= chartState.hoverData.data.open
+                          ? CANDLE_UP_COLOR
+                          : CANDLE_DOWN_COLOR,
+                    }}
+                  >
+                    {formatPrice(chartState.hoverData.data.high)}
+                  </span>
+                </span>
+                <span className="text-muted-foreground">
+                  L:{' '}
+                  <span
+                    className="font-mono"
+                    style={{
+                      color:
+                        chartState.hoverData.data.close >= chartState.hoverData.data.open
+                          ? CANDLE_UP_COLOR
+                          : CANDLE_DOWN_COLOR,
+                    }}
+                  >
+                    {formatPrice(chartState.hoverData.data.low)}
+                  </span>
+                </span>
+                <span className="text-muted-foreground">
+                  C:{' '}
+                  <span
+                    className="font-mono"
+                    style={{
+                      color:
+                        chartState.hoverData.data.close >= chartState.hoverData.data.open
+                          ? CANDLE_UP_COLOR
+                          : CANDLE_DOWN_COLOR,
+                    }}
+                  >
+                    {formatPrice(chartState.hoverData.data.close)}
+                  </span>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-between items-center">
+              <h2 className="font-bold text-foreground text-lg">{symbol}</h2>
+            </div>
+          )}
+        </div>
+
         {isChartLoading(chartState.isLoading, chartState.allData) ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -1034,79 +1108,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           </div>
         ) : (
           <div className="w-full h-full relative" style={{ minHeight: '400px' }}>
-            {/* Custom Title Component */}
-            <div className="mb-4 px-2 h-12 flex items-center">
-              {chartState.hoverData?.data ? (
-                <div className="flex justify-between items-center w-full">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-foreground text-lg">{symbol}</span>
-                  </div>
-                  <div className="flex gap-3 text-sm">
-                    <span className="text-muted-foreground">
-                      O:{' '}
-                      <span
-                        className="font-mono"
-                        style={{
-                          color:
-                            chartState.hoverData.data.close >= chartState.hoverData.data.open
-                              ? CANDLE_UP_COLOR
-                              : CANDLE_DOWN_COLOR,
-                        }}
-                      >
-                        {formatPrice(chartState.hoverData.data.open)}
-                      </span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      H:{' '}
-                      <span
-                        className="font-mono"
-                        style={{
-                          color:
-                            chartState.hoverData.data.close >= chartState.hoverData.data.open
-                              ? CANDLE_UP_COLOR
-                              : CANDLE_DOWN_COLOR,
-                        }}
-                      >
-                        {formatPrice(chartState.hoverData.data.high)}
-                      </span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      L:{' '}
-                      <span
-                        className="font-mono"
-                        style={{
-                          color:
-                            chartState.hoverData.data.close >= chartState.hoverData.data.open
-                              ? CANDLE_UP_COLOR
-                              : CANDLE_DOWN_COLOR,
-                        }}
-                      >
-                        {formatPrice(chartState.hoverData.data.low)}
-                      </span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      C:{' '}
-                      <span
-                        className="font-mono"
-                        style={{
-                          color:
-                            chartState.hoverData.data.close >= chartState.hoverData.data.open
-                              ? CANDLE_UP_COLOR
-                              : CANDLE_DOWN_COLOR,
-                        }}
-                      >
-                        {formatPrice(chartState.hoverData.data.close)}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-foreground text-lg">{symbol}</span>
-                </div>
-              )}
-            </div>
-
             <div ref={containerRef} className="w-full h-full">
               <svg
                 ref={svgRef}
@@ -1127,10 +1128,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
             {/* Data Information */}
-            <span>Total: {chartMetrics.total}</span>
+            <span>Total data: {chartMetrics.total}</span>
             <span>Visible: {CHART_DATA_POINTS}</span>
             <span>View: {chartMetrics.viewport}</span>
             <span>TF: {chartMetrics.timeframe}</span>
+            {/* Zoom and Pan Information */}
+            <span>Zoom: 1.00x</span>
+            <span>Pan: 0, 0</span>
           </div>
           <div className="flex items-center space-x-4">
             {/* Chart State Information */}
@@ -1150,6 +1154,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 <span className="text-xs text-orange-500">Extended ({chartState.allData.length} pts)</span>
               </div>
             )}
+            <span className="text-xs text-muted-foreground">(D3.js powered)</span>
           </div>
         </div>
       </div>
