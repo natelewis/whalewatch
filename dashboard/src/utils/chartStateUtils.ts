@@ -134,7 +134,7 @@ export const shouldCreateChart = (
     svgExists: !!svgElement,
   });
 
-  return shouldCreate;
+  return !!shouldCreate;
 };
 
 /**

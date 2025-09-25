@@ -11,7 +11,7 @@ export interface RefUpdateConfig<T = unknown> {
 /**
  * Hook for updating multiple refs in a single effect
  */
-export const useRefUpdates = <T = unknown>(configs: RefUpdateConfig<T>[]) => {
+export const useRefUpdates = (configs: RefUpdateConfig[]) => {
   useEffect(() => {
     configs.forEach(({ ref, value, logMessage }) => {
       ref.current = value;

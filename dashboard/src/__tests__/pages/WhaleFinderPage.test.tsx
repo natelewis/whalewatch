@@ -5,21 +5,16 @@ import { WhaleFinderPage } from '../../pages/WhaleFinderPage';
 import { BrowserRouter } from 'react-router-dom';
 import { apiService } from '../../services/apiService';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import { AlpacaOptionsTrade } from '../../types';
 import { WebSocketProvider } from '../../contexts/WebSocketContext';
+import type { AlpacaOptionsTrade, AlpacaOptionsContract } from '@shared/types';
 
 // Mock the apiService
-vi.mock('../../services/apiService', () => ({
-  apiService: {
-    getOptionsTrades: vi.fn(),
-    getOptionsContracts: vi.fn(),
-  },
-}));
+vi.mock('../../services/apiService');
+const mockApiService = apiService as jest.Mocked<typeof apiService>;
 
 // Mock the useWebSocket hook
-vi.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: vi.fn(),
-}));
+vi.mock('../../hooks/useWebSocket');
+const mockUseWebSocket = useWebSocket as jest.MockedFunction<typeof useWebSocket>;
 
 // Mock the WhaleWatchFeed component
 vi.mock('../../components/WhaleWatchFeed', () => ({
@@ -45,9 +40,6 @@ vi.mock('../../components/WhaleWatchFeed', () => ({
     </div>
   ),
 }));
-
-const mockApiService = apiService as ReturnType<typeof vi.fn>;
-const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 const renderWithRouter = (component: React.ReactElement) => {
   return render(

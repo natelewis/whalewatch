@@ -12,9 +12,9 @@ jest.mock('express', () => {
     listen: jest.fn(),
     name: 'app',
   };
-  const expressMock = jest.fn(() => mockApp) as jest.MockedFunction<() => typeof mockApp>;
-  expressMock.json = jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next());
-  expressMock.urlencoded = jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next());
+  const expressMock = jest.fn(() => mockApp);
+  (expressMock as any).json = jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next());
+  (expressMock as any).urlencoded = jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next());
   return expressMock;
 });
 
@@ -137,7 +137,7 @@ describe('Index.ts Server Logic Tests', () => {
       const { secretValidator } = await import('../utils/secretValidator');
 
       // Mock failed validation
-      secretValidator.validateSecrets.mockReturnValueOnce({
+      (secretValidator.validateSecrets as jest.MockedFunction<() => any>).mockReturnValueOnce({
         isValid: false,
         missingSecrets: ['ALPACA_API_KEY', 'JWT_SECRET'],
         warnings: [],
@@ -156,7 +156,7 @@ describe('Index.ts Server Logic Tests', () => {
       const { secretValidator } = await import('../utils/secretValidator');
 
       // Mock successful validation
-      secretValidator.validateSecrets.mockReturnValueOnce({
+      (secretValidator.validateSecrets as jest.MockedFunction<() => any>).mockReturnValueOnce({
         isValid: true,
         missingSecrets: [],
         warnings: [],
@@ -199,7 +199,7 @@ describe('Index.ts Server Logic Tests', () => {
     it('should call server.listen with correct port', async () => {
       const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
-      createServer.mockReturnValue(mockServer);
+      (createServer as jest.MockedFunction<() => any>).mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
       await import('../index');
@@ -210,7 +210,7 @@ describe('Index.ts Server Logic Tests', () => {
     it('should log startup messages when server starts', async () => {
       const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
-      createServer.mockReturnValue(mockServer);
+      (createServer as jest.MockedFunction<() => any>).mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
       await import('../index');
@@ -231,7 +231,7 @@ describe('Index.ts Server Logic Tests', () => {
       process.env.PORT = '4000';
       const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
-      createServer.mockReturnValue(mockServer);
+      (createServer as jest.MockedFunction<() => any>).mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
       await import('../index');
@@ -239,11 +239,11 @@ describe('Index.ts Server Logic Tests', () => {
       expect(mockServer.listen).toHaveBeenCalledWith('4000', expect.any(Function));
     });
 
-    it('should use default PORT when not set', () => {
+    it('should use default PORT when not set', async () => {
       delete process.env.PORT;
       const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
-      createServer.mockReturnValue(mockServer);
+      (createServer as jest.MockedFunction<() => any>).mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
       await import('../index');
@@ -270,7 +270,7 @@ describe('Index.ts Server Logic Tests', () => {
     it('should handle SIGTERM signal gracefully', async () => {
       const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
-      createServer.mockReturnValue(mockServer);
+      (createServer as jest.MockedFunction<() => any>).mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
       await import('../index');
@@ -289,7 +289,7 @@ describe('Index.ts Server Logic Tests', () => {
     it('should handle SIGINT signal gracefully', async () => {
       const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
-      createServer.mockReturnValue(mockServer);
+      (createServer as jest.MockedFunction<() => any>).mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
       await import('../index');
@@ -308,7 +308,7 @@ describe('Index.ts Server Logic Tests', () => {
     it('should call process.exit(0) after server closes', async () => {
       const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
-      createServer.mockReturnValue(mockServer);
+      (createServer as jest.MockedFunction<() => any>).mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
       await import('../index');

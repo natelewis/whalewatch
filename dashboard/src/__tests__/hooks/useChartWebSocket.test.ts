@@ -5,6 +5,13 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 import { WebSocketProvider } from '../../contexts/WebSocketContext';
 import React from 'react';
 
+// Import the return type from the hook file
+interface UseChartWebSocketReturn {
+  subscribeToChartData: () => void;
+  unsubscribeFromChartData: () => void;
+  isConnected: boolean;
+}
+
 // Mock the useWebSocket hook
 vi.mock('../../hooks/useWebSocket', () => ({
   useWebSocket: vi.fn(),
@@ -13,12 +20,12 @@ vi.mock('../../hooks/useWebSocket', () => ({
 const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 // Helper function to render hook with WebSocketProvider
-const renderHookWithProvider = (
-  hook: () => unknown,
-  options?: { wrapper?: React.ComponentType<{ children: React.ReactNode }> }
+const renderHookWithProvider = <T extends unknown[]>(
+  hook: (...args: T) => UseChartWebSocketReturn,
+  options?: { wrapper?: React.ComponentType<{ children: React.ReactNode }>; initialProps?: T }
 ) => {
   const wrapper = ({ children }: { children: React.ReactNode }) => {
-    return React.createElement(WebSocketProvider, {}, children);
+    return React.createElement(WebSocketProvider, { children }, children);
   };
   return renderHook(hook, { wrapper, ...options });
 };
@@ -228,7 +235,7 @@ describe('useChartWebSocket', () => {
 
   it('should update subscription when symbol changes', () => {
     const { result, rerender } = renderHookWithProvider(
-      ({ symbol }) =>
+      ({ symbol }: { symbol: string }) =>
         useChartWebSocket({
           symbol,
           onChartData: mockOnChartData,

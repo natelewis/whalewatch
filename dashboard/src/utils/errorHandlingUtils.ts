@@ -259,18 +259,27 @@ export const handleApiError = (error: unknown, context: string): string => {
     errorMessage = error.message;
   } else if (typeof error === 'string') {
     errorMessage = error;
-  } else if (error?.message) {
-    errorMessage = error.message;
-  } else if (error?.response?.data?.message) {
-    errorMessage = error.response.data.message;
-  } else if (error?.response?.statusText) {
-    errorMessage = error.response.statusText;
+  } else if (error && typeof error === 'object' && 'message' in error) {
+    errorMessage = (error as { message: string }).message;
+  } else if (error && typeof error === 'object' && 'response' in error) {
+    const errorWithResponse = error as { response: { data?: { message?: string }; statusText?: string } };
+    if (errorWithResponse.response.data?.message) {
+      errorMessage = errorWithResponse.response.data.message;
+    } else if (errorWithResponse.response.statusText) {
+      errorMessage = errorWithResponse.response.statusText;
+    }
   }
 
   logger.error(`API error in ${context}:`, {
     message: errorMessage,
-    status: error?.response?.status,
-    data: error?.response?.data,
+    status:
+      error && typeof error === 'object' && 'response' in error
+        ? (error as { response: { status?: number } }).response.status
+        : undefined,
+    data:
+      error && typeof error === 'object' && 'response' in error
+        ? (error as { response: { data?: unknown } }).response.data
+        : undefined,
   });
 
   return errorMessage;

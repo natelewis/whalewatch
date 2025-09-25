@@ -6,17 +6,18 @@ import { AccountPage } from '../../pages/AccountPage';
 import { apiService } from '../../services/apiService';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { WebSocketProvider } from '../../contexts/WebSocketContext';
+import type { AlpacaAccount, AlpacaPosition, AlpacaActivity } from '@shared/types';
 
 // Mock the API service
 vi.mock('../../services/apiService');
-const mockApiService = apiService as ReturnType<typeof vi.fn>;
+const mockApiService = apiService as jest.Mocked<typeof apiService>;
 
 // Mock the WebSocket hook
 vi.mock('../../hooks/useWebSocket');
-const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
+const mockUseWebSocket = useWebSocket as jest.MockedFunction<typeof useWebSocket>;
 
 // Mock the API responses
-const mockAccount = {
+const mockAccount: { account: AlpacaAccount } = {
   account: {
     id: 'test-account-id',
     account_number: '123456789',
@@ -51,7 +52,7 @@ const mockAccount = {
   },
 };
 
-const mockPositions = {
+const mockPositions: { positions: AlpacaPosition[] } = {
   positions: [
     {
       asset_id: 'asset-1',
@@ -73,7 +74,7 @@ const mockPositions = {
   ],
 };
 
-const mockActivities = {
+const mockActivities: { activities: AlpacaActivity[] } = {
   activities: [
     {
       id: 'activity-1',
@@ -149,9 +150,15 @@ describe('AccountPage', () => {
   });
 
   it('renders loading state initially', () => {
-    mockApiService.getAccount = vi.fn(() => new Promise(() => {})); // Never resolves
-    mockApiService.getPositions = vi.fn(() => new Promise(() => {}));
-    mockApiService.getActivities = vi.fn(() => new Promise(() => {}));
+    (mockApiService.getAccount as jest.MockedFunction<typeof mockApiService.getAccount>).mockImplementation(
+      () => new Promise(() => {})
+    ); // Never resolves
+    (mockApiService.getPositions as jest.MockedFunction<typeof mockApiService.getPositions>).mockImplementation(
+      () => new Promise(() => {})
+    );
+    (mockApiService.getActivities as jest.MockedFunction<typeof mockApiService.getActivities>).mockImplementation(
+      () => new Promise(() => {})
+    );
 
     renderWithRouter(<AccountPage />);
 
@@ -160,9 +167,13 @@ describe('AccountPage', () => {
   });
 
   it('renders account data when loaded successfully', async () => {
-    mockApiService.getAccount.mockResolvedValue(mockAccount);
-    mockApiService.getPositions.mockResolvedValue(mockPositions);
-    mockApiService.getActivities.mockResolvedValue(mockActivities);
+    (mockApiService.getAccount as jest.MockedFunction<typeof mockApiService.getAccount>).mockResolvedValue(mockAccount);
+    (mockApiService.getPositions as jest.MockedFunction<typeof mockApiService.getPositions>).mockResolvedValue(
+      mockPositions
+    );
+    (mockApiService.getActivities as jest.MockedFunction<typeof mockApiService.getActivities>).mockResolvedValue(
+      mockActivities
+    );
 
     renderWithRouter(<AccountPage />);
 
@@ -197,9 +208,13 @@ describe('AccountPage', () => {
   });
 
   it('calls refresh when refresh button is clicked', async () => {
-    mockApiService.getAccount.mockResolvedValue(mockAccount);
-    mockApiService.getPositions.mockResolvedValue(mockPositions);
-    mockApiService.getActivities.mockResolvedValue(mockActivities);
+    (mockApiService.getAccount as jest.MockedFunction<typeof mockApiService.getAccount>).mockResolvedValue(mockAccount);
+    (mockApiService.getPositions as jest.MockedFunction<typeof mockApiService.getPositions>).mockResolvedValue(
+      mockPositions
+    );
+    (mockApiService.getActivities as jest.MockedFunction<typeof mockApiService.getActivities>).mockResolvedValue(
+      mockActivities
+    );
 
     renderWithRouter(<AccountPage />);
 
@@ -216,9 +231,13 @@ describe('AccountPage', () => {
   });
 
   it('subscribes to WebSocket for position updates', async () => {
-    mockApiService.getAccount.mockResolvedValue(mockAccount);
-    mockApiService.getPositions.mockResolvedValue(mockPositions);
-    mockApiService.getActivities.mockResolvedValue(mockActivities);
+    (mockApiService.getAccount as jest.MockedFunction<typeof mockApiService.getAccount>).mockResolvedValue(mockAccount);
+    (mockApiService.getPositions as jest.MockedFunction<typeof mockApiService.getPositions>).mockResolvedValue(
+      mockPositions
+    );
+    (mockApiService.getActivities as jest.MockedFunction<typeof mockApiService.getActivities>).mockResolvedValue(
+      mockActivities
+    );
 
     renderWithRouter(<AccountPage />);
 

@@ -67,9 +67,11 @@ const createMockD3Element = (): MockD3Element => {
   };
 
   // Set up the circular references after the object is created
-  mockElement.append.mockReturnValue(mockElement);
-  mockElement.select.mockReturnValue(mockElement);
-  mockElement.selectAll().append.mockReturnValue(mockElement);
+  (mockElement.append as jest.MockedFunction<() => MockD3Element>).mockReturnValue(mockElement);
+  (mockElement.select as jest.MockedFunction<() => MockD3Element>).mockReturnValue(mockElement);
+  ((mockElement.selectAll() as MockD3Element).append as jest.MockedFunction<() => MockD3Element>).mockReturnValue(
+    mockElement
+  );
 
   return mockElement;
 };
@@ -163,46 +165,11 @@ vi.mock('d3', () => ({
     tickFormat: vi.fn().mockReturnThis(),
     tickSize: vi.fn().mockReturnThis(),
   })),
-  zoomIdentity: {
-    translate: vi.fn().mockReturnThis(),
-    scale: vi.fn().mockReturnThis(),
-    rescaleX: vi.fn(() => ({
-      domain: vi.fn().mockReturnThis(),
-      range: vi.fn().mockReturnThis(),
-      invert: vi.fn(),
-    })),
-    rescaleY: vi.fn(() => ({
-      domain: vi.fn().mockReturnThis(),
-      range: vi.fn().mockReturnThis(),
-      invert: vi.fn(),
-    })),
-    x: 0,
-    y: 0,
-    k: 1,
-  },
-  zoomTransform: vi.fn(() => ({
-    translate: vi.fn().mockReturnThis(),
-    scale: vi.fn().mockReturnThis(),
-    rescaleX: vi.fn(() => ({
-      domain: vi.fn().mockReturnThis(),
-      range: vi.fn().mockReturnThis(),
-      invert: vi.fn(),
-    })),
-    rescaleY: vi.fn(() => ({
-      domain: vi.fn().mockReturnThis(),
-      range: vi.fn().mockReturnThis(),
-      invert: vi.fn(),
-    })),
-    x: 0,
-    y: 0,
-    k: 1,
-  })),
   bisector: vi.fn(() => ({
     left: vi.fn(() => 0),
   })),
   pointer: vi.fn(() => [100, 100]),
   timeFormat: vi.fn(() => vi.fn()),
-  format: vi.fn(() => vi.fn()),
   curveLinear: 'linear',
 }));
 
@@ -265,7 +232,7 @@ const mockUseChartStateManager = {
       timeframe: ChartTimeframe,
       dataPoints?: number,
       startTime?: string,
-      direction?: 'past' | 'future'
+      direction?: 'past' | 'future' | 'centered'
     ) => Promise<void>,
     loadMoreData: vi.fn(),
     updateChartWithLiveData: vi.fn(),
@@ -291,6 +258,7 @@ const mockUseChartStateManager = {
     setSymbol: vi.fn(),
     setDimensions: vi.fn(),
     setFixedYScaleDomain: vi.fn(),
+    setCurrentVerticalPan: vi.fn(),
     addDataPoint: vi.fn(),
     updateData: vi.fn(),
     updateMultiple: vi.fn(),
