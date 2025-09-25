@@ -155,7 +155,7 @@ export interface AlpacaOptionsContract {
 }
 
 // ============================================================================
-// ORDER TYPES
+// ORDER TYPES (Used by server)
 // ============================================================================
 
 export interface CreateOrderRequest {
@@ -218,7 +218,7 @@ export interface CreateOrderResponse {
 }
 
 // ============================================================================
-// API RESPONSE TYPES
+// API RESPONSE TYPES (Used by dashboard and server)
 // ============================================================================
 
 export interface AccountInfoResponse {
@@ -279,6 +279,7 @@ export interface WebSocketMessage {
   timestamp: string;
 }
 
+// Specific message types are used by dashboard and server
 export interface OptionsWhaleMessage extends WebSocketMessage {
   type: 'options_whale';
   data: AlpacaOptionsTrade;
@@ -381,7 +382,7 @@ export interface Auth0User {
 }
 
 // ============================================================================
-// ERROR TYPES
+// ERROR TYPES (Used by error handling utilities)
 // ============================================================================
 
 export interface ApiError {
@@ -432,7 +433,7 @@ export interface AxiosError extends Error {
 export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 // ============================================================================
-// WHALE DETECTION TYPES
+// WHALE DETECTION TYPES (Currently unused - may be used in future)
 // ============================================================================
 
 export interface WhaleConfig {

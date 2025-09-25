@@ -31,6 +31,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@whalewatch/shared": "file:../shared",
     "axios": "^1.6.2",
     "chalk": "^4.1.2",
     "dotenv": "^16.3.1",

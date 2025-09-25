@@ -1,4 +1,6 @@
 // Polygon.io API response types
+import { ContractType } from '@whalewatch/shared';
+
 export interface PolygonTrade {
   p: number; // price
   s: number; // size
@@ -32,7 +34,7 @@ export interface PolygonAggregate {
 }
 
 export interface PolygonOptionContract {
-  contract_type: 'call' | 'put';
+  contract_type: ContractType;
   exercise_style: 'american' | 'european';
   expiration_date: string; // YYYY-MM-DD
   shares_per_contract: number;

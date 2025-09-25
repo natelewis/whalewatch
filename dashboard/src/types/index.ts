@@ -118,7 +118,7 @@ export interface ChartStateCallbacks {
 }
 
 // ============================================================================
-// TECHNICAL INDICATORS TYPES
+// TECHNICAL INDICATORS TYPES (Currently unused - may be used in future)
 // ============================================================================
 
 export interface MovingAverage {
@@ -155,7 +155,7 @@ export interface BollingerBands {
 }
 
 // ============================================================================
-// DRAWING TOOLS TYPES
+// DRAWING TOOLS TYPES (Currently unused - may be used in future)
 // ============================================================================
 
 export interface TrendLine {
@@ -204,7 +204,7 @@ export interface AuthContextType {
 }
 
 // ============================================================================
-// CHART CONFIGURATION TYPES
+// CHART CONFIGURATION TYPES (Currently unused - may be used in future)
 // ============================================================================
 
 export interface ChartConfig {
@@ -253,7 +253,7 @@ export interface OAuthResponse {
 }
 
 // ============================================================================
-// LEGACY TYPES (for backward compatibility)
+// LEGACY TYPES (Currently unused - may be removed in future)
 // ============================================================================
 
 export interface LoginRequest {

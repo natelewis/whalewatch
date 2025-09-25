@@ -173,7 +173,7 @@ export function safeCallAsync<T>(fn: () => Promise<T>): ResultAsync<T, AppError>
 }
 
 /**
- * Convert a Promise that might reject into a ResultAsync
+ * Convert a Promise that might reject into a ResultAsync (Currently unused)
  */
 export function safePromise<T>(promise: Promise<T>): ResultAsync<T, AppError> {
   return ResultAsync.fromPromise(promise, error => parseError(error));
@@ -217,7 +217,7 @@ export function createUserFriendlyMessage(error: AppError): string {
 // ============================================================================
 
 /**
- * Create a React error handler that uses setState
+ * Create a React error handler that uses setState (Currently unused)
  */
 export function createReactErrorHandler(setError: (error: string) => void) {
   return (error: unknown) => {
@@ -228,7 +228,7 @@ export function createReactErrorHandler(setError: (error: string) => void) {
 }
 
 /**
- * Create an Express error handler
+ * Create an Express error handler (Currently unused)
  */
 export function createExpressErrorHandler(res: { status: (code: number) => { json: (data: unknown) => void } }) {
   return (error: unknown) => {

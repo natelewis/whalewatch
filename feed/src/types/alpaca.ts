@@ -1,4 +1,5 @@
 // Alpaca API Types
+import { AlpacaBar as SharedAlpacaBar } from '@whalewatch/shared';
 
 export interface AlpacaTrade {
   t: string; // timestamp in nanoseconds
@@ -22,15 +23,10 @@ export interface AlpacaQuote {
   z: string; // tape
 }
 
-export interface AlpacaBar {
-  t: string; // timestamp in nanoseconds
-  o: number; // open
-  h: number; // high
-  l: number; // low
-  c: number; // close
-  v: number; // volume
-  n: number; // trade count
-  vw: number; // volume weighted average price
+// Feed-specific AlpacaBar that extends shared version with required fields
+export interface AlpacaBar extends Omit<SharedAlpacaBar, 'n' | 'vw'> {
+  n: number; // trade count (required in feed API responses)
+  vw: number; // volume weighted average price (required in feed API responses)
 }
 
 export interface AlpacaBarsResponse {

@@ -1,4 +1,5 @@
 // Database table schemas and types
+import { ContractType } from '@whalewatch/shared';
 
 export interface StockAggregate {
   symbol: string;
@@ -13,7 +14,7 @@ export interface StockAggregate {
 }
 
 export interface OptionContract {
-  contract_type: 'call' | 'put';
+  contract_type: ContractType;
   exercise_style: 'american' | 'european';
   expiration_date: Date; // TIMESTAMP for QuestDB partitioning
   shares_per_contract: number;
