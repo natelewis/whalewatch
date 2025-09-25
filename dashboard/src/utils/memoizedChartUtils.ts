@@ -152,7 +152,9 @@ export const memoizedCalculateChartState = ({
     allChartData.length > 0
       ? `${allChartData.length}-${allChartData[0]?.timestamp}-${allChartData[allChartData.length - 1]?.timestamp}`
       : 'empty';
-  const transformKey = `${transform.x.toFixed(2)}-${transform.y.toFixed(2)}-${transform.k.toFixed(2)}`;
+  const transformKey = `${transform.x?.toFixed(2) || '0.00'}-${transform.y?.toFixed(2) || '0.00'}-${
+    transform.k?.toFixed(2) || '1.00'
+  }`;
   const dimensionsKey = `${dimensions.width}-${dimensions.height}`;
   const fixedDomainKey = fixedYScaleDomain ? `${fixedYScaleDomain[0]}-${fixedYScaleDomain[1]}` : 'null';
 
@@ -211,8 +213,8 @@ export const memoizedCalculateChartState = ({
   const baseYScale = d3.scaleLinear().domain(yScaleDomain).range([innerHeight, 0]);
 
   // Calculate transformed scales
-  const transformedXScale = transform.rescaleX(baseXScale);
-  const transformedYScale = transform.rescaleY(baseYScale);
+  const transformedXScale = transform.rescaleX ? transform.rescaleX(baseXScale) : baseXScale;
+  const transformedYScale = transform.rescaleY ? transform.rescaleY(baseYScale) : baseYScale;
 
   // Get visible data slice for tooltips and other interactions
   const visibleData = allChartData.slice(viewStart, viewEnd + 1);

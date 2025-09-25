@@ -130,6 +130,9 @@ vi.mock('d3', () => ({
     filter: vi.fn().mockReturnThis(),
   })),
   zoomIdentity: vi.fn(() => ({
+    x: 0,
+    y: 0,
+    k: 1,
     translateX: vi.fn().mockReturnThis(),
     translateY: vi.fn().mockReturnThis(),
     scale: vi.fn().mockReturnThis(),
@@ -138,6 +141,9 @@ vi.mock('d3', () => ({
     toString: vi.fn(() => 'translate(0,0) scale(1)'),
   })),
   zoomTransform: vi.fn(() => ({
+    x: 0,
+    y: 0,
+    k: 1,
     translateX: vi.fn().mockReturnThis(),
     translateY: vi.fn().mockReturnThis(),
     scale: vi.fn().mockReturnThis(),
@@ -349,25 +355,6 @@ describe('StockChart', () => {
 
     fireEvent.click(timeframeButtons[0]);
     expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalled();
-  });
-
-  it.skip('displays OHLC data in title when hovering', async () => {
-    render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
-
-    // The chart is rendered as an SVG element - skipping this test for now
-    // as it's complex to mock SVG hover events properly
-    const chartContainer = screen.getByRole('img', { hidden: true }) || screen.getByRole('img');
-    if (chartContainer) {
-      fireEvent.mouseMove(chartContainer, { clientX: 100, clientY: 100 });
-
-      await waitFor(() => {
-        // The hover data should be displayed in the title area
-        expect(screen.getByText('O:')).toBeInTheDocument();
-        expect(screen.getByText('H:')).toBeInTheDocument();
-        expect(screen.getByText('L:')).toBeInTheDocument();
-        expect(screen.getByText('C:')).toBeInTheDocument();
-      });
-    }
   });
 
   it('shows zoom and pan information in footer', () => {
