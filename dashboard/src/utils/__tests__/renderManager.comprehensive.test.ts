@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderSkipTo, renderPanning, RenderType, DEFAULT_RENDER_OPTIONS } from '../renderManager';
 import { ChartDimensions, CandlestickData } from '../../types';
+import * as d3 from 'd3';
 
 // Mock the chart rendering functions
 vi.mock('../../components/ChartRenderer', () => ({

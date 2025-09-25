@@ -75,8 +75,8 @@ export const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes:
  */
 export const processChartData = (
   bars: AlpacaBar[],
-  timeframe: ChartTimeframe = '1m',
-  viewWindowSize: number = 80
+  _timeframe: ChartTimeframe = '1m',
+  _viewWindowSize: number = 80
 ): {
   formattedData: CandlestickData[];
   dataRange: DataRange | null;
@@ -86,7 +86,7 @@ export const processChartData = (
   const dataRange = calculateDataRange(uniqueBars);
 
   // No fake candles added (buffer candle on right removed per user request)
-  const paddedData = addFakeCandlesForPadding(formattedData, viewWindowSize, timeframe);
+  const paddedData = addFakeCandlesForPadding(formattedData);
 
   return {
     formattedData: paddedData,

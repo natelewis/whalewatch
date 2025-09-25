@@ -156,7 +156,7 @@ export async function testTableExists(tableName: string): Promise<boolean> {
     const result = await db.query(`SELECT * FROM tables() WHERE table_name = '${tableName}'`);
     const questResult = result as { dataset: unknown[][] };
     return questResult.dataset && questResult.dataset.length > 0;
-  } catch (error) {
+  } catch (_error) {
     return false;
   }
 }
@@ -169,7 +169,7 @@ export async function getTestTableRowCount(tableName: string): Promise<number> {
     const result = await db.query(`SELECT COUNT(*) as count FROM ${tableName}`);
     const questResult = result as { dataset: unknown[][] };
     return questResult.dataset && questResult.dataset.length > 0 ? Number(questResult.dataset[0][0]) : 0;
-  } catch (error) {
+  } catch (_error) {
     return 0;
   }
 }
@@ -178,7 +178,9 @@ export async function getTestTableRowCount(tableName: string): Promise<number> {
  * Insert test data into a test table
  */
 export async function insertTestData(tableName: string, data: Record<string, unknown>[]): Promise<void> {
-  if (data.length === 0) return;
+  if (data.length === 0) {
+    return;
+  }
 
   const columns = Object.keys(data[0]);
   const values = data
@@ -187,9 +189,15 @@ export async function insertTestData(tableName: string, data: Record<string, unk
         `(${columns
           .map(col => {
             const value = row[col];
-            if (value === null || value === undefined) return 'NULL';
-            if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
-            if (value instanceof Date) return `'${value.toISOString()}'`;
+            if (value === null || value === undefined) {
+              return 'NULL';
+            }
+            if (typeof value === 'string') {
+              return `'${value.replace(/'/g, "''")}'`;
+            }
+            if (value instanceof Date) {
+              return `'${value.toISOString()}'`;
+            }
             return String(value);
           })
           .join(', ')})`
@@ -210,7 +218,9 @@ export async function getTestTableData(tableName: string): Promise<unknown[]> {
     dataset: unknown[][];
   };
 
-  if (!questResult.dataset) return [];
+  if (!questResult.dataset) {
+    return [];
+  }
 
   return questResult.dataset.map(row => {
     const obj: Record<string, unknown> = {};

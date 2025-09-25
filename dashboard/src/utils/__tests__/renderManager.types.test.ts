@@ -128,14 +128,14 @@ describe('RenderManager TypeScript Compliance Tests', () => {
       // Test that functions accept the correct parameters
       // This is a compile-time test - if it compiles, the signatures are correct
       const testRenderSkipTo = (
-        svgElement: SVGSVGElement,
-        dimensions: ChartDimensions,
-        allData: CandlestickData[],
-        currentViewStart: number,
-        currentViewEnd: number,
-        currentTransform?: d3.ZoomTransform,
-        fixedYScaleDomain?: [number, number] | null,
-        onBufferedCandlesRendered?: (direction: 'past' | 'future') => void
+        _svgElement: SVGSVGElement,
+        _dimensions: ChartDimensions,
+        _allData: CandlestickData[],
+        _currentViewStart: number,
+        _currentViewEnd: number,
+        _currentTransform?: d3.ZoomTransform,
+        _fixedYScaleDomain?: [number, number] | null,
+        _onBufferedCandlesRendered?: (direction: 'past' | 'future') => void
       ): RenderResult => {
         return {
           success: true,
@@ -145,14 +145,14 @@ describe('RenderManager TypeScript Compliance Tests', () => {
       };
 
       const testRenderPanning = (
-        svgElement: SVGSVGElement,
-        dimensions: ChartDimensions,
-        allData: CandlestickData[],
-        currentViewStart: number,
-        currentViewEnd: number,
-        currentTransform?: d3.ZoomTransform,
-        fixedYScaleDomain?: [number, number] | null,
-        onBufferedCandlesRendered?: (direction: 'past' | 'future') => void
+        _svgElement: SVGSVGElement,
+        _dimensions: ChartDimensions,
+        _allData: CandlestickData[],
+        _currentViewStart: number,
+        _currentViewEnd: number,
+        _currentTransform?: d3.ZoomTransform,
+        _fixedYScaleDomain?: [number, number] | null,
+        _onBufferedCandlesRendered?: (direction: 'past' | 'future') => void
       ): RenderResult => {
         return {
           success: true,

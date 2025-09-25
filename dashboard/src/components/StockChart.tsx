@@ -218,7 +218,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         const dataShift = calculateDataShift(direction, BUFFER_SIZE, mergedData.length, prunedData.length);
 
         // Calculate anchored viewport
-        const anchoredViewport = calculateAnchoredViewport(prevStart, prevEnd, dataShift, totalAfter, direction);
+        const anchoredViewport = calculateAnchoredViewport(prevStart, prevEnd, dataShift, totalAfter);
 
         chartActions.setAllData(prunedData);
         chartActions.setViewport(anchoredViewport.start, anchoredViewport.end);
@@ -757,7 +757,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               getCurrentDimensions: () => currentDimensionsRef.current,
             },
             chartState: chartState,
-            bufferRangeRef: currentBufferRangeRef,
             isPanningRef: isPanningRef,
             onBufferedCandlesRendered: loadMoreDataOnBufferedRender,
           });
