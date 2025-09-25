@@ -118,72 +118,6 @@ export interface ChartStateCallbacks {
 }
 
 // ============================================================================
-// TECHNICAL INDICATORS TYPES (Currently unused - may be used in future)
-// ============================================================================
-
-export interface MovingAverage {
-  id: string;
-  type: 'SMA' | 'EMA';
-  period: number;
-  color: string;
-  visible: boolean;
-}
-
-export interface RSI {
-  id: string;
-  period: number;
-  overbought: number;
-  oversold: number;
-  color: string;
-  visible: boolean;
-}
-
-export interface MACD {
-  id: string;
-  fastPeriod: number;
-  slowPeriod: number;
-  signalPeriod: number;
-  visible: boolean;
-}
-
-export interface BollingerBands {
-  id: string;
-  period: number;
-  standardDeviation: number;
-  color: string;
-  visible: boolean;
-}
-
-// ============================================================================
-// DRAWING TOOLS TYPES (Currently unused - may be used in future)
-// ============================================================================
-
-export interface TrendLine {
-  id: string;
-  type: 'trendline';
-  points: { x: number; y: number }[];
-  color: string;
-  style: 'solid' | 'dashed' | 'dotted';
-}
-
-export interface HorizontalLine {
-  id: string;
-  type: 'horizontal';
-  price: number;
-  color: string;
-  style: 'solid' | 'dashed' | 'dotted';
-}
-
-export interface FibonacciRetracement {
-  id: string;
-  type: 'fibonacci';
-  start: { x: number; y: number };
-  end: { x: number; y: number };
-  levels: number[];
-  color: string;
-}
-
-// ============================================================================
 // AUTH CONTEXT TYPES
 // ============================================================================
 
@@ -201,29 +135,6 @@ export interface AuthContextType {
   loginWithGoogle: () => void;
   handleOAuthCallback: (token: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-}
-
-// ============================================================================
-// CHART CONFIGURATION TYPES (Currently unused - may be used in future)
-// ============================================================================
-
-export interface ChartConfig {
-  symbol: string;
-  timeframe: ChartTimeframe;
-  chartType: ChartType;
-  indicators: {
-    movingAverages: MovingAverage[];
-    rsi: RSI | null;
-    macd: MACD | null;
-    bollingerBands: BollingerBands | null;
-  };
-  drawings: {
-    trendLines: TrendLine[];
-    horizontalLines: HorizontalLine[];
-    fibonacci: FibonacciRetracement[];
-  };
-  showVolume: boolean;
-  showCrosshair: boolean;
 }
 
 // ============================================================================
@@ -250,20 +161,6 @@ export interface OAuthUser {
 export interface OAuthResponse {
   token: string;
   user: OAuthUser;
-}
-
-// ============================================================================
-// LEGACY TYPES (Currently unused - may be removed in future)
-// ============================================================================
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  token: string;
-  user: User;
 }
 
 // ============================================================================

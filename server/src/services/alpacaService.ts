@@ -4,7 +4,6 @@ import {
   AlpacaPosition,
   AlpacaActivity,
   AlpacaBar,
-  AlpacaOptionsTrade,
   CreateOrderRequest,
   CreateOrderResponse,
   ChartTimeframe,
@@ -155,13 +154,6 @@ export class AlpacaService {
       const errorMessage = response?.data?.message || (error instanceof Error ? error.message : 'Unknown error');
       throw new Error(errorMessage || 'Failed to fetch chart data');
     }
-  }
-
-  async getOptionsTrades(_symbol: string, _hours: number = 1): Promise<AlpacaOptionsTrade[]> {
-    // This method is now handled by QuestDB routes
-    // Keeping for backward compatibility but should not be used
-    console.warn('getOptionsTrades called on AlpacaService - use QuestDB routes instead');
-    return [];
   }
 
   // Polygon conversion methods removed - now using QuestDB

@@ -172,17 +172,4 @@ describe('AlpacaService', () => {
       await expect(alpacaService.getBars('AAPL', '1H', 100)).rejects.toThrow('API Error');
     });
   });
-
-  describe('getOptionsTrades', () => {
-    it('should return empty array and log warning', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-      const result = await alpacaService.getOptionsTrades('AAPL', 1);
-
-      expect(result).toEqual([]);
-      expect(consoleSpy).toHaveBeenCalledWith('getOptionsTrades called on AlpacaService - use QuestDB routes instead');
-
-      consoleSpy.mockRestore();
-    });
-  });
 });

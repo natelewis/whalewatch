@@ -431,15 +431,3 @@ export interface AxiosError extends Error {
 
 // Error severity levels
 export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical';
-
-// ============================================================================
-// WHALE DETECTION TYPES (Currently unused - may be used in future)
-// ============================================================================
-
-export interface WhaleConfig {
-  minPremium: number;
-  minVolume: number;
-  minSize: number;
-  symbols?: string[];
-  enabled?: boolean;
-}

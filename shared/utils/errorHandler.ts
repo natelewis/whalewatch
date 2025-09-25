@@ -173,13 +173,6 @@ export function safeCallAsync<T>(fn: () => Promise<T>): ResultAsync<T, AppError>
 }
 
 /**
- * Convert a Promise that might reject into a ResultAsync (Currently unused)
- */
-export function safePromise<T>(promise: Promise<T>): ResultAsync<T, AppError> {
-  return ResultAsync.fromPromise(promise, error => parseError(error));
-}
-
-/**
  * Create a user-friendly error message
  */
 export function createUserFriendlyMessage(error: AppError): string {
@@ -215,34 +208,6 @@ export function createUserFriendlyMessage(error: AppError): string {
 // ============================================================================
 // CONVENIENCE FUNCTIONS
 // ============================================================================
-
-/**
- * Create a React error handler that uses setState (Currently unused)
- */
-export function createReactErrorHandler(setError: (error: string) => void) {
-  return (error: unknown) => {
-    const parsedError = parseError(error);
-    const userMessage = createUserFriendlyMessage(parsedError);
-    setError(userMessage);
-  };
-}
-
-/**
- * Create an Express error handler (Currently unused)
- */
-export function createExpressErrorHandler(res: { status: (code: number) => { json: (data: unknown) => void } }) {
-  return (error: unknown) => {
-    const parsedError = parseError(error);
-    const userMessage = createUserFriendlyMessage(parsedError);
-
-    res.status(parsedError.status || 500).json({
-      error: userMessage,
-      code: parsedError.code,
-      type: parsedError.type,
-      timestamp: new Date().toISOString(),
-    });
-  };
-}
 
 // ============================================================================
 // RE-EXPORT NEVERTHROW TYPES AND UTILITIES

@@ -40,7 +40,6 @@ export {
   AxiosErrorResponse,
   AxiosError,
   ErrorSeverity,
-  WhaleConfig,
 } from '@whalewatch/shared';
 
 // Re-export feed-specific types (these take precedence over shared types)
