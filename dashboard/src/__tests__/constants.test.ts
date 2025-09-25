@@ -13,7 +13,7 @@ describe('X-axis label configuration', () => {
     });
 
     it('should have valid configuration structure for each interval', () => {
-      Object.entries(X_AXIS_LABEL_CONFIGS).forEach(([interval, config]) => {
+      Object.entries(X_AXIS_LABEL_CONFIGS).forEach(([, config]) => {
         expect(config).toHaveProperty('markerIntervalMinutes');
         expect(config).toHaveProperty('labelFormat');
         expect(config).toHaveProperty('showSeconds');

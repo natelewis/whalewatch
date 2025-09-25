@@ -78,7 +78,7 @@ describe('QuestDBWebSocketService', () => {
       // Wrap the callback in a try-catch to handle the unhandled promise rejection
       try {
         await intervalCallback();
-      } catch (e) {
+      } catch {
         // Expected error, ignore
       }
 

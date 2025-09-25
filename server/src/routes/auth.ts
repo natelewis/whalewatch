@@ -74,7 +74,7 @@ router.get('/verify', (req: Request, res: Response) => {
         googleId: decoded.googleId,
       },
     });
-  } catch (error) {
+  } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
 });

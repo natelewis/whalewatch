@@ -20,7 +20,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
     const decoded = jwt.verify(token, secret) as User;
     (req as AuthenticatedRequest).user = decoded;
     next();
-  } catch (error) {
+  } catch {
     res.status(403).json({ error: 'Invalid or expired token' });
   }
 };

@@ -6,7 +6,6 @@ import { BrowserRouter } from 'react-router-dom';
 import { apiService } from '../../services/apiService';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { WebSocketProvider } from '../../contexts/WebSocketContext';
-import type { AlpacaOptionsTrade, AlpacaOptionsContract } from '@shared/types';
 
 // Mock the apiService
 vi.mock('../../services/apiService');

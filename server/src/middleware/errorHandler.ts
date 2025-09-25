@@ -50,7 +50,7 @@ export const errorHandler = (err: Error, req: Request, res: Response): void => {
       timestamp: new Date().toISOString(),
       path: req.path,
     });
-  } catch (responseError) {
+  } catch {
     // If response fails, try to send basic error response
     try {
       res.status(error.status).send({
