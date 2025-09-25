@@ -164,6 +164,17 @@ export const memoizedCalculateChartState = ({
   }
 
   // Calculate the chart state (original logic from ChartRenderer.ts)
+  const calculateInnerDimensions = (dims: {
+    width: number;
+    height: number;
+    margin: { top: number; right: number; bottom: number; left: number };
+  }): { innerWidth: number; innerHeight: number } => {
+    return {
+      innerWidth: dims.width - dims.margin.left - dims.margin.right,
+      innerHeight: dims.height - dims.margin.top - dims.margin.bottom,
+    };
+  };
+
   const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
 
   // RIGHT-ALIGNED SYSTEM: Rightmost data is always at right edge (ground 0)
@@ -623,21 +634,6 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
   });
 
   return finalTicks;
-};
-
-/**
- * Calculate inner dimensions from chart dimensions (width/height minus margins)
- * This is a simple calculation that doesn't need memoization
- */
-const calculateInnerDimensions = (dimensions: {
-  width: number;
-  height: number;
-  margin: { top: number; right: number; bottom: number; left: number };
-}): { innerWidth: number; innerHeight: number } => {
-  return {
-    innerWidth: dimensions.width - dimensions.margin.left - dimensions.margin.right,
-    innerHeight: dimensions.height - dimensions.margin.top - dimensions.margin.bottom,
-  };
 };
 
 /**

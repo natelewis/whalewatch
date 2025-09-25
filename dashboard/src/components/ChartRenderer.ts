@@ -35,22 +35,8 @@ import { renderPanning, checkAutoLoadTrigger } from '../utils/renderManager';
 // TYPES
 // ============================================================================
 
-export interface ChartCalculations {
-  innerWidth: number;
-  innerHeight: number;
-  baseXScale: d3.ScaleLinear<number, number>;
-  baseYScale: d3.ScaleLinear<number, number>;
-  transformedXScale: d3.ScaleLinear<number, number>;
-  transformedYScale: d3.ScaleLinear<number, number>;
-  viewStart: number;
-  viewEnd: number;
-  visibleData: CandlestickData[];
-  allData: CandlestickData[]; // Full dataset for rendering
-  transformString: string;
-}
-
 // Import types from centralized location
-import { ChartStateCallbacks, ChartState } from '../types';
+import { ChartStateCallbacks, ChartState, ChartCalculations } from '../types';
 
 // ============================================================================
 // CENTRALIZED CALCULATIONS - Single source of truth for all chart math

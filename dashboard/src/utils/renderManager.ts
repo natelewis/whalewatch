@@ -1,6 +1,6 @@
 import * as d3 from 'd3';
-import { ChartDimensions, CandlestickData } from '../types';
-import { calculateChartState, ChartCalculations } from '../components/ChartRenderer';
+import { ChartDimensions, CandlestickData, ChartCalculations } from '../types';
+import { calculateChartState } from '../components/ChartRenderer';
 import { updateClipPath, renderCandlestickChart } from '../components/ChartRenderer';
 import { memoizedCalculateYScaleDomain } from './memoizedChartUtils';
 import { isValidChartData, calculateInnerDimensions } from './chartDataUtils';
