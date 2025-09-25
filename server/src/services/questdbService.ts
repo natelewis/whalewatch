@@ -548,7 +548,7 @@ export class QuestDBService {
    * Get configuration info (without sensitive data)
    */
   getConfig(): Omit<QuestDBConfig, 'username' | 'password'> {
-    const { ...safeConfig } = this.config;
+    const { username, password, ...safeConfig } = this.config;
     return safeConfig;
   }
 }

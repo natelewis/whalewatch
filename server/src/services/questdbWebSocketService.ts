@@ -305,8 +305,6 @@ export class QuestDBWebSocketService extends EventEmitter {
     }
 
     try {
-      // console.log(`🔍 Polling latest stock aggregate for ${subscription.symbol}`);
-
       // Get the latest record for this symbol
       const aggregates = await questdbService.getStockAggregates(subscription.symbol, {
         limit: 1,
@@ -320,17 +318,8 @@ export class QuestDBWebSocketService extends EventEmitter {
       }
 
       const latestAggregate = aggregates[0];
-      // console.log(`📊 Latest stock aggregate for ${subscription.symbol}:`, {
-      //   timestamp: latestAggregate.timestamp,
-      //   close: latestAggregate.close,
-      //   volume: latestAggregate.volume,
-      // });
-
       // Check if this is a new record we haven't processed yet
       if (lastTimestamp && new Date(latestAggregate.timestamp) <= new Date(lastTimestamp)) {
-        // console.log(
-        //   `📊 No new data for ${subscription.symbol} (latest: ${latestAggregate.timestamp}, last processed: ${lastTimestamp})`
-        // );
         return lastTimestamp; // Return the same timestamp since we didn't process anything
       }
 
