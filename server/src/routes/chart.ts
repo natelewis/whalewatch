@@ -35,7 +35,7 @@ interface ChartQueryParams {
 /**
  * Get the interval in minutes for a given aggregation interval
  */
-function getIntervalMinutes(interval: AggregationInterval): number {
+export function getIntervalMinutes(interval: AggregationInterval): number {
   return AGGREGATION_INTERVALS[interval];
 }
 

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { chartRoutes } from '../../routes/chart';
+import { chartRoutes, AGGREGATION_INTERVALS, getIntervalMinutes } from '../../routes/chart';
 import { questdbService } from '../../services/questdbService';
 import { QuestDBStockAggregate } from '../../types';
 
@@ -22,6 +22,32 @@ describe('Chart Routes', () => {
     const secret = process.env.JWT_SECRET || 'test-secret';
     authToken = jwt.sign({ userId: '1', email: 'test@example.com' }, secret, {
       expiresIn: '1h',
+    });
+  });
+
+  describe('getIntervalMinutes function', () => {
+    it('should return correct minutes for all supported intervals', () => {
+      expect(getIntervalMinutes('1m')).toBe(1);
+      expect(getIntervalMinutes('15m')).toBe(15);
+      expect(getIntervalMinutes('30m')).toBe(30);
+      expect(getIntervalMinutes('1h')).toBe(60);
+      expect(getIntervalMinutes('2h')).toBe(120);
+      expect(getIntervalMinutes('4h')).toBe(240);
+      expect(getIntervalMinutes('1d')).toBe(1440);
+    });
+  });
+
+  describe('AGGREGATION_INTERVALS constant', () => {
+    it('should contain all expected intervals', () => {
+      expect(AGGREGATION_INTERVALS).toEqual({
+        '1m': 1,
+        '15m': 15,
+        '30m': 30,
+        '1h': 60,
+        '2h': 120,
+        '4h': 240,
+        '1d': 1440,
+      });
     });
   });
 
@@ -98,6 +124,52 @@ describe('Chart Routes', () => {
       expect(response.body).toHaveProperty('error', 'direction must be either "past", "future", or "centered"');
     });
 
+    it('should validate symbol parameter is required', async () => {
+      const response = await request(app)
+        .get('/api/chart/?start_time=2024-01-01T10:00:00Z&direction=past')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(404); // Express returns 404 for missing route parameter
+    });
+
+    it('should validate invalid interval parameter', async () => {
+      const response = await request(app)
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=invalid')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Invalid interval');
+      expect(response.body.error).toContain('Supported intervals:');
+    });
+
+    it('should validate invalid limit parameter', async () => {
+      const response = await request(app)
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&limit=invalid')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'limit must be a positive integer');
+    });
+
+    it('should validate negative limit parameter', async () => {
+      const response = await request(app)
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&limit=-5')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'limit must be a positive integer');
+    });
+
+    it('should validate zero limit parameter', async () => {
+      const response = await request(app)
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&limit=0')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'limit must be a positive integer');
+    });
+
     it('should validate timestamp formats', async () => {
       // Test invalid start_time format
       const response = await request(app)
@@ -143,6 +215,28 @@ describe('Chart Routes', () => {
           order_direction: 'DESC',
         })
       );
+    });
+
+    it('should support all aggregation intervals', async () => {
+      mockQuestdbService.getAggregatedStockData.mockResolvedValue(mockAggregates);
+
+      const intervals = ['15m', '30m', '2h', '4h', '1d'];
+
+      for (const interval of intervals) {
+        await request(app)
+          .get(`/api/chart/AAPL?interval=${interval}&start_time=2024-01-01T10:00:00Z&direction=past`)
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(mockQuestdbService.getAggregatedStockData).toHaveBeenCalledWith(
+          'AAPL',
+          interval,
+          expect.objectContaining({
+            start_time: '2024-01-01T10:00:00.000Z',
+            order_by: 'timestamp',
+            order_direction: 'DESC',
+          })
+        );
+      }
     });
 
     it('should use provided start_time when available', async () => {
@@ -381,8 +475,19 @@ describe('Chart Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.bars).toHaveLength(2); // mockAggregates has 2 items
-      // Data gets reversed for past direction, so check the first item (which was originally the second)
+      // Data gets reversed for past direction, so check the first item (which was originally the first)
       expect(response.body.bars[0]).toEqual({
+        t: '2024-01-01T10:00:00Z',
+        o: 100.0,
+        h: 105.0,
+        l: 99.0,
+        c: 104.0,
+        v: 1000,
+        n: 50,
+        vw: 102.0,
+      });
+      // Check the second item (which was originally the second)
+      expect(response.body.bars[1]).toEqual({
         t: '2024-01-01T11:00:00Z',
         o: 104.0,
         h: 106.0,
@@ -541,6 +646,248 @@ describe('Chart Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('view_based_loading', false);
       expect(response.body.bars).toHaveLength(2); // mockAggregates has 2 items
+    });
+
+    it('should use default limit from environment variable when not provided', async () => {
+      const originalDefault = process.env.DEFAULT_CHART_DATA_POINTS;
+      process.env.DEFAULT_CHART_DATA_POINTS = '500';
+
+      mockQuestdbService.getAggregatedStockData.mockResolvedValue(mockAggregates);
+
+      const response = await request(app)
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('limit', 500);
+
+      // Restore original value
+      if (originalDefault) {
+        process.env.DEFAULT_CHART_DATA_POINTS = originalDefault;
+      } else {
+        delete process.env.DEFAULT_CHART_DATA_POINTS;
+      }
+    });
+
+    it('should use default limit of 1000 when environment variable is not set', async () => {
+      const originalDefault = process.env.DEFAULT_CHART_DATA_POINTS;
+      delete process.env.DEFAULT_CHART_DATA_POINTS;
+
+      mockQuestdbService.getAggregatedStockData.mockResolvedValue(mockAggregates);
+
+      const response = await request(app)
+        .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('limit', 1000);
+
+      // Restore original value
+      if (originalDefault) {
+        process.env.DEFAULT_CHART_DATA_POINTS = originalDefault;
+      }
+    });
+
+    describe('1-minute interval tests', () => {
+      const minuteAggregates: QuestDBStockAggregate[] = [
+        {
+          symbol: 'AAPL',
+          timestamp: '2024-01-01T10:00:00Z',
+          open: 100.0,
+          high: 101.0,
+          low: 99.0,
+          close: 100.5,
+          volume: 100,
+          transaction_count: 10,
+          vwap: 100.2,
+        },
+        {
+          symbol: 'AAPL',
+          timestamp: '2024-01-01T10:01:00Z',
+          open: 100.5,
+          high: 102.0,
+          low: 100.0,
+          close: 101.5,
+          volume: 200,
+          transaction_count: 20,
+          vwap: 101.0,
+        },
+      ];
+
+      it('should use raw data for 1-minute intervals', async () => {
+        mockQuestdbService.getStockAggregates.mockResolvedValue(minuteAggregates);
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1m&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('interval', '1m');
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
+          'AAPL',
+          expect.objectContaining({
+            start_time: '2024-01-01T10:00:00.000Z',
+            order_by: 'timestamp',
+            order_direction: 'DESC',
+            limit: 100,
+          })
+        );
+        expect(mockQuestdbService.getAggregatedStockData).not.toHaveBeenCalled();
+      });
+
+      it('should handle 1-minute intervals with centered direction', async () => {
+        mockQuestdbService.getStockAggregates
+          .mockResolvedValueOnce(minuteAggregates) // Past data
+          .mockResolvedValueOnce(minuteAggregates); // Future data
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=centered&interval=1m&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('interval', '1m');
+        expect(response.body).toHaveProperty('direction', 'centered');
+
+        // Should call getStockAggregates twice (past and future)
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledTimes(2);
+        expect(mockQuestdbService.getAggregatedStockData).not.toHaveBeenCalled();
+      });
+
+      it('should handle 1-minute intervals with future direction', async () => {
+        mockQuestdbService.getStockAggregates.mockResolvedValue(minuteAggregates);
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=future&interval=1m&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('interval', '1m');
+        expect(response.body).toHaveProperty('direction', 'future');
+
+        expect(mockQuestdbService.getStockAggregates).toHaveBeenCalledWith(
+          'AAPL',
+          expect.objectContaining({
+            start_time: '2024-01-01T10:00:00.000Z',
+            order_by: 'timestamp',
+            order_direction: 'ASC',
+            limit: 100,
+          })
+        );
+        expect(mockQuestdbService.getAggregatedStockData).not.toHaveBeenCalled();
+      });
+
+      it('should handle duplicate timestamps in 1-minute intervals', async () => {
+        const duplicateAggregates: QuestDBStockAggregate[] = [
+          {
+            symbol: 'AAPL',
+            timestamp: '2024-01-01T10:00:00Z',
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.5,
+            volume: 100,
+            transaction_count: 10,
+            vwap: 100.2,
+          },
+          {
+            symbol: 'AAPL',
+            timestamp: '2024-01-01T10:00:00Z', // Duplicate timestamp
+            open: 100.5,
+            high: 102.0,
+            low: 98.0,
+            close: 101.0,
+            volume: 200,
+            transaction_count: 20,
+            vwap: 101.5,
+          },
+          {
+            symbol: 'AAPL',
+            timestamp: '2024-01-01T10:01:00Z',
+            open: 101.0,
+            high: 103.0,
+            low: 100.0,
+            close: 102.5,
+            volume: 150,
+            transaction_count: 15,
+            vwap: 102.0,
+          },
+        ];
+
+        mockQuestdbService.getStockAggregates.mockResolvedValue(duplicateAggregates);
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1m&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.bars).toHaveLength(2); // Should have 2 unique timestamps
+
+        // Check that the duplicate was properly aggregated
+        const aggregatedBar = response.body.bars.find((bar: any) => bar.t === '2024-01-01T10:00:00Z');
+        expect(aggregatedBar).toBeDefined();
+        expect(aggregatedBar.h).toBe(102.0); // Max of 101.0 and 102.0
+        expect(aggregatedBar.l).toBe(98.0); // Min of 99.0 and 98.0
+        expect(aggregatedBar.c).toBe(100.5); // Latest close price (first item in array)
+        expect(aggregatedBar.v).toBe(300); // Sum of volumes: 100 + 200
+        expect(aggregatedBar.n).toBe(30); // Sum of transaction counts: 10 + 20
+        // VWAP should be weighted average: (100.2 * 100 + 101.5 * 200) / (100 + 200) = 101.175
+        expect(aggregatedBar.vw).toBeCloseTo(101.175, 2);
+      });
+
+      it('should handle multiple duplicates in 1-minute intervals', async () => {
+        const multipleDuplicates: QuestDBStockAggregate[] = [
+          {
+            symbol: 'AAPL',
+            timestamp: '2024-01-01T10:00:00Z',
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.5,
+            volume: 100,
+            transaction_count: 10,
+            vwap: 100.2,
+          },
+          {
+            symbol: 'AAPL',
+            timestamp: '2024-01-01T10:00:00Z', // First duplicate
+            open: 100.5,
+            high: 102.0,
+            low: 98.0,
+            close: 101.0,
+            volume: 200,
+            transaction_count: 20,
+            vwap: 101.5,
+          },
+          {
+            symbol: 'AAPL',
+            timestamp: '2024-01-01T10:00:00Z', // Second duplicate
+            open: 101.0,
+            high: 103.0,
+            low: 97.0,
+            close: 102.0,
+            volume: 300,
+            transaction_count: 30,
+            vwap: 102.5,
+          },
+        ];
+
+        mockQuestdbService.getStockAggregates.mockResolvedValue(multipleDuplicates);
+
+        const response = await request(app)
+          .get('/api/chart/AAPL?start_time=2024-01-01T10:00:00Z&direction=past&interval=1m&limit=100')
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.bars).toHaveLength(1); // Should have 1 unique timestamp
+
+        const aggregatedBar = response.body.bars[0];
+        expect(aggregatedBar.t).toBe('2024-01-01T10:00:00Z');
+        expect(aggregatedBar.h).toBe(103.0); // Max of 101.0, 102.0, 103.0
+        expect(aggregatedBar.l).toBe(97.0); // Min of 99.0, 98.0, 97.0
+        expect(aggregatedBar.c).toBe(100.5); // Latest close price (first item in array)
+        expect(aggregatedBar.v).toBe(600); // Sum of volumes: 100 + 200 + 300
+        expect(aggregatedBar.n).toBe(60); // Sum of transaction counts: 10 + 20 + 30
+      });
     });
   });
 });
