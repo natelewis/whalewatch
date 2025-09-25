@@ -1,3 +1,5 @@
+import { Request, Response, NextFunction } from 'express';
+
 // Mock all dependencies before any imports
 jest.mock('dotenv', () => ({
   config: jest.fn(),
@@ -10,21 +12,21 @@ jest.mock('express', () => {
     listen: jest.fn(),
     name: 'app',
   };
-  const expressMock = jest.fn(() => mockApp) as any;
-  expressMock.json = jest.fn(() => (_req: any, _res: any, next: any) => next());
-  expressMock.urlencoded = jest.fn(() => (_req: any, _res: any, next: any) => next());
+  const expressMock = jest.fn(() => mockApp) as jest.MockedFunction<() => typeof mockApp>;
+  expressMock.json = jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next());
+  expressMock.urlencoded = jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next());
   return expressMock;
 });
 
-jest.mock('cors', () => jest.fn(() => (_req: any, _res: any, next: any) => next()));
+jest.mock('cors', () => jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next()));
 
-jest.mock('helmet', () => jest.fn(() => (_req: any, _res: any, next: any) => next()));
+jest.mock('helmet', () => jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next()));
 
-jest.mock('express-session', () => jest.fn(() => (_req: any, _res: any, next: any) => next()));
+jest.mock('express-session', () => jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next()));
 
 jest.mock('passport', () => ({
-  initialize: jest.fn(() => (_req: any, _res: any, next: any) => next()),
-  session: jest.fn(() => (_req: any, _res: any, next: any) => next()),
+  initialize: jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next()),
+  session: jest.fn(() => (_req: Request, _res: Response, next: NextFunction) => next()),
 }));
 
 jest.mock('http', () => ({
@@ -122,17 +124,17 @@ describe('Index.ts Server Logic Tests', () => {
   });
 
   describe('Server Startup Logic', () => {
-    it('should validate secrets before starting server', () => {
-      const { secretValidator } = require('../utils/secretValidator');
+    it('should validate secrets before starting server', async () => {
+      const { secretValidator } = await import('../utils/secretValidator');
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(secretValidator.validateSecrets).toHaveBeenCalled();
     });
 
-    it('should exit process if secrets validation fails', () => {
-      const { secretValidator } = require('../utils/secretValidator');
+    it('should exit process if secrets validation fails', async () => {
+      const { secretValidator } = await import('../utils/secretValidator');
 
       // Mock failed validation
       secretValidator.validateSecrets.mockReturnValueOnce({
@@ -143,15 +145,15 @@ describe('Index.ts Server Logic Tests', () => {
       });
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(mockConsoleError).toHaveBeenCalledWith('❌ Server startup failed due to missing required secrets');
       expect(mockConsoleError).toHaveBeenCalledWith('Please check the configuration and try again.');
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
-    it('should continue startup if secrets validation passes', () => {
-      const { secretValidator } = require('../utils/secretValidator');
+    it('should continue startup if secrets validation passes', async () => {
+      const { secretValidator } = await import('../utils/secretValidator');
 
       // Mock successful validation
       secretValidator.validateSecrets.mockReturnValueOnce({
@@ -162,56 +164,56 @@ describe('Index.ts Server Logic Tests', () => {
       });
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(mockProcessExit).not.toHaveBeenCalled();
     });
 
-    it('should call dotenv.config() on startup', () => {
-      const dotenv = require('dotenv');
+    it('should call dotenv.config() on startup', async () => {
+      const dotenv = await import('dotenv');
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(dotenv.config).toHaveBeenCalled();
     });
 
-    it('should create HTTP server', () => {
-      const { createServer } = require('http');
+    it('should create HTTP server', async () => {
+      const { createServer } = await import('http');
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(createServer).toHaveBeenCalled();
     });
 
-    it('should setup WebSocket server', () => {
-      const { setupWebSocketServer } = require('../websocket/server');
+    it('should setup WebSocket server', async () => {
+      const { setupWebSocketServer } = await import('../websocket/server');
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(setupWebSocketServer).toHaveBeenCalled();
     });
 
-    it('should call server.listen with correct port', () => {
-      const { createServer } = require('http');
+    it('should call server.listen with correct port', async () => {
+      const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
       createServer.mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(mockServer.listen).toHaveBeenCalledWith('3001', expect.any(Function));
     });
 
-    it('should log startup messages when server starts', () => {
-      const { createServer } = require('http');
+    it('should log startup messages when server starts', async () => {
+      const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
       createServer.mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       // Simulate the callback function being called
       const callback = mockServer.listen.mock.calls[0]?.[1];
@@ -225,53 +227,53 @@ describe('Index.ts Server Logic Tests', () => {
       }
     });
 
-    it('should use PORT environment variable', () => {
+    it('should use PORT environment variable', async () => {
       process.env.PORT = '4000';
-      const { createServer } = require('http');
+      const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
       createServer.mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(mockServer.listen).toHaveBeenCalledWith('4000', expect.any(Function));
     });
 
     it('should use default PORT when not set', () => {
       delete process.env.PORT;
-      const { createServer } = require('http');
+      const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
       createServer.mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(mockServer.listen).toHaveBeenCalledWith(3001, expect.any(Function));
     });
   });
 
   describe('Graceful Shutdown Handlers', () => {
-    it('should register SIGTERM handler', () => {
+    it('should register SIGTERM handler', async () => {
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(mockProcessOn).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
     });
 
-    it('should register SIGINT handler', () => {
+    it('should register SIGINT handler', async () => {
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       expect(mockProcessOn).toHaveBeenCalledWith('SIGINT', expect.any(Function));
     });
 
-    it('should handle SIGTERM signal gracefully', () => {
-      const { createServer } = require('http');
+    it('should handle SIGTERM signal gracefully', async () => {
+      const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
       createServer.mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       // Get the SIGTERM handler
       const sigtermHandler = mockProcessOn.mock.calls.find(call => call[0] === 'SIGTERM')?.[1];
@@ -284,13 +286,13 @@ describe('Index.ts Server Logic Tests', () => {
       }
     });
 
-    it('should handle SIGINT signal gracefully', () => {
-      const { createServer } = require('http');
+    it('should handle SIGINT signal gracefully', async () => {
+      const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
       createServer.mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       // Get the SIGINT handler
       const sigintHandler = mockProcessOn.mock.calls.find(call => call[0] === 'SIGINT')?.[1];
@@ -303,13 +305,13 @@ describe('Index.ts Server Logic Tests', () => {
       }
     });
 
-    it('should call process.exit(0) after server closes', () => {
-      const { createServer } = require('http');
+    it('should call process.exit(0) after server closes', async () => {
+      const { createServer } = await import('http');
       const mockServer = { listen: jest.fn(), close: jest.fn() };
       createServer.mockReturnValue(mockServer);
 
       // Import the index file to trigger the startup logic
-      require('../index');
+      await import('../index');
 
       // Get the SIGTERM handler
       const sigtermHandler = mockProcessOn.mock.calls.find(call => call[0] === 'SIGTERM')?.[1];
@@ -379,8 +381,8 @@ describe('Index.ts Server Logic Tests', () => {
   });
 
   describe('Module Exports', () => {
-    it('should export the express app as default', () => {
-      const app = require('../index').default;
+    it('should export the express app as default', async () => {
+      const app = (await import('../index')).default;
 
       expect(app).toBeDefined();
       expect(typeof app).toBe('object');

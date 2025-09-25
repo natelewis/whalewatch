@@ -13,6 +13,7 @@ import { Request } from 'express';
 import { User } from '@shared/types';
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface User {
       id: string;

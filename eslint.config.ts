@@ -5,7 +5,7 @@ import reactRefreshPlugin from 'eslint-plugin-react-refresh';
 
 export default tseslint.config(
   {
-    ignores: ['dist/', 'node_modules/', '*.js', 'coverage/'],
+    ignores: ['**/dist/', '**/node_modules/', '**/*.js', '**/coverage/'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -129,6 +129,13 @@ export default tseslint.config(
       react: {
         version: 'detect',
       },
+    },
+  },
+  {
+    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
     },
   }
 );

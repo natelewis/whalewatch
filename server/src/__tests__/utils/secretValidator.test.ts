@@ -435,7 +435,7 @@ describe('SecretValidator', () => {
     });
 
     it('should handle null values gracefully', () => {
-      // @ts-ignore - testing edge case
+      // @ts-expect-error - testing edge case
       process.env.ALPACA_API_KEY = null;
       secretValidator = createValidator();
 

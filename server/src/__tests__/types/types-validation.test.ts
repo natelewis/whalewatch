@@ -2,12 +2,12 @@
 // TYPES VALIDATION TESTS
 // ============================================================================
 
+import fs from 'fs';
+import path from 'path';
+
 describe('Types Directory Coverage', () => {
   describe('Type Definition Files', () => {
     it('should have index.ts file with type definitions', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       expect(fs.existsSync(indexPath)).toBe(true);
 
@@ -17,9 +17,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should have questdb.ts file as re-export', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const questdbPath = path.join(__dirname, '../../types/questdb.ts');
       expect(fs.existsSync(questdbPath)).toBe(true);
 
@@ -31,9 +28,6 @@ describe('Types Directory Coverage', () => {
 
   describe('Type Structure Validation', () => {
     it('should define QuestDB data types', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -53,9 +47,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should define Express types', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -66,9 +57,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should define WebSocket types', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -77,9 +65,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should define Chart types', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -92,9 +77,6 @@ describe('Types Directory Coverage', () => {
 
   describe('Type Export Validation', () => {
     it('should export all required types', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -110,9 +92,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should have proper TypeScript syntax', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -129,9 +108,6 @@ describe('Types Directory Coverage', () => {
 
   describe('Aggregation Intervals', () => {
     it('should define all required intervals', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -146,9 +122,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should use const assertion for intervals', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -159,9 +132,6 @@ describe('Types Directory Coverage', () => {
 
   describe('Type Documentation', () => {
     it('should have comments explaining type purposes', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -174,9 +144,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should have inline comments for complex types', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const indexPath = path.join(__dirname, '../../types/index.ts');
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -188,9 +155,6 @@ describe('Types Directory Coverage', () => {
 
   describe('Backward Compatibility', () => {
     it('should maintain questdb.ts for backward compatibility', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const questdbPath = path.join(__dirname, '../../types/questdb.ts');
       const content = fs.readFileSync(questdbPath, 'utf8');
 
@@ -200,9 +164,6 @@ describe('Types Directory Coverage', () => {
     });
 
     it('should note deprecation in questdb.ts', () => {
-      const fs = require('fs');
-      const path = require('path');
-
       const questdbPath = path.join(__dirname, '../../types/questdb.ts');
       const content = fs.readFileSync(questdbPath, 'utf8');
 
