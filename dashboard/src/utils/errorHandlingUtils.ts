@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { logger } from './logger';
 
-export interface ErrorState {
+interface ErrorState {
   error: string | null;
   hasError: boolean;
   errorCount: number;
@@ -9,7 +9,7 @@ export interface ErrorState {
   lastErrorTime: number | null;
 }
 
-export interface ErrorHandlingOptions {
+interface ErrorHandlingOptions {
   maxRetries?: number;
   retryDelay?: number;
   onError?: (error: Error) => void;
@@ -20,7 +20,7 @@ export interface ErrorHandlingOptions {
 /**
  * Hook for managing error state
  */
-export const useErrorState = (initialError: string | null = null) => {
+const useErrorState = (initialError: string | null = null) => {
   const [errorState, setErrorState] = useState<ErrorState>({
     error: initialError,
     hasError: !!initialError,
@@ -68,7 +68,7 @@ export const useErrorState = (initialError: string | null = null) => {
 /**
  * Hook for managing retry logic
  */
-export const useRetry = (options: ErrorHandlingOptions = {}) => {
+const useRetry = (options: ErrorHandlingOptions = {}) => {
   const { maxRetries = 3, retryDelay = 1000, onError, onRetry, onSuccess } = options;
 
   const [retryCount, setRetryCount] = useState(0);
@@ -143,7 +143,7 @@ export const useRetry = (options: ErrorHandlingOptions = {}) => {
 /**
  * Hook for managing async operations with error handling
  */
-export const useAsyncOperation = <T>(operation: () => Promise<T>, options: ErrorHandlingOptions = {}) => {
+const useAsyncOperation = <T>(operation: () => Promise<T>, options: ErrorHandlingOptions = {}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<T | null>(null);
   const { setError, clearError, hasError, error } = useErrorState();
@@ -186,7 +186,7 @@ export const useAsyncOperation = <T>(operation: () => Promise<T>, options: Error
 /**
  * Utility for creating error boundaries
  */
-export const createErrorBoundary = (componentName: string) => {
+const createErrorBoundary = (componentName: string) => {
   return (error: Error, errorInfo: React.ErrorInfo) => {
     logger.error(`Error boundary caught error in ${componentName}:`, {
       error: error.message,
@@ -199,7 +199,7 @@ export const createErrorBoundary = (componentName: string) => {
 /**
  * Utility for handling promise rejections
  */
-export const handlePromiseRejection = <T>(promise: Promise<T>, context: string): Promise<T> => {
+const handlePromiseRejection = <T>(promise: Promise<T>, context: string): Promise<T> => {
   return promise.catch(error => {
     logger.error(`Promise rejection in ${context}:`, error);
     throw error;
@@ -209,7 +209,7 @@ export const handlePromiseRejection = <T>(promise: Promise<T>, context: string):
 /**
  * Utility for creating safe async functions
  */
-export const createSafeAsyncFunction = <T extends unknown[], R>(fn: (...args: T) => Promise<R>, context: string) => {
+const createSafeAsyncFunction = <T extends unknown[], R>(fn: (...args: T) => Promise<R>, context: string) => {
   return async (...args: T): Promise<R> => {
     try {
       return await fn(...args);
@@ -223,7 +223,7 @@ export const createSafeAsyncFunction = <T extends unknown[], R>(fn: (...args: T)
 /**
  * Utility for creating safe sync functions
  */
-export const createSafeSyncFunction = <T extends unknown[], R>(fn: (...args: T) => R, context: string) => {
+const createSafeSyncFunction = <T extends unknown[], R>(fn: (...args: T) => R, context: string) => {
   return (...args: T): R => {
     try {
       return fn(...args);
@@ -237,7 +237,7 @@ export const createSafeSyncFunction = <T extends unknown[], R>(fn: (...args: T) 
 /**
  * Utility for handling WebSocket errors
  */
-export const handleWebSocketError = (error: Event | Error, context: string) => {
+const handleWebSocketError = (error: Event | Error, context: string) => {
   const errorMessage = error instanceof Error ? error.message : `WebSocket error: ${error.type}`;
 
   logger.error(`WebSocket error in ${context}:`, {
@@ -251,7 +251,7 @@ export const handleWebSocketError = (error: Event | Error, context: string) => {
 /**
  * Utility for handling API errors
  */
-export const handleApiError = (error: unknown, context: string): string => {
+const handleApiError = (error: unknown, context: string): string => {
   let errorMessage = 'Unknown API error';
 
   if (error instanceof Error) {
@@ -287,7 +287,7 @@ export const handleApiError = (error: unknown, context: string): string => {
 /**
  * Utility for creating error messages
  */
-export const createErrorMessage = (operation: string, details?: string): string => {
+const createErrorMessage = (operation: string, details?: string): string => {
   const baseMessage = `Failed to ${operation}`;
   return details ? `${baseMessage}: ${details}` : baseMessage;
 };

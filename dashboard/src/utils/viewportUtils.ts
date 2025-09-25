@@ -30,7 +30,7 @@ export const calculateNewestViewport = (dataLength: number): ViewportCalculation
 /**
  * Calculate viewport for showing oldest data
  */
-export const calculateOldestViewport = (dataLength: number): ViewportCalculation => {
+const calculateOldestViewport = (dataLength: number): ViewportCalculation => {
   const start = 0;
   const end = Math.min(dataLength - 1, CHART_DATA_POINTS - 1);
 
@@ -44,7 +44,7 @@ export const calculateOldestViewport = (dataLength: number): ViewportCalculation
 /**
  * Calculate centered viewport around a specific index
  */
-export const calculateCenteredViewport = (
+const calculateCenteredViewport = (
   centerIndex: number,
   dataLength: number,
   viewportSize: number = CHART_DATA_POINTS
@@ -250,7 +250,7 @@ export const calculatePruningRange = (
 /**
  * Find the closest data point to a target time
  */
-export const findClosestDataPoint = (data: CandlestickData[], targetTime: string): number => {
+const findClosestDataPoint = (data: CandlestickData[], targetTime: string): number => {
   const targetTimestamp = new Date(targetTime).getTime();
   let closestIndex = 0;
   let closestDiff = Math.abs(new Date(data[0].timestamp).getTime() - targetTimestamp);

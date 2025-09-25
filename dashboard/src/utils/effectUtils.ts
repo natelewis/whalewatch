@@ -71,7 +71,7 @@ export const useLoadingState = (initialState: boolean = false) => {
 /**
  * Hook for managing refs that track previous values
  */
-export const usePreviousValue = <T>(value: T): T | undefined => {
+const usePreviousValue = <T>(value: T): T | undefined => {
   const ref = useRef<T>();
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export const usePreviousValue = <T>(value: T): T | undefined => {
 /**
  * Hook for managing refs that track state changes
  */
-export const useStateChangeTracker = <T>(value: T, onChange?: (newValue: T, prevValue: T | undefined) => void) => {
+const useStateChangeTracker = <T>(value: T, onChange?: (newValue: T, prevValue: T | undefined) => void) => {
   const prevValueRef = useRef<T>();
 
   useEffect(() => {
@@ -100,7 +100,7 @@ export const useStateChangeTracker = <T>(value: T, onChange?: (newValue: T, prev
 /**
  * Hook for managing multiple refs with a single effect
  */
-export const useMultipleRefs = <T extends Record<string, unknown>>(
+const useMultipleRefs = <T extends Record<string, unknown>>(
   initialValues: T
 ): [T, (updates: Partial<T>) => void] => {
   const refs = useRef<T>(initialValues);
@@ -141,7 +141,7 @@ export const useConditionalEffect = (condition: boolean, effect: () => void | ((
 /**
  * Hook for managing effect with timeout
  */
-export const useTimeoutEffect = (effect: () => void, deps: unknown[], timeout: number) => {
+const useTimeoutEffect = (effect: () => void, deps: unknown[], timeout: number) => {
   useEffect(() => {
     const timer = setTimeout(effect, timeout);
     return () => clearTimeout(timer);
@@ -151,7 +151,7 @@ export const useTimeoutEffect = (effect: () => void, deps: unknown[], timeout: n
 /**
  * Hook for managing effect with interval
  */
-export const useIntervalEffect = (effect: () => void, deps: unknown[], interval: number) => {
+const useIntervalEffect = (effect: () => void, deps: unknown[], interval: number) => {
   useEffect(() => {
     const timer = setInterval(effect, interval);
     return () => clearInterval(timer);
@@ -161,7 +161,7 @@ export const useIntervalEffect = (effect: () => void, deps: unknown[], interval:
 /**
  * Hook for managing effect with immediate execution
  */
-export const useImmediateEffect = (effect: () => void | (() => void), deps: unknown[]) => {
+const useImmediateEffect = (effect: () => void | (() => void), deps: unknown[]) => {
   useEffect(() => {
     return effect();
   }, deps);
@@ -170,7 +170,7 @@ export const useImmediateEffect = (effect: () => void | (() => void), deps: unkn
 /**
  * Hook for managing effect with cleanup on unmount
  */
-export const useCleanupOnUnmount = (cleanupFn: () => void) => {
+const useCleanupOnUnmount = (cleanupFn: () => void) => {
   useEffect(() => {
     return cleanupFn;
   }, []);
@@ -179,7 +179,7 @@ export const useCleanupOnUnmount = (cleanupFn: () => void) => {
 /**
  * Hook for managing effect with dependency tracking
  */
-export const useDependencyTracker = (deps: unknown[]) => {
+const useDependencyTracker = (deps: unknown[]) => {
   const prevDepsRef = useRef<unknown[]>();
 
   useEffect(() => {

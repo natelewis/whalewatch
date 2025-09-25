@@ -1,7 +1,6 @@
 import * as d3 from 'd3';
 import {
   memoizedMapTicksToPositions,
-  memoizedGenerateTimeBasedTicks,
   memoizedGenerateVisibleTimeBasedTicks,
   memoizedFormatTime,
   memoizedApplyAxisStyling,
@@ -21,7 +20,7 @@ import { logger } from './logger';
 /**
  * Remove duplicate entries by timestamp and sort by time
  */
-export const deduplicateAndSortBars = (bars: AlpacaBar[]): AlpacaBar[] => {
+const deduplicateAndSortBars = (bars: AlpacaBar[]): AlpacaBar[] => {
   return bars
     .reduce((acc, bar) => {
       const timestamp = bar.t;
@@ -36,7 +35,7 @@ export const deduplicateAndSortBars = (bars: AlpacaBar[]): AlpacaBar[] => {
 /**
  * Convert AlpacaBar data to CandlestickData format
  */
-export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[] => {
+const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[] => {
   return bars.map(bar => ({
     timestamp: bar.t,
     open: bar.o,
@@ -50,7 +49,7 @@ export const formatBarsToCandlestickData = (bars: AlpacaBar[]): CandlestickData[
 /**
  * Calculate data range from processed bars
  */
-export const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
+const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
   if (bars.length === 0) {
     return null;
   }
@@ -64,7 +63,7 @@ export const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
 /**
  * Get data points count for a given timeframe
  */
-export const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes: TimeframeConfig[]): number => {
+const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes: TimeframeConfig[]): number => {
   const timeframeConfig = timeframes.find(tf => tf.value === timeframe);
   return timeframeConfig?.limit || DEFAULT_CHART_DATA_POINTS;
 };
@@ -121,12 +120,12 @@ export const applyAxisStyling = memoizedApplyAxisStyling;
  * This creates ticks that make sense for the data's time pattern
  * Now uses memoized version for better performance with configurable intervals
  */
-export const generateTimeBasedTicks = (
+const generateTimeBasedTicks = (
   allChartData: { timestamp: string }[],
   markerIntervalMinutes?: number,
   dataPointInterval?: number
 ): Date[] => {
-  return memoizedGenerateTimeBasedTicks(allChartData, markerIntervalMinutes, dataPointInterval);
+  return memoizedGenerateVisibleTimeBasedTicks(allChartData, markerIntervalMinutes, allChartData);
 };
 
 /**
@@ -140,7 +139,7 @@ export const generateTimeBasedTicks = (
  * This ensures the X-axis labels align perfectly with candlesticks
  * and properly handles time compression (e.g., trading hours only)
  */
-export const createIndexToTimeScale = (
+const createIndexToTimeScale = (
   transformedLinearScale: d3.ScaleLinear<number, number>,
   allChartData: { timestamp: string }[]
 ): d3.ScaleTime<Date, number> => {
@@ -182,7 +181,7 @@ export const createIndexToTimeScale = (
  * Shared parameters for consistent x-axis calculations across all rendering scenarios
  * This ensures the same calculation logic is used for initial rendering, zooming, and panning
  */
-export interface XAxisCalculationParams {
+interface XAxisCalculationParams {
   viewStart: number;
   viewEnd: number;
   allChartData: { timestamp: string }[];
@@ -419,7 +418,7 @@ export const hasRequiredChartParams = (params: {
 /**
  * Fill missing intervals for any timeframe data
  */
-export const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTimeframe): CandlestickData[] => {
+const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTimeframe): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }
@@ -511,7 +510,7 @@ export const createViewportXScale = (
  * Get interval in milliseconds based on timeframe
  * Used for calculating proper timestamps for fake candles
  */
-export const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
+const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
   const intervalMap: Record<ChartTimeframe, number> = {
     '1m': 60 * 1000, // 1 minute
     '15m': 15 * 60 * 1000, // 15 minutes
@@ -534,7 +533,7 @@ export const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
  * This is used for padding to ensure proper chart spacing
  * Fake candles are never rendered to the right of the newest real candle
  */
-export const createFakeCandle = (timestamp: string): CandlestickData => {
+const createFakeCandle = (timestamp: string): CandlestickData => {
   return {
     timestamp,
     open: -1,
@@ -562,10 +561,7 @@ export const isFakeCandle = (candle: CandlestickData): boolean => {
  * This creates visual padding so the rightmost real candle doesn't touch the domain line
  * Never adds fake candles to the right of the newest real candle
  */
-export const addRightPaddingFakeCandle = (
-  data: CandlestickData[],
-  timeframe: ChartTimeframe = '1m'
-): CandlestickData[] => {
+const addRightPaddingFakeCandle = (data: CandlestickData[], timeframe: ChartTimeframe = '1m'): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }
@@ -611,7 +607,7 @@ export const addRightPaddingFakeCandle = (
  * 3. Fake candles can be identified programmatically (isFake: true, all values -1)
  * 4. Left padding removed to prevent interference with auto-load logic
  */
-export const addFakeCandlesForPadding = (data: CandlestickData[]): CandlestickData[] => {
+const addFakeCandlesForPadding = (data: CandlestickData[]): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }

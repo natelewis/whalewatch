@@ -436,7 +436,7 @@ export const renderPanning = (
 /**
  * Convenience function for skip-to render
  */
-export const renderSkipTo = (
+const renderSkipTo = (
   svgElement: SVGSVGElement,
   dimensions: ChartDimensions,
   allData: CandlestickData[],

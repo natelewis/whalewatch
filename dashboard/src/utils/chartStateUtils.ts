@@ -151,7 +151,7 @@ export const shouldForceRecreateChart = (
 /**
  * Validate data for chart operations
  */
-export const validateChartData = (data: CandlestickData[]): boolean => {
+const validateChartData = (data: CandlestickData[]): boolean => {
   if (!data || !Array.isArray(data) || data.length === 0) {
     return false;
   }

@@ -311,14 +311,14 @@ export const memoizedGetVisibleData = (
 /**
  * Clear all caches - useful for testing or memory management
  */
-export const clearCalculationCache = () => {
+const clearCalculationCache = () => {
   calculationCache.clear();
 };
 
 /**
  * Get cache statistics for debugging
  */
-export const getCacheStats = () => {
+const getCacheStats = () => {
   return {
     totalEntries: calculationCache.size,
     yScaleEntries: Array.from(calculationCache.keys()).filter(k => k.startsWith('yScale-')).length,
@@ -397,7 +397,7 @@ const alignToTimeBoundary = (date: Date, intervalMinutes: number, allChartData?:
  * This is called on every axis update and can be expensive with large datasets
  * Now supports showing markers aligned to consistent time boundaries (e.g., every 2 hours at 00:00, 02:00, 04:00)
  */
-export const memoizedGenerateTimeBasedTicks = (
+const memoizedGenerateTimeBasedTicks = (
   allChartData: { timestamp: string }[],
   markerIntervalMinutes: number = X_AXIS_MARKER_INTERVAL,
   dataPointInterval: number = X_AXIS_MARKER_DATA_POINT_INTERVAL
