@@ -48,6 +48,7 @@ import { logError } from '../utils/errorHandlingUtils';
 
 interface StockChartProps {
   symbol: string;
+  onSymbolChange?: (symbol: string) => void;
 }
 
 const StockChart: React.FC<StockChartProps> = ({ symbol }) => {

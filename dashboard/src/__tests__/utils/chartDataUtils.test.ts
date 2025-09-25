@@ -340,7 +340,7 @@ describe('chartDataUtils', () => {
           },
         ];
 
-        const result = addFakeCandlesForPadding(data, 80, '1m');
+        const result = addFakeCandlesForPadding(data);
 
         expect(result.length).toBe(1); // No fake candles added
         expect(isFakeCandle(result[0])).toBe(false); // Original data unchanged
@@ -361,7 +361,7 @@ describe('chartDataUtils', () => {
           };
         });
 
-        const result = addFakeCandlesForPadding(data, 80, '1m');
+        const result = addFakeCandlesForPadding(data);
 
         expect(result).toHaveLength(80); // No fake candles added
         expect(result).toEqual(data); // Data unchanged
