@@ -44,25 +44,10 @@ import {
   useLoggedEffect,
   useConditionalEffect,
 } from '../utils/effectUtils';
-import { useErrorState, useRetry, logError } from '../utils/errorHandlingUtils';
+import { logError } from '../utils/errorHandlingUtils';
 
 interface StockChartProps {
   symbol: string;
-}
-
-// Chart calculation types (matching ChartRenderer)
-interface ChartCalculations {
-  innerWidth: number;
-  innerHeight: number;
-  baseXScale: d3.ScaleLinear<number, number>;
-  baseYScale: d3.ScaleLinear<number, number>;
-  transformedXScale: d3.ScaleLinear<number, number>;
-  transformedYScale: d3.ScaleLinear<number, number>;
-  viewStart: number;
-  viewEnd: number;
-  visibleData: CandlestickData[];
-  allData: CandlestickData[]; // Full dataset for rendering
-  transformString: string;
 }
 
 const StockChart: React.FC<StockChartProps> = ({ symbol }) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderChart, renderSkipTo, renderPanning, RenderType, DEFAULT_RENDER_OPTIONS } from '../renderManager';
+import { renderSkipTo, renderPanning, RenderType, DEFAULT_RENDER_OPTIONS } from '../renderManager';
 import { ChartDimensions, CandlestickData } from '../../types';
 
 // Mock the chart rendering functions

@@ -183,7 +183,6 @@ export const memoizedCalculateChartState = ({
   let viewStart = Math.max(0, Math.min(viewEnd, viewEnd - CHART_DATA_POINTS + 1));
   // If view collapes to 0-0 due to extreme pan, center window on available range
   if (viewEnd === 0) {
-    const window = Math.min(CHART_DATA_POINTS - 1, rightmostDataIndex);
     viewStart = Math.max(0, 0);
   }
 
@@ -448,11 +447,9 @@ export const memoizedGenerateTimeBasedTicks = (
         // For 2+ day intervals, use a fixed anchor point (January 1, 2020)
         // This ensures consistent positioning regardless of data range
         const anchorDate = new Date('2020-01-01T00:00:00Z'); // Wednesday
-        const anchorDayOfWeek = anchorDate.getDay(); // 3 = Wednesday
 
         // Find the first trading day on or after the anchor date
         const firstTradingDay = sortedTradingDays[0];
-        const startDate = firstTradingDay < anchorDate ? firstTradingDay : anchorDate;
 
         // Calculate the offset from the anchor to align intervals
         const daysSinceAnchor = Math.floor((firstTradingDay.getTime() - anchorDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -681,11 +678,9 @@ export const memoizedGenerateVisibleTimeBasedTicks = (
         // For 2+ day intervals, use a fixed anchor point (January 1, 2020)
         // This ensures consistent positioning regardless of data range
         const anchorDate = new Date('2020-01-01T00:00:00Z'); // Wednesday
-        const anchorDayOfWeek = anchorDate.getDay(); // 3 = Wednesday
 
         // Find the first trading day on or after the anchor date
         const firstTradingDay = sortedTradingDays[0];
-        const startDate = firstTradingDay < anchorDate ? firstTradingDay : anchorDate;
 
         // Calculate the offset from the anchor to align intervals
         const daysSinceAnchor = Math.floor((firstTradingDay.getTime() - anchorDate.getTime()) / (1000 * 60 * 60 * 24));
