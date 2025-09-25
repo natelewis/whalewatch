@@ -13,7 +13,7 @@ vi.mock('../../components/ChartRenderer', () => ({
     });
   }),
   updateClipPath: vi.fn(),
-  calculateChartState: vi.fn(({ dimensions, allChartData, transform, fixedYScaleDomain }) => ({
+  calculateChartState: vi.fn(({ allChartData, transform }) => ({
     viewStart: 0,
     viewEnd: allChartData.length - 1,
     visibleData: allChartData,

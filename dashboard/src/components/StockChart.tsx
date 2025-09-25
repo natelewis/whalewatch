@@ -64,7 +64,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
 
   // Use new utility hooks for state management
-  const { isLoading: isLoadingData, setLoading: setLoadingData } = useLoadingState(false);
+  const { setLoading: setLoadingData } = useLoadingState(false);
 
   // Use ref to prevent effect loops
   const isLoadingDataRef = useRef(false);
