@@ -34,6 +34,59 @@ import {
   MAX_DATA_POINTS,
 } from '../constants';
 
+// Import new utility functions
+import {
+  calculateNewestViewport,
+  calculateCenteredViewport,
+  calculateAnchoredViewport,
+  validateViewport,
+  calculateBufferRange,
+  calculatePruningRange,
+  findClosestDataPoint,
+  calculateDataShift,
+} from '../utils/viewportUtils';
+import {
+  calculateChartDimensions,
+  validateChartState,
+  shouldCreateChart,
+  shouldForceRecreateChart,
+  validateChartData,
+  isChartReady,
+  isChartLoading,
+  hasChartError,
+  getChartStatus,
+  calculateChartMetrics,
+} from '../utils/chartStateUtils';
+import {
+  mergeHistoricalData,
+  loadChartData,
+  autoLoadData,
+  processWebSocketData,
+  shouldAutoRedraw,
+  calculateAutoRedrawViewport,
+  pruneData,
+} from '../utils/dataLoadingUtils';
+import {
+  useRefUpdates,
+  useCleanup,
+  useDebouncedEffect,
+  useLoadingState,
+  usePreviousValue,
+  useStateChangeTracker,
+  useMultipleRefs,
+  useLoggedEffect,
+  useConditionalEffect,
+  useTimeoutEffect,
+} from '../utils/effectUtils';
+import {
+  useErrorState,
+  useRetry,
+  useAsyncOperation,
+  handleApiError,
+  createErrorMessage,
+  logError,
+} from '../utils/errorHandlingUtils';
+
 interface StockChartProps {
   symbol: string;
 }
@@ -69,18 +122,19 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Local state for timeframe management
   const [timeframe, setTimeframe] = useState<ChartTimeframe | null>(null);
 
-  const manualRenderInProgressRef = useRef(false);
-  const skipToInProgressRef = useRef(false);
-  const skipToJustCompletedRef = useRef(false);
+  // Use new utility hooks for state management
+  const { isLoading: isLoadingData, setLoading: setLoadingData } = useLoadingState(false);
+  const { error: dataLoadingError, setError: setDataLoadingError, clearError: clearDataLoadingError } = useErrorState();
+  const { retry: retryDataLoad } = useRetry({ maxRetries: 3, retryDelay: 1000 });
+
+  // Use ref to prevent effect loops
+  const isLoadingDataRef = useRef(false);
 
   // Track current buffer range to know when to re-render
   const currentBufferRangeRef = useRef<{ start: number; end: number } | null>(null);
 
   // Track if we're currently in a panning operation
   const isPanningRef = useRef(false);
-
-  // Track if we're currently loading data
-  const isLoadingDataRef = useRef(false);
 
   // Track if chart has been created
   const chartCreatedRef = useRef(false);
@@ -93,9 +147,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Track last processed WebSocket data
   const lastProcessedDataRef = useRef<string | null>(null);
-
-  // Debounce timer for pruning
-  const pruneTimeoutRef = useRef<number | null>(null);
 
   // Store reference to the zoom behavior
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -126,197 +177,135 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Track when we're in the middle of an auto-load operation to prevent re-render loops
   const isAutoLoadingRef = useRef<boolean>(false);
 
-  // Update dimensions ref when dimensions change
-  useEffect(() => {
-    currentDimensionsRef.current = chartState.dimensions;
-  }, [chartState.dimensions]);
+  // Refs to prevent infinite auto-load loops
+  const loadRequestedLeftRef = useRef<boolean>(false);
+  const loadRequestedRightRef = useRef<boolean>(false);
+  const lastLoadDataLengthLeftRef = useRef<number | null>(null);
+  const lastLoadDataLengthRightRef = useRef<number | null>(null);
 
-  // Update data ref when chart data changes
-  useEffect(() => {
-    currentDataRef.current = chartState.allData;
-  }, [chartState.allData]);
-
-  // Update viewport refs when view changes
-  useEffect(() => {
-    currentViewStartRef.current = chartState.currentViewStart;
-    currentViewEndRef.current = chartState.currentViewEnd;
-  }, [chartState.currentViewStart, chartState.currentViewEnd]);
+  // Use new utility hooks for ref management
+  useRefUpdates([
+    { ref: currentDimensionsRef, value: chartState.dimensions, logMessage: 'Dimensions updated' },
+    { ref: currentDataRef, value: chartState.allData, logMessage: 'Data updated' },
+    { ref: currentViewStartRef, value: chartState.currentViewStart, logMessage: 'View start updated' },
+    { ref: currentViewEndRef, value: chartState.currentViewEnd, logMessage: 'View end updated' },
+    { ref: fixedYScaleDomainRef, value: chartState.fixedYScaleDomain, logMessage: 'Y-scale domain updated' },
+  ]);
 
   // Reset end-of-data flags when symbol or timeframe changes
   useEffect(() => {
     reachedEndOfDataRef.current = { past: false, future: false };
   }, [symbol, timeframe]);
 
-  // Update fixed Y-scale domain ref when it changes
+  // Reset end-of-data flags when viewport changes significantly
+  // This allows re-attempting data loading when user pans to new areas
   useEffect(() => {
-    fixedYScaleDomainRef.current = chartState.fixedYScaleDomain;
-  }, [chartState.fixedYScaleDomain]);
+    // Reset future data flag when viewport moves significantly to the right
+    // This indicates the user is exploring new future data
+    const currentViewEnd = chartState.currentViewEnd;
+    const totalDataLength = chartState.allData.length;
+    const distanceFromEnd = totalDataLength - 1 - currentViewEnd;
+
+    // If we're close to the end but not at the very end, reset the future flag
+    // This allows re-attempting future data loading
+    if (distanceFromEnd < 50 && distanceFromEnd > 0) {
+      reachedEndOfDataRef.current.future = false;
+      logger.chart.data('Reset future data flag - user exploring near end of data');
+    }
+  }, [chartState.currentViewEnd, chartState.allData.length]);
 
   // Function to automatically load more data when buffered candles are rendered
   const loadMoreDataOnBufferedRender = useCallback(
-    (direction: 'past' | 'future' = 'past'): boolean => {
-      const dataLoadStartTime = performance.now();
-
+    async (direction: 'past' | 'future' = 'past'): Promise<boolean> => {
       if (timeframe === null) {
         logger.warn('Cannot auto-load more data: no timeframe selected');
         return false;
       }
 
-      // Only load more data if we haven't reached the maximum yet
-      if (chartState.allData.length >= MAX_DATA_POINTS) {
-        logger.chart.data('Max data points reached, skipping auto-load');
-        return false;
-      }
-
-      // Check if we've already reached the end of data in this direction
-      if (reachedEndOfDataRef.current[direction]) {
-        logger.chart.data(`Already reached end of ${direction} data, skipping auto-load`);
-        return false;
-      }
-
-      // Fetch exactly BUFFER_SIZE each time
-      const fetchPoints = BUFFER_SIZE;
-
-      // Use ref to avoid stale closure issues
-      const currentData = currentDataRef.current;
-
-      // Determine anchor time based on direction
-      const anchorTimestamp =
-        direction === 'past' ? currentData[0]?.timestamp : currentData[currentData.length - 1]?.timestamp;
-
-      // Keep auto-load success/timing logs only; removed verbose pre-load logging
-
-      // Prevent multiple in-flight loads
-      if (isLoadingDataRef.current) {
-        logger.chart.skip('Skipping auto-load, request in flight');
-        return false;
-      }
-      isLoadingDataRef.current = true;
-      isAutoLoadingRef.current = true;
-
-      // Request exactly BUFFER_SIZE more bars from the chosen side
-      apiService
-        .getChartData(symbol, timeframe, fetchPoints, anchorTimestamp, direction === 'past' ? 'past' : 'future')
-        .then(response => {
-          const { formattedData } = processChartData(
-            response.bars,
-            chartState.timeframe || '1m',
-            DEFAULT_CHART_DATA_POINTS
-          );
-
-          // Check if we actually got new data
-          if (formattedData.length === 0) {
-            logger.chart.data(`No new data available, reached end of ${direction} data`);
-            reachedEndOfDataRef.current[direction] = true;
-            return;
-          }
-
-          // Merge while preserving order and removing dups
-          const mergedData = mergeHistoricalData(currentDataRef.current, formattedData);
-
-          // After merging, enforce max window of 2 * BUFFER_SIZE (prune opposite side)
-          let prunedData = mergedData;
-          if (mergedData.length > BUFFER_SIZE * 2) {
-            if (direction === 'past') {
-              // Loaded left: drop rightmost excess
-              prunedData = mergedData.slice(0, BUFFER_SIZE * 2);
-            } else {
-              // Loaded right: drop leftmost excess
-              prunedData = mergedData.slice(mergedData.length - BUFFER_SIZE * 2);
-            }
-          }
-
-          // Anchor viewport exactly like manual "Load Left": shift indices to keep the same candles visible
-          // Use ref values to avoid stale closure issues
-          const prevStart = currentViewStartRef.current;
-          const prevEnd = currentViewEndRef.current;
-
-          const prevLength = currentDataRef.current.length;
-          const mergedLength = mergedData.length;
-          const totalAfter = prunedData.length;
-
-          // Calculate the actual shift that occurred due to data changes
-          let dataShift = 0;
-          if (direction === 'past') {
-            // When loading past data, the shift should be based on the actual new data fetched
-            // We requested fetchPoints (600) new data points, so the shift should be fetchPoints
-            dataShift = fetchPoints;
-          } else if (direction === 'future') {
-            // When loading future data, check if we pruned data from the left
-            const prunedFromLeft = mergedData.length - prunedData.length;
-            dataShift = -prunedFromLeft; // Negative shift if we removed data from left
-          }
-
-          let anchoredStart = Math.round(prevStart + dataShift);
-          let anchoredEnd = Math.round(prevEnd + dataShift);
-
-          // Ensure the viewport is expanded to the proper CHART_DATA_POINTS size
-          const properWindowSize = CHART_DATA_POINTS;
-          const currentWindowSize = anchoredEnd - anchoredStart + 1;
-
-          if (currentWindowSize < properWindowSize) {
-            // For auto-load, we want to center the viewport around the anchored position
-            // Calculate the center point of the current viewport
-            const centerPoint = Math.round((anchoredStart + anchoredEnd) / 2);
-
-            // Calculate new start and end positions centered around this point
-            const halfWindow = Math.floor(properWindowSize / 2);
-            anchoredStart = Math.max(0, centerPoint - halfWindow);
-            anchoredEnd = Math.min(totalAfter - 1, centerPoint + halfWindow);
-
-            // Adjust to ensure exactly properWindowSize points
-            const actualWindowSize = anchoredEnd - anchoredStart + 1;
-            if (actualWindowSize < properWindowSize) {
-              // Try to expand to the right first
-              const rightExpansion = Math.min(totalAfter - 1 - anchoredEnd, properWindowSize - actualWindowSize);
-              anchoredEnd += rightExpansion;
-
-              // If still not enough, expand to the left
-              const remainingExpansion = properWindowSize - (anchoredEnd - anchoredStart + 1);
-              if (remainingExpansion > 0) {
-                anchoredStart = Math.max(0, anchoredStart - remainingExpansion);
-              }
-            } else if (actualWindowSize > properWindowSize) {
-              // Trim excess from the right
-              anchoredEnd = anchoredStart + properWindowSize - 1;
-            }
-          }
-
-          if (anchoredEnd > totalAfter - 1) {
-            anchoredEnd = totalAfter - 1;
-          }
-          if (anchoredStart < 0) {
-            anchoredStart = 0;
-          }
-
-          chartActions.setAllData(prunedData);
-
-          chartActions.setViewport(anchoredStart, anchoredEnd);
-
-          logger.chart.success('Successfully auto-loaded data:', {
+      try {
+        const result = await autoLoadData(
+          {
+            symbol,
+            timeframe,
             direction,
-            fetched: formattedData.length,
-            requested: fetchPoints,
-            newTotal: prunedData.length,
-            finalViewport: `${anchoredStart}-${anchoredEnd}`,
-          });
+            fetchPoints: BUFFER_SIZE,
+          },
+          currentDataRef.current,
+          reachedEndOfDataRef.current,
+          isLoadingDataRef.current
+        );
 
-          // Reset the end-of-data flag since we successfully loaded new data
-          reachedEndOfDataRef.current[direction] = false;
+        if (!result.success) {
+          if (result.reachedEnd) {
+            reachedEndOfDataRef.current[direction] = true;
+          }
+          return false;
+        }
 
-          const dataLoadEndTime = performance.now();
-          logger.chart.performance(`Data loading (async) took: ${(dataLoadEndTime - dataLoadStartTime).toFixed(2)}ms`);
-        })
-        .catch(error => {
-          logger.error('Failed to auto-load more data:', error);
-        })
-        .finally(() => {
-          isLoadingDataRef.current = false;
-          // Don't reset isAutoLoadingRef here - let the useEffect handle it after re-render
+        // Check if we reached the end of data (even if successful)
+        if (result.reachedEnd) {
+          reachedEndOfDataRef.current[direction] = true;
+          logger.chart.data(`Reached end of ${direction} data, stopping auto-load`);
+
+          // Set a timeout to reset the flag after 30 seconds
+          // This allows retrying in case the "end of data" was incorrectly detected
+          setTimeout(() => {
+            reachedEndOfDataRef.current[direction] = false;
+            logger.chart.data(`Reset ${direction} data flag after timeout`);
+          }, 30000);
+
+          return false;
+        }
+
+        if (!result.data) {
+          return false;
+        }
+
+        // Merge while preserving order and removing dups
+        const mergedData = mergeHistoricalData(currentDataRef.current, result.data);
+
+        // After merging, enforce max window of 2 * BUFFER_SIZE (prune opposite side)
+        let prunedData = mergedData;
+        if (mergedData.length > BUFFER_SIZE * 2) {
+          if (direction === 'past') {
+            // Loaded left: drop rightmost excess
+            prunedData = mergedData.slice(0, BUFFER_SIZE * 2);
+          } else {
+            // Loaded right: drop leftmost excess
+            prunedData = mergedData.slice(mergedData.length - BUFFER_SIZE * 2);
+          }
+        }
+
+        // Anchor viewport exactly like manual "Load Left": shift indices to keep the same candles visible
+        const prevStart = currentViewStartRef.current;
+        const prevEnd = currentViewEndRef.current;
+        const totalAfter = prunedData.length;
+
+        // Calculate the actual shift that occurred due to data changes
+        const dataShift = calculateDataShift(direction, BUFFER_SIZE, mergedData.length, prunedData.length);
+
+        // Calculate anchored viewport
+        const anchoredViewport = calculateAnchoredViewport(prevStart, prevEnd, dataShift, totalAfter, direction);
+
+        chartActions.setAllData(prunedData);
+        chartActions.setViewport(anchoredViewport.start, anchoredViewport.end);
+
+        logger.chart.success('Successfully auto-loaded data:', {
+          direction,
+          fetched: result.data.length,
+          requested: BUFFER_SIZE,
+          newTotal: prunedData.length,
+          finalViewport: `${anchoredViewport.start}-${anchoredViewport.end}`,
         });
 
-      // Return true to indicate that data loading was initiated
-      return true;
+        // Reset the end-of-data flag since we successfully loaded new data
+        reachedEndOfDataRef.current[direction] = false;
+
+        return true;
+      } catch (error) {
+        logError(error as Error, 'auto-load data', { direction, symbol, timeframe });
+        return false;
+      }
     },
     [timeframe, chartState.allData.length, symbol, chartActions]
   );
@@ -328,27 +317,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     },
     []
   );
-
-  // Function to merge new historical data with existing data
-  const mergeHistoricalData = (existingData: CandlestickData[], newData: CandlestickData[]): CandlestickData[] => {
-    // Combine all data and deduplicate by timestamp
-    const combinedData = [...existingData, ...newData];
-    const uniqueData = combinedData.reduce((acc: CandlestickData[], current: CandlestickData) => {
-      const existingIndex = acc.findIndex((item: CandlestickData) => item.timestamp === current.timestamp);
-      if (existingIndex === -1) {
-        acc.push(current);
-      } else {
-        // If duplicate timestamp, keep the newer data (from newData)
-        acc[existingIndex] = current;
-      }
-      return acc;
-    }, [] as CandlestickData[]);
-
-    // Sort by time to ensure chronological order
-    return uniqueData.sort(
-      (a: CandlestickData, b: CandlestickData) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-  };
 
   // Define timeframes array
   const timeframes: TimeframeConfig[] = useMemo(
@@ -395,12 +363,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         symbol,
       });
 
-      // Set flag to prevent auto-redraw from interfering
-      skipToInProgressRef.current = true;
-
       try {
         // Fetch new data centered around the target time
-        // We'll load data with the target time as the center point
         await chartActions.loadChartData(
           symbol,
           chartState.timeframe,
@@ -417,21 +381,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         chartActions.setChartLoaded(false);
         chartCreatedRef.current = false; // Allow chart recreation
 
-        // Set a flag to prevent auto-redraw from interfering with chart recreation
-        skipToJustCompletedRef.current = true;
-
         logger.chart.loading('Chart structure reset for skip-to operation');
       } catch (error) {
-        logger.error('Failed to load data for skip-to time:', error);
-      } finally {
-        // Clear the skip-to flag
-        skipToInProgressRef.current = false;
+        logError(error as Error, 'skip to time', { hoursAgo, targetTime: targetTimeString });
       }
     },
     [chartState.timeframe, chartActions, symbol]
   );
-
-  // Chart data management is now handled by useChartStateManager
 
   // WebSocket for real-time data
   const chartWebSocket = useChartWebSocket({
@@ -469,117 +425,91 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       const newVisibleData = getVisibleData(chartState.currentViewStart, chartState.currentViewEnd);
       chartActions.setData(newVisibleData);
     }
-  }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData, isValidData, getVisibleData]); // Removed chartActions
+  }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData, isValidData, getVisibleData]);
 
   // Handle auto-redraw when viewport changes due to live data updates
-  useEffect(() => {
-    logger.chart.render('Auto-redraw useEffect triggered:', {
-      chartLoaded: chartState.chartLoaded,
-      svgRefExists: !!svgRef.current,
-      dataLength: chartState.allData.length,
-      currentViewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
-      isPanning: isPanningRef.current,
-      manualRenderInProgress: manualRenderInProgressRef.current,
-      skipToInProgress: skipToInProgressRef.current,
-    });
+  useLoggedEffect(
+    () => {
+      // Only trigger auto-redraw if chart is ready
+      if (!isChartReady(chartState.chartLoaded, svgRef.current, chartState.allData)) {
+        logger.chart.skip('Auto-redraw skipped: Chart not ready');
+        return;
+      }
 
-    // Only trigger auto-redraw if chart is loaded and we have valid data
-    if (!chartState.chartLoaded || !svgRef.current || chartState.allData.length === 0) {
-      logger.chart.skip('Auto-redraw skipped: Chart not ready');
-      return;
-    }
+      // Skip if we're currently panning to avoid conflicts
+      if (isPanningRef.current) {
+        logger.chart.skip('Auto-redraw skipped: Currently panning');
+        return;
+      }
 
-    // Skip if we're currently panning to avoid conflicts
-    if (isPanningRef.current) {
-      logger.chart.skip('Auto-redraw skipped: Currently panning');
-      return;
-    }
+      // Get current transform to preserve zoom level
+      const currentZoomTransform = d3.zoomTransform(svgRef.current!);
 
-    // Skip if manual render is in progress
-    if (manualRenderInProgressRef.current) {
-      logger.chart.skip('Auto-redraw skipped: Manual render in progress');
-      return;
-    }
+      // Use centralized render function for auto-redraw (WebSocket-like behavior)
+      const renderResult = renderWebSocket(
+        svgRef.current as SVGSVGElement,
+        chartState.dimensions,
+        chartState.allData,
+        chartState.currentViewStart,
+        chartState.currentViewEnd,
+        loadMoreDataOnBufferedRender,
+        isAutoLoadingRef.current // Skip auto-load check if we're currently auto-loading
+      );
 
-    // Skip if skip-to operation is in progress
-    if (skipToInProgressRef.current) {
-      logger.chart.skip('Auto-redraw skipped: Skip-to operation in progress');
-      return;
-    }
+      if (renderResult.success && renderResult.newFixedYScaleDomain) {
+        // Update the fixed Y-scale domain if it was recalculated
+        chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
+      }
 
-    // Skip if skip-to operation just completed (to prevent immediate overwrite)
-    if (skipToJustCompletedRef.current) {
-      logger.chart.skip('Auto-redraw skipped: Skip-to operation just completed');
-      skipToJustCompletedRef.current = false; // Clear the flag
-      return;
-    }
+      logger.chart.success('Auto-redraw re-render completed:', {
+        viewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
+        dataLength: chartState.allData.length,
+        transform: `${currentZoomTransform.x}, ${currentZoomTransform.y}, ${currentZoomTransform.k}`,
+      });
 
-    // Get current transform to preserve zoom level
-    const currentZoomTransform = d3.zoomTransform(svgRef.current);
-
-    // Use centralized render function for auto-redraw (WebSocket-like behavior)
-    const renderResult = renderWebSocket(
-      svgRef.current as SVGSVGElement,
-      chartState.dimensions,
-      chartState.allData,
+      // Reset auto-loading flag after re-render is complete
+      if (isAutoLoadingRef.current) {
+        logger.chart.loading('Auto-load re-render detected, scheduling flag reset');
+        // Use setTimeout to ensure all related re-renders are complete
+        setTimeout(() => {
+          if (isAutoLoadingRef.current) {
+            logger.chart.loading('Resetting auto-loading flag after timeout');
+            isAutoLoadingRef.current = false;
+          }
+        }, 100); // Increased delay to ensure viewport clamping effect runs first
+      }
+    },
+    [
       chartState.currentViewStart,
       chartState.currentViewEnd,
-      loadMoreDataOnBufferedRender,
-      isAutoLoadingRef.current // Skip auto-load check if we're currently auto-loading
-    );
-
-    if (renderResult.success && renderResult.newFixedYScaleDomain) {
-      // Update the fixed Y-scale domain if it was recalculated
-      chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
-    }
-
-    logger.chart.success('Auto-redraw re-render completed:', {
-      viewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
-      dataLength: chartState.allData.length,
-      transform: `${currentZoomTransform.x}, ${currentZoomTransform.y}, ${currentZoomTransform.k}`,
-    });
-
-    // Reset auto-loading flag after re-render is complete
-    if (isAutoLoadingRef.current) {
-      logger.chart.loading('Auto-load re-render detected, scheduling flag reset');
-      // Use setTimeout to ensure all related re-renders are complete
-      setTimeout(() => {
-        if (isAutoLoadingRef.current) {
-          logger.chart.loading('Resetting auto-loading flag after timeout');
-          isAutoLoadingRef.current = false;
-        }
-      }, 100); // Increased delay to ensure viewport clamping effect runs first
-    }
-  }, [
-    chartState.currentViewStart,
-    chartState.currentViewEnd,
-    chartState.allData,
-    chartState.chartLoaded,
-    chartState.dimensions,
-    chartState.fixedYScaleDomain,
-  ]);
+      chartState.allData,
+      chartState.chartLoaded,
+      chartState.dimensions,
+      chartState.fixedYScaleDomain,
+    ],
+    'Auto-redraw'
+  );
 
   // Load saved timeframe from localStorage (but don't load data here)
-  useEffect(() => {
-    if (initialDataLoadedRef.current) {
-      logger.chart.loading('Initial timeframe already loaded; skipping');
-      return;
-    }
+  useConditionalEffect(
+    !initialDataLoadedRef.current,
+    () => {
+      const result = safeCall(() => {
+        return getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1h');
+      });
 
-    const result = safeCall(() => {
-      return getLocalStorageItem<ChartTimeframe>('chartTimeframe', '1h');
-    });
-
-    if (result.isOk()) {
-      const savedTimeframe = result.value;
-      setTimeframe(savedTimeframe);
-      initialDataLoadedRef.current = true;
-    } else {
-      logger.warn('Failed to load chart timeframe from localStorage:', createUserFriendlyMessage(result.error));
-      setTimeframe('1h');
-      initialDataLoadedRef.current = true;
-    }
-  }, [symbol]); // Only load timeframe, not data
+      if (result.isOk()) {
+        const savedTimeframe = result.value;
+        setTimeframe(savedTimeframe);
+        initialDataLoadedRef.current = true;
+      } else {
+        logger.warn('Failed to load chart timeframe from localStorage:', createUserFriendlyMessage(result.error));
+        setTimeframe('1h');
+        initialDataLoadedRef.current = true;
+      }
+    },
+    [symbol]
+  );
 
   // Save timeframe to localStorage
   useEffect(() => {
@@ -595,58 +525,62 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   }, [timeframe]);
 
   // Load chart data when symbol or timeframe changes
-  useEffect(() => {
-    // Skip if timeframe is not set yet
-    if (timeframe === null) {
-      return;
-    }
+  useLoggedEffect(
+    () => {
+      // Skip if timeframe is not set yet
+      if (timeframe === null) {
+        return;
+      }
 
-    // Skip if already loading data
-    if (isLoadingDataRef.current) {
-      logger.chart.loading('Data load already in progress; skipping duplicate request');
-      return;
-    }
+      // Skip if already loading data
+      if (isLoadingDataRef.current) {
+        logger.chart.loading('Data load already in progress; skipping duplicate request');
+        return;
+      }
 
-    // Reset loading state to allow new data loading
-    isLoadingDataRef.current = false;
+      chartActions.resetChart(); // Reset chart state for new symbol/timeframe
+      chartActions.setTimeframe(timeframe);
+      chartCreatedRef.current = false; // Allow chart recreation for new timeframe
+      lastProcessedDataRef.current = null; // Reset WebSocket data tracking
 
-    chartActions.resetChart(); // Reset chart state for new symbol/timeframe
-    chartActions.setTimeframe(timeframe);
-    chartCreatedRef.current = false; // Allow chart recreation for new timeframe
-    lastProcessedDataRef.current = null; // Reset WebSocket data tracking
+      // Force chart recreation by clearing the chart state
+      chartActions.setChartExists(false);
+      chartActions.setChartLoaded(false);
 
-    // Force chart recreation by clearing the chart state
-    chartActions.setChartExists(false);
-    chartActions.setChartLoaded(false);
+      logger.chart.loading('Loading data for symbol/timeframe:', {
+        symbol,
+        timeframe,
+        currentDataLength: chartState.allData.length,
+        isLoadingData: isLoadingDataRef.current,
+      });
 
-    logger.chart.loading('Loading data for symbol/timeframe:', {
-      symbol,
-      timeframe,
-      currentDataLength: chartState.allData.length,
-      isLoadingDataRef: isLoadingDataRef.current,
-    });
-    isLoadingDataRef.current = true;
-    chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
-      logger.chart.success('Data loading completed for timeframe:', timeframe);
-      isLoadingDataRef.current = false;
-    });
-  }, [symbol, timeframe]); // Single effect handles all data loading
+      isLoadingDataRef.current = true;
+      setLoadingData(true);
+      chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
+        logger.chart.success('Data loading completed for timeframe:', timeframe);
+        isLoadingDataRef.current = false;
+        setLoadingData(false);
+      });
+    },
+    [symbol, timeframe],
+    'Data loading'
+  );
 
   // Cleanup refs on unmount
-  useEffect(() => {
-    return () => {
-      isLoadingDataRef.current = false;
-      chartCreatedRef.current = false;
-      // Clean up chart event listeners
-      if (chartCleanupRef.current) {
-        chartCleanupRef.current();
-        chartCleanupRef.current = null;
-      }
-    };
-  }, []);
+  useCleanup(() => {
+    isLoadingDataRef.current = false;
+    setLoadingData(false);
+    chartCreatedRef.current = false;
+    // Clean up chart event listeners
+    if (chartCleanupRef.current) {
+      chartCleanupRef.current();
+      chartCleanupRef.current = null;
+    }
+  });
 
   // Reset refs when symbol changes
   useEffect(() => {
+    isLoadingDataRef.current = false;
     chartCreatedRef.current = false;
     initialViewSetRef.current = false;
     initialDataLoadedRef.current = false;
@@ -666,13 +600,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   useEffect(() => {
     const handleResize = (): void => {
       if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const newDimensions = {
-          ...chartState.dimensions,
-          width: rect.width,
-          height: Math.max(MIN_CHART_HEIGHT, rect.height - CHART_HEIGHT_OFFSET),
-        };
-
+        const newDimensions = calculateChartDimensions(containerRef.current, chartState.dimensions);
         chartActions.setDimensions(newDimensions);
       }
     };
@@ -728,63 +656,42 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   }, [chartState.dimensions.width, chartState.dimensions.height]); // Trigger when dimensions change
 
   // Clamp viewport indices whenever data length or viewport changes to prevent invalid ranges
-  useEffect(() => {
-    const total = chartState.allData.length;
-    if (total === 0) {
-      return;
-    }
+  useDebouncedEffect(
+    () => {
+      const total = chartState.allData.length;
+      if (total === 0) {
+        return;
+      }
 
-    logger.chart.viewport('Viewport clamping effect triggered:', {
-      total,
-      currentViewStart: chartState.currentViewStart,
-      currentViewEnd: chartState.currentViewEnd,
-      isAutoLoading: isAutoLoadingRef.current,
-    });
-
-    // Skip viewport clamping if we're currently auto-loading to preserve anchored viewport
-    if (isAutoLoadingRef.current) {
-      logger.chart.skip('Viewport clamping skipped: Auto-loading in progress');
-      return;
-    }
-
-    let start = Math.max(0, Math.floor(chartState.currentViewStart));
-    let end = Math.min(total - 1, Math.ceil(chartState.currentViewEnd));
-
-    // Only clamp if the viewport is actually invalid (out of bounds or too small)
-    const isViewportInvalid = start < 0 || end >= total || end < start || end - start + 1 < 1;
-
-    if (!isViewportInvalid) {
-      // Viewport is valid, no clamping needed
-      return;
-    }
-
-    // Apply clamping only for invalid viewports
-    if (end < start) {
-      end = Math.min(total - 1, start + CHART_DATA_POINTS - 1);
-    }
-
-    if (end >= total) {
-      end = total - 1;
-    }
-    if (start < 0) {
-      start = 0;
-    }
-
-    // Ensure at most CHART_DATA_POINTS window when possible
-    if (end - start + 1 < 1) {
-      end = Math.min(total - 1, start + CHART_DATA_POINTS - 1);
-    }
-
-    if (start !== chartState.currentViewStart || end !== chartState.currentViewEnd) {
-      logger.chart.fix('Viewport clamping applied:', {
-        original: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
-        clamped: `${start}-${end}`,
+      logger.chart.viewport('Viewport clamping effect triggered:', {
         total,
-        reason: 'Invalid viewport detected',
+        currentViewStart: chartState.currentViewStart,
+        currentViewEnd: chartState.currentViewEnd,
+        isAutoLoading: isAutoLoadingRef.current,
       });
-      chartActions.setViewport(start, end);
-    }
-  }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData.length]);
+
+      // Skip viewport clamping if we're currently auto-loading to preserve anchored viewport
+      if (isAutoLoadingRef.current) {
+        logger.chart.skip('Viewport clamping skipped: Auto-loading in progress');
+        return;
+      }
+
+      const validation = validateViewport(chartState.currentViewStart, chartState.currentViewEnd, total);
+
+      if (!validation.isValid && validation.corrected) {
+        logger.chart.fix('Viewport clamping applied:', {
+          original: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
+          clamped: `${validation.corrected.start}-${validation.corrected.end}`,
+          total,
+          reason: 'Invalid viewport detected',
+          errors: validation.errors,
+        });
+        chartActions.setViewport(validation.corrected.start, validation.corrected.end);
+      }
+    },
+    [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData.length],
+    100
+  );
 
   // Set initial view to show newest data when data loads
   useEffect(() => {
@@ -794,10 +701,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       // If this is the first load, show newest data with proper buffer setup
       if (chartState.data.length === 0 && totalDataLength > 0) {
         // Set up initial view to show most recent data with full buffer available
-        const newEndIndex = totalDataLength - 1;
-        const newStartIndex = Math.max(0, totalDataLength - CHART_DATA_POINTS);
-
-        chartActions.setViewport(newStartIndex, newEndIndex);
+        const newestViewport = calculateNewestViewport(totalDataLength);
+        chartActions.setViewport(newestViewport.start, newestViewport.end);
         initialViewSetRef.current = true;
       }
     }
@@ -811,297 +716,222 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   }, []); // Only run on mount
 
   // Create chart when data is available and view is properly set
-  useEffect(() => {
-    // Only create chart if it hasn't been created yet and we have valid data
-    // Allow recreation when timeframe changes (chartCreatedRef.current is set to false)
-    if (chartCreatedRef.current) {
-      return; // Chart already created, skip
-    }
-
-    logger.chart.target('Chart creation effect triggered:', {
-      chartCreatedRef: chartCreatedRef.current,
-      isValidData,
-      allDataLength: chartState.allData.length,
-      chartExists: chartState.chartExists,
-      timeframe: chartState.timeframe,
-      currentViewStart: chartState.currentViewStart,
-      currentViewEnd: chartState.currentViewEnd,
-      viewportSize: chartState.currentViewEnd - chartState.currentViewStart + 1,
-    });
-
-    const gElementExists = svgRef.current ? !d3.select(svgRef.current).select('g').empty() : false;
-
-    // Check if viewport is properly set (not showing entire dataset)
-    const viewportSize = chartState.currentViewEnd - chartState.currentViewStart + 1;
-    const isViewportProperlySet = viewportSize < chartState.allData.length && viewportSize > 0;
-
-    const shouldCreate =
-      isValidData &&
-      chartState.allData.length > 0 &&
-      svgRef.current &&
-      (!chartState.chartExists || !gElementExists) &&
-      isViewportProperlySet; // Only create chart if viewport is properly set
-
-    // Force recreation when chartCreatedRef.current is false (timeframe change)
-    const shouldForceRecreate =
-      !chartCreatedRef.current && isValidData && chartState.allData.length > 0 && svgRef.current;
-
-    logger.chart.target('Chart creation conditions:', {
-      gElementExists,
-      shouldCreate,
-      shouldForceRecreate,
-      isValidData,
-      allDataLength: chartState.allData.length,
-      chartExists: chartState.chartExists,
-      svgRefExists: !!svgRef.current,
-      viewportSize,
-      isViewportProperlySet,
-      currentViewStart: chartState.currentViewStart,
-      currentViewEnd: chartState.currentViewEnd,
-    });
-
-    // Set viewport if it's not set yet
-    if (isValidData && chartState.allData.length > 0 && chartState.currentViewEnd === 0) {
-      const dataLength = chartState.allData.length;
-      const viewStart = Math.max(0, dataLength - CHART_DATA_POINTS);
-      const viewEnd = dataLength - 1;
-      chartActions.setViewport(viewStart, viewEnd);
-    }
-
-    if (shouldCreate || shouldForceRecreate) {
-      // Only validate that we have a reasonable range
-      // Negative indices are normal when panning to historical data
-
-      if (chartState.currentViewStart > chartState.currentViewEnd || chartState.currentViewEnd < 0) {
-        logger.warn('Invalid view range in chart creation effect, resetting to valid values:', {
-          currentViewStart: chartState.currentViewStart,
-          currentViewEnd: chartState.currentViewEnd,
-          dataLength: chartState.allData.length,
-        });
-
-        // Reset to valid view indices
-        const validViewStart = Math.max(0, chartState.allData.length - CHART_DATA_POINTS);
-        const validViewEnd = chartState.allData.length - 1;
-        chartActions.setViewport(validViewStart, validViewEnd);
-        return;
+  useLoggedEffect(
+    () => {
+      // Only create chart if it hasn't been created yet and we have valid data
+      // Allow recreation when timeframe changes (chartCreatedRef.current is set to false)
+      if (chartCreatedRef.current) {
+        return; // Chart already created, skip
       }
 
-      // Create chart if it doesn't exist yet, or if there's a significant data change
-      // Don't recreate chart after panning - this causes unwanted y-scale recalculation
+      const gElementExists = svgRef.current ? !d3.select(svgRef.current).select('g').empty() : false;
 
-      // If DOM element is missing but state says chart exists, reset the chart state
-      if (chartState.chartExists && !gElementExists) {
-        chartActions.setChartLoaded(false);
-        chartActions.setChartExists(false);
+      // Check if chart should be created
+      const shouldCreate = shouldCreateChart(
+        chartState.allData,
+        chartState.currentViewStart,
+        chartState.currentViewEnd,
+        svgRef.current,
+        chartState.chartExists,
+        chartState.chartLoaded,
+        gElementExists
+      );
+
+      // Force recreation when chartCreatedRef.current is false (timeframe change)
+      const shouldForceRecreate = shouldForceRecreateChart(chartState.allData, svgRef.current, chartCreatedRef.current);
+
+      // Set viewport if it's not set yet
+      if (isValidData && chartState.allData.length > 0 && chartState.currentViewEnd === 0) {
+        const newestViewport = calculateNewestViewport(chartState.allData.length);
+        chartActions.setViewport(newestViewport.start, newestViewport.end);
       }
 
-      const shouldCreateChart = !chartState.chartExists || !gElementExists;
+      if (shouldCreate || shouldForceRecreate) {
+        // Validate chart state before creation
+        const validation = validateChartState(
+          chartState.allData,
+          chartState.currentViewStart,
+          chartState.currentViewEnd,
+          svgRef.current,
+          chartState.chartExists,
+          chartState.chartLoaded
+        );
 
-      if (shouldCreateChart) {
-        // Ensure we have the latest dimensions before creating the chart
-        let dimensionsToUse = chartState.dimensions;
+        if (!validation.isValid) {
+          logger.warn('Invalid chart state in chart creation effect:', validation.errors);
 
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          const latestDimensions = {
-            ...chartState.dimensions,
-            width: rect.width,
-            height: Math.max(MIN_CHART_HEIGHT, rect.height - CHART_HEIGHT_OFFSET),
-          };
-
-          // Update dimensions if they've changed
-          if (
-            latestDimensions.width !== chartState.dimensions.width ||
-            latestDimensions.height !== chartState.dimensions.height
-          ) {
-            chartActions.setDimensions(latestDimensions);
-            dimensionsToUse = latestDimensions;
-          }
+          // Reset to valid view indices
+          const newestViewport = calculateNewestViewport(chartState.allData.length);
+          chartActions.setViewport(newestViewport.start, newestViewport.end);
+          return;
         }
 
-        // Create calculations for chart creation
-        const initialTransform = d3.zoomIdentity;
-        const calculations = calculateChartState({
-          dimensions: dimensionsToUse,
-          allChartData: chartState.allData,
-          transform: initialTransform,
-          fixedYScaleDomain: chartState.fixedYScaleDomain,
-        });
-
-        // Clean up previous chart if it exists
-        if (chartCleanupRef.current) {
-          chartCleanupRef.current();
-          chartCleanupRef.current = null;
+        // If DOM element is missing but state says chart exists, reset the chart state
+        if (chartState.chartExists && !gElementExists) {
+          chartActions.setChartLoaded(false);
+          chartActions.setChartExists(false);
         }
 
-        chartCleanupRef.current = createChart({
-          svgElement: svgRef.current as SVGSVGElement,
-          allChartData: chartState.allData, // This will be updated via getCurrentData
-          xScale: calculations.baseXScale,
-          yScale: calculations.baseYScale,
-          visibleData: calculations.visibleData, // Use calculated visible data instead of chartState.data
-          dimensions: dimensionsToUse,
-          stateCallbacks: {
-            setIsZooming: chartActions.setIsZooming,
-            setCurrentViewStart: chartActions.setCurrentViewStart,
-            setCurrentViewEnd: chartActions.setCurrentViewEnd,
-            getCurrentViewStart: () => currentViewStartRef.current,
-            getCurrentViewEnd: () => currentViewEndRef.current,
-            setHoverData: chartActions.setHoverData,
-            setDateDisplay: chartActions.setDateDisplay,
-            setChartLoaded: chartActions.setChartLoaded,
-            setFixedYScaleDomain: chartActions.setFixedYScaleDomain,
-            setChartExists: chartActions.setChartExists,
-            setZoomBehavior: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => {
-              zoomBehaviorRef.current = behavior;
-            },
-            getFixedYScaleDomain: () => fixedYScaleDomainRef.current,
-            getCurrentData: () => currentDataRef.current,
-            getCurrentDimensions: () => currentDimensionsRef.current,
-          },
-          chartState: chartState,
-          bufferRangeRef: currentBufferRangeRef,
-          isPanningRef: isPanningRef,
-          onBufferedCandlesRendered: loadMoreDataOnBufferedRender,
-        });
+        const shouldCreateChartElement = !chartState.chartExists || !gElementExists;
 
-        // Mark chart as created to prevent re-creation
-        chartCreatedRef.current = true;
+        if (shouldCreateChartElement) {
+          // Ensure we have the latest dimensions before creating the chart
+          let dimensionsToUse = chartState.dimensions;
 
-        // Also handle initial candlestick rendering for timeframe changes
-        // This ensures the chart is fully rendered when switching timeframes
-        if (svgRef.current && chartState.allData.length > 0) {
-          // Use appropriate render function based on context
-          // If we just completed a skip-to operation, use renderSkipTo to respect the centered viewport
-          const renderResult = skipToJustCompletedRef.current
-            ? renderSkipTo(
-                svgRef.current as SVGSVGElement,
-                dimensionsToUse,
-                chartState.allData,
-                chartState.currentViewStart,
-                chartState.currentViewEnd,
-                initialTransform,
-                chartState.fixedYScaleDomain
-              )
-            : renderInitial(
-                svgRef.current as SVGSVGElement,
-                dimensionsToUse,
-                chartState.allData,
-                chartState.currentViewStart,
-                chartState.currentViewEnd,
-                loadMoreDataOnBufferedRender
-              );
+          if (containerRef.current) {
+            const latestDimensions = calculateChartDimensions(containerRef.current, chartState.dimensions);
 
-          if (renderResult.success) {
-            // Update the fixed Y-scale domain if it was recalculated
-            if (renderResult.newFixedYScaleDomain) {
-              chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
-              fixedYScaleDomainRef.current = renderResult.newFixedYScaleDomain;
+            // Update dimensions if they've changed
+            if (
+              latestDimensions.width !== chartState.dimensions.width ||
+              latestDimensions.height !== chartState.dimensions.height
+            ) {
+              chartActions.setDimensions(latestDimensions);
+              dimensionsToUse = latestDimensions;
             }
+          }
 
-            // Don't clear the skip-to flag here - let the auto-redraw effect handle it
-            // This prevents the auto-redraw from overriding our centered viewport
+          // Create calculations for chart creation
+          const initialTransform = d3.zoomIdentity;
+          const calculations = calculateChartState({
+            dimensions: dimensionsToUse,
+            allChartData: chartState.allData,
+            transform: initialTransform,
+            fixedYScaleDomain: chartState.fixedYScaleDomain,
+          });
 
-            // Set initial buffer range
-            if (renderResult.calculations) {
-              const bufferSize = BUFFER_SIZE;
-              const dataLength = renderResult.calculations.allData.length;
-              const marginSize = MARGIN_SIZE;
-              const atDataStart = renderResult.calculations.viewStart <= marginSize;
-              const atDataEnd = renderResult.calculations.viewEnd >= dataLength - marginSize;
+          // Clean up previous chart if it exists
+          if (chartCleanupRef.current) {
+            chartCleanupRef.current();
+            chartCleanupRef.current = null;
+          }
 
-              let actualStart, actualEnd;
+          chartCleanupRef.current = createChart({
+            svgElement: svgRef.current as SVGSVGElement,
+            allChartData: chartState.allData, // This will be updated via getCurrentData
+            xScale: calculations.baseXScale,
+            yScale: calculations.baseYScale,
+            visibleData: calculations.visibleData, // Use calculated visible data instead of chartState.data
+            dimensions: dimensionsToUse,
+            stateCallbacks: {
+              setIsZooming: chartActions.setIsZooming,
+              setCurrentViewStart: chartActions.setCurrentViewStart,
+              setCurrentViewEnd: chartActions.setCurrentViewEnd,
+              getCurrentViewStart: () => currentViewStartRef.current,
+              getCurrentViewEnd: () => currentViewEndRef.current,
+              setHoverData: chartActions.setHoverData,
+              setDateDisplay: chartActions.setDateDisplay,
+              setChartLoaded: chartActions.setChartLoaded,
+              setFixedYScaleDomain: chartActions.setFixedYScaleDomain,
+              setChartExists: chartActions.setChartExists,
+              setZoomBehavior: (behavior: d3.ZoomBehavior<SVGSVGElement, unknown>) => {
+                zoomBehaviorRef.current = behavior;
+              },
+              getFixedYScaleDomain: () => fixedYScaleDomainRef.current,
+              getCurrentData: () => currentDataRef.current,
+              getCurrentDimensions: () => currentDimensionsRef.current,
+            },
+            chartState: chartState,
+            bufferRangeRef: currentBufferRangeRef,
+            isPanningRef: isPanningRef,
+            onBufferedCandlesRendered: loadMoreDataOnBufferedRender,
+          });
 
-              if (atDataStart && atDataEnd) {
-                actualStart = 0;
-                actualEnd = dataLength - 1;
-              } else if (atDataStart) {
-                actualStart = 0;
-                actualEnd = Math.min(dataLength - 1, Math.ceil(renderResult.calculations.viewEnd) + bufferSize);
-              } else if (atDataEnd) {
-                actualStart = Math.max(0, Math.floor(renderResult.calculations.viewStart) - bufferSize);
-                actualEnd = dataLength - 1;
-              } else {
-                actualStart = Math.max(0, Math.floor(renderResult.calculations.viewStart) - bufferSize);
-                actualEnd = Math.min(dataLength - 1, Math.ceil(renderResult.calculations.viewEnd) + bufferSize);
+          // Mark chart as created to prevent re-creation
+          chartCreatedRef.current = true;
+
+          // Also handle initial candlestick rendering for timeframe changes
+          // This ensures the chart is fully rendered when switching timeframes
+          if (svgRef.current && chartState.allData.length > 0) {
+            // Use appropriate render function based on context
+            const renderResult = renderInitial(
+              svgRef.current as SVGSVGElement,
+              dimensionsToUse,
+              chartState.allData,
+              chartState.currentViewStart,
+              chartState.currentViewEnd,
+              loadMoreDataOnBufferedRender
+            );
+
+            if (renderResult.success) {
+              // Update the fixed Y-scale domain if it was recalculated
+              if (renderResult.newFixedYScaleDomain) {
+                chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
+                fixedYScaleDomainRef.current = renderResult.newFixedYScaleDomain;
               }
 
-              currentBufferRangeRef.current = {
-                start: actualStart,
-                end: actualEnd,
-              };
+              // Set initial buffer range
+              if (renderResult.calculations) {
+                const bufferRange = calculateBufferRange(
+                  renderResult.calculations.viewStart,
+                  renderResult.calculations.viewEnd,
+                  renderResult.calculations.allData.length
+                );
+                currentBufferRangeRef.current = bufferRange;
+              }
             }
           }
         }
       }
-    }
-  }, [
-    chartState.currentViewStart,
-    chartState.currentViewEnd,
-    chartState.dimensions,
-    chartState.fixedYScaleDomain,
-    chartState.chartExists,
-    chartState.allData.length, // Include allData.length to trigger chart updates
-    isValidData,
-    svgRef.current, // Re-run when SVG element becomes available
-  ]);
+    },
+    [
+      chartState.currentViewStart,
+      chartState.currentViewEnd,
+      chartState.dimensions,
+      chartState.fixedYScaleDomain,
+      chartState.chartExists,
+      chartState.allData.length, // Include allData.length to trigger chart updates
+      isValidData,
+      svgRef.current, // Re-run when SVG element becomes available
+    ],
+    'Chart creation'
+  );
 
   // Prune off-chart data based on BUFFER_SIZE when not panning
-  useEffect(() => {
-    // Skip pruning during panning or when dataset is already small
-    const total = chartState.allData.length;
-    if (isPanningRef.current || total === 0) {
-      return;
-    }
-
-    // Debounce to avoid frequent slicing during quick interactions
-    if (pruneTimeoutRef.current) {
-      window.clearTimeout(pruneTimeoutRef.current);
-    }
-
-    pruneTimeoutRef.current = window.setTimeout(() => {
-      const bufferSize = BUFFER_SIZE; // retention chunk
-      const viewStart = Math.max(0, Math.floor(chartState.currentViewStart));
-      const viewEnd = Math.min(total - 1, Math.ceil(chartState.currentViewEnd));
-
-      // Simplified rule: keep at most 2 * BUFFER_SIZE overall by centering around view when possible
-      const desiredWindow = Math.min(total, BUFFER_SIZE * 2);
-      const keepStart = Math.max(0, Math.min(viewStart, total - desiredWindow));
-      const preliminaryEnd = Math.min(total - 1, Math.max(viewEnd, desiredWindow - 1));
-      const keepEnd = Math.min(preliminaryEnd, keepStart + desiredWindow - 1);
-
-      const leftExcess = keepStart; // number of points before keepStart
-      const rightExcess = total - 1 - keepEnd; // number of points after keepEnd
-
-      // Prune whenever total exceeds allowed window
-      const shouldPrune = total > desiredWindow && (leftExcess > 0 || rightExcess > 0);
-      if (!shouldPrune) {
+  useDebouncedEffect(
+    () => {
+      // Skip pruning during panning or when dataset is already small
+      const total = chartState.allData.length;
+      if (isPanningRef.current || total === 0) {
         return;
       }
 
-      // Slice to the retention window
-      const newAllData = chartState.allData.slice(keepStart, keepEnd + 1);
+      const pruningRange = calculatePruningRange(chartState.currentViewStart, chartState.currentViewEnd, total);
 
-      // Adjust viewport to new indices after slice
-      const newViewStart = chartState.currentViewStart - keepStart;
-      const newViewEnd = chartState.currentViewEnd - keepStart;
+      if (pruningRange) {
+        // Slice to the retention window
+        const newAllData = chartState.allData.slice(pruningRange.start, pruningRange.end + 1);
 
-      // Update buffer range ref to match new dataset
-      const newBufferStart = Math.max(0, Math.floor(newViewStart) - bufferSize);
-      const newBufferEnd = Math.min(newAllData.length - 1, Math.ceil(newViewEnd) + bufferSize);
-      currentBufferRangeRef.current = { start: newBufferStart, end: newBufferEnd };
+        // Adjust viewport to new indices after slice
+        const newViewStart = chartState.currentViewStart - pruningRange.start;
+        const newViewEnd = chartState.currentViewEnd - pruningRange.start;
 
-      // Commit updates
-      chartActions.setAllData(newAllData);
-      chartActions.setViewport(newViewStart, newViewEnd);
-    }, 200);
+        // Update buffer range ref to match new dataset
+        const newBufferRange = calculateBufferRange(newViewStart, newViewEnd, newAllData.length);
+        currentBufferRangeRef.current = newBufferRange;
 
-    return () => {
-      if (pruneTimeoutRef.current) {
-        window.clearTimeout(pruneTimeoutRef.current);
+        // Commit updates
+        chartActions.setAllData(newAllData);
+        chartActions.setViewport(newViewStart, newViewEnd);
       }
-    };
-  }, [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData.length]);
+    },
+    [chartState.currentViewStart, chartState.currentViewEnd, chartState.allData.length],
+    200
+  );
+
+  // Calculate chart metrics for debugging
+  const chartMetrics = useMemo(
+    () => calculateChartMetrics(chartState.allData, chartState.currentViewStart, chartState.currentViewEnd, timeframe),
+    [chartState.allData, chartState.currentViewStart, chartState.currentViewEnd, timeframe]
+  );
+
+  const chartStatus = getChartStatus(
+    chartState.chartLoaded,
+    chartState.chartExists,
+    chartState.isLoading,
+    chartState.error,
+    chartState.allData
+  );
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -1174,14 +1004,14 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
       {/* Chart Container */}
       <div className="flex-1 p-4">
-        {chartState.isLoading ? (
+        {isChartLoading(chartState.isLoading, chartState.allData) ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
               <p className="text-muted-foreground">Loading chart data...</p>
             </div>
           </div>
-        ) : chartState.error ? (
+        ) : hasChartError(chartState.error) ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <p className="text-destructive mb-4">{chartState.error}</p>
@@ -1297,24 +1127,16 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center space-x-4">
             {/* Data Information */}
-            <span>Total: {chartState.allData.length}</span>
+            <span>Total: {chartMetrics.total}</span>
             <span>Visible: {CHART_DATA_POINTS}</span>
-            <span>
-              View:{' '}
-              {(() => {
-                const actualStart = Math.max(0, chartState.currentViewStart);
-                const actualEnd = Math.min(chartState.allData.length - 1, chartState.currentViewEnd);
-                const actualPoints = actualEnd - actualStart + 1;
-                return `${Math.round(actualStart)}-${Math.round(actualEnd)} (${Math.round(actualPoints)})`;
-              })()}
-            </span>
-            <span>TF: {timeframe || 'Loading...'}</span>
+            <span>View: {chartMetrics.viewport}</span>
+            <span>TF: {chartMetrics.timeframe}</span>
           </div>
           <div className="flex items-center space-x-4">
             {/* Chart State Information */}
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${chartState.chartLoaded ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-              <span>{chartState.chartLoaded ? 'Chart Ready' : 'Loading...'}</span>
+              <span>{chartStatus}</span>
             </div>
             {chartState.isZooming && (
               <div className="flex items-center space-x-1">
