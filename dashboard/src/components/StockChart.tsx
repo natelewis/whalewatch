@@ -1078,7 +1078,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 <span className="text-xs text-orange-500">Extended ({chartState.allData.length} pts)</span>
               </div>
             )}
-            <span className="text-xs text-muted-foreground">(D3.js powered)</span>
           </div>
         </div>
       </div>

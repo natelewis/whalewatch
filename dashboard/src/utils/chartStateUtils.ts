@@ -149,25 +149,6 @@ export const shouldForceRecreateChart = (
 };
 
 /**
- * Validate data for chart operations
- */
-const validateChartData = (data: CandlestickData[]): boolean => {
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    return false;
-  }
-
-  // Check if all data points have required properties
-  return data.every(
-    point =>
-      point.timestamp &&
-      typeof point.open === 'number' &&
-      typeof point.high === 'number' &&
-      typeof point.low === 'number' &&
-      typeof point.close === 'number'
-  );
-};
-
-/**
  * Check if chart is ready for rendering
  */
 export const isChartReady = (

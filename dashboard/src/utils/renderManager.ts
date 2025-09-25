@@ -434,30 +434,6 @@ export const renderPanning = (
 };
 
 /**
- * Convenience function for skip-to render
- */
-const renderSkipTo = (
-  svgElement: SVGSVGElement,
-  dimensions: ChartDimensions,
-  allData: CandlestickData[],
-  currentViewStart: number,
-  currentViewEnd: number,
-  currentTransform: d3.ZoomTransform,
-  fixedYScaleDomain: [number, number] | null
-): RenderResult => {
-  return renderChart({
-    svgElement,
-    dimensions,
-    allData,
-    currentViewStart,
-    currentViewEnd,
-    currentTransform,
-    fixedYScaleDomain,
-    options: DEFAULT_RENDER_OPTIONS[RenderType.SKIP_TO],
-  });
-};
-
-/**
  * Convenience function for WebSocket render
  */
 export const renderWebSocket = (

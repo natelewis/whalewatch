@@ -69,50 +69,6 @@ export const useLoadingState = (initialState: boolean = false) => {
 };
 
 /**
- * Hook for managing refs that track previous values
- */
-const usePreviousValue = <T>(value: T): T | undefined => {
-  const ref = useRef<T>();
-
-  useEffect(() => {
-    ref.current = value;
-  });
-
-  return ref.current;
-};
-
-/**
- * Hook for managing refs that track state changes
- */
-const useStateChangeTracker = <T>(value: T, onChange?: (newValue: T, prevValue: T | undefined) => void) => {
-  const prevValueRef = useRef<T>();
-
-  useEffect(() => {
-    if (prevValueRef.current !== value) {
-      onChange?.(value, prevValueRef.current);
-      prevValueRef.current = value;
-    }
-  }, [value, onChange]);
-
-  return prevValueRef.current;
-};
-
-/**
- * Hook for managing multiple refs with a single effect
- */
-const useMultipleRefs = <T extends Record<string, unknown>>(
-  initialValues: T
-): [T, (updates: Partial<T>) => void] => {
-  const refs = useRef<T>(initialValues);
-
-  const updateRefs = useCallback((updates: Partial<T>) => {
-    Object.assign(refs.current, updates);
-  }, []);
-
-  return [refs.current, updateRefs];
-};
-
-/**
  * Hook for managing effect dependencies with logging
  */
 export const useLoggedEffect = (effect: () => void | (() => void), deps: unknown[], logMessage: string) => {
@@ -136,64 +92,4 @@ export const useConditionalEffect = (condition: boolean, effect: () => void | ((
       return effect();
     }
   }, [condition, ...deps]);
-};
-
-/**
- * Hook for managing effect with timeout
- */
-const useTimeoutEffect = (effect: () => void, deps: unknown[], timeout: number) => {
-  useEffect(() => {
-    const timer = setTimeout(effect, timeout);
-    return () => clearTimeout(timer);
-  }, deps);
-};
-
-/**
- * Hook for managing effect with interval
- */
-const useIntervalEffect = (effect: () => void, deps: unknown[], interval: number) => {
-  useEffect(() => {
-    const timer = setInterval(effect, interval);
-    return () => clearInterval(timer);
-  }, deps);
-};
-
-/**
- * Hook for managing effect with immediate execution
- */
-const useImmediateEffect = (effect: () => void | (() => void), deps: unknown[]) => {
-  useEffect(() => {
-    return effect();
-  }, deps);
-};
-
-/**
- * Hook for managing effect with cleanup on unmount
- */
-const useCleanupOnUnmount = (cleanupFn: () => void) => {
-  useEffect(() => {
-    return cleanupFn;
-  }, []);
-};
-
-/**
- * Hook for managing effect with dependency tracking
- */
-const useDependencyTracker = (deps: unknown[]) => {
-  const prevDepsRef = useRef<unknown[]>();
-
-  useEffect(() => {
-    const changed = prevDepsRef.current ? deps.some((dep, index) => dep !== prevDepsRef.current![index]) : true;
-
-    if (changed) {
-      logger.chart.data('Dependencies changed:', {
-        prev: prevDepsRef.current,
-        current: deps,
-      });
-    }
-
-    prevDepsRef.current = deps;
-  });
-
-  return prevDepsRef.current;
 };

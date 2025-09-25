@@ -1,4 +1,3 @@
-import { CandlestickData } from '../types';
 import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
 
 export interface ViewportCalculation {
@@ -19,45 +18,6 @@ export interface ViewportValidation {
 export const calculateNewestViewport = (dataLength: number): ViewportCalculation => {
   const end = dataLength - 1;
   const start = Math.max(0, dataLength - CHART_DATA_POINTS);
-
-  return {
-    start,
-    end,
-    size: end - start + 1,
-  };
-};
-
-/**
- * Calculate viewport for showing oldest data
- */
-const calculateOldestViewport = (dataLength: number): ViewportCalculation => {
-  const start = 0;
-  const end = Math.min(dataLength - 1, CHART_DATA_POINTS - 1);
-
-  return {
-    start,
-    end,
-    size: end - start + 1,
-  };
-};
-
-/**
- * Calculate centered viewport around a specific index
- */
-const calculateCenteredViewport = (
-  centerIndex: number,
-  dataLength: number,
-  viewportSize: number = CHART_DATA_POINTS
-): ViewportCalculation => {
-  const halfSize = Math.floor(viewportSize / 2);
-  let start = Math.max(0, centerIndex - halfSize);
-  let end = Math.min(dataLength - 1, start + viewportSize - 1);
-
-  // Adjust start if we hit the end boundary
-  if (end >= dataLength - 1) {
-    end = dataLength - 1;
-    start = Math.max(0, end - viewportSize + 1);
-  }
 
   return {
     start,
@@ -245,25 +205,6 @@ export const calculatePruningRange = (
   }
 
   return { start: keepStart, end: keepEnd };
-};
-
-/**
- * Find the closest data point to a target time
- */
-const findClosestDataPoint = (data: CandlestickData[], targetTime: string): number => {
-  const targetTimestamp = new Date(targetTime).getTime();
-  let closestIndex = 0;
-  let closestDiff = Math.abs(new Date(data[0].timestamp).getTime() - targetTimestamp);
-
-  for (let i = 1; i < data.length; i++) {
-    const diff = Math.abs(new Date(data[i].timestamp).getTime() - targetTimestamp);
-    if (diff < closestDiff) {
-      closestDiff = diff;
-      closestIndex = i;
-    }
-  }
-
-  return closestIndex;
 };
 
 /**

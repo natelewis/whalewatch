@@ -360,45 +360,6 @@ export const createViewportXScale = (
 };
 
 /**
- * Get interval in milliseconds based on timeframe
- * Used for calculating proper timestamps for fake candles
- */
-const getTimeframeIntervalMs = (timeframe: ChartTimeframe): number => {
-  const intervalMap: Record<ChartTimeframe, number> = {
-    '1m': 60 * 1000, // 1 minute
-    '15m': 15 * 60 * 1000, // 15 minutes
-    '30m': 30 * 60 * 1000, // 30 minutes
-    '1h': 60 * 60 * 1000, // 1 hour
-    '1H': 60 * 60 * 1000, // 1 hour (alternative)
-    '1d': 24 * 60 * 60 * 1000, // 1 day
-    '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
-    '1W': 7 * 24 * 60 * 60 * 1000, // 1 week
-    '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
-    '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
-    '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
-    ALL: 60 * 1000, // Default to 1 minute for ALL
-  };
-  return intervalMap[timeframe] || 60 * 1000; // Default to 1 minute
-};
-
-/**
- * Creates a fake candle with all price and volume values set to -1
- * This is used for padding to ensure proper chart spacing
- * Fake candles are never rendered to the right of the newest real candle
- */
-const createFakeCandle = (timestamp: string): CandlestickData => {
-  return {
-    timestamp,
-    open: -1,
-    high: -1,
-    low: -1,
-    close: -1,
-    volume: -1,
-    isFake: true,
-  };
-};
-
-/**
  * Checks if a candle is fake based on its properties
  * A candle is considered fake if isFake is true OR if all price/volume values are -1
  */
@@ -407,45 +368,4 @@ export const isFakeCandle = (candle: CandlestickData): boolean => {
     candle.isFake === true ||
     (candle.open === -1 && candle.high === -1 && candle.low === -1 && candle.close === -1 && candle.volume === -1)
   );
-};
-
-/**
- * Adds exactly 1 fake candle to the right of the rightmost real candle for padding
- * This creates visual padding so the rightmost real candle doesn't touch the domain line
- * Never adds fake candles to the right of the newest real candle
- */
-const addRightPaddingFakeCandle = (data: CandlestickData[], timeframe: ChartTimeframe = '1m'): CandlestickData[] => {
-  if (data.length === 0) {
-    return data;
-  }
-
-  // Find the last real (non-fake) candle
-  let lastRealCandleIndex = data.length - 1;
-  while (lastRealCandleIndex >= 0 && isFakeCandle(data[lastRealCandleIndex])) {
-    lastRealCandleIndex--;
-  }
-
-  // If no real candles found, return original data
-  if (lastRealCandleIndex < 0) {
-    return data;
-  }
-
-  // Check if there's already a fake candle immediately after the last real candle
-  const nextIndex = lastRealCandleIndex + 1;
-  if (nextIndex < data.length && isFakeCandle(data[nextIndex])) {
-    // Already has right padding, return as-is
-    return data;
-  }
-
-  const lastRealCandle = data[lastRealCandleIndex];
-  const lastRealTime = new Date(lastRealCandle.timestamp);
-
-  // Calculate the next timestamp based on the timeframe
-  const intervalMs = getTimeframeIntervalMs(timeframe);
-  const nextTimestamp = new Date(lastRealTime.getTime() + intervalMs).toISOString();
-
-  // Create exactly 1 fake candle for right padding
-  const rightPaddingCandle = createFakeCandle(nextTimestamp);
-
-  return [...data, rightPaddingCandle];
 };

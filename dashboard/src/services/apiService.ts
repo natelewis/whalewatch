@@ -24,10 +24,10 @@ const getToken = (): Promise<string | null> => {
 };
 
 // Create a function that can be called with a token getter
-export const createApiService = (getToken: () => Promise<string | null>) => {
+export const createApiService = (tokenGetter: () => Promise<string | null>) => {
   // Add token to requests
   api.interceptors.request.use(async config => {
-    const token = await getToken();
+    const token = await tokenGetter();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

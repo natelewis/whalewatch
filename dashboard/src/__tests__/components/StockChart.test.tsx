@@ -368,7 +368,6 @@ describe('StockChart', () => {
     render(<StockChart symbol="TSLA" onSymbolChange={vi.fn()} />);
 
     expect(screen.getByText('Live Data')).toBeInTheDocument();
-    expect(screen.getByText('(D3.js powered)')).toBeInTheDocument();
   });
 
   it('handles window resize', () => {
