@@ -12,7 +12,7 @@ import {
   QuestDBResponse,
   QuestDBConfig,
   QuestDBError,
-} from '../types/questdb';
+} from '../types/index';
 import { logger } from '../utils/logger';
 
 // Load environment variables from the server directory

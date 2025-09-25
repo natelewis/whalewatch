@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { questdbService } from './questdbService';
-import { QuestDBWebSocketMessage, QuestDBSubscription } from '../types/questdb';
+import { QuestDBWebSocketMessage, QuestDBSubscription } from '../types/index';
 
 export class QuestDBWebSocketService extends EventEmitter {
   private isStreaming: boolean = false;

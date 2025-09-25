@@ -1,6 +1,6 @@
 import { QuestDBWebSocketService } from '../../services/questdbWebSocketService';
 import { questdbService } from '../../services/questdbService';
-import { QuestDBSubscription } from '../../types/questdb';
+import { QuestDBSubscription } from '../../types/index';
 
 // Mock the questdbService
 jest.mock('../../services/questdbService');

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { questdbService } from '../services/questdbService';
-import { QuestDBQueryParams, QuestDBStockAggregate } from '../types/questdb';
+import { QuestDBQueryParams, QuestDBStockAggregate } from '../types/index';
 import { logger } from '../utils/logger';
 
 const router = Router();

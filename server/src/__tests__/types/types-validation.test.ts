@@ -15,15 +15,6 @@ describe('Types Directory Coverage', () => {
       expect(content).toContain('export');
       expect(content).toContain('interface');
     });
-
-    it('should have questdb.ts file as re-export', () => {
-      const questdbPath = path.join(__dirname, '../../types/questdb.ts');
-      expect(fs.existsSync(questdbPath)).toBe(true);
-
-      const content = fs.readFileSync(questdbPath, 'utf8');
-      expect(content).toContain('export * from');
-      expect(content).toContain('./index');
-    });
   });
 
   describe('Type Structure Validation', () => {
@@ -150,25 +141,6 @@ describe('Types Directory Coverage', () => {
       // Check for inline comments
       expect(content).toContain('// ISO timestamp');
       expect(content).toContain('// Direction to load data');
-    });
-  });
-
-  describe('Backward Compatibility', () => {
-    it('should maintain questdb.ts for backward compatibility', () => {
-      const questdbPath = path.join(__dirname, '../../types/questdb.ts');
-      const content = fs.readFileSync(questdbPath, 'utf8');
-
-      expect(content).toContain('backward compatibility');
-      expect(content).toContain('deprecated');
-      expect(content).toContain("export * from './index'");
-    });
-
-    it('should note deprecation in questdb.ts', () => {
-      const questdbPath = path.join(__dirname, '../../types/questdb.ts');
-      const content = fs.readFileSync(questdbPath, 'utf8');
-
-      expect(content).toContain('consolidated into server/src/types/index.ts');
-      expect(content).toContain('deprecated');
     });
   });
 });
