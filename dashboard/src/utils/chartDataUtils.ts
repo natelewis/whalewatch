@@ -6,16 +6,8 @@ import {
   memoizedApplyAxisStyling,
   memoizedCreateYAxis,
 } from './memoizedChartUtils';
-import {
-  AlpacaBar,
-  ChartTimeframe,
-  DEFAULT_CHART_DATA_POINTS,
-  CandlestickData,
-  TimeframeConfig,
-  DataRange,
-} from '../types';
+import { AlpacaBar, ChartTimeframe, CandlestickData, DataRange } from '../types';
 import { CHART_DATA_POINTS, X_AXIS_LABEL_CONFIGS } from '../constants';
-import { logger } from './logger';
 
 /**
  * Remove duplicate entries by timestamp and sort by time
@@ -61,14 +53,6 @@ const calculateDataRange = (bars: AlpacaBar[]): DataRange | null => {
 };
 
 /**
- * Get data points count for a given timeframe
- */
-const getDataPointsForTimeframe = (timeframe: ChartTimeframe, timeframes: TimeframeConfig[]): number => {
-  const timeframeConfig = timeframes.find(tf => tf.value === timeframe);
-  return timeframeConfig?.limit || DEFAULT_CHART_DATA_POINTS;
-};
-
-/**
  * Process raw chart data into formatted candlestick data
  * No fake candle padding added (buffer candle on right removed per user request)
  */
@@ -84,11 +68,8 @@ export const processChartData = (
   const formattedData = formatBarsToCandlestickData(uniqueBars);
   const dataRange = calculateDataRange(uniqueBars);
 
-  // No fake candles added (buffer candle on right removed per user request)
-  const paddedData = addFakeCandlesForPadding(formattedData);
-
   return {
-    formattedData: paddedData,
+    formattedData,
     dataRange,
   };
 };
@@ -112,70 +93,6 @@ export const calculateInnerDimensions = (dimensions: {
  * Apply consistent styling to axis elements
  */
 export const applyAxisStyling = memoizedApplyAxisStyling;
-
-// Removed legacy calculateTimeBasedTickValues (unused)
-
-/**
- * Generate time-based ticks that account for actual time distribution
- * This creates ticks that make sense for the data's time pattern
- * Now uses memoized version for better performance with configurable intervals
- */
-const generateTimeBasedTicks = (
-  allChartData: { timestamp: string }[],
-  markerIntervalMinutes?: number,
-  dataPointInterval?: number
-): Date[] => {
-  return memoizedGenerateVisibleTimeBasedTicks(allChartData, markerIntervalMinutes, allChartData);
-};
-
-/**
- * Create unified time-based scale that works with transformed linear scale
- * This ensures perfect alignment between X-axis and candlesticks
- */
-// Removed unused createUnifiedTimeScale (not used by renderer)
-
-/**
- * Create a time-based scale that maps data indices to screen coordinates
- * This ensures the X-axis labels align perfectly with candlesticks
- * and properly handles time compression (e.g., trading hours only)
- */
-const createIndexToTimeScale = (
-  transformedLinearScale: d3.ScaleLinear<number, number>,
-  allChartData: { timestamp: string }[]
-): d3.ScaleTime<Date, number> => {
-  // Safety check for empty or invalid data
-  if (!allChartData || allChartData.length === 0) {
-    logger.warn('createIndexToTimeScale called with empty or undefined allChartData');
-    // Return a default scale that won't cause errors
-    const defaultScale = d3.scaleTime();
-    defaultScale.domain([new Date(), new Date()]);
-    defaultScale.range([0, 1]);
-    return defaultScale as unknown as d3.ScaleTime<Date, number>;
-  }
-
-  if (!allChartData[0] || !allChartData[0].timestamp) {
-    logger.warn('createIndexToTimeScale called with invalid chart data - missing timestamp property');
-    const defaultScale = d3.scaleTime();
-    defaultScale.domain([new Date(), new Date()]);
-    defaultScale.range([0, 1]);
-    return defaultScale as unknown as d3.ScaleTime<Date, number>;
-  }
-
-  // Create a time-based scale with the actual time domain
-  const startTime = new Date(allChartData[0].timestamp);
-  const endTime = new Date(allChartData[allChartData.length - 1].timestamp);
-
-  const scale = d3.scaleTime();
-  scale.domain([startTime, endTime]);
-  scale.range(transformedLinearScale.range());
-
-  return scale as unknown as d3.ScaleTime<Date, number>;
-};
-
-/**
- * Create X-axis with time-based scale configuration
- */
-// Removed unused createXAxis (custom axis implementation in use)
 
 /**
  * Shared parameters for consistent x-axis calculations across all rendering scenarios
@@ -416,70 +333,6 @@ export const hasRequiredChartParams = (params: {
 };
 
 /**
- * Fill missing intervals for any timeframe data
- */
-const fillMissingMinutes = (data: CandlestickData[], timeframe: ChartTimeframe): CandlestickData[] => {
-  if (data.length === 0) {
-    return data;
-  }
-
-  const filledData: CandlestickData[] = [];
-
-  // Get interval in milliseconds based on timeframe
-  const getIntervalMs = (tf: ChartTimeframe): number => {
-    const intervalMap: Record<ChartTimeframe, number> = {
-      '1m': 60 * 1000, // 1 minute
-      '15m': 15 * 60 * 1000, // 15 minutes
-      '30m': 30 * 60 * 1000, // 30 minutes
-      '1h': 60 * 60 * 1000, // 1 hour
-      '1H': 60 * 60 * 1000, // 1 hour (alternative)
-      '1d': 24 * 60 * 60 * 1000, // 1 day
-      '1D': 24 * 60 * 60 * 1000, // 1 day (alternative)
-      '1W': 7 * 24 * 60 * 60 * 1000, // 1 week
-      '3M': 90 * 24 * 60 * 60 * 1000, // 3 months
-      '6M': 180 * 24 * 60 * 60 * 1000, // 6 months
-      '1Y': 365 * 24 * 60 * 60 * 1000, // 1 year
-      ALL: 0, // All data
-    };
-    return intervalMap[tf] || 60 * 60 * 1000; // Default to 1 hour
-  };
-
-  const intervalMs = getIntervalMs(timeframe);
-  const maxGapMultiplier = 3; // Only fill gaps up to 3x the interval
-
-  for (let i = 0; i < data.length; i++) {
-    filledData.push(data[i]);
-
-    // Check if there's a gap to the next data point
-    if (i < data.length - 1) {
-      const currentTime = new Date(data[i].timestamp).getTime();
-      const nextTime = new Date(data[i + 1].timestamp).getTime();
-      const gapMs = nextTime - currentTime;
-
-      // If gap is more than 2 intervals but less than or equal to maxGapMultiplier, fill with last known price
-      if (gapMs > intervalMs * 2 && gapMs <= intervalMs * maxGapMultiplier) {
-        const missingIntervals = Math.floor(gapMs / intervalMs) - 1;
-        const lastPrice = data[i].close;
-
-        for (let j = 1; j <= missingIntervals; j++) {
-          const fillTime = new Date(currentTime + j * intervalMs).toISOString();
-          filledData.push({
-            timestamp: fillTime,
-            open: lastPrice,
-            high: lastPrice,
-            low: lastPrice,
-            close: lastPrice,
-            volume: 0,
-          });
-        }
-      }
-    }
-  }
-
-  return filledData;
-};
-
-/**
  * Creates a viewport X scale for consistent positioning between candlesticks and hover data
  * This ensures that hover data stays synchronized with candlestick positions
  */
@@ -595,23 +448,4 @@ const addRightPaddingFakeCandle = (data: CandlestickData[], timeframe: ChartTime
   const rightPaddingCandle = createFakeCandle(nextTimestamp);
 
   return [...data, rightPaddingCandle];
-};
-
-/**
- * Processes chart data to add appropriate fake candles for padding
- * This is the main function that should be called to prepare data for rendering
- *
- * Requirements:
- * 1. No fake candles added (buffer candle on right removed per user request)
- * 2. Never adds fake candles to the right of the newest real candle
- * 3. Fake candles can be identified programmatically (isFake: true, all values -1)
- * 4. Left padding removed to prevent interference with auto-load logic
- */
-const addFakeCandlesForPadding = (data: CandlestickData[]): CandlestickData[] => {
-  if (data.length === 0) {
-    return data;
-  }
-
-  // No padding added - return data as-is (buffer candle on right removed per user request)
-  return data;
 };
