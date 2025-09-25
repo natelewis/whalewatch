@@ -1,7 +1,7 @@
 # WhaleWatch Makefile
 # Comprehensive build and development commands
 
-.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier
+.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill reset dev-feed clean-feed build-feed
 
 # Default target
 help:
@@ -12,6 +12,7 @@ help:
 	@echo "  make dev              Start both server and dashboard in development mode"
 	@echo "  make server-dev       Start server in development mode"
 	@echo "  make dashboard-dev    Start dashboard in development mode"
+	@echo "  make dev-feed         Start feed service in development mode"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test             Run all tests"
@@ -33,6 +34,13 @@ help:
 	@echo "  make build            Build all projects for production"
 	@echo "  make build-server     Build server for production"
 	@echo "  make build-dashboard  Build dashboard for production"
+	@echo "  make build-feed       Build feed service for production"
+	@echo ""
+	@echo "Feed Service:"
+	@echo "  make install-feed      Install feed service dependencies"
+	@echo "  make ingest            Start real-time data ingestion"
+	@echo "  make backfill          Backfill historical data (usage: make backfill [ARGS='ticker date'])"
+	@echo "  make reset             Reset all data in QuestDB (with confirmation)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean            Clean all build artifacts and node_modules"
@@ -48,6 +56,8 @@ install:
 	cd server && npm install
 	@echo "📦 Installing dashboard dependencies..."
 	cd dashboard && npm install
+	@echo "📦 Installing feed dependencies..."
+	cd feed && npm install
 	@echo "✅ All dependencies installed successfully!"
 
 # Development commands
@@ -69,6 +79,46 @@ server-dev:
 dashboard-dev:
 	@echo "🎨 Starting dashboard in development mode..."
 	cd dashboard && npm run dev
+
+# Feed service commands
+install-feed:
+	@echo "📦 Installing feed service dependencies..."
+	cd feed && npm install
+
+dev-feed:
+	@echo "📡 Starting feed service in development mode..."
+	cd feed && npm run dev
+
+ingest:
+	@echo "📡 Starting real-time data ingestion..."
+	cd feed && npm run ingest
+
+# Backfill historical data
+# Usage: make backfill [ARGS='ticker date']
+# Examples:
+#   make backfill                    # Backfill all tickers from last sync
+#   make backfill ARGS='AAPL'        # Backfill specific ticker from last sync
+#   make backfill ARGS='AAPL 2025-01-15'  # Backfill specific ticker TO specific date
+#   make backfill ARGS='2025-01-15'       # Backfill all tickers TO specific date
+backfill:
+	@echo "📊 Backfilling historical data..."
+	cd feed && npm run backfill -- $(ARGS)
+
+# Reset all data (with confirmation)
+reset:
+	@echo "⚠️  This will delete ALL data in QuestDB. Are you sure? (y/N)"
+	@read -r confirm && [ "$$confirm" = "y" ] || exit 1
+	@echo "🗑️  Resetting all data..."
+	cd feed && npm run reset
+
+build-feed:
+	@echo "🔨 Building feed service for production..."
+	cd feed && npm run build
+
+clean-feed:
+	@echo "🧹 Cleaning feed service build artifacts..."
+	rm -rf feed/dist
+	rm -rf feed/node_modules
 
 # Testing commands
 test: test-server test-dashboard
@@ -121,7 +171,7 @@ tsc-dashboard:
 	cd dashboard && npx tsc --noEmit
 
 # Building commands
-build: build-server build-dashboard
+build: build-server build-dashboard build-feed
 	@echo "✅ All builds completed!"
 
 build-server:
@@ -141,6 +191,8 @@ clean:
 	rm -rf dashboard/dist
 	rm -rf dashboard/node_modules
 	rm -rf dashboard/coverage
+	rm -rf feed/dist
+	rm -rf feed/node_modules
 	rm -rf node_modules
 	@echo "✅ Cleanup completed!"
 
@@ -174,6 +226,7 @@ setup: install
 	@echo "📝 Copying environment files..."
 	cp server/env.example server/.env || echo "Server .env already exists"
 	cp dashboard/env.example dashboard/.env || echo "Dashboard .env already exists"
+	cp feed/env.example feed/.env || echo "Feed .env already exists"
 	@echo "✅ Setup completed! Run 'make dev' to start development."
 
 # Check if all required tools are installed
