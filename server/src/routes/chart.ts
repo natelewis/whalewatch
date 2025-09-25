@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { questdbService } from '../services/questdbService';
-import { QuestDBQueryParams, QuestDBStockAggregate } from '../types/index';
+import { QuestDBQueryParams, QuestDBStockAggregate, ChartQueryParams } from '../types/index';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -19,18 +19,6 @@ export const AGGREGATION_INTERVALS = {
 } as const;
 
 export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
-
-/**
- * Chart query parameters for the new system
- */
-interface ChartQueryParams {
-  startTime: string; // ISO timestamp
-  direction: 'past' | 'future' | 'centered'; // Direction to load data from start_time
-  interval: AggregationInterval;
-  limit: number; // Number of data points to return
-  viewBasedLoading?: boolean; // Enable view-based preloading
-  viewSize?: number; // Size of one view (defaults to limit)
-}
 
 /**
  * Get the interval in minutes for a given aggregation interval

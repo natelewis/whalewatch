@@ -9,13 +9,12 @@ import type {
   ChartDimensions,
   CandlestickData,
   User,
-  ChartType,
   WebSocketMessage,
-} from '@shared';
+} from '@whalewatch/shared';
 
 // Re-export shared: types-only and value(s)
-export type * from '@shared';
-export { DEFAULT_CHART_DATA_POINTS } from '@shared';
+export type * from '@whalewatch/shared';
+export { DEFAULT_CHART_DATA_POINTS } from '@whalewatch/shared';
 
 // ============================================================================
 // CHART STATE MANAGEMENT TYPES

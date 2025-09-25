@@ -1,9 +1,9 @@
 // ============================================================================
-// SHARED TYPES - Single source of truth for common types
+// SHARED TYPES - Only types actually used across modules
 // ============================================================================
 
 // ============================================================================
-// ALPACA API TYPES
+// ALPACA API TYPES (Used by dashboard)
 // ============================================================================
 
 export interface AlpacaAccount {
@@ -105,6 +105,7 @@ export interface AlpacaActivity {
   additional_withholding_after_tax?: string;
 }
 
+// Used by feed module
 export interface AlpacaBar {
   t: string; // timestamp
   o: number; // open
@@ -116,6 +117,7 @@ export interface AlpacaBar {
   vw?: number; // volume weighted average price
 }
 
+// Used by dashboard
 export interface AlpacaOptionsTrade {
   id: string;
   symbol: string;
@@ -140,8 +142,10 @@ export interface AlpacaOptionsTrade {
   gain_percentage?: number;
 }
 
+// Used by feed and dashboard
 export type ContractType = 'call' | 'put';
 
+// Used by dashboard
 export interface AlpacaOptionsContract {
   cfi: string;
   contract_type: ContractType;
@@ -154,10 +158,7 @@ export interface AlpacaOptionsContract {
   underlying_ticker: string;
 }
 
-// ============================================================================
-// ORDER TYPES (Used by server)
-// ============================================================================
-
+// Used by dashboard
 export interface CreateOrderRequest {
   symbol: string;
   qty: number;
@@ -168,20 +169,7 @@ export interface CreateOrderRequest {
   stop_price?: number;
 }
 
-export interface OrderLeg {
-  id: string;
-  symbol: string;
-  side: 'buy' | 'sell';
-  qty: string;
-  filled_qty: string;
-  filled_avg_price?: string;
-  status: string;
-  order_type: string;
-  time_in_force: string;
-  limit_price?: string;
-  stop_price?: string;
-}
-
+// Used by dashboard
 export interface CreateOrderResponse {
   id: string;
   client_order_id: string;
@@ -211,109 +199,16 @@ export interface CreateOrderResponse {
   stop_price?: string;
   status: string;
   extended_hours: boolean;
-  legs?: OrderLeg[];
   trail_percent?: string;
   trail_price?: string;
   hwm?: string;
 }
 
 // ============================================================================
-// API RESPONSE TYPES (Used by dashboard and server)
-// ============================================================================
-
-export interface AccountInfoResponse {
-  account: AlpacaAccount;
-}
-
-export interface PositionsResponse {
-  positions: AlpacaPosition[];
-}
-
-export interface ActivityResponse {
-  activities: AlpacaActivity[];
-}
-
-// ChartDataResponse is defined in dashboard-specific types
-
-export interface OptionsTradesResponse {
-  trades: AlpacaOptionsTrade[];
-  symbol: string;
-}
-
-export interface ApiResponse<T> {
-  data?: T;
-  error?: string;
-  message?: string;
-}
-
-// ============================================================================
-// WEBSOCKET MESSAGE TYPES
-// ============================================================================
-
-export type WebSocketMessageData =
-  | AlpacaOptionsTrade
-  | AlpacaOptionsContract
-  | { symbol: string; price: number; timestamp: string }
-  | { symbol: string; bar: AlpacaBar }
-  | { error: string; message?: string }
-  | { status: string; message?: string }
-  | { channel: string; symbol?: string }
-  | { message: string } // For connection messages
-  | { [key: string]: string | number | boolean | null | undefined | string[] }; // For flexible data structures
-
-export interface WebSocketMessage {
-  type:
-    | 'options_whale'
-    | 'options_contract'
-    | 'account_quote'
-    | 'chart_quote'
-    | 'error'
-    | 'connection'
-    | 'subscription_confirmed'
-    | 'unsubscription_confirmed'
-    | 'subscribe'
-    | 'unsubscribe'
-    | 'ping'
-    | 'pong';
-  data: WebSocketMessageData;
-  timestamp: string;
-}
-
-// Specific message types are used by dashboard and server
-export interface OptionsWhaleMessage extends WebSocketMessage {
-  type: 'options_whale';
-  data: AlpacaOptionsTrade;
-}
-
-export interface OptionsContractMessage extends WebSocketMessage {
-  type: 'options_contract';
-  data: AlpacaOptionsContract;
-}
-
-export interface AccountQuoteMessage extends WebSocketMessage {
-  type: 'account_quote';
-  data: {
-    symbol: string;
-    price: number;
-    timestamp: string;
-  };
-}
-
-export interface ChartQuoteMessage extends WebSocketMessage {
-  type: 'chart_quote';
-  data: {
-    symbol: string;
-    bar: AlpacaBar;
-  };
-}
-
-// ============================================================================
-// CHART TYPES
+// CHART TYPES (Used by dashboard)
 // ============================================================================
 
 export type ChartTimeframe = '1m' | '15m' | '30m' | '1h' | '1H' | '1d' | '1D' | '1W' | '3M' | '6M' | '1Y' | 'ALL';
-
-export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 
 export interface ChartDimensions {
   width: number;
@@ -352,7 +247,7 @@ export interface DataRange {
 }
 
 // ============================================================================
-// AUTH TYPES
+// AUTH TYPES (Used by server and dashboard)
 // ============================================================================
 
 export interface User {
@@ -373,16 +268,41 @@ export interface JWTPayload {
   exp?: number;
 }
 
-export interface Auth0User {
-  id: string;
-  auth0Id: string;
-  email: string;
-  name: string;
-  picture?: string;
+// ============================================================================
+// WEBSOCKET MESSAGE TYPES (Used by dashboard and server)
+// ============================================================================
+
+export type WebSocketMessageData =
+  | AlpacaOptionsTrade
+  | AlpacaOptionsContract
+  | { symbol: string; price: number; timestamp: string }
+  | { symbol: string; bar: AlpacaBar }
+  | { error: string; message?: string }
+  | { status: string; message?: string }
+  | { channel: string; symbol?: string }
+  | { message: string } // For connection messages
+  | { [key: string]: string | number | boolean | null | undefined | string[] }; // For flexible data structures
+
+export interface WebSocketMessage {
+  type:
+    | 'options_whale'
+    | 'options_contract'
+    | 'account_quote'
+    | 'chart_quote'
+    | 'error'
+    | 'connection'
+    | 'subscription_confirmed'
+    | 'unsubscription_confirmed'
+    | 'subscribe'
+    | 'unsubscribe'
+    | 'ping'
+    | 'pong';
+  data: WebSocketMessageData;
+  timestamp: string;
 }
 
 // ============================================================================
-// ERROR TYPES (Used by error handling utilities)
+// ERROR TYPES (Used by server)
 // ============================================================================
 
 export interface ApiError {
@@ -390,44 +310,3 @@ export interface ApiError {
   status: number;
   code?: string;
 }
-
-// Enhanced error types for robust error handling
-export interface ErrorContext {
-  timestamp: string;
-  source?: string;
-  userId?: string;
-  requestId?: string;
-  metadata?: Record<string, string | number | boolean>;
-}
-
-export interface ParsedError {
-  message: string;
-  type: string;
-  status?: number;
-  code?: string;
-  context?: ErrorContext;
-  originalError?: Error | string | object;
-  isRetryable?: boolean;
-  isUserFriendly?: boolean;
-}
-
-export interface AxiosErrorResponse {
-  status?: number;
-  statusText?: string;
-  data?: {
-    error?: string;
-    message?: string;
-    code?: string;
-    details?: string | number | boolean | object;
-  };
-}
-
-export interface AxiosError extends Error {
-  response?: AxiosErrorResponse;
-  request?: object;
-  code?: string;
-  config?: object;
-}
-
-// Error severity levels
-export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical';

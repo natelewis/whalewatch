@@ -3,14 +3,14 @@
 // ============================================================================
 
 // Re-export shared types
-export * from '@shared/types';
+export * from '@whalewatch/shared';
 
 // ============================================================================
 // EXPRESS TYPES
 // ============================================================================
 
 import { Request } from 'express';
-import { User } from '@shared/types';
+import { User } from '@whalewatch/shared';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
