@@ -5,7 +5,6 @@ describe('StockChart Viewport Shift Fix', () => {
     // Test the viewport shift calculation logic
     const prevStart = 301;
     const prevEnd = 380;
-    const prevLength = 599;
     const fetchPoints = 600;
     const direction = 'past';
 

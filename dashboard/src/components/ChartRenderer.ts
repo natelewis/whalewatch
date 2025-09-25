@@ -1,15 +1,11 @@
 import * as d3 from 'd3';
 import React from 'react';
 import {
-  BUFFER_SIZE,
   CANDLE_UP_COLOR,
   CANDLE_DOWN_COLOR,
   CHART_DATA_POINTS,
-  MARGIN_SIZE,
   ZOOM_SCALE_MIN,
   ZOOM_SCALE_MAX,
-  LOAD_EDGE_TRIGGER,
-  X_AXIS_MARKER_INTERVAL,
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
   X_AXIS_LABEL_CONFIGS,
   HOVER_DISPLAY,
@@ -83,7 +79,6 @@ export const createChart = ({
   dimensions,
   stateCallbacks,
   chartState,
-  bufferRangeRef,
   isPanningRef,
   onBufferedCandlesRendered,
 }: {
@@ -95,7 +90,6 @@ export const createChart = ({
   dimensions: ChartDimensions;
   stateCallbacks: ChartStateCallbacks;
   chartState: ChartState;
-  bufferRangeRef: React.MutableRefObject<{ start: number; end: number } | null>;
   isPanningRef: React.MutableRefObject<boolean>;
   onBufferedCandlesRendered?: (direction: 'past' | 'future') => void;
 }): (() => void) => {
@@ -158,7 +152,6 @@ export const createChart = ({
   }
   // Get interval-based configuration
   const interval = chartState.timeframe || '1m';
-  const labelConfig = X_AXIS_LABEL_CONFIGS[interval] || X_AXIS_LABEL_CONFIGS['1m'];
 
   // Use shared calculation logic for consistency across all rendering scenarios
   // If viewport is not set (both are 0), use a reasonable default showing the last ~80 data points
@@ -227,54 +220,8 @@ export const createChart = ({
     stateCallbacks.setZoomBehavior(zoom as d3.ZoomBehavior<SVGSVGElement, unknown>);
   }
 
-  const handleZoomStart = (): void => {
-    const startTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
-    panStartX = startTransform.x;
-    // Derive start viewport from current data/dimensions to avoid stale chartState
-    const startData = stateCallbacks.getCurrentData?.();
-    const startDimensions = stateCallbacks.getCurrentDimensions?.();
-    if (startData && startData.length > 0 && startDimensions) {
-      const calcAtStart = calculateChartState({
-        dimensions: startDimensions,
-        allChartData: startData,
-        transform: startTransform,
-        fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
-      });
-      panStartViewStart = Math.floor(calcAtStart.viewStart);
-      panStartViewEnd = Math.ceil(calcAtStart.viewEnd);
-      panStartCenter = Math.floor((panStartViewStart + panStartViewEnd) / 2);
-    }
-    if (stateCallbacks.setIsZooming) {
-      stateCallbacks.setIsZooming(true);
-    }
-    isPanningRef.current = true;
-
-    // Keep crosshairs visible during panning - they will follow the mouse
-
-    // Lock Y-scale domain at pan start if not already locked to prevent jumps on data loads
-    const existingFixed = stateCallbacks.getFixedYScaleDomain?.() || null;
-    if (!existingFixed && stateCallbacks.setFixedYScaleDomain) {
-      const currentData = stateCallbacks.getCurrentData?.();
-      const currentDimensions = stateCallbacks.getCurrentDimensions?.();
-      if (currentData && currentData.length > 0 && currentDimensions) {
-        const currentTransform = d3.zoomTransform(svg.node() as SVGSVGElement);
-        const calc = calculateChartState({
-          dimensions: currentDimensions,
-          allChartData: currentData,
-          transform: currentTransform,
-          fixedYScaleDomain: null,
-        });
-        const minPrice = d3.min(calc.visibleData, d => d.low);
-        const maxPrice = d3.max(calc.visibleData, d => d.high);
-        if (minPrice != null && maxPrice != null && isFinite(minPrice) && isFinite(maxPrice)) {
-          stateCallbacks.setFixedYScaleDomain([minPrice, maxPrice]);
-        }
-      }
-    }
-  };
 
   const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
-    const zoomStartTime = performance.now();
     const { transform } = event;
     const sourceType = (event.sourceEvent as unknown as { type?: string })?.type;
     // Ignore non-wheel events
@@ -314,7 +261,6 @@ export const createChart = ({
     // Single source of truth for all calculations
     // EXPERIMENT: Disable vertical zooming - always use identity transform
     const transformForCalc = d3.zoomIdentity;
-    const calcStartTime = performance.now();
     const baseCalcs = calculateChartState({
       dimensions: currentDimensions,
       allChartData: currentData,
@@ -627,8 +573,6 @@ export const createChart = ({
   let panStartXLocal = 0;
   let panStartCenterLocal = 0;
   let panStartYLocal = 0;
-  let panStartTransformY = 0;
-  let panStartTransformK = 1;
   // Initialize vertical pan from chartState to persist across re-renders
   let currentTransformY = chartState.currentTransformY || 0;
   let currentTransformK = chartState.currentTransformK || 1;
@@ -685,7 +629,6 @@ export const createChart = ({
       panStartTransformY = currentTransformY;
       panStartTransformK = currentTransformK;
       const { innerWidth: iw } = calculateInnerDimensions(dims);
-      const bw = iw / CHART_DATA_POINTS;
       isPanningRef.current = true;
     })
     .on('pointermove', event => {
@@ -709,7 +652,6 @@ export const createChart = ({
         lastKnownDataLength = data.length;
       }
       const dx = (event as PointerEvent).clientX - panStartXLocal;
-      const dy = (event as PointerEvent).clientY - panStartYLocal;
       const deltaIdx = dx / bandWidth;
       const center = Math.max(0, Math.min(data.length - 1, Math.round(panStartCenterLocal - deltaIdx)));
       const windowSize = getWindowSize();
@@ -915,7 +857,6 @@ export const renderCandlestickChart = (
   calculations: ChartCalculations,
   useProvidedViewport: boolean = false
 ): void => {
-  const renderStartTime = performance.now();
 
   // Find the chart content group and remove existing candlesticks
   const chartContent = d3.select(svgElement).select('.chart-content');
@@ -990,7 +931,6 @@ export const renderCandlestickChart = (
     calculations.innerWidth
   );
 
-  const candlestickRenderStartTime = performance.now();
   visibleCandles.forEach((d, localIndex) => {
     // Calculate the global data index for proper positioning
     const globalIndex = actualStart + localIndex;

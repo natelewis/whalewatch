@@ -87,13 +87,6 @@ const DEFAULT_TRANSFORM: ChartTransform = {
   k: 1,
 };
 
-/**
- * Calculate buffer size based on chart dimensions
- */
-function calculateBufferSize(): number {
-  // Fixed chunk size
-  return BUFFER_SIZE;
-}
 
 /**
  * Consolidated chart state management hook

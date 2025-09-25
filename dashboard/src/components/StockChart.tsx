@@ -6,43 +6,29 @@ import { CandlestickData } from '../types';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
-import { apiService } from '../services/apiService';
 import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
 import { logger } from '../utils/logger';
 import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import {
   formatPrice,
-  processChartData,
   calculateInnerDimensions,
-  isValidChartData,
-  calculateXAxisParams,
-  createCustomTimeAxis,
-  applyAxisStyling,
-  createYAxis,
 } from '../utils/chartDataUtils';
-import { smartDateRenderer } from '../utils/dateRenderer';
 import { TimeframeConfig } from '../types';
-import { createChart, renderCandlestickChart, updateClipPath, calculateChartState } from './ChartRenderer';
+import { createChart, renderCandlestickChart, calculateChartState } from './ChartRenderer';
 import { memoizedCalculateYScaleDomain } from '../utils/memoizedChartUtils';
-import { renderInitial, renderPanning, renderSkipTo, renderWebSocket, RenderType } from '../utils/renderManager';
+import { renderInitial, renderPanning, renderWebSocket } from '../utils/renderManager';
 import {
   BUFFER_SIZE,
-  MIN_CHART_HEIGHT,
-  CHART_HEIGHT_OFFSET,
   CHART_DATA_POINTS,
-  MARGIN_SIZE,
-  MAX_DATA_POINTS,
 } from '../constants';
 
 // Import new utility functions
 import {
   calculateNewestViewport,
-  calculateCenteredViewport,
   calculateAnchoredViewport,
   validateViewport,
   calculateBufferRange,
   calculatePruningRange,
-  findClosestDataPoint,
   calculateDataShift,
 } from '../utils/viewportUtils';
 import {
@@ -50,7 +36,6 @@ import {
   validateChartState,
   shouldCreateChart,
   shouldForceRecreateChart,
-  validateChartData,
   isChartReady,
   isChartLoading,
   hasChartError,
@@ -59,37 +44,24 @@ import {
 } from '../utils/chartStateUtils';
 import {
   mergeHistoricalData,
-  loadChartData,
   autoLoadData,
-  processWebSocketData,
-  shouldAutoRedraw,
-  calculateAutoRedrawViewport,
-  pruneData,
 } from '../utils/dataLoadingUtils';
 import {
   useRefUpdates,
   useCleanup,
   useDebouncedEffect,
   useLoadingState,
-  usePreviousValue,
-  useStateChangeTracker,
-  useMultipleRefs,
   useLoggedEffect,
   useConditionalEffect,
-  useTimeoutEffect,
 } from '../utils/effectUtils';
 import {
   useErrorState,
   useRetry,
-  useAsyncOperation,
-  handleApiError,
-  createErrorMessage,
   logError,
 } from '../utils/errorHandlingUtils';
 
 interface StockChartProps {
   symbol: string;
-  onSymbolChange?: (symbol: string) => void;
 }
 
 // Chart calculation types (matching ChartRenderer)
@@ -107,10 +79,8 @@ interface ChartCalculations {
   transformString: string;
 }
 
-// Helper function for Y-scale domain calculation using memoized function
-const calculateYScaleDomain = memoizedCalculateYScaleDomain;
 
-const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
+const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -125,8 +95,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
 
   // Use new utility hooks for state management
   const { isLoading: isLoadingData, setLoading: setLoadingData } = useLoadingState(false);
-  const { error: dataLoadingError, setError: setDataLoadingError, clearError: clearDataLoadingError } = useErrorState();
-  const { retry: retryDataLoad } = useRetry({ maxRetries: 3, retryDelay: 1000 });
 
   // Use ref to prevent effect loops
   const isLoadingDataRef = useRef(false);
@@ -178,11 +146,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
   // Track when we're in the middle of an auto-load operation to prevent re-render loops
   const isAutoLoadingRef = useRef<boolean>(false);
 
-  // Refs to prevent infinite auto-load loops
-  const loadRequestedLeftRef = useRef<boolean>(false);
-  const loadRequestedRightRef = useRef<boolean>(false);
-  const lastLoadDataLengthLeftRef = useRef<number | null>(null);
-  const lastLoadDataLengthRightRef = useRef<number | null>(null);
 
   // Use new utility hooks for ref management
   useRefUpdates([
@@ -311,13 +274,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol, onSymbolChange }) => {
     [timeframe, chartState.allData.length, symbol, chartActions]
   );
 
-  // Wrapper function that renders candlesticks and triggers data loading for non-panning cases
-  const renderCandlestickChartWithCallback = useCallback(
-    (svgElement: SVGSVGElement, calculations: ChartCalculations): void => {
-      renderCandlestickChart(svgElement, calculations);
-    },
-    []
-  );
 
   // Define timeframes array
   const timeframes: TimeframeConfig[] = useMemo(

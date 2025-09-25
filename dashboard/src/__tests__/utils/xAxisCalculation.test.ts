@@ -204,7 +204,6 @@ describe('calculateXAxisParams', () => {
     expect(result.visibleSlice[2]).toEqual(mockChartData[3]); // Last visible point
 
     // Verify the visible slice is a contiguous subset of the full data
-    const fullDataIndices = mockChartData.map((_, index) => index);
     const visibleIndices = result.visibleSlice.map(point =>
       mockChartData.findIndex(d => d.timestamp === point.timestamp)
     );

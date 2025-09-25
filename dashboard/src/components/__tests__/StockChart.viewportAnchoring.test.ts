@@ -27,7 +27,6 @@ describe('StockChart Viewport Anchoring Logic', () => {
 
   it('should calculate correct data shift for future data loading', () => {
     // Test future data loading scenario
-    const prevLength = 599;
     const mergedLength = 1199;
     const prunedDataLength = 1200; // After pruning
     const direction = 'future';

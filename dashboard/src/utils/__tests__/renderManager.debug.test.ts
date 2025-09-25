@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import * as d3 from 'd3';
 import { renderChart, RenderType, DEFAULT_RENDER_OPTIONS } from '../renderManager';
 import { ChartDimensions, CandlestickData } from '../../types';
 
