@@ -209,10 +209,6 @@ export const createChart = ({
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([ZOOM_SCALE_MIN, ZOOM_SCALE_MAX]);
   // Only allow wheel zoom through d3.zoom; we'll handle panning ourselves
   zoom.filter(event => (event as { type?: string }).type === 'wheel');
-  const panStartX = 0;
-  const panStartViewStart = 0;
-  const panStartViewEnd = CHART_DATA_POINTS - 1;
-  const panStartCenter = Math.floor((panStartViewStart + panStartViewEnd) / 2); // d3-wheel zoom path
 
   // Store reference to zoom behavior for programmatic control
   if (stateCallbacks.setZoomBehavior) {
@@ -442,7 +438,6 @@ export const createChart = ({
   let isPointerDown = false;
   let panStartXLocal = 0;
   let panStartCenterLocal = 0;
-  let panStartYLocal = 0;
   // Initialize vertical pan from chartState to persist across re-renders
   let currentTransformY = chartState.currentTransformY || 0;
   let currentTransformK = chartState.currentTransformK || 1;
@@ -461,7 +456,6 @@ export const createChart = ({
     .on('pointerdown', event => {
       isPointerDown = true;
       panStartXLocal = (event as PointerEvent).clientX;
-      panStartYLocal = (event as PointerEvent).clientY;
       // If data length changed since last pan (e.g., after add-left or prune),
       // preserve current vertical transform; only update the known length.
       const latestData = stateCallbacks.getCurrentData?.() || allChartData;
