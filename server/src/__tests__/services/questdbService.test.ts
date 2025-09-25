@@ -739,40 +739,38 @@ describe('QuestDBService', () => {
   describe('ensureTableExists', () => {
     beforeEach(() => {
       questdbService = new QuestDBService();
+      // Clear axios mocks specifically
+      mockedAxios.get.mockClear();
     });
 
     it('should pass when table exists', async () => {
-      mockedAxios.get.mockResolvedValueOnce({
-        data: {
-          query: 'SHOW TABLES',
-          columns: [{ name: 'table_name', type: 'STRING' }],
-          dataset: [['stock_trades'], ['stock_aggregates']],
-          count: 2,
-          execution_time_ms: 1,
-        },
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as any,
-      });
+      const mockResponse = {
+        query: 'SHOW TABLES',
+        columns: [{ name: 'table_name', type: 'STRING' }],
+        dataset: [['stock_trades'], ['stock_aggregates']],
+        count: 2,
+        execution_time_ms: 1,
+      };
+
+      // Mock the executeQuery method
+      const executeQuerySpy = jest.spyOn(questdbService as any, 'executeQuery');
+      executeQuerySpy.mockResolvedValueOnce(mockResponse);
 
       await expect((questdbService as any).ensureTableExists('stock_trades')).resolves.not.toThrow();
     });
 
     it('should throw error when table does not exist', async () => {
-      mockedAxios.get.mockResolvedValueOnce({
-        data: {
-          query: 'SHOW TABLES',
-          columns: [{ name: 'table_name', type: 'STRING' }],
-          dataset: [['other_table']],
-          count: 1,
-          execution_time_ms: 1,
-        },
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as any,
-      });
+      const mockResponse = {
+        query: 'SHOW TABLES',
+        columns: [{ name: 'table_name', type: 'STRING' }],
+        dataset: [['other_table']],
+        count: 1,
+        execution_time_ms: 1,
+      };
+
+      // Mock the executeQuery method
+      const executeQuerySpy = jest.spyOn(questdbService as any, 'executeQuery');
+      executeQuerySpy.mockResolvedValueOnce(mockResponse);
 
       await expect((questdbService as any).ensureTableExists('stock_trades')).rejects.toThrow(
         "Table 'stock_trades' does not exist. Available tables: other_table."
@@ -780,10 +778,12 @@ describe('QuestDBService', () => {
     });
 
     it('should wrap connection errors', async () => {
-      mockedAxios.get.mockRejectedValueOnce(new Error('Connection failed'));
+      // Mock the executeQuery method to throw an error
+      const executeQuerySpy = jest.spyOn(questdbService as any, 'executeQuery');
+      executeQuerySpy.mockRejectedValueOnce(new Error('Connection failed'));
 
       await expect((questdbService as any).ensureTableExists('stock_trades')).rejects.toThrow(
-        "Failed to check if table 'stock_trades' exists: Failed to execute QuestDB query: Connection failed"
+        "Failed to check if table 'stock_trades' exists: Connection failed"
       );
     });
   });
@@ -1273,6 +1273,8 @@ describe('QuestDBService', () => {
   describe('getDatabaseStats', () => {
     beforeEach(() => {
       questdbService = new QuestDBService();
+      // Clear axios mocks specifically
+      mockedAxios.get.mockClear();
     });
 
     it('should return database statistics for all tables', async () => {
@@ -1358,12 +1360,15 @@ describe('QuestDBService', () => {
         },
       ];
 
-      // Mock the executeQuery method to return our responses
-      const executeQuerySpy = jest.spyOn(questdbService as any, 'executeQuery');
-      executeQuerySpy.mockResolvedValueOnce(tablesResponse.data);
-      countResponses.forEach(response => {
-        executeQuerySpy.mockResolvedValueOnce(response.data);
-      });
+      // Mock axios.get to return our responses in sequence
+      mockedAxios.get.mockClear();
+      mockedAxios.get
+        .mockResolvedValueOnce(tablesResponse) // SHOW TABLES
+        .mockResolvedValueOnce(countResponses[0]) // stock_trades COUNT
+        .mockResolvedValueOnce(countResponses[1]) // stock_aggregates COUNT
+        .mockResolvedValueOnce(countResponses[2]) // option_contracts COUNT
+        .mockResolvedValueOnce(countResponses[3]) // option_trades COUNT
+        .mockResolvedValueOnce(countResponses[4]); // option_quotes COUNT
 
       const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
 
@@ -1442,10 +1447,11 @@ describe('QuestDBService', () => {
         config: {} as any,
       };
 
-      // Mock the executeQuery method to return our responses
-      const executeQuerySpy = jest.spyOn(questdbService as any, 'executeQuery');
-      executeQuerySpy.mockResolvedValueOnce(tablesResponse.data);
-      executeQuerySpy.mockRejectedValueOnce(new Error('Count query failed'));
+      // Mock axios.get to return our responses
+      mockedAxios.get.mockClear();
+      mockedAxios.get
+        .mockResolvedValueOnce(tablesResponse) // SHOW TABLES
+        .mockRejectedValueOnce(new Error('Count query failed')); // COUNT(*) for stock_trades
 
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 

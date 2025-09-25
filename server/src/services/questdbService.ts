@@ -45,7 +45,7 @@ export class QuestDBService {
       timeout: this.config.timeout,
     });
 
-    if (!this.config.host) {
+    if (!process.env.QUESTDB_HOST) {
       console.warn('QUESTDB_HOST not found in environment variables');
     }
   }
