@@ -20,8 +20,8 @@ vi.mock('../../hooks/useWebSocket', () => ({
 const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 // Helper function to render hook with WebSocketProvider
-const renderHookWithProvider = <T extends unknown[]>(
-  hook: (...args: T) => UseChartWebSocketReturn,
+const renderHookWithProvider = <T extends Record<string, unknown>>(
+  hook: (props: T) => UseChartWebSocketReturn,
   options?: { wrapper?: React.ComponentType<{ children: React.ReactNode }>; initialProps?: T }
 ) => {
   const wrapper = ({ children }: { children: React.ReactNode }) => {

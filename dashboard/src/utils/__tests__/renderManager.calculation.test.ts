@@ -34,7 +34,7 @@ vi.mock('../memoizedChartUtils', () => ({
     if (data.length === 0) {
       return [0, 1];
     }
-    const prices = data.flatMap(d => [d.open, d.high, d.low, d.close]);
+    const prices = data.flatMap((d: CandlestickData) => [d.open, d.high, d.low, d.close]);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     const padding = (max - min) * 0.1;
@@ -67,6 +67,7 @@ describe('RenderManager Calculation Tests', () => {
     mockDimensions = {
       width: 800,
       height: 400,
+      margin: { top: 20, right: 20, bottom: 40, left: 60 },
     };
 
     // Create test data with 1001 candles (like in the real scenario)

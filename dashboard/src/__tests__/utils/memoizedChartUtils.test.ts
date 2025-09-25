@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 describe('memoizedGenerateTimeBasedTicks - Date Anchoring', () => {
   let memoizedGenerateTimeBasedTicks: (
-    data: Array<{ timestamp: string }>,
-    width: number
-  ) => Array<{ value: number; label: string }>;
+    allChartData: { timestamp: string }[],
+    markerIntervalMinutes?: number,
+    dataPointInterval?: number
+  ) => Date[];
   // Mock data spanning multiple days
   const mockChartData = [
     { timestamp: '2025-09-01T09:30:00Z' }, // Monday

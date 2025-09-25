@@ -169,7 +169,7 @@ export class OptionIngestionService {
 
       // Handle QuestDB result format
       const rows = (result as { dataset: unknown[][] })?.dataset || [];
-      return rows.map((row: string[]) => row[0]);
+      return rows.map((row: unknown[]) => String(row[0]));
     } catch (error) {
       console.error('Error getting option tickers:', error);
       return [];
@@ -372,7 +372,7 @@ export class OptionIngestionService {
 
       // Handle QuestDB result format
       const rows = (result as { dataset: unknown[][] })?.dataset || [];
-      return rows.map((row: string[]) => row[0]);
+      return rows.map((row: unknown[]) => String(row[0]));
     } catch (error) {
       console.error('Error getting option tickers for underlying:', error);
       return [];

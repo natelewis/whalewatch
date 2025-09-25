@@ -9,8 +9,8 @@ const createMockCallback = (shouldReturnValue = true) => {
     calls.push({ direction, timestamp: Date.now() });
     return shouldReturnValue;
   });
-  callback.calls = calls;
-  return callback;
+  Object.assign(callback, { calls });
+  return callback as typeof callback & { calls: Array<{ direction: 'past' | 'future'; timestamp: number }> };
 };
 
 // Mock ref objects for testing
@@ -440,7 +440,7 @@ describe('checkAutoLoadTrigger', () => {
     let consoleSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
-      consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as unknown as ReturnType<typeof vi.spyOn>;
     });
 
     afterEach(() => {

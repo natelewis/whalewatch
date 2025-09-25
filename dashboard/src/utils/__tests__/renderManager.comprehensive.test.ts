@@ -26,7 +26,7 @@ vi.mock('../memoizedChartUtils', () => ({
     if (data.length === 0) {
       return [0, 1];
     }
-    const prices = data.flatMap(d => [d.open, d.high, d.low, d.close]);
+    const prices = data.flatMap((d: CandlestickData) => [d.open, d.high, d.low, d.close]);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     const padding = (max - min) * 0.1;
@@ -59,6 +59,7 @@ describe('RenderManager Comprehensive Tests', () => {
     mockDimensions = {
       width: 800,
       height: 400,
+      margin: { top: 20, right: 20, bottom: 40, left: 60 },
     };
 
     // Create test data with 10 candles
@@ -77,7 +78,7 @@ describe('RenderManager Comprehensive Tests', () => {
       const viewStart = 2;
       const viewEnd = 5;
 
-      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity);
+      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity, null);
 
       expect(result.success).toBe(true);
       expect(result.calculations).toBeDefined();
@@ -94,7 +95,7 @@ describe('RenderManager Comprehensive Tests', () => {
       const viewStart = 1;
       const viewEnd = 4;
 
-      const result = renderPanning(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity);
+      const result = renderPanning(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity, null);
 
       expect(result.success).toBe(true);
       expect(result.calculations).toBeDefined();
@@ -115,7 +116,8 @@ describe('RenderManager Comprehensive Tests', () => {
         mockData,
         providedViewStart,
         providedViewEnd,
-        d3.zoomIdentity
+        d3.zoomIdentity,
+        null
       );
 
       expect(result.success).toBe(true);
@@ -133,7 +135,7 @@ describe('RenderManager Comprehensive Tests', () => {
       const viewStart = 2;
       const viewEnd = 4;
 
-      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity);
+      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity, null);
 
       expect(result.success).toBe(true);
       expect(result.yScaleRecalculated).toBe(true);
@@ -154,7 +156,7 @@ describe('RenderManager Comprehensive Tests', () => {
       const viewStart = 1;
       const viewEnd = 3;
 
-      const result = renderPanning(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity);
+      const result = renderPanning(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity, null);
 
       expect(result.success).toBe(true);
       expect(result.yScaleRecalculated).toBe(true);
@@ -166,7 +168,7 @@ describe('RenderManager Comprehensive Tests', () => {
     it('should not preserve transform for skip-to operations', () => {
       const customTransform = d3.zoomIdentity.translate(100, 50).scale(1.5);
 
-      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, 2, 5, customTransform);
+      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, 2, 5, customTransform, null);
 
       expect(result.success).toBe(true);
       expect(result.calculations!.transformString).toBe('translate(0,0) scale(1)');
@@ -175,7 +177,7 @@ describe('RenderManager Comprehensive Tests', () => {
     it('should not preserve transform for panning operations', () => {
       const customTransform = d3.zoomIdentity.translate(100, 50).scale(1.5);
 
-      const result = renderPanning(mockSvgElement, mockDimensions, mockData, 2, 5, customTransform);
+      const result = renderPanning(mockSvgElement, mockDimensions, mockData, 2, 5, customTransform, null);
 
       expect(result.success).toBe(true);
       expect(result.calculations!.transformString).toBe('translate(0,0) scale(1)');
@@ -184,7 +186,7 @@ describe('RenderManager Comprehensive Tests', () => {
 
   describe('Error Handling', () => {
     it('should handle empty data gracefully', () => {
-      const result = renderSkipTo(mockSvgElement, mockDimensions, [], 0, 0, d3.zoomIdentity);
+      const result = renderSkipTo(mockSvgElement, mockDimensions, [], 0, 0, d3.zoomIdentity, null);
 
       expect(result.success).toBe(false); // Empty data should fail gracefully
       expect(result.error).toBe('No data to render');
@@ -197,7 +199,8 @@ describe('RenderManager Comprehensive Tests', () => {
         mockData,
         -1, // Invalid start
         5,
-        d3.zoomIdentity
+        d3.zoomIdentity,
+        null
       );
 
       expect(result.success).toBe(true); // Error handling is working correctly
@@ -211,7 +214,8 @@ describe('RenderManager Comprehensive Tests', () => {
         mockData,
         5,
         15, // Beyond data length
-        d3.zoomIdentity
+        d3.zoomIdentity,
+        null
       );
 
       expect(result.success).toBe(true); // Error handling is working correctly
@@ -246,7 +250,7 @@ describe('RenderManager Comprehensive Tests', () => {
       const viewStart = 2;
       const viewEnd = 6;
 
-      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity);
+      const result = renderSkipTo(mockSvgElement, mockDimensions, mockData, viewStart, viewEnd, d3.zoomIdentity, null);
 
       expect(result.success).toBe(true);
       expect(result.calculations).toBeDefined();
@@ -283,7 +287,7 @@ describe('RenderManager Comprehensive Tests', () => {
       const viewStart = 100;
       const viewEnd = 200;
 
-      const result = renderSkipTo(mockSvgElement, mockDimensions, largeData, viewStart, viewEnd, d3.zoomIdentity);
+      const result = renderSkipTo(mockSvgElement, mockDimensions, largeData, viewStart, viewEnd, d3.zoomIdentity, null);
 
       expect(result.success).toBe(true);
       expect(result.calculations!.visibleData.length).toBe(101); // 200 - 100 + 1

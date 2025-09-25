@@ -71,7 +71,11 @@ describe('RenderManager TypeScript Compliance Tests', () => {
   describe('RenderParams Interface', () => {
     it('should handle optional parameters correctly', () => {
       const mockSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as SVGSVGElement;
-      const mockDimensions: ChartDimensions = { width: 800, height: 400 };
+      const mockDimensions: ChartDimensions = {
+        width: 800,
+        height: 400,
+        margin: { top: 20, right: 20, bottom: 40, left: 60 },
+      };
       const mockData: CandlestickData[] = [];
       const mockOptions: RenderOptions = DEFAULT_RENDER_OPTIONS[RenderType.SKIP_TO];
 
@@ -114,7 +118,11 @@ describe('RenderManager TypeScript Compliance Tests', () => {
   describe('Function Signatures', () => {
     it('should have correct function signatures for render functions', () => {
       const mockSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as SVGSVGElement;
-      const mockDimensions: ChartDimensions = { width: 800, height: 400 };
+      const mockDimensions: ChartDimensions = {
+        width: 800,
+        height: 400,
+        margin: { top: 20, right: 20, bottom: 40, left: 60 },
+      };
       const mockData: CandlestickData[] = [];
 
       // Test that functions accept the correct parameters

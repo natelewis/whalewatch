@@ -667,10 +667,10 @@ export class BackfillService {
         ) AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
       );
 
-      const aggregatesCount = (aggregatesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
-      const optionContractsCount = (optionContractsCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
-      const optionTradesCount = (optionTradesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
-      const optionQuotesCount = (optionQuotesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0] || 0;
+      const aggregatesCount = Number((aggregatesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
+      const optionContractsCount = Number((optionContractsCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
+      const optionTradesCount = Number((optionTradesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
+      const optionQuotesCount = Number((optionQuotesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
 
       if (aggregatesCount > 0) {
         console.log(`Found ${aggregatesCount} stock aggregates to delete for ${ticker}`);

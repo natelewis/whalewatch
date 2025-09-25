@@ -106,7 +106,7 @@ export class PolygonWebSocketClient {
             this.resubscribeAll();
           } else if (message.status === 'error') {
             console.error('WebSocket error:', message.message);
-            this.eventHandlers.onError?.(new Error(message.message || 'Unknown WebSocket error'));
+            this.eventHandlers.onError?.(new Error(String(message.message) || 'Unknown WebSocket error'));
           }
           break;
 

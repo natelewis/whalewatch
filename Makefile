@@ -30,6 +30,7 @@ help:
 	@echo "  make tsc              Run TypeScript compilation checks for all projects"
 	@echo "  make tsc-server       Run TypeScript compilation check for server only"
 	@echo "  make tsc-dashboard    Run TypeScript compilation check for dashboard only"
+	@echo "  make tsc-feed         Run TypeScript compilation check for feed only"
 	@echo ""
 	@echo "Building:"
 	@echo "  make build            Build all projects for production"
@@ -164,7 +165,7 @@ lint-feed:
 	npx eslint feed/src --ext .ts,.tsx --fix
 
 # TypeScript compilation commands
-tsc: tsc-server tsc-dashboard
+tsc: tsc-server tsc-dashboard tsc-feed
 	@echo "✅ All TypeScript compilation checks completed!"
 
 tsc-server:
@@ -174,6 +175,10 @@ tsc-server:
 tsc-dashboard:
 	@echo "🔍 Running TypeScript compilation check for dashboard..."
 	cd dashboard && npx tsc --noEmit
+
+tsc-feed:
+	@echo "🔍 Running TypeScript compilation check for feed..."
+	cd feed && npx tsc --noEmit
 
 # Building commands
 build: build-server build-dashboard build-feed

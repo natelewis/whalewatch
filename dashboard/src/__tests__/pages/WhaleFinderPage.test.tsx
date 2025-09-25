@@ -99,7 +99,9 @@ describe('WhaleFinderPage', () => {
       hours: 24,
     });
     mockApiService.getOptionsContracts.mockResolvedValue({
+      symbol: 'TSLA',
       contracts: [],
+      total_contracts: 0,
     });
     mockUseWebSocket.mockReturnValue({
       socket: null,
