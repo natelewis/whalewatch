@@ -7,7 +7,6 @@ import {
   ZOOM_SCALE_MIN,
   ZOOM_SCALE_MAX,
   X_AXIS_MARKER_DATA_POINT_INTERVAL,
-  X_AXIS_LABEL_CONFIGS,
   HOVER_DISPLAY,
 } from '../constants';
 import { logger } from '../utils/logger';
@@ -210,144 +209,15 @@ export const createChart = ({
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([ZOOM_SCALE_MIN, ZOOM_SCALE_MAX]);
   // Only allow wheel zoom through d3.zoom; we'll handle panning ourselves
   zoom.filter(event => (event as { type?: string }).type === 'wheel');
-  let panStartX = 0;
-  let panStartViewStart = 0;
-  let panStartViewEnd = CHART_DATA_POINTS - 1;
-  let panStartCenter = Math.floor((panStartViewStart + panStartViewEnd) / 2); // d3-wheel zoom path
+  const panStartX = 0;
+  const panStartViewStart = 0;
+  const panStartViewEnd = CHART_DATA_POINTS - 1;
+  const panStartCenter = Math.floor((panStartViewStart + panStartViewEnd) / 2); // d3-wheel zoom path
 
   // Store reference to zoom behavior for programmatic control
   if (stateCallbacks.setZoomBehavior) {
     stateCallbacks.setZoomBehavior(zoom as d3.ZoomBehavior<SVGSVGElement, unknown>);
   }
-
-
-  const handleZoom = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>): void => {
-    const { transform } = event;
-    const sourceType = (event.sourceEvent as unknown as { type?: string })?.type;
-    // Ignore non-wheel events
-    if (sourceType !== 'wheel') {
-      return;
-    }
-
-    // Update current transform for debugging
-    if (stateCallbacks.setCurrentTransform) {
-      stateCallbacks.setCurrentTransform(transform);
-    }
-
-    // Get the current fixed Y-scale domain from the ref to avoid stale closure issues
-    const currentFixedYScaleDomain = stateCallbacks.getFixedYScaleDomain?.() || null;
-
-    // Get the current data from the callback to avoid stale closure issues
-    const currentData = stateCallbacks.getCurrentData?.();
-
-    // Early return if no valid data - prevents errors during panning
-    if (!currentData || currentData.length === 0) {
-      logger.warn('handleZoom called with empty currentData, skipping zoom processing', {
-        getCurrentDataResult: currentData,
-        currentDataLength: currentData?.length || 0,
-      });
-      return;
-    }
-
-    // Get current dimensions from the callback to avoid stale closure issues
-    const currentDimensions = stateCallbacks.getCurrentDimensions?.();
-
-    // Early return if no valid dimensions
-    if (!currentDimensions) {
-      logger.warn('handleZoom called with no dimensions, skipping zoom processing');
-      return;
-    }
-
-    // Single source of truth for all calculations
-    // EXPERIMENT: Disable vertical zooming - always use identity transform
-    const transformForCalc = d3.zoomIdentity;
-    const baseCalcs = calculateChartState({
-      dimensions: currentDimensions,
-      allChartData: currentData,
-      transform: transformForCalc,
-      fixedYScaleDomain: currentFixedYScaleDomain,
-    });
-
-    // Compute viewport indices from pixel delta
-    const { innerWidth: currInnerWidth } = calculateInnerDimensions(currentDimensions);
-    const bandWidth = currInnerWidth / CHART_DATA_POINTS;
-    const isWheel = true;
-    const windowSize = Math.max(1, CHART_DATA_POINTS);
-    const halfWindow = Math.floor(windowSize / 2);
-    let newCenter = panStartCenter;
-    if (!isWheel) {
-      const dx = transform.x - panStartX;
-      const deltaIdx = dx / bandWidth;
-      newCenter = Math.round(panStartCenter - deltaIdx);
-    }
-    // Allow padding on either side by using center-based window; renderer will handle out-of-bounds gracefully
-    const newStart = newCenter - halfWindow;
-    const newEnd = newCenter + halfWindow;
-
-    if (stateCallbacks.setCurrentViewStart) {
-      stateCallbacks.setCurrentViewStart(newStart);
-    }
-    if (stateCallbacks.setCurrentViewEnd) {
-      stateCallbacks.setCurrentViewEnd(newEnd);
-    }
-
-    // Do not apply group transform; we'll re-render during pan for accurate axes and candles
-    const chartContentGroup = g.select<SVGGElement>('.chart-content');
-    if (!chartContentGroup.empty()) {
-      chartContentGroup.attr('transform', null);
-    }
-
-    // Update X-axis during zoom using shared calculation logic
-    const xAxisGroup = g.select<SVGGElement>('.x-axis');
-    if (!xAxisGroup.empty()) {
-      const { innerHeight: axisInnerHeight } = calculateInnerDimensions(currentDimensions);
-      xAxisGroup.attr('transform', `translate(0,${axisInnerHeight})`);
-
-      // Use shared calculation logic for consistency
-      const zoomXAxisParams = calculateXAxisParams({
-        viewStart: newStart,
-        viewEnd: newEnd,
-        allChartData: currentData,
-        innerWidth: currInnerWidth,
-        timeframe: interval,
-      });
-
-      xAxisGroup.call(
-        createCustomTimeAxis(
-          zoomXAxisParams.viewportXScale as unknown as d3.ScaleLinear<number, number>,
-          currentData,
-          zoomXAxisParams.labelConfig.markerIntervalMinutes,
-          X_AXIS_MARKER_DATA_POINT_INTERVAL,
-          zoomXAxisParams.visibleSlice,
-          zoomXAxisParams.interval
-        )
-      );
-      applyAxisStyling(xAxisGroup);
-    }
-
-    // Update Y-axis using locked domain during zoom
-    const yAxisGroup = g.select<SVGGElement>('.y-axis');
-    if (!yAxisGroup.empty()) {
-      yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
-      applyAxisStyling(yAxisGroup);
-    }
-
-    // Use centralized render function for panning/zoom operations
-    const renderResult = renderPanning(
-      svgElement,
-      currentDimensions,
-      currentData,
-      newStart,
-      newEnd,
-      transformForCalc,
-      currentFixedYScaleDomain
-    );
-
-    if (renderResult.success && renderResult.calculations) {
-      // Update latest transformed Y scale used for rendering
-      lastTransformedYScale = renderResult.calculations.transformedYScale;
-    }
-  };
 
   // Add crosshair
   const crosshair = g.append('g').attr('class', 'crosshair').style('pointer-events', 'none');
@@ -624,11 +494,6 @@ export const createChart = ({
         endIdx = Math.floor(baseCalcs.viewEnd);
       }
       panStartCenterLocal = Math.floor((startIdx + endIdx) / 2);
-      // Capture starting Y-transform and scale for vertical pan
-      // Capture starting transform from our internal state (not d3.zoom)
-      panStartTransformY = currentTransformY;
-      panStartTransformK = currentTransformK;
-      const { innerWidth: iw } = calculateInnerDimensions(dims);
       isPanningRef.current = true;
     })
     .on('pointermove', event => {
@@ -857,7 +722,6 @@ export const renderCandlestickChart = (
   calculations: ChartCalculations,
   useProvidedViewport: boolean = false
 ): void => {
-
   // Find the chart content group and remove existing candlesticks
   const chartContent = d3.select(svgElement).select('.chart-content');
   if (chartContent.empty()) {

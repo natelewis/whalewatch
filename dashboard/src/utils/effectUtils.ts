@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { ChartDimensions, CandlestickData } from '../types';
 import { logger } from './logger';
 
 export interface RefUpdateConfig<T = unknown> {

@@ -4,7 +4,7 @@ import { calculateChartState, ChartCalculations } from '../components/ChartRende
 import { updateClipPath, renderCandlestickChart } from '../components/ChartRenderer';
 import { memoizedCalculateYScaleDomain } from './memoizedChartUtils';
 import { isValidChartData, calculateInnerDimensions } from './chartDataUtils';
-import { Y_SCALE_REPRESENTATIVE_DATA_LENGTH, LOAD_EDGE_TRIGGER } from '../constants';
+import { LOAD_EDGE_TRIGGER } from '../constants';
 import { logger } from './logger';
 
 /**

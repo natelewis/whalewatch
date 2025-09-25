@@ -9,18 +9,11 @@ import { useChartStateManager } from '../hooks/useChartStateManager';
 import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
 import { logger } from '../utils/logger';
 import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
-import {
-  formatPrice,
-  calculateInnerDimensions,
-} from '../utils/chartDataUtils';
+import { formatPrice, calculateInnerDimensions } from '../utils/chartDataUtils';
 import { TimeframeConfig } from '../types';
-import { createChart, renderCandlestickChart, calculateChartState } from './ChartRenderer';
-import { memoizedCalculateYScaleDomain } from '../utils/memoizedChartUtils';
+import { createChart, calculateChartState } from './ChartRenderer';
 import { renderInitial, renderPanning, renderWebSocket } from '../utils/renderManager';
-import {
-  BUFFER_SIZE,
-  CHART_DATA_POINTS,
-} from '../constants';
+import { BUFFER_SIZE, CHART_DATA_POINTS } from '../constants';
 
 // Import new utility functions
 import {
@@ -42,10 +35,7 @@ import {
   getChartStatus,
   calculateChartMetrics,
 } from '../utils/chartStateUtils';
-import {
-  mergeHistoricalData,
-  autoLoadData,
-} from '../utils/dataLoadingUtils';
+import { mergeHistoricalData, autoLoadData } from '../utils/dataLoadingUtils';
 import {
   useRefUpdates,
   useCleanup,
@@ -54,11 +44,7 @@ import {
   useLoggedEffect,
   useConditionalEffect,
 } from '../utils/effectUtils';
-import {
-  useErrorState,
-  useRetry,
-  logError,
-} from '../utils/errorHandlingUtils';
+import { useErrorState, useRetry, logError } from '../utils/errorHandlingUtils';
 
 interface StockChartProps {
   symbol: string;
@@ -78,7 +64,6 @@ interface ChartCalculations {
   allData: CandlestickData[]; // Full dataset for rendering
   transformString: string;
 }
-
 
 const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -145,7 +130,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Track when we're in the middle of an auto-load operation to prevent re-render loops
   const isAutoLoadingRef = useRef<boolean>(false);
-
 
   // Use new utility hooks for ref management
   useRefUpdates([
@@ -273,7 +257,6 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     },
     [timeframe, chartState.allData.length, symbol, chartActions]
   );
-
 
   // Define timeframes array
   const timeframes: TimeframeConfig[] = useMemo(

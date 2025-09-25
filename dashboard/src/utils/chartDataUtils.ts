@@ -611,11 +611,7 @@ export const addRightPaddingFakeCandle = (
  * 3. Fake candles can be identified programmatically (isFake: true, all values -1)
  * 4. Left padding removed to prevent interference with auto-load logic
  */
-export const addFakeCandlesForPadding = (
-  data: CandlestickData[],
-  viewWindowSize: number = 80,
-  timeframe: ChartTimeframe = '1m'
-): CandlestickData[] => {
+export const addFakeCandlesForPadding = (data: CandlestickData[]): CandlestickData[] => {
   if (data.length === 0) {
     return data;
   }

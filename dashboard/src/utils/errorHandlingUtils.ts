@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef } from 'react';
-import type { ErrorInfo } from 'react';
 import { logger } from './logger';
 
 export interface ErrorState {

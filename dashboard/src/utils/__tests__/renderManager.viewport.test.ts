@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import * as d3 from 'd3';
 import { renderChart, RenderType, DEFAULT_RENDER_OPTIONS } from '../renderManager';
 import { ChartDimensions, CandlestickData } from '../../types';
 
@@ -7,7 +6,7 @@ import { ChartDimensions, CandlestickData } from '../../types';
 vi.mock('../../components/ChartRenderer', () => ({
   renderCandlestickChart: vi.fn(),
   updateClipPath: vi.fn(),
-  calculateChartState: vi.fn(({ dimensions, allChartData, transform, fixedYScaleDomain }) => ({
+  calculateChartState: vi.fn(({ allChartData, transform }) => ({
     viewStart: 0,
     viewEnd: allChartData.length - 1,
     visibleData: allChartData,

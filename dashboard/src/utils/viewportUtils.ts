@@ -1,6 +1,5 @@
 import { CandlestickData } from '../types';
 import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
-import { logger } from './logger';
 
 export interface ViewportCalculation {
   start: number;
@@ -74,8 +73,7 @@ export const calculateAnchoredViewport = (
   prevStart: number,
   prevEnd: number,
   dataShift: number,
-  totalDataLength: number,
-  direction: 'past' | 'future'
+  totalDataLength: number
 ): ViewportCalculation => {
   let anchoredStart = Math.round(prevStart + dataShift);
   let anchoredEnd = Math.round(prevEnd + dataShift);
