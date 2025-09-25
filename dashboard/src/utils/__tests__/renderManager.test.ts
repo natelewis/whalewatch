@@ -127,7 +127,7 @@ describe('renderManager', () => {
 
     it('should handle invalid inputs gracefully', () => {
       const result = renderChart({
-        svgElement: null as any,
+        svgElement: null as unknown as SVGElement,
         dimensions: mockDimensions,
         allData: [],
         currentViewStart: 0,

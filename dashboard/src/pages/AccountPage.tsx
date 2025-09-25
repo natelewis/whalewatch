@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlpacaAccount, AlpacaPosition, AlpacaActivity } from '../types';
 import { apiService } from '../services/apiService';
-import { useWebSocketContext } from '../contexts/WebSocketContext';
+import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { AccountSummary } from '../components/AccountSummary';
 import { PositionsTable } from '../components/PositionsTable';
 import { ActivityHistory } from '../components/ActivityHistory';

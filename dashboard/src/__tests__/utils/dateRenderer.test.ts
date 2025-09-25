@@ -104,7 +104,7 @@ describe('dateRenderer', () => {
     });
 
     it('should default to medium format for unknown context', () => {
-      const result = smartDateRenderer(testDate, 'unknown' as any);
+      const result = smartDateRenderer(testDate, 'unknown' as 'chart-hover');
       expect(result).toBe('1-15-2025');
     });
   });

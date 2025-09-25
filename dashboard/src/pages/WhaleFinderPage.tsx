@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlpacaOptionsContract } from '../types';
 import { apiService } from '../services/apiService';
-import { useWebSocketContext } from '../contexts/WebSocketContext';
+import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { PageHeader } from '../components/PageHeader';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';

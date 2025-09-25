@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useWebSocketContext } from '../contexts/WebSocketContext';
+import { useWebSocketContext } from './useWebSocketContext';
 import { AlpacaBar } from '../types';
 import { logger } from '../utils/logger';
 

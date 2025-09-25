@@ -30,7 +30,7 @@ vi.mock('../../components/WhaleWatchFeed', () => ({
     isLoading,
     error,
   }: {
-    contracts: any[];
+    contracts: unknown[];
     selectedSymbol: string;
     onSymbolChange: (symbol: string) => void;
     isLoading: boolean;

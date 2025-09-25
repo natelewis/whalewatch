@@ -2,16 +2,16 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { ChartDimensions, CandlestickData } from '../types';
 import { logger } from './logger';
 
-export interface RefUpdateConfig {
-  ref: React.MutableRefObject<any>;
-  value: any;
+export interface RefUpdateConfig<T = unknown> {
+  ref: React.MutableRefObject<T>;
+  value: T;
   logMessage?: string;
 }
 
 /**
  * Hook for updating multiple refs in a single effect
  */
-export const useRefUpdates = (configs: RefUpdateConfig[]) => {
+export const useRefUpdates = <T = unknown>(configs: RefUpdateConfig<T>[]) => {
   useEffect(() => {
     configs.forEach(({ ref, value, logMessage }) => {
       ref.current = value;
@@ -25,7 +25,7 @@ export const useRefUpdates = (configs: RefUpdateConfig[]) => {
 /**
  * Hook for managing cleanup functions
  */
-export const useCleanup = (cleanupFn: () => void, deps: any[] = []) => {
+export const useCleanup = (cleanupFn: () => void, deps: unknown[] = []) => {
   useEffect(() => {
     return cleanupFn;
   }, deps);
@@ -34,7 +34,7 @@ export const useCleanup = (cleanupFn: () => void, deps: any[] = []) => {
 /**
  * Hook for debounced operations
  */
-export const useDebouncedEffect = (effect: () => void, deps: any[], delay: number) => {
+export const useDebouncedEffect = (effect: () => void, deps: unknown[], delay: number) => {
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export const useStateChangeTracker = <T>(value: T, onChange?: (newValue: T, prev
 /**
  * Hook for managing multiple refs with a single effect
  */
-export const useMultipleRefs = <T extends Record<string, any>>(
+export const useMultipleRefs = <T extends Record<string, unknown>>(
   initialValues: T
 ): [T, (updates: Partial<T>) => void] => {
   const refs = useRef<T>(initialValues);
@@ -116,7 +116,7 @@ export const useMultipleRefs = <T extends Record<string, any>>(
 /**
  * Hook for managing effect dependencies with logging
  */
-export const useLoggedEffect = (effect: () => void | (() => void), deps: any[], logMessage: string) => {
+export const useLoggedEffect = (effect: () => void | (() => void), deps: unknown[], logMessage: string) => {
   useEffect(() => {
     logger.chart.data(`${logMessage} effect triggered:`, {
       deps: deps.map((dep, index) => ({ index, value: dep })),
@@ -131,7 +131,7 @@ export const useLoggedEffect = (effect: () => void | (() => void), deps: any[], 
 /**
  * Hook for managing conditional effects
  */
-export const useConditionalEffect = (condition: boolean, effect: () => void | (() => void), deps: any[]) => {
+export const useConditionalEffect = (condition: boolean, effect: () => void | (() => void), deps: unknown[]) => {
   useEffect(() => {
     if (condition) {
       return effect();
@@ -142,7 +142,7 @@ export const useConditionalEffect = (condition: boolean, effect: () => void | ((
 /**
  * Hook for managing effect with timeout
  */
-export const useTimeoutEffect = (effect: () => void, deps: any[], timeout: number) => {
+export const useTimeoutEffect = (effect: () => void, deps: unknown[], timeout: number) => {
   useEffect(() => {
     const timer = setTimeout(effect, timeout);
     return () => clearTimeout(timer);
@@ -152,7 +152,7 @@ export const useTimeoutEffect = (effect: () => void, deps: any[], timeout: numbe
 /**
  * Hook for managing effect with interval
  */
-export const useIntervalEffect = (effect: () => void, deps: any[], interval: number) => {
+export const useIntervalEffect = (effect: () => void, deps: unknown[], interval: number) => {
   useEffect(() => {
     const timer = setInterval(effect, interval);
     return () => clearInterval(timer);
@@ -162,7 +162,7 @@ export const useIntervalEffect = (effect: () => void, deps: any[], interval: num
 /**
  * Hook for managing effect with immediate execution
  */
-export const useImmediateEffect = (effect: () => void | (() => void), deps: any[]) => {
+export const useImmediateEffect = (effect: () => void | (() => void), deps: unknown[]) => {
   useEffect(() => {
     return effect();
   }, deps);
@@ -180,8 +180,8 @@ export const useCleanupOnUnmount = (cleanupFn: () => void) => {
 /**
  * Hook for managing effect with dependency tracking
  */
-export const useDependencyTracker = (deps: any[]) => {
-  const prevDepsRef = useRef<any[]>();
+export const useDependencyTracker = (deps: unknown[]) => {
+  const prevDepsRef = useRef<unknown[]>();
 
   useEffect(() => {
     const changed = prevDepsRef.current ? deps.some((dep, index) => dep !== prevDepsRef.current![index]) : true;

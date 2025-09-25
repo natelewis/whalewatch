@@ -22,7 +22,7 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 describe('authService', () => {
-  const mockAuthService = authService as any;
+  const mockAuthService = authService as typeof authService & { mockImplementation?: unknown };
 
   beforeEach(() => {
     vi.clearAllMocks();

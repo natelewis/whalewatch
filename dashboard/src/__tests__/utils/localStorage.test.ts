@@ -54,7 +54,7 @@ describe('localStorage utilities', () => {
 
     it('should return default value when window is undefined', () => {
       const originalWindow = global.window;
-      // @ts-ignore
+      // @ts-expect-error - Testing window undefined scenario
       delete global.window;
 
       const result = getLocalStorageItem('test-key', 'default');
@@ -75,7 +75,7 @@ describe('localStorage utilities', () => {
 
     it('should throw LocalStorageError when localStorage is not available', () => {
       const originalWindow = global.window;
-      // @ts-ignore
+      // @ts-expect-error - Testing window undefined scenario
       delete global.window;
 
       expect(() => {
@@ -112,7 +112,7 @@ describe('localStorage utilities', () => {
 
     it('should not throw error when window is undefined', () => {
       const originalWindow = global.window;
-      // @ts-ignore
+      // @ts-expect-error - Testing window undefined scenario
       delete global.window;
 
       expect(() => {
@@ -130,7 +130,7 @@ describe('localStorage utilities', () => {
 
     it('should return false when window is undefined', () => {
       const originalWindow = global.window;
-      // @ts-ignore
+      // @ts-expect-error - Testing window undefined scenario
       delete global.window;
 
       expect(isLocalStorageAvailable()).toBe(false);

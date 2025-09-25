@@ -13,7 +13,10 @@ vi.mock('../../hooks/useWebSocket', () => ({
 const mockUseWebSocket = useWebSocket as ReturnType<typeof vi.fn>;
 
 // Helper function to render hook with WebSocketProvider
-const renderHookWithProvider = (hook: any, options?: any) => {
+const renderHookWithProvider = (
+  hook: () => unknown,
+  options?: { wrapper?: React.ComponentType<{ children: React.ReactNode }> }
+) => {
   const wrapper = ({ children }: { children: React.ReactNode }) => {
     return React.createElement(WebSocketProvider, {}, children);
   };

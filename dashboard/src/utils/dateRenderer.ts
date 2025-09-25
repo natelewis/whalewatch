@@ -37,7 +37,7 @@ export function renderDate(date: Date | number | string, options: DateRendererOp
         day: 'numeric',
       });
 
-    case 'medium':
+    case 'medium': {
       // Format: 1-1-2025 (friendly format without leading zeros)
       const month = dateObj.toLocaleDateString('en-US', {
         timeZone: timezone,
@@ -52,8 +52,9 @@ export function renderDate(date: Date | number | string, options: DateRendererOp
         year: 'numeric',
       });
       return `${month}-${day}-${year}`;
+    }
 
-    case 'long':
+    case 'long': {
       // Format: 1-1-2025 23:10:12 (friendly format without leading zeros)
       const longMonth = dateObj.toLocaleDateString('en-US', {
         timeZone: timezone,
@@ -77,6 +78,7 @@ export function renderDate(date: Date | number | string, options: DateRendererOp
       });
 
       return `${longMonth}-${longDay}-${longYear} ${timeStr}`;
+    }
 
     case 'time-only':
       // Format: 23:10:10
