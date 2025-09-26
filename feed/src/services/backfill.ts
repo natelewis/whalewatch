@@ -62,7 +62,12 @@ export class BackfillService {
       // Get the oldest timestamp across all tickers
       let oldestTimestamp: Date | null = null;
       for (const ticker of config.tickers) {
-        const tickerOldest = await this.getOldestAsOfDate(ticker);
+        const tickerOldest = await getMinDate(this.questdbAdapter, {
+          ticker,
+          tickerField: 'symbol',
+          dateField: 'timestamp',
+          table: 'stock_aggregates',
+        });
         if (tickerOldest && (!oldestTimestamp || tickerOldest < oldestTimestamp)) {
           oldestTimestamp = tickerOldest;
         }
@@ -267,7 +272,12 @@ export class BackfillService {
       // Get the oldest timestamp across all tickers
       let oldestTimestamp: Date | null = null;
       for (const ticker of config.tickers) {
-        const tickerOldest = await this.getOldestAsOfDate(ticker);
+        const tickerOldest = await getMinDate(this.questdbAdapter, {
+          ticker,
+          tickerField: 'symbol',
+          dateField: 'timestamp',
+          table: 'stock_aggregates',
+        });
         if (tickerOldest && (!oldestTimestamp || tickerOldest < oldestTimestamp)) {
           oldestTimestamp = tickerOldest;
         }
@@ -339,7 +349,12 @@ export class BackfillService {
     console.log(`Checking backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
 
     // Check stocks independently
-    const oldestStockDataDate = await this.getOldestAsOfDate(ticker);
+    const oldestStockDataDate = await getMinDate(this.questdbAdapter, {
+      ticker,
+      tickerField: 'symbol',
+      dateField: 'timestamp',
+      table: 'stock_aggregates',
+    });
     let stocksNeedBackfill = false;
     let stockBackfillStart: Date | null = null;
 
@@ -500,15 +515,6 @@ export class BackfillService {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     return totalItemsProcessed;
-  }
-
-  private async getOldestAsOfDate(ticker: string): Promise<Date | null> {
-    return getMinDate(this.questdbAdapter, {
-      ticker,
-      tickerField: 'symbol',
-      dateField: 'timestamp',
-      table: 'stock_aggregates',
-    });
   }
 
   private async insertAlpacaAggregates(
