@@ -6,16 +6,6 @@ import { config } from '../config';
 import { StockAggregate } from '../types/database';
 import { getMinDate, getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
-/**
- * Get table name with test prefix if in test environment
- */
-function getTableName(originalTableName: string): string {
-  if (process.env.NODE_ENV === 'test') {
-    return `test_${originalTableName}`;
-  }
-  return originalTableName;
-}
-
 export class BackfillService {
   private optionIngestionService: OptionIngestionService;
   private stockIngestionService: StockIngestionService;
@@ -168,12 +158,8 @@ export class BackfillService {
     }
   }
 
-  async backfillTickerFromDate(ticker: string, startDate: Date, skipReplace = false): Promise<void> {
-    console.log(
-      `Starting backfill for ticker: ${ticker} from ${startDate.toISOString().split('T')[0]}${
-        skipReplace ? ' (skipping data replacement)' : ' (replacing existing data)'
-      }`
-    );
+  async backfillTickerFromDate(ticker: string, startDate: Date): Promise<void> {
+    console.log(`Starting backfill for ticker: ${ticker} from ${startDate.toISOString().split('T')[0]}`);
     const startTime = Date.now();
 
     try {
@@ -192,16 +178,6 @@ export class BackfillService {
           `Backfill limited to ${maxDays} days backwards from start date. Date range: ${
             backfillStart.toISOString().split('T')[0]
           } to ${backfillEnd.toISOString().split('T')[0]}`
-        );
-      }
-
-      // Always replace data by default to prevent duplicates
-      if (!skipReplace) {
-        await this.deleteDataForDateRange(ticker, backfillStart, backfillEnd);
-        console.log(
-          `Deleted existing data for ${ticker} from ${backfillStart.toISOString().split('T')[0]} to ${
-            backfillEnd.toISOString().split('T')[0]
-          }`
         );
       }
 
@@ -224,9 +200,7 @@ export class BackfillService {
   }
 
   async backfillAllFromDate(startDate: Date): Promise<void> {
-    console.log(
-      `Starting backfill for all tickers from ${startDate.toISOString().split('T')[0]} (replacing existing data)`
-    );
+    console.log(`Starting backfill for all tickers from ${startDate.toISOString().split('T')[0]}`);
     const startTime = Date.now();
 
     try {
@@ -250,18 +224,10 @@ export class BackfillService {
 
       let totalItemsProcessed = 0;
 
-      // Backfill each ticker with data replacement
+      // Backfill each ticker
       for (const ticker of config.tickers) {
         try {
-          // Delete existing data for the date range
-          await this.deleteDataForDateRange(ticker, backfillStart, backfillEnd);
-          console.log(
-            `Deleted existing data for ${ticker} from ${backfillStart.toISOString().split('T')[0]} to ${
-              backfillEnd.toISOString().split('T')[0]
-            }`
-          );
-
-          // Backfill the data
+          // Backfill the data (upserts will handle duplicates)
           const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, backfillEnd);
           totalItemsProcessed += itemsProcessed;
 
@@ -572,74 +538,5 @@ export class BackfillService {
     }));
 
     await UpsertService.batchUpsertStockAggregates(stockAggregates);
-  }
-
-  private async deleteDataForDateRange(ticker: string, startDate: Date, endDate: Date): Promise<void> {
-    console.log(`Deleting existing data for ${ticker} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
-
-    try {
-      // QuestDB doesn't support DELETE FROM, so we'll use a different approach
-      // We'll create a temporary table with the data we want to keep, then replace the original
-
-      // First, let's check if there's any data to delete
-      const aggregatesCheck = await db.query(
-        `SELECT COUNT(*) as count FROM ${getTableName(
-          'stock_aggregates'
-        )} WHERE symbol = '${ticker}' AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
-      );
-
-      // Check for option contracts, trades, and quotes
-      const optionContractsCheck = await db.query(
-        `SELECT COUNT(*) as count FROM ${getTableName(
-          'option_contracts'
-        )} WHERE underlying_ticker = '${ticker}' AND expiration_date >= '${startDate.toISOString()}' AND expiration_date <= '${endDate.toISOString()}'`
-      );
-
-      const optionTradesCheck = await db.query(
-        `SELECT COUNT(*) as count FROM ${getTableName('option_trades')} WHERE ticker IN (
-          SELECT ticker FROM ${getTableName('option_contracts')} WHERE underlying_ticker = '${ticker}'
-        ) AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
-      );
-
-      const optionQuotesCheck = await db.query(
-        `SELECT COUNT(*) as count FROM ${getTableName('option_quotes')} WHERE ticker IN (
-          SELECT ticker FROM ${getTableName('option_contracts')} WHERE underlying_ticker = '${ticker}'
-        ) AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
-      );
-
-      const aggregatesCount = Number((aggregatesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
-      const optionContractsCount = Number((optionContractsCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
-      const optionTradesCount = Number((optionTradesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
-      const optionQuotesCount = Number((optionQuotesCheck as { dataset: unknown[][] })?.dataset?.[0]?.[0]) || 0;
-
-      if (aggregatesCount > 0) {
-        console.log(`Found ${aggregatesCount} stock aggregates to delete for ${ticker}`);
-        // For now, we'll skip the actual deletion since QuestDB doesn't support DELETE
-        // In a production system, you might want to implement a different strategy
-        console.log(`Skipping deletion of stock aggregates (QuestDB limitation)`);
-      }
-
-      if (optionContractsCount > 0) {
-        console.log(`Found ${optionContractsCount} option contracts to delete for ${ticker}`);
-        console.log(`Skipping deletion of option contracts (QuestDB limitation)`);
-      }
-
-      if (optionTradesCount > 0) {
-        console.log(`Found ${optionTradesCount} option trades to delete for ${ticker}`);
-        console.log(`Skipping deletion of option trades (QuestDB limitation)`);
-      }
-
-      if (optionQuotesCount > 0) {
-        console.log(`Found ${optionQuotesCount} option quotes to delete for ${ticker}`);
-        console.log(`Skipping deletion of option quotes (QuestDB limitation)`);
-      }
-
-      if (aggregatesCount === 0 && optionContractsCount === 0 && optionTradesCount === 0 && optionQuotesCount === 0) {
-        console.log(`No existing data found for ${ticker} in the specified date range`);
-      }
-    } catch (error) {
-      console.warn(`Warning: Could not check for existing data to delete: ${error}`);
-      // Continue with backfill even if we can't delete existing data
-    }
   }
 }
