@@ -7,7 +7,7 @@ jest.mock('p-limit', () => {
     return jest.fn(async fn => {
       // Use fake timers instead of real delays for faster tests
       await new Promise(resolve => setTimeout(resolve, 0));
-      return await fn();
+      return fn();
     });
   });
 });
