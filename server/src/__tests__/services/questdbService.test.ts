@@ -1182,8 +1182,8 @@ describe('QuestDBService', () => {
     it('should return latest trade timestamp', async () => {
       const mockResponse: AxiosResponse<QuestDBResponse<unknown>> = {
         data: {
-          query: "SELECT MAX(timestamp) as latest_timestamp FROM stock_trades WHERE symbol = 'AAPL'",
-          columns: [{ name: 'latest_timestamp', type: 'TIMESTAMP' }],
+          query: "SELECT MAX(timestamp) as max_date FROM test_stock_trades WHERE symbol = 'AAPL'",
+          columns: [{ name: 'max_date', type: 'TIMESTAMP' }],
           dataset: [['2024-01-01T10:00:00Z']],
           count: 1,
           execution_time_ms: 10,
@@ -1199,7 +1199,7 @@ describe('QuestDBService', () => {
 
       const result = await questdbService.getLatestTradeTimestamp('AAPL');
 
-      expect(result).toBe('2024-01-01T10:00:00Z');
+      expect(result).toBe('2024-01-01T10:00:00.000Z');
     });
 
     it('should return null when no trades found', async () => {
@@ -1236,8 +1236,8 @@ describe('QuestDBService', () => {
     it('should return latest aggregate timestamp', async () => {
       const mockResponse: AxiosResponse<QuestDBResponse<unknown>> = {
         data: {
-          query: "SELECT MAX(timestamp) as latest_timestamp FROM stock_aggregates WHERE symbol = 'AAPL'",
-          columns: [{ name: 'latest_timestamp', type: 'TIMESTAMP' }],
+          query: "SELECT MAX(timestamp) as max_date FROM test_stock_aggregates WHERE symbol = 'AAPL'",
+          columns: [{ name: 'max_date', type: 'TIMESTAMP' }],
           dataset: [['2024-01-01T10:00:00Z']],
           count: 1,
           execution_time_ms: 10,
@@ -1253,7 +1253,7 @@ describe('QuestDBService', () => {
 
       const result = await questdbService.getLatestAggregateTimestamp('AAPL');
 
-      expect(result).toBe('2024-01-01T10:00:00Z');
+      expect(result).toBe('2024-01-01T10:00:00.000Z');
     });
 
     it('should return null when no aggregates found', async () => {

@@ -1,12 +1,12 @@
 #!/usr/bin/env tsx
 
-import { DataIngestionService } from '../services/data-ingestion';
+import { StockIngestionService } from '../services/stock-ingestion';
 import chalk from 'chalk';
 
 async function main() {
   console.log(chalk.blue('Starting real-time data ingestion...'));
   
-  const ingestionService = new DataIngestionService();
+  const ingestionService = new StockIngestionService();
   
   // Handle graceful shutdown
   process.on('SIGINT', async () => {

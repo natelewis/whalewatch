@@ -708,12 +708,7 @@ describe('OptionIngestionService', () => {
 
       // Assert
       expect(mockedDb.query).toHaveBeenCalledWith(
-        `
-      SELECT MAX(as_of) as max_date
-      FROM option_contracts
-      WHERE underlying_ticker = $1
-    `,
-        [underlyingTicker]
+        "SELECT MAX(as_of) as max_date FROM test_option_contracts WHERE underlying_ticker = 'AAPL'"
       );
       expect(result).toEqual(new Date('2024-01-15T00:00:00.000Z'));
     });
@@ -763,7 +758,7 @@ describe('OptionIngestionService', () => {
     });
   });
 
-  describe('getOldestDataDate', () => {
+  describe('getOldestAsOfDate', () => {
     it('should return the oldest as_of date for underlying ticker', async () => {
       // Arrange
       const underlyingTicker = 'AAPL';
@@ -774,16 +769,11 @@ describe('OptionIngestionService', () => {
       mockedDb.query.mockResolvedValue(mockResult);
 
       // Act
-      const result = await optionIngestionService.getOldestDataDate(underlyingTicker);
+      const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
       expect(mockedDb.query).toHaveBeenCalledWith(
-        `
-      SELECT MIN(as_of) as min_date
-      FROM option_contracts
-      WHERE underlying_ticker = $1
-    `,
-        [underlyingTicker]
+        "SELECT MIN(as_of) as min_date FROM test_option_contracts WHERE underlying_ticker = 'AAPL'"
       );
       expect(result).toEqual(new Date('2024-01-01T00:00:00.000Z'));
     });
@@ -798,7 +788,7 @@ describe('OptionIngestionService', () => {
       mockedDb.query.mockResolvedValue(mockResult);
 
       // Act
-      const result = await optionIngestionService.getOldestDataDate(underlyingTicker);
+      const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
       expect(result).toBeNull();
@@ -810,7 +800,7 @@ describe('OptionIngestionService', () => {
       mockedDb.query.mockRejectedValue(new Error('Database error'));
 
       // Act
-      const result = await optionIngestionService.getOldestDataDate(underlyingTicker);
+      const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
       expect(result).toBeNull();

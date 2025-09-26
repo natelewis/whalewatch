@@ -4,13 +4,33 @@ import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { OptionContract, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
-import { getMaxDate, getMinDate } from '../../../shared/utils/dateUtils';
+import { getMaxDate, getMinDate, QuestDBServiceInterface } from '../../../shared/utils/dateUtils';
 
 export class OptionIngestionService {
   private polygonClient: PolygonClient;
+  private questdbAdapter: QuestDBServiceInterface;
 
   constructor() {
     this.polygonClient = new PolygonClient();
+    // Create adapter for the feed's database connection
+    this.questdbAdapter = {
+      executeQuery: async (query: string) => {
+        const result = await db.query(query);
+        return result as { columns: { name: string; type: string }[]; dataset: unknown[][] };
+      },
+      convertArrayToObject: <T>(dataset: unknown[][], columns: { name: string; type: string }[]): T[] => {
+        return dataset.map((row: unknown) => {
+          if (!Array.isArray(row)) {
+            throw new Error('Expected array data from QuestDB');
+          }
+          const obj: Record<string, string | number | boolean | null> = {};
+          columns.forEach((col, index) => {
+            obj[col.name] = row[index] as string | number | boolean | null;
+          });
+          return obj as T;
+        });
+      },
+    };
   }
 
   async ingestOptionContracts(underlyingTicker: string, asOf: Date): Promise<void> {
@@ -178,7 +198,7 @@ export class OptionIngestionService {
   }
 
   async getNewestAsOfDate(underlyingTicker: string): Promise<Date | null> {
-    return getMaxDate(db, {
+    return getMaxDate(this.questdbAdapter, {
       ticker: underlyingTicker,
       tickerField: 'underlying_ticker',
       dateField: 'as_of',
@@ -186,8 +206,8 @@ export class OptionIngestionService {
     });
   }
 
-  async getOldestDataDate(underlyingTicker: string): Promise<Date | null> {
-    return getMinDate(db, {
+  async getOldestAsOfDate(underlyingTicker: string): Promise<Date | null> {
+    return getMinDate(this.questdbAdapter, {
       ticker: underlyingTicker,
       tickerField: 'underlying_ticker',
       dateField: 'as_of',

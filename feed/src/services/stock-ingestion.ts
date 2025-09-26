@@ -6,7 +6,7 @@ import { StockAggregate, SyncState } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
 import { config } from '../config';
 
-export class DataIngestionService {
+export class StockIngestionService {
   private alpacaClient: AlpacaClient;
   private optionIngestionService: OptionIngestionService;
   private isIngesting = false;

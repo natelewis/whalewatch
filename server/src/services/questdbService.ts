@@ -14,7 +14,7 @@ import {
   QuestDBError,
 } from '../types/index';
 import { logger } from '../utils/logger';
-import { getMaxTimestampString } from '../../../shared/utils/dateUtils';
+import { getMaxDate } from '../../../shared/utils/dateUtils';
 
 // Load environment variables from the server directory
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -449,12 +449,14 @@ export class QuestDBService {
     // First check if the table exists
     await this.ensureTableExists('stock_trades');
 
-    return getMaxTimestampString(this, {
+    const result = await getMaxDate(this, {
       ticker: symbol,
       tickerField: 'symbol',
       dateField: 'timestamp',
       table: 'stock_trades',
     });
+
+    return result ? result.toISOString() : null;
   }
 
   /**
@@ -464,12 +466,14 @@ export class QuestDBService {
     // First check if the table exists
     await this.ensureTableExists('stock_aggregates');
 
-    return getMaxTimestampString(this, {
+    const result = await getMaxDate(this, {
       ticker: symbol,
       tickerField: 'symbol',
       dateField: 'timestamp',
       table: 'stock_aggregates',
     });
+
+    return result ? result.toISOString() : null;
   }
 
   /**

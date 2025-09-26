@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 /**
- * Unit test to verify the catch-up logic in DataIngestionService
+ * Unit test to verify the catch-up logic in StockIngestionService
  * 
  * This test focuses on the core catch-up behavior without requiring database connections
  */

@@ -4,15 +4,35 @@ import { OptionIngestionService } from './option-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { StockAggregate, SyncState } from '../types/database';
-import { getMinDate } from '../../../shared/utils/dateUtils';
+import { getMinDate, QuestDBServiceInterface } from '../../../shared/utils/dateUtils';
 
 export class BackfillService {
   private alpacaClient: AlpacaClient;
   private optionIngestionService: OptionIngestionService;
+  private questdbAdapter: QuestDBServiceInterface;
 
   constructor() {
     this.alpacaClient = new AlpacaClient();
     this.optionIngestionService = new OptionIngestionService();
+    // Create adapter for the feed's database connection
+    this.questdbAdapter = {
+      executeQuery: async (query: string) => {
+        const result = await db.query(query);
+        return result as { columns: { name: string; type: string }[]; dataset: unknown[][] };
+      },
+      convertArrayToObject: <T>(dataset: unknown[][], columns: { name: string; type: string }[]): T[] => {
+        return dataset.map((row: unknown) => {
+          if (!Array.isArray(row)) {
+            throw new Error('Expected array data from QuestDB');
+          }
+          const obj: Record<string, string | number | boolean | null> = {};
+          columns.forEach((col, index) => {
+            obj[col.name] = row[index] as string | number | boolean | null;
+          });
+          return obj as T;
+        });
+      },
+    };
   }
 
   private formatDuration(milliseconds: number): string {
@@ -336,7 +356,7 @@ export class BackfillService {
     console.log(`Checking backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
 
     // Check stocks independently
-    const oldestStockDataDate = await this.getOldestDataDate(ticker);
+    const oldestStockDataDate = await this.getOldestAsOfDate(ticker);
     let stocksNeedBackfill = false;
     let stockBackfillStart: Date | null = null;
 
@@ -369,7 +389,7 @@ export class BackfillService {
     }
 
     // Check options independently
-    const oldestOptionAsOfDate = await this.optionIngestionService.getOldestDataDate(ticker);
+    const oldestOptionAsOfDate = await this.optionIngestionService.getOldestAsOfDate(ticker);
     let optionsNeedBackfill = false;
     let optionBackfillStart: Date | null = null;
 
@@ -577,8 +597,8 @@ export class BackfillService {
     };
   }
 
-  private async getOldestDataDate(ticker: string): Promise<Date | null> {
-    return getMinDate(db, {
+  private async getOldestAsOfDate(ticker: string): Promise<Date | null> {
+    return getMinDate(this.questdbAdapter, {
       ticker,
       tickerField: 'symbol',
       dateField: 'timestamp',

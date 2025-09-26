@@ -10,7 +10,7 @@
  * 4. System should catch up from 3 days ago to now, then continue with WebSocket
  */
 
-import { DataIngestionService } from './src/services/data-ingestion';
+import { StockIngestionService } from './src/services/stock-ingestion';
 import { BackfillService } from './src/services/backfill';
 import { db } from './src/db/connection';
 import { config } from './src/config';
@@ -137,7 +137,7 @@ class CatchupBehaviorTest {
   private async runIngestionCatchup(): Promise<void> {
     console.log(chalk.blue('🔄 Running ingestion service (should catch up)...'));
     
-    const ingestionService = new DataIngestionService();
+    const ingestionService = new StockIngestionService();
     
     try {
       // Start ingestion (this should trigger catch-up)

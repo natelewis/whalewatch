@@ -66,7 +66,7 @@ class CatchupDemo {
   }
 
   private printCatchupLogic(): void {
-    console.log(chalk.blue('\n⚙️  Catch-up Logic (from DataIngestionService):'));
+    console.log(chalk.blue('\n⚙️  Catch-up Logic (from StockIngestionService):'));
     
     // Simulate the catchUpTickerData method logic
     const lastSync = this.threeDaysAgo;
@@ -113,9 +113,9 @@ class CatchupDemo {
     console.log(chalk.gray('  • It starts WebSocket streaming for real-time data'));
     
     console.log(chalk.blue('\n🔧 Key Code Locations:'));
-    console.log(chalk.gray('  • DataIngestionService.startIngestion() - calls catchUpData()'));
-    console.log(chalk.gray('  • DataIngestionService.catchUpData() - loops through tickers'));
-    console.log(chalk.gray('  • DataIngestionService.catchUpTickerData() - fills gaps'));
+    console.log(chalk.gray('  • StockIngestionService.startIngestion() - calls catchUpData()'));
+    console.log(chalk.gray('  • StockIngestionService.catchUpData() - loops through tickers'));
+    console.log(chalk.gray('  • StockIngestionService.catchUpTickerData() - fills gaps'));
     console.log(chalk.gray('  • sync_state table - tracks last_aggregate_timestamp'));
     
     console.log(chalk.blue('\n🧪 Testing:'));
