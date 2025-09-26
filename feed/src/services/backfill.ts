@@ -4,7 +4,7 @@ import { OptionIngestionService } from './option-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { StockAggregate, SyncState } from '../types/database';
-import { getMinDate, QuestDBServiceInterface } from '../../../shared/utils/dateUtils';
+import { getMinDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
 export class BackfillService {
   private alpacaClient: AlpacaClient;

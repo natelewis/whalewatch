@@ -4,7 +4,7 @@ import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { OptionContract, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
-import { getMaxDate, getMinDate, QuestDBServiceInterface } from '../../../shared/utils/dateUtils';
+import { getMaxDate, getMinDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
 export class OptionIngestionService {
   private polygonClient: PolygonClient;
