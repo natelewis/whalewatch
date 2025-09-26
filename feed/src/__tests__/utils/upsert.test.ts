@@ -323,6 +323,66 @@ describe('UpsertService', () => {
       expect(sortedData[0].price).toBe(5.5);
       expect(sortedData[1].price).toBe(5.75);
     });
+
+    it('should update existing option trade record', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_option_trades', db);
+
+      // Insert initial trade
+      const initialTrade: OptionTrade = {
+        ticker: 'MSFT240315C00200000',
+        underlying_ticker: 'MSFT',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        price: 10.5,
+        size: 20,
+        conditions: '["@", "T"]',
+        exchange: 2,
+        tape: 2,
+        sequence_number: 54321,
+      };
+
+      await UpsertService.upsertOptionTrade(initialTrade, 'test_option_trades');
+
+      // Wait for initial insert with verification
+      await waitForRecordCount('test_option_trades', 1);
+
+      // Act - Update with new values using exact same identifiers
+      const updatedTrade: OptionTrade = {
+        ticker: 'MSFT240315C00200000',
+        underlying_ticker: 'MSFT',
+        timestamp: new Date('2024-01-01T10:00:00Z'), // Same timestamp
+        price: 12.0,
+        size: 25,
+        conditions: '["@", "T", "I"]',
+        exchange: 3,
+        tape: 3,
+        sequence_number: 54321, // Same sequence number
+      };
+
+      await UpsertService.upsertOptionTrade(updatedTrade, 'test_option_trades');
+
+      // Wait for QuestDB partitioned table to commit data with verification of updated values
+      await waitForRecordWithValues('test_option_trades', "ticker = 'MSFT240315C00200000'", {
+        price: 12.0,
+        size: 25,
+        conditions: '["@", "T", "I"]',
+        exchange: 3,
+        tape: 3,
+      });
+
+      // Assert
+      const data = await getTestTableData('test_option_trades');
+      const msftRecords = data.filter((record: any) => record.ticker === 'MSFT240315C00200000');
+      expect(msftRecords).toHaveLength(1); // Should still be only one record
+
+      const record = msftRecords[0] as any;
+      expect(record.price).toBe(12.0); // Updated values
+      expect(record.size).toBe(25);
+      expect(record.conditions).toBe('["@", "T", "I"]');
+      expect(record.exchange).toBe(3);
+      expect(record.tape).toBe(3);
+      expect(record.sequence_number).toBe(54321);
+    });
   });
 
   describe('upsertOptionQuote', () => {
@@ -363,6 +423,119 @@ describe('UpsertService', () => {
       expect(record.bid_exchange).toBe(1);
       expect(record.ask_exchange).toBe(1);
       expect(record.sequence_number).toBe(12345);
+    });
+
+    it('should update existing option quote record', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_option_quotes', db);
+
+      // Insert initial quote
+      const initialQuote: OptionQuote = {
+        ticker: 'GOOGL240315C00300000',
+        underlying_ticker: 'GOOGL',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        bid_price: 15.25,
+        bid_size: 200,
+        ask_price: 15.75,
+        ask_size: 200,
+        bid_exchange: 2,
+        ask_exchange: 2,
+        sequence_number: 98765,
+      };
+
+      await UpsertService.upsertOptionQuote(initialQuote, 'test_option_quotes');
+
+      // Wait for initial insert with verification
+      await waitForRecordCount('test_option_quotes', 1);
+
+      // Act - Update with new values using exact same identifiers
+      const updatedQuote: OptionQuote = {
+        ticker: 'GOOGL240315C00300000',
+        underlying_ticker: 'GOOGL',
+        timestamp: new Date('2024-01-01T10:00:00Z'), // Same timestamp
+        bid_price: 16.0,
+        bid_size: 300,
+        ask_price: 16.5,
+        ask_size: 300,
+        bid_exchange: 3,
+        ask_exchange: 3,
+        sequence_number: 98765, // Same sequence number
+      };
+
+      await UpsertService.upsertOptionQuote(updatedQuote, 'test_option_quotes');
+
+      // Wait for QuestDB partitioned table to commit data with verification of updated values
+      await waitForRecordWithValues('test_option_quotes', "ticker = 'GOOGL240315C00300000'", {
+        bid_price: 16.0,
+        bid_size: 300,
+        ask_price: 16.5,
+        ask_size: 300,
+        bid_exchange: 3,
+        ask_exchange: 3,
+      });
+
+      // Assert
+      const data = await getTestTableData('test_option_quotes');
+      const googlRecords = data.filter((record: any) => record.ticker === 'GOOGL240315C00300000');
+      expect(googlRecords).toHaveLength(1); // Should still be only one record
+
+      const record = googlRecords[0] as any;
+      expect(record.bid_price).toBe(16.0); // Updated values
+      expect(record.bid_size).toBe(300);
+      expect(record.ask_price).toBe(16.5);
+      expect(record.ask_size).toBe(300);
+      expect(record.bid_exchange).toBe(3);
+      expect(record.ask_exchange).toBe(3);
+      expect(record.sequence_number).toBe(98765);
+    });
+
+    it('should insert multiple option quotes', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_option_quotes', db);
+
+      const quote1: OptionQuote = {
+        ticker: 'TSLA240315C00250000',
+        underlying_ticker: 'TSLA',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        bid_price: 25.5,
+        bid_size: 100,
+        ask_price: 26.0,
+        ask_size: 100,
+        bid_exchange: 1,
+        ask_exchange: 1,
+        sequence_number: 11111,
+      };
+
+      const quote2: OptionQuote = {
+        ticker: 'TSLA240315C00250000',
+        underlying_ticker: 'TSLA',
+        timestamp: new Date('2024-01-01T10:01:00Z'),
+        bid_price: 25.75,
+        bid_size: 150,
+        ask_price: 26.25,
+        ask_size: 150,
+        bid_exchange: 1,
+        ask_exchange: 1,
+        sequence_number: 11112,
+      };
+
+      // Act
+      await UpsertService.upsertOptionQuote(quote1, 'test_option_quotes');
+      await UpsertService.upsertOptionQuote(quote2, 'test_option_quotes');
+
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_quotes', 2);
+
+      // Assert
+      const data = await getTestTableData('test_option_quotes');
+      expect(data).toHaveLength(2);
+
+      const sortedData = data.sort(
+        (a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      ) as any[];
+
+      expect(sortedData[0].bid_price).toBe(25.5);
+      expect(sortedData[1].bid_price).toBe(25.75);
     });
   });
 
@@ -434,7 +607,7 @@ describe('UpsertService', () => {
   });
 
   describe('error handling', () => {
-    it('should handle database connection errors gracefully', async () => {
+    it('should handle database connection errors gracefully for stock aggregates', async () => {
       // Arrange - Create table using schema helper
       await createTestTable('test_stock_aggregates', db);
 
@@ -453,6 +626,712 @@ describe('UpsertService', () => {
 
       // Act & Assert - Use a non-existent table to trigger an error
       await expect(UpsertService.upsertStockAggregate(invalidAggregate, 'non_existent_table')).rejects.toThrow();
+    });
+
+    it('should handle database connection errors gracefully for option contracts', async () => {
+      // Arrange
+      const contract: OptionContract = {
+        ticker: 'AAPL240315C00150000',
+        contract_type: 'call',
+        exercise_style: 'american',
+        expiration_date: new Date('2024-03-15T00:00:00Z'),
+        shares_per_contract: 100,
+        strike_price: 150.0,
+        underlying_ticker: 'AAPL',
+        as_of: new Date('2024-01-01T10:00:00Z'),
+      };
+
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.upsertOptionContract(contract, 'non_existent_table')).rejects.toThrow();
+    });
+
+    it('should handle database connection errors gracefully for option trades', async () => {
+      // Arrange
+      const trade: OptionTrade = {
+        ticker: 'AAPL240315C00150000',
+        underlying_ticker: 'AAPL',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        price: 5.5,
+        size: 10,
+        conditions: '["@", "T"]',
+        exchange: 1,
+        tape: 1,
+        sequence_number: 12345,
+      };
+
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.upsertOptionTrade(trade, 'non_existent_table')).rejects.toThrow();
+    });
+
+    it('should handle database connection errors gracefully for option quotes', async () => {
+      // Arrange
+      const quote: OptionQuote = {
+        ticker: 'AAPL240315C00150000',
+        underlying_ticker: 'AAPL',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        bid_price: 5.25,
+        bid_size: 100,
+        ask_price: 5.75,
+        ask_size: 100,
+        bid_exchange: 1,
+        ask_exchange: 1,
+        sequence_number: 12345,
+      };
+
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.upsertOptionQuote(quote, 'non_existent_table')).rejects.toThrow();
+    });
+
+    it('should handle database connection errors gracefully for sync state', async () => {
+      // Arrange
+      const syncState: SyncState = {
+        ticker: 'AAPL',
+        last_aggregate_timestamp: new Date('2024-01-01T10:00:00Z'),
+        last_sync: new Date('2024-01-01T10:00:00Z'),
+        is_streaming: true,
+      };
+
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.upsertSyncState(syncState, 'non_existent_table')).rejects.toThrow();
+    });
+
+    it('should handle database connection errors gracefully for batch stock aggregates', async () => {
+      // Arrange
+      const aggregates: StockAggregate[] = [
+        {
+          symbol: 'AAPL',
+          timestamp: new Date('2024-01-01T10:00:00Z'),
+          open: 100.0,
+          high: 105.0,
+          low: 99.0,
+          close: 103.0,
+          volume: 1000000,
+          vwap: 102.0,
+          transaction_count: 5000,
+        },
+      ];
+
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.batchUpsertStockAggregates(aggregates, 'non_existent_table')).rejects.toThrow();
+    });
+
+    it('should handle database connection errors gracefully for batch option trades', async () => {
+      // Arrange
+      const trades: OptionTrade[] = [
+        {
+          ticker: 'AAPL240315C00150000',
+          underlying_ticker: 'AAPL',
+          timestamp: new Date('2024-01-01T10:00:00Z'),
+          price: 5.5,
+          size: 10,
+          conditions: '["@", "T"]',
+          exchange: 1,
+          tape: 1,
+          sequence_number: 12345,
+        },
+      ];
+
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.batchUpsertOptionTrades(trades, 'non_existent_table')).rejects.toThrow();
+    });
+
+    it('should handle database connection errors gracefully for batch option quotes', async () => {
+      // Arrange
+      const quotes: OptionQuote[] = [
+        {
+          ticker: 'AAPL240315C00150000',
+          underlying_ticker: 'AAPL',
+          timestamp: new Date('2024-01-01T10:00:00Z'),
+          bid_price: 5.25,
+          bid_size: 100,
+          ask_price: 5.75,
+          ask_size: 100,
+          bid_exchange: 1,
+          ask_exchange: 1,
+          sequence_number: 12345,
+        },
+      ];
+
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.batchUpsertOptionQuotes(quotes, 'non_existent_table')).rejects.toThrow();
+    });
+  });
+
+  describe('edge cases and special scenarios', () => {
+    it('should handle sync state with null last_aggregate_timestamp', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_sync_state', db);
+
+      const syncState: SyncState = {
+        ticker: 'NULL_TEST',
+        last_aggregate_timestamp: undefined,
+        last_sync: new Date('2024-01-01T10:00:00Z'),
+        is_streaming: false,
+      };
+
+      // Act
+      await UpsertService.upsertSyncState(syncState, 'test_sync_state');
+
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_sync_state', 1);
+
+      // Assert
+      const data = await getTestTableData('test_sync_state');
+      const foundRecord = data.find((record: any) => record.ticker === 'NULL_TEST') as any;
+      expect(foundRecord).toBeDefined();
+      expect(foundRecord.last_aggregate_timestamp).toBeNull();
+      expect(foundRecord.is_streaming).toBe(false);
+    });
+
+    it('should handle sync state update with null last_aggregate_timestamp', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_sync_state', db);
+
+      // Insert initial state with timestamp
+      const initialState: SyncState = {
+        ticker: 'UPDATE_NULL_TEST',
+        last_aggregate_timestamp: new Date('2024-01-01T10:00:00Z'),
+        last_sync: new Date('2024-01-01T10:00:00Z'),
+        is_streaming: true,
+      };
+
+      await UpsertService.upsertSyncState(initialState, 'test_sync_state');
+
+      // Wait for initial insert with verification
+      await waitForRecordCount('test_sync_state', 1);
+
+      // Act - Update with undefined timestamp
+      const updatedState: SyncState = {
+        ticker: 'UPDATE_NULL_TEST',
+        last_aggregate_timestamp: undefined,
+        last_sync: new Date('2024-01-01T11:00:00Z'),
+        is_streaming: false,
+      };
+
+      await UpsertService.upsertSyncState(updatedState, 'test_sync_state');
+
+      // Wait for QuestDB partitioned table to commit data with verification of updated values
+      await waitForRecordWithValues('test_sync_state', "ticker = 'UPDATE_NULL_TEST'", {
+        last_aggregate_timestamp: null,
+        is_streaming: false,
+      });
+
+      // Assert
+      const data = await getTestTableData('test_sync_state');
+      const foundRecord = data.find((record: any) => record.ticker === 'UPDATE_NULL_TEST') as any;
+      expect(foundRecord).toBeDefined();
+      expect(foundRecord.last_aggregate_timestamp).toBeNull();
+      expect(foundRecord.is_streaming).toBe(false);
+    });
+
+    it('should handle trades with special characters in ticker', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_option_trades', db);
+
+      const trade: OptionTrade = {
+        ticker: "AAPL'240315C00150000", // Contains single quote
+        underlying_ticker: 'AAPL',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        price: 5.5,
+        size: 10,
+        conditions: '["@", "T"]',
+        exchange: 1,
+        tape: 1,
+        sequence_number: 12345,
+      };
+
+      // Act
+      await UpsertService.upsertOptionTrade(trade, 'test_option_trades');
+
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_trades', 1);
+
+      // Assert
+      const data = await getTestTableData('test_option_trades');
+      const foundRecord = data.find((record: any) => record.ticker === "AAPL'240315C00150000") as any;
+      expect(foundRecord).toBeDefined();
+      expect(foundRecord.ticker).toBe("AAPL'240315C00150000");
+    });
+
+    it('should handle quotes with special characters in ticker', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_option_quotes', db);
+
+      const quote: OptionQuote = {
+        ticker: "AAPL'240315C00150000", // Contains single quote
+        underlying_ticker: 'AAPL',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        bid_price: 5.25,
+        bid_size: 100,
+        ask_price: 5.75,
+        ask_size: 100,
+        bid_exchange: 1,
+        ask_exchange: 1,
+        sequence_number: 12345,
+      };
+
+      // Act
+      await UpsertService.upsertOptionQuote(quote, 'test_option_quotes');
+
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_quotes', 1);
+
+      // Assert
+      const data = await getTestTableData('test_option_quotes');
+      const foundRecord = data.find((record: any) => record.ticker === "AAPL'240315C00150000") as any;
+      expect(foundRecord).toBeDefined();
+      expect(foundRecord.ticker).toBe("AAPL'240315C00150000");
+    });
+
+    it('should handle trades with special characters in conditions', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_option_trades', db);
+
+      const trade: OptionTrade = {
+        ticker: 'AAPL240315C00150000',
+        underlying_ticker: 'AAPL',
+        timestamp: new Date('2024-01-01T10:00:00Z'),
+        price: 5.5,
+        size: 10,
+        conditions: '["@", "T", "I\'m special"]', // Contains single quote
+        exchange: 1,
+        tape: 1,
+        sequence_number: 12345,
+      };
+
+      // Act
+      await UpsertService.upsertOptionTrade(trade, 'test_option_trades');
+
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_trades', 1);
+
+      // Assert
+      const data = await getTestTableData('test_option_trades');
+      const foundRecord = data.find((record: any) => record.ticker === 'AAPL240315C00150000') as any;
+      expect(foundRecord).toBeDefined();
+      expect(foundRecord.conditions).toBe('["@", "T", "I\'m special"]');
+    });
+
+    it('should handle batch operations with mixed null and non-null values', async () => {
+      // Arrange - Create table using schema helper
+      await createTestTable('test_option_trades', db);
+
+      const trades: OptionTrade[] = [
+        {
+          ticker: 'MIXED_TEST1',
+          underlying_ticker: 'AAPL',
+          timestamp: new Date('2024-01-01T10:00:00Z'),
+          price: 0,
+          size: 10,
+          conditions: '["@", "T"]',
+          exchange: 0,
+          tape: 1,
+          sequence_number: 12345,
+        },
+        {
+          ticker: 'MIXED_TEST2',
+          underlying_ticker: 'AAPL',
+          timestamp: new Date('2024-01-01T10:01:00Z'),
+          price: 5.5,
+          size: 0,
+          conditions: '',
+          exchange: 1,
+          tape: 0,
+          sequence_number: 12346,
+        },
+      ];
+
+      // Act
+      await UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades');
+
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_trades', 2);
+
+      // Assert
+      const data = await getTestTableData('test_option_trades');
+      const mixedRecords = data.filter((record: any) => record.ticker.startsWith('MIXED_TEST'));
+      expect(mixedRecords).toHaveLength(2);
+
+      const record1 = mixedRecords.find((record: any) => record.ticker === 'MIXED_TEST1') as any;
+      const record2 = mixedRecords.find((record: any) => record.ticker === 'MIXED_TEST2') as any;
+
+      expect(record1.price).toBe(0);
+      expect(record1.size).toBe(10);
+      expect(record1.exchange).toBe(0);
+      expect(record1.tape).toBe(1);
+
+      expect(record2.price).toBe(5.5);
+      expect(record2.size).toBe(0);
+      expect(record2.conditions).toBeNull(); // Database returns null for empty strings
+      expect(record2.exchange).toBe(1);
+      expect(record2.tape).toBe(0);
+    });
+  });
+
+  describe('batch operations', () => {
+    describe('batchUpsertStockAggregates', () => {
+      it('should handle empty array gracefully', async () => {
+        // Act & Assert - Should not throw and complete immediately
+        await expect(UpsertService.batchUpsertStockAggregates([])).resolves.not.toThrow();
+      });
+
+      it('should batch upsert multiple stock aggregates', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_stock_aggregates', db);
+
+        // Create multiple records
+        const aggregates: StockAggregate[] = [];
+        for (let i = 0; i < 5; i++) {
+          aggregates.push({
+            symbol: `BATCH${i}`,
+            timestamp: new Date(`2024-01-01T${10 + i}:00:00Z`),
+            open: 100.0 + i,
+            high: 105.0 + i,
+            low: 99.0 + i,
+            close: 103.0 + i,
+            volume: 1000000 + i * 100000,
+            vwap: 102.0 + i,
+            transaction_count: 5000 + i * 100,
+          });
+        }
+
+        // Act
+        await UpsertService.batchUpsertStockAggregates(aggregates, 'test_stock_aggregates');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_stock_aggregates', 5);
+
+        // Assert
+        const data = await getTestTableData('test_stock_aggregates');
+        const batchRecords = data.filter((record: any) => record.symbol.startsWith('BATCH'));
+        expect(batchRecords).toHaveLength(5);
+
+        // Verify all records were inserted correctly
+        const sortedBatchRecords = batchRecords.sort((a: any, b: any) => a.symbol.localeCompare(b.symbol));
+        sortedBatchRecords.forEach((record: any, index: number) => {
+          expect(record.symbol).toBe(`BATCH${index}`);
+          expect(record.open).toBe(100.0 + index);
+          expect(record.high).toBe(105.0 + index);
+          expect(record.low).toBe(99.0 + index);
+          expect(record.close).toBe(103.0 + index);
+        });
+      });
+
+      it('should handle large batches by processing in chunks', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_stock_aggregates', db);
+
+        // Create 75 records to test batching (BATCH_SIZE is 50)
+        const aggregates: StockAggregate[] = [];
+        for (let i = 0; i < 75; i++) {
+          aggregates.push({
+            symbol: `LARGE${i}`,
+            timestamp: new Date(`2024-01-01T${10 + (i % 14)}:00:00Z`), // Use modulo 14 to avoid invalid hours
+            open: 100.0 + i,
+            high: 105.0 + i,
+            low: 99.0 + i,
+            close: 103.0 + i,
+            volume: 1000000 + i * 100000,
+            vwap: 102.0 + i,
+            transaction_count: 5000 + i * 100,
+          });
+        }
+
+        // Act
+        await UpsertService.batchUpsertStockAggregates(aggregates, 'test_stock_aggregates');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_stock_aggregates', 75);
+
+        // Assert
+        const data = await getTestTableData('test_stock_aggregates');
+        const largeRecords = data.filter((record: any) => record.symbol.startsWith('LARGE'));
+        expect(largeRecords).toHaveLength(75);
+      });
+    });
+
+    describe('batchUpsertOptionTrades', () => {
+      it('should handle empty array gracefully', async () => {
+        // Act & Assert - Should not throw and complete immediately
+        await expect(UpsertService.batchUpsertOptionTrades([])).resolves.not.toThrow();
+      });
+
+      it('should batch upsert multiple option trades', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_option_trades', db);
+
+        // Create multiple trades
+        const trades: OptionTrade[] = [];
+        for (let i = 0; i < 5; i++) {
+          trades.push({
+            ticker: `BATCH_TRADE${i}`,
+            underlying_ticker: 'AAPL',
+            timestamp: new Date(`2024-01-01T${10 + i}:00:00Z`),
+            price: 5.0 + i,
+            size: 10 + i,
+            conditions: '["@", "T"]',
+            exchange: 1,
+            tape: 1,
+            sequence_number: 10000 + i,
+          });
+        }
+
+        // Act
+        await UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_option_trades', 5);
+
+        // Assert
+        const data = await getTestTableData('test_option_trades');
+        const batchRecords = data.filter((record: any) => record.ticker.startsWith('BATCH_TRADE'));
+        expect(batchRecords).toHaveLength(5);
+
+        // Verify all records were inserted correctly
+        const sortedBatchRecords = batchRecords.sort((a: any, b: any) => a.ticker.localeCompare(b.ticker));
+        sortedBatchRecords.forEach((record: any, index: number) => {
+          expect(record.ticker).toBe(`BATCH_TRADE${index}`);
+          expect(record.price).toBe(5.0 + index);
+          expect(record.size).toBe(10 + index);
+          expect(record.sequence_number).toBe(10000 + index);
+        });
+      });
+
+      it('should handle large batches by processing in chunks', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_option_trades', db);
+
+        // Create 150 records to test batching (BATCH_SIZE is 100)
+        const trades: OptionTrade[] = [];
+        for (let i = 0; i < 150; i++) {
+          trades.push({
+            ticker: `LARGE_TRADE${i}`,
+            underlying_ticker: 'MSFT',
+            timestamp: new Date(`2024-01-01T${10 + (i % 14)}:00:00Z`), // Use modulo 14 to avoid invalid hours
+            price: 10.0 + i,
+            size: 20 + i,
+            conditions: '["@", "T"]',
+            exchange: 2,
+            tape: 2,
+            sequence_number: 20000 + i,
+          });
+        }
+
+        // Act
+        await UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_option_trades', 150);
+
+        // Assert
+        const data = await getTestTableData('test_option_trades');
+        const largeRecords = data.filter((record: any) => record.ticker.startsWith('LARGE_TRADE'));
+        expect(largeRecords).toHaveLength(150);
+      });
+
+      it('should handle trades with null values correctly', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_option_trades', db);
+
+        const trades: OptionTrade[] = [
+          {
+            ticker: 'NULL_TEST1',
+            underlying_ticker: 'AAPL',
+            timestamp: new Date('2024-01-01T10:00:00Z'),
+            price: 0,
+            size: 0,
+            conditions: '',
+            exchange: 0,
+            tape: 0,
+            sequence_number: 0,
+          },
+          {
+            ticker: 'NULL_TEST2',
+            underlying_ticker: 'AAPL',
+            timestamp: new Date('2024-01-01T10:01:00Z'),
+            price: 5.5,
+            size: 10,
+            conditions: '["@", "T"]',
+            exchange: 1,
+            tape: 1,
+            sequence_number: 12345,
+          },
+        ];
+
+        // Act
+        await UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_option_trades', 2);
+
+        // Assert
+        const data = await getTestTableData('test_option_trades');
+        const nullTestRecords = data.filter((record: any) => record.ticker.startsWith('NULL_TEST'));
+        expect(nullTestRecords).toHaveLength(2);
+
+        const nullRecord = nullTestRecords.find((record: any) => record.ticker === 'NULL_TEST1') as any;
+        const normalRecord = nullTestRecords.find((record: any) => record.ticker === 'NULL_TEST2') as any;
+
+        expect(nullRecord.price).toBe(0);
+        expect(nullRecord.size).toBe(0);
+        expect(nullRecord.conditions).toBeNull(); // Database returns null for empty strings
+        expect(nullRecord.exchange).toBe(0);
+        expect(nullRecord.tape).toBe(0);
+        expect(nullRecord.sequence_number).toBe(0);
+
+        expect(normalRecord.price).toBe(5.5);
+        expect(normalRecord.size).toBe(10);
+        expect(normalRecord.conditions).toBe('["@", "T"]');
+        expect(normalRecord.exchange).toBe(1);
+        expect(normalRecord.tape).toBe(1);
+        expect(normalRecord.sequence_number).toBe(12345);
+      });
+    });
+
+    describe('batchUpsertOptionQuotes', () => {
+      it('should handle empty array gracefully', async () => {
+        // Act & Assert - Should not throw and complete immediately
+        await expect(UpsertService.batchUpsertOptionQuotes([])).resolves.not.toThrow();
+      });
+
+      it('should batch upsert multiple option quotes', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_option_quotes', db);
+
+        // Create multiple quotes
+        const quotes: OptionQuote[] = [];
+        for (let i = 0; i < 5; i++) {
+          quotes.push({
+            ticker: `BATCH_QUOTE${i}`,
+            underlying_ticker: 'AAPL',
+            timestamp: new Date(`2024-01-01T${10 + i}:00:00Z`),
+            bid_price: 5.0 + i,
+            bid_size: 100 + i,
+            ask_price: 5.5 + i,
+            ask_size: 100 + i,
+            bid_exchange: 1,
+            ask_exchange: 1,
+            sequence_number: 30000 + i,
+          });
+        }
+
+        // Act
+        await UpsertService.batchUpsertOptionQuotes(quotes, 'test_option_quotes');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_option_quotes', 5);
+
+        // Assert
+        const data = await getTestTableData('test_option_quotes');
+        const batchRecords = data.filter((record: any) => record.ticker.startsWith('BATCH_QUOTE'));
+        expect(batchRecords).toHaveLength(5);
+
+        // Verify all records were inserted correctly
+        const sortedBatchRecords = batchRecords.sort((a: any, b: any) => a.ticker.localeCompare(b.ticker));
+        sortedBatchRecords.forEach((record: any, index: number) => {
+          expect(record.ticker).toBe(`BATCH_QUOTE${index}`);
+          expect(record.bid_price).toBe(5.0 + index);
+          expect(record.bid_size).toBe(100 + index);
+          expect(record.ask_price).toBe(5.5 + index);
+          expect(record.ask_size).toBe(100 + index);
+          expect(record.sequence_number).toBe(30000 + index);
+        });
+      });
+
+      it('should handle large batches by processing in chunks', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_option_quotes', db);
+
+        // Create 150 records to test batching (BATCH_SIZE is 100)
+        const quotes: OptionQuote[] = [];
+        for (let i = 0; i < 150; i++) {
+          quotes.push({
+            ticker: `LARGE_QUOTE${i}`,
+            underlying_ticker: 'MSFT',
+            timestamp: new Date(`2024-01-01T${10 + (i % 14)}:00:00Z`), // Use modulo 14 to avoid invalid hours
+            bid_price: 10.0 + i,
+            bid_size: 200 + i,
+            ask_price: 10.5 + i,
+            ask_size: 200 + i,
+            bid_exchange: 2,
+            ask_exchange: 2,
+            sequence_number: 40000 + i,
+          });
+        }
+
+        // Act
+        await UpsertService.batchUpsertOptionQuotes(quotes, 'test_option_quotes');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_option_quotes', 150);
+
+        // Assert
+        const data = await getTestTableData('test_option_quotes');
+        const largeRecords = data.filter((record: any) => record.ticker.startsWith('LARGE_QUOTE'));
+        expect(largeRecords).toHaveLength(150);
+      });
+
+      it('should handle quotes with null values correctly', async () => {
+        // Arrange - Create table using schema helper
+        await createTestTable('test_option_quotes', db);
+
+        const quotes: OptionQuote[] = [
+          {
+            ticker: 'NULL_QUOTE1',
+            underlying_ticker: 'AAPL',
+            timestamp: new Date('2024-01-01T10:00:00Z'),
+            bid_price: 0,
+            bid_size: 0,
+            ask_price: 0,
+            ask_size: 0,
+            bid_exchange: 0,
+            ask_exchange: 0,
+            sequence_number: 0,
+          },
+          {
+            ticker: 'NULL_QUOTE2',
+            underlying_ticker: 'AAPL',
+            timestamp: new Date('2024-01-01T10:01:00Z'),
+            bid_price: 5.25,
+            bid_size: 100,
+            ask_price: 5.75,
+            ask_size: 100,
+            bid_exchange: 1,
+            ask_exchange: 1,
+            sequence_number: 12345,
+          },
+        ];
+
+        // Act
+        await UpsertService.batchUpsertOptionQuotes(quotes, 'test_option_quotes');
+
+        // Wait for QuestDB partitioned table to commit data with verification
+        await waitForRecordCount('test_option_quotes', 2);
+
+        // Assert
+        const data = await getTestTableData('test_option_quotes');
+        const nullTestRecords = data.filter((record: any) => record.ticker.startsWith('NULL_QUOTE'));
+        expect(nullTestRecords).toHaveLength(2);
+
+        const nullRecord = nullTestRecords.find((record: any) => record.ticker === 'NULL_QUOTE1') as any;
+        const normalRecord = nullTestRecords.find((record: any) => record.ticker === 'NULL_QUOTE2') as any;
+
+        expect(nullRecord.bid_price).toBe(0);
+        expect(nullRecord.bid_size).toBe(0);
+        expect(nullRecord.ask_price).toBe(0);
+        expect(nullRecord.ask_size).toBe(0);
+        expect(nullRecord.bid_exchange).toBe(0);
+        expect(nullRecord.ask_exchange).toBe(0);
+        expect(nullRecord.sequence_number).toBe(0);
+
+        expect(normalRecord.bid_price).toBe(5.25);
+        expect(normalRecord.bid_size).toBe(100);
+        expect(normalRecord.ask_price).toBe(5.75);
+        expect(normalRecord.ask_size).toBe(100);
+        expect(normalRecord.bid_exchange).toBe(1);
+        expect(normalRecord.ask_exchange).toBe(1);
+        expect(normalRecord.sequence_number).toBe(12345);
+      });
     });
   });
 

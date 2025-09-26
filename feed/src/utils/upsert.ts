@@ -265,7 +265,7 @@ export class UpsertService {
    * Batch upsert multiple stock aggregates using individual upserts to prevent duplicates
    * This ensures proper duplicate checking for each record
    */
-  static async batchUpsertStockAggregates(aggregates: StockAggregate[]): Promise<void> {
+  static async batchUpsertStockAggregates(aggregates: StockAggregate[], tableName = 'stock_aggregates'): Promise<void> {
     if (aggregates.length === 0) {
       return;
     }
@@ -279,7 +279,7 @@ export class UpsertService {
 
         // Process each aggregate individually to ensure proper duplicate checking
         for (const aggregate of batch) {
-          await this.upsertStockAggregate(aggregate);
+          await this.upsertStockAggregate(aggregate, tableName);
         }
 
         console.log(
