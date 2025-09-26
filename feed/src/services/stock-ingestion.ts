@@ -4,6 +4,7 @@ import { OptionIngestionService } from './option-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { StockAggregate, SyncState } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
+import { AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
 
 export class StockIngestionService {
@@ -257,5 +258,18 @@ export class StockIngestionService {
 
   private async updateSyncState(syncState: SyncState): Promise<void> {
     await UpsertService.upsertSyncState(syncState);
+  }
+
+  /**
+   * Public method to fetch historical bars for a ticker within a date range
+   * Used by backfill service and other components that need historical data
+   */
+  async getHistoricalBars(
+    ticker: string,
+    startDate: Date,
+    endDate: Date,
+    timeframe: '1Min' | '5Min' | '15Min' | '1Hour' | '1Day' = '1Min'
+  ): Promise<AlpacaBar[]> {
+    return this.alpacaClient.getHistoricalBars(ticker, startDate, endDate, timeframe);
   }
 }

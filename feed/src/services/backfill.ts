@@ -1,19 +1,19 @@
 import { db } from '../db/connection';
-import { AlpacaClient } from './alpaca-client';
 import { OptionIngestionService } from './option-ingestion';
+import { StockIngestionService } from './stock-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { StockAggregate, SyncState } from '../types/database';
 import { getMinDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
 export class BackfillService {
-  private alpacaClient: AlpacaClient;
   private optionIngestionService: OptionIngestionService;
+  private stockIngestionService: StockIngestionService;
   private questdbAdapter: QuestDBServiceInterface;
 
   constructor() {
-    this.alpacaClient = new AlpacaClient();
     this.optionIngestionService = new OptionIngestionService();
+    this.stockIngestionService = new StockIngestionService();
     // Create adapter for the feed's database connection
     this.questdbAdapter = {
       executeQuery: async (query: string) => {
@@ -466,7 +466,7 @@ export class BackfillService {
       const actualEnd = dayEnd > endDate ? endDate : dayEnd;
 
       try {
-        const bars = await this.alpacaClient.getHistoricalBars(ticker, currentDate, actualEnd, '1Min');
+        const bars = await this.stockIngestionService.getHistoricalBars(ticker, currentDate, actualEnd, '1Min');
 
         console.log(
           `Fetched ${bars.length} bars from Alpaca for ${ticker} on ${currentDate.toISOString().split('T')[0]}`
