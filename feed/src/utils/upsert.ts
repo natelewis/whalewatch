@@ -5,13 +5,14 @@ export class UpsertService {
   /**
    * Upsert a stock aggregate record
    */
-  static async upsertStockAggregate(aggregate: StockAggregate): Promise<void> {
+  static async upsertStockAggregate(aggregate: StockAggregate, tableName = 'stock_aggregates'): Promise<void> {
     try {
       // Check if record exists using a range query to handle timestamp precision
       // QuestDB stores timestamps with microsecond precision, so we need to account for that
       const timestampStr = aggregate.timestamp.toISOString();
+
       const existing = await db.query(
-        `SELECT symbol, timestamp FROM stock_aggregates 
+        `SELECT symbol, timestamp FROM ${tableName} 
          WHERE symbol = $1 AND timestamp >= $2 AND timestamp < $3`,
         [
           aggregate.symbol,
@@ -28,8 +29,9 @@ export class UpsertService {
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Update existing record using the exact timestamp from the database
         const existingTimestamp = questResult.dataset[0][1] as string;
+
         await db.query(
-          `UPDATE stock_aggregates 
+          `UPDATE ${tableName} 
            SET open = $1, high = $2, low = $3, close = $4, volume = $5, vwap = $6, transaction_count = $7
            WHERE symbol = $8 AND timestamp = $9`,
           [
@@ -48,7 +50,7 @@ export class UpsertService {
       } else {
         // Insert new record
         await db.query(
-          `INSERT INTO stock_aggregates (symbol, timestamp, open, high, low, close, volume, vwap, transaction_count)
+          `INSERT INTO ${tableName} (symbol, timestamp, open, high, low, close, volume, vwap, transaction_count)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             aggregate.symbol,
@@ -73,11 +75,11 @@ export class UpsertService {
   /**
    * Insert an option contract record
    */
-  static async upsertOptionContract(contract: OptionContract): Promise<void> {
+  static async upsertOptionContract(contract: OptionContract, tableName = 'option_contracts'): Promise<void> {
     try {
       // Since there's no existing data, we can just insert directly
       await db.query(
-        `INSERT INTO option_contracts (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker, as_of)
+        `INSERT INTO ${tableName} (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker, as_of)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           contract.ticker,
@@ -100,11 +102,11 @@ export class UpsertService {
   /**
    * Upsert an option trade record
    */
-  static async upsertOptionTrade(trade: OptionTrade): Promise<void> {
+  static async upsertOptionTrade(trade: OptionTrade, tableName = 'option_trades'): Promise<void> {
     try {
       // Check if record exists
       const existing = await db.query(
-        `SELECT ticker, timestamp, sequence_number FROM option_trades 
+        `SELECT ticker, timestamp, sequence_number FROM ${tableName} 
          WHERE ticker = $1 AND timestamp = $2 AND sequence_number = $3`,
         [trade.ticker, trade.timestamp, trade.sequence_number]
       );
@@ -117,7 +119,7 @@ export class UpsertService {
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Update existing record
         await db.query(
-          `UPDATE option_trades 
+          `UPDATE ${tableName} 
            SET underlying_ticker = $1, price = $2, size = $3, conditions = $4, exchange = $5, tape = $6
            WHERE ticker = $7 AND timestamp = $8 AND sequence_number = $9`,
           [
@@ -136,7 +138,7 @@ export class UpsertService {
       } else {
         // Insert new record
         await db.query(
-          `INSERT INTO option_trades (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number)
+          `INSERT INTO ${tableName} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
             trade.ticker,
@@ -161,11 +163,11 @@ export class UpsertService {
   /**
    * Upsert an option quote record
    */
-  static async upsertOptionQuote(quote: OptionQuote): Promise<void> {
+  static async upsertOptionQuote(quote: OptionQuote, tableName = 'option_quotes'): Promise<void> {
     try {
       // Check if record exists
       const existing = await db.query(
-        `SELECT ticker, timestamp, sequence_number FROM option_quotes 
+        `SELECT ticker, timestamp, sequence_number FROM ${tableName} 
          WHERE ticker = $1 AND timestamp = $2 AND sequence_number = $3`,
         [quote.ticker, quote.timestamp, quote.sequence_number]
       );
@@ -178,7 +180,7 @@ export class UpsertService {
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Update existing record
         await db.query(
-          `UPDATE option_quotes 
+          `UPDATE ${tableName} 
            SET underlying_ticker = $1, bid_price = $2, bid_size = $3, ask_price = $4, ask_size = $5, 
                bid_exchange = $6, ask_exchange = $7
            WHERE ticker = $8 AND timestamp = $9 AND sequence_number = $10`,
@@ -199,7 +201,7 @@ export class UpsertService {
       } else {
         // Insert new record
         await db.query(
-          `INSERT INTO option_quotes (ticker, underlying_ticker, timestamp, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, sequence_number)
+          `INSERT INTO ${tableName} (ticker, underlying_ticker, timestamp, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, sequence_number)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             quote.ticker,
@@ -225,10 +227,10 @@ export class UpsertService {
   /**
    * Upsert a sync state record
    */
-  static async upsertSyncState(syncState: SyncState): Promise<void> {
+  static async upsertSyncState(syncState: SyncState, tableName = 'sync_state'): Promise<void> {
     try {
       // Check if record exists
-      const existing = await db.query(`SELECT ticker FROM sync_state WHERE ticker = $1`, [syncState.ticker]);
+      const existing = await db.query(`SELECT ticker FROM ${tableName} WHERE ticker = $1`, [syncState.ticker]);
 
       const questResult = existing as {
         columns: { name: string; type: string }[];
@@ -238,7 +240,7 @@ export class UpsertService {
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Update existing record
         await db.query(
-          `UPDATE sync_state 
+          `UPDATE ${tableName} 
            SET last_aggregate_timestamp = $1, is_streaming = $2
            WHERE ticker = $3`,
           [syncState.last_aggregate_timestamp || null, syncState.is_streaming, syncState.ticker]
@@ -247,7 +249,7 @@ export class UpsertService {
       } else {
         // Insert new record
         await db.query(
-          `INSERT INTO sync_state (ticker, last_aggregate_timestamp, last_sync, is_streaming)
+          `INSERT INTO ${tableName} (ticker, last_aggregate_timestamp, last_sync, is_streaming)
            VALUES ($1, $2, $3, $4)`,
           [syncState.ticker, syncState.last_aggregate_timestamp || null, syncState.last_sync, syncState.is_streaming]
         );
@@ -265,8 +267,8 @@ export class UpsertService {
    */
   static async batchUpsertStockAggregates(aggregates: StockAggregate[]): Promise<void> {
     if (aggregates.length === 0) {
-return;
-}
+      return;
+    }
 
     try {
       // Process in batches to avoid overwhelming the database
@@ -300,8 +302,8 @@ return;
    */
   static async batchUpsertOptionTrades(trades: OptionTrade[]): Promise<void> {
     if (trades.length === 0) {
-return;
-}
+      return;
+    }
 
     try {
       // Process in batches to avoid query size limits
@@ -352,8 +354,8 @@ VALUES ${values}`;
    */
   static async batchUpsertOptionQuotes(quotes: OptionQuote[]): Promise<void> {
     if (quotes.length === 0) {
-return;
-}
+      return;
+    }
 
     try {
       // Use smaller batch size to prevent URL length issues and socket hang ups

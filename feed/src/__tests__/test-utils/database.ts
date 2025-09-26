@@ -1,111 +1,32 @@
 // Test utilities for database operations
 import { db } from '../../db/connection';
+import { getAllTestTableSchemas } from './schema-helper';
 
 export interface TestTableConfig {
   name: string;
   schema: string;
 }
 
-export const TEST_TABLES: TestTableConfig[] = [
-  {
-    name: 'test_stock_trades',
-    schema: `
-      CREATE TABLE IF NOT EXISTS test_stock_trades (
-        symbol SYMBOL,
-        timestamp TIMESTAMP,
-        price DOUBLE,
-        size DOUBLE,
-        conditions STRING,
-        exchange LONG,
-        tape LONG,
-        trade_id STRING
-      ) TIMESTAMP(timestamp) PARTITION BY DAY
-    `,
-  },
-  {
-    name: 'test_stock_aggregates',
-    schema: `
-      CREATE TABLE IF NOT EXISTS test_stock_aggregates (
-        symbol SYMBOL,
-        timestamp TIMESTAMP,
-        open DOUBLE,
-        high DOUBLE,
-        low DOUBLE,
-        close DOUBLE,
-        volume DOUBLE,
-        vwap DOUBLE,
-        transaction_count LONG
-      ) TIMESTAMP(timestamp) PARTITION BY DAY
-    `,
-  },
-  {
-    name: 'test_option_contracts',
-    schema: `
-      CREATE TABLE IF NOT EXISTS test_option_contracts (
-        ticker STRING,
-        contract_type STRING,
-        exercise_style STRING,
-        expiration_date TIMESTAMP,
-        shares_per_contract LONG,
-        strike_price DOUBLE,
-        underlying_ticker SYMBOL,
-        as_of TIMESTAMP
-      ) TIMESTAMP(as_of) PARTITION BY DAY
-    `,
-  },
-  {
-    name: 'test_option_trades',
-    schema: `
-      CREATE TABLE IF NOT EXISTS test_option_trades (
-        ticker SYMBOL,
-        underlying_ticker SYMBOL,
-        timestamp TIMESTAMP,
-        price DOUBLE,
-        size DOUBLE,
-        conditions STRING,
-        exchange LONG,
-        tape LONG,
-        sequence_number LONG
-      ) TIMESTAMP(timestamp) PARTITION BY DAY
-    `,
-  },
-  {
-    name: 'test_option_quotes',
-    schema: `
-      CREATE TABLE IF NOT EXISTS test_option_quotes (
-        ticker SYMBOL,
-        underlying_ticker SYMBOL,
-        timestamp TIMESTAMP,
-        bid_price DOUBLE,
-        bid_size DOUBLE,
-        ask_price DOUBLE,
-        ask_size DOUBLE,
-        bid_exchange LONG,
-        ask_exchange LONG,
-        sequence_number LONG
-      ) TIMESTAMP(timestamp) PARTITION BY DAY
-    `,
-  },
-  {
-    name: 'test_sync_state',
-    schema: `
-      CREATE TABLE IF NOT EXISTS test_sync_state (
-        ticker SYMBOL,
-        last_aggregate_timestamp TIMESTAMP,
-        last_sync TIMESTAMP,
-        is_streaming BOOLEAN
-      ) TIMESTAMP(last_sync) PARTITION BY DAY
-    `,
-  },
-];
+// Get test table definitions from schema.sql
+const testTableSchemas = getAllTestTableSchemas();
+
+// Convert to the format expected by the existing functions
+export const TEST_TABLES: TestTableConfig[] = Object.entries(testTableSchemas).map(([name, schema]) => ({
+  name,
+  schema,
+}));
 
 /**
  * Create all test tables
  */
 export async function createTestTables(): Promise<void> {
+  console.log('Database connection status:', (db as any).isConnected);
+
   for (const table of TEST_TABLES) {
     try {
-      await db.query(table.schema);
+      console.log(`Creating table ${table.name} with schema: ${table.schema}`);
+      const result = await db.query(table.schema);
+      console.log(`Table creation result for ${table.name}:`, result);
       console.log(`Created test table: ${table.name}`);
     } catch (error) {
       console.error(`Failed to create test table ${table.name}:`, error);
