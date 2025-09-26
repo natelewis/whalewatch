@@ -7,7 +7,7 @@ import {
   PolygonOptionQuotesResponse,
   PolygonTrade,
 } from '../types/polygon';
-import { getPolygonRateLimiter } from '../utils/rate-limiter';
+import { getPolygonRateLimiter } from '../utils/polygon-rate-limiter';
 
 export class PolygonClient {
   private api: AxiosInstance;

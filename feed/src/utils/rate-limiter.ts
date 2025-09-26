@@ -22,17 +22,3 @@ export class RateLimiter {
     });
   }
 }
-
-// Get rate limiter based on environment variables
-export function getPolygonRateLimiter(): RateLimiter {
-  // Read from environment variables with more aggressive defaults for backfilling
-  const requestsPerSecond = parseFloat(process.env.POLYGON_REQUESTS_PER_SECOND || '5.0');
-  const requestsPerMinute = parseFloat(process.env.POLYGON_REQUESTS_PER_MINUTE || '300');
-
-  // Use the more restrictive limit
-  const effectiveRPS = Math.min(requestsPerSecond, requestsPerMinute / 60);
-
-  console.log(`Rate limiting Polygon.io requests to ${effectiveRPS.toFixed(2)} requests per second`);
-
-  return new RateLimiter(effectiveRPS);
-}
