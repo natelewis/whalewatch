@@ -1,18 +1,18 @@
 // Test file for test configuration utilities
-import { getTestTableName, testDataGenerators } from './config';
+import { getTableName, testDataGenerators } from './config';
 
 describe('Test Configuration Utilities', () => {
-  describe('getTestTableName', () => {
+  describe('getTableName', () => {
     it('should add test prefix in test environment', () => {
       process.env.NODE_ENV = 'test';
-      expect(getTestTableName('stock_trades')).toBe('test_stock_trades');
-      expect(getTestTableName('option_contracts')).toBe('test_option_contracts');
+      expect(getTableName('stock_trades')).toBe('test_stock_trades');
+      expect(getTableName('option_contracts')).toBe('test_option_contracts');
     });
 
     it('should not add prefix in non-test environment', () => {
       process.env.NODE_ENV = 'production';
-      expect(getTestTableName('stock_trades')).toBe('stock_trades');
-      expect(getTestTableName('option_contracts')).toBe('option_contracts');
+      expect(getTableName('stock_trades')).toBe('stock_trades');
+      expect(getTableName('option_contracts')).toBe('option_contracts');
     });
   });
 

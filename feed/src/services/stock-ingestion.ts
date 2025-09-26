@@ -8,6 +8,16 @@ import { AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
 import { getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
+/**
+ * Get table name with test prefix if in test environment
+ */
+function getTableName(originalTableName: string): string {
+  if (process.env.NODE_ENV === 'test') {
+    return `test_${originalTableName}`;
+  }
+  return originalTableName;
+}
+
 export class StockIngestionService {
   private alpacaClient: AlpacaClient;
   private optionIngestionService: OptionIngestionService;
@@ -88,18 +98,6 @@ export class StockIngestionService {
     console.log('Data ingestion stopped');
   }
 
-  /**
-   * Get the newest timestamp for a ticker from stock_aggregates table
-   */
-  async getMaxTimestamp(ticker: string): Promise<Date | null> {
-    return getMaxDate(this.questdbAdapter, {
-      ticker,
-      tickerField: 'symbol',
-      dateField: 'timestamp',
-      table: 'stock_aggregates',
-    });
-  }
-
   private async catchUpData(): Promise<void> {
     console.log('Catching up on missing data...');
 
@@ -125,7 +123,12 @@ export class StockIngestionService {
     const now = new Date();
 
     // Get the newest timestamp from existing data
-    const lastSync = await this.getMaxTimestamp(ticker);
+    const lastSync = await getMaxDate(this.questdbAdapter, {
+      ticker,
+      tickerField: 'symbol',
+      dateField: 'timestamp',
+      table: 'stock_aggregates',
+    });
 
     let startDate: Date;
     if (!lastSync) {

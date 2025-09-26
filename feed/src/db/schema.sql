@@ -63,11 +63,3 @@ CREATE TABLE IF NOT EXISTS option_quotes (
     ask_exchange LONG,
     sequence_number LONG
 ) TIMESTAMP(timestamp) PARTITION BY DAY;
-
--- Sync state tracking
-CREATE TABLE IF NOT EXISTS sync_state (
-    ticker SYMBOL,
-    last_aggregate_timestamp TIMESTAMP,
-    last_sync TIMESTAMP,
-    is_streaming BOOLEAN
-) TIMESTAMP(last_sync) PARTITION BY DAY;

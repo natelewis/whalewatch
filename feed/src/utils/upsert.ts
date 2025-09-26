@@ -1,11 +1,24 @@
 import { db } from '../db/connection';
-import { StockAggregate, OptionContract, OptionTrade, OptionQuote, SyncState } from '../types/database';
+import { StockAggregate, OptionContract, OptionTrade, OptionQuote } from '../types/database';
+
+/**
+ * Get table name with test prefix if in test environment
+ */
+function getTableName(originalTableName: string): string {
+  if (process.env.NODE_ENV === 'test') {
+    return `test_${originalTableName}`;
+  }
+  return originalTableName;
+}
 
 export class UpsertService {
   /**
    * Upsert a stock aggregate record
    */
-  static async upsertStockAggregate(aggregate: StockAggregate, tableName = 'stock_aggregates'): Promise<void> {
+  static async upsertStockAggregate(
+    aggregate: StockAggregate,
+    tableName = getTableName('stock_aggregates')
+  ): Promise<void> {
     try {
       // Check if record exists using a range query to handle timestamp precision
       // QuestDB stores timestamps with microsecond precision, so we need to account for that
@@ -75,7 +88,10 @@ export class UpsertService {
   /**
    * Insert an option contract record
    */
-  static async upsertOptionContract(contract: OptionContract, tableName = 'option_contracts'): Promise<void> {
+  static async upsertOptionContract(
+    contract: OptionContract,
+    tableName = getTableName('option_contracts')
+  ): Promise<void> {
     try {
       // Since there's no existing data, we can just insert directly
       await db.query(
@@ -102,7 +118,7 @@ export class UpsertService {
   /**
    * Upsert an option trade record
    */
-  static async upsertOptionTrade(trade: OptionTrade, tableName = 'option_trades'): Promise<void> {
+  static async upsertOptionTrade(trade: OptionTrade, tableName = getTableName('option_trades')): Promise<void> {
     try {
       // Check if record exists
       const existing = await db.query(
@@ -163,7 +179,7 @@ export class UpsertService {
   /**
    * Upsert an option quote record
    */
-  static async upsertOptionQuote(quote: OptionQuote, tableName = 'option_quotes'): Promise<void> {
+  static async upsertOptionQuote(quote: OptionQuote, tableName = getTableName('option_quotes')): Promise<void> {
     try {
       // Check if record exists
       const existing = await db.query(
@@ -225,47 +241,13 @@ export class UpsertService {
   }
 
   /**
-   * Upsert a sync state record
-   */
-  static async upsertSyncState(syncState: SyncState, tableName = 'sync_state'): Promise<void> {
-    try {
-      // Check if record exists
-      const existing = await db.query(`SELECT ticker FROM ${tableName} WHERE ticker = $1`, [syncState.ticker]);
-
-      const questResult = existing as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
-
-      if (questResult.dataset && questResult.dataset.length > 0) {
-        // Update existing record
-        await db.query(
-          `UPDATE ${tableName} 
-           SET last_aggregate_timestamp = $1, is_streaming = $2
-           WHERE ticker = $3`,
-          [syncState.last_aggregate_timestamp || null, syncState.is_streaming, syncState.ticker]
-        );
-        console.log(`Updated sync state: ${syncState.ticker}`);
-      } else {
-        // Insert new record
-        await db.query(
-          `INSERT INTO ${tableName} (ticker, last_aggregate_timestamp, last_sync, is_streaming)
-           VALUES ($1, $2, $3, $4)`,
-          [syncState.ticker, syncState.last_aggregate_timestamp || null, syncState.last_sync, syncState.is_streaming]
-        );
-        console.log(`Inserted new sync state: ${syncState.ticker}`);
-      }
-    } catch (error) {
-      console.error('Error upserting sync state:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Batch upsert multiple stock aggregates using individual upserts to prevent duplicates
    * This ensures proper duplicate checking for each record
    */
-  static async batchUpsertStockAggregates(aggregates: StockAggregate[], tableName = 'stock_aggregates'): Promise<void> {
+  static async batchUpsertStockAggregates(
+    aggregates: StockAggregate[],
+    tableName = getTableName('stock_aggregates')
+  ): Promise<void> {
     if (aggregates.length === 0) {
       return;
     }
@@ -300,7 +282,10 @@ export class UpsertService {
    * Batch upsert multiple option trades using bulk insert
    * Uses QuestDB's deduplication feature to handle upserts efficiently
    */
-  static async batchUpsertOptionTrades(trades: OptionTrade[], tableName = 'option_trades'): Promise<void> {
+  static async batchUpsertOptionTrades(
+    trades: OptionTrade[],
+    tableName = getTableName('option_trades')
+  ): Promise<void> {
     if (trades.length === 0) {
       return;
     }
@@ -352,7 +337,10 @@ VALUES ${values}`;
    * Uses QuestDB's deduplication feature to handle upserts efficiently
    * Implements retry logic and smaller batch sizes to prevent socket hang up errors
    */
-  static async batchUpsertOptionQuotes(quotes: OptionQuote[], tableName = 'option_quotes'): Promise<void> {
+  static async batchUpsertOptionQuotes(
+    quotes: OptionQuote[],
+    tableName = getTableName('option_quotes')
+  ): Promise<void> {
     if (quotes.length === 0) {
       return;
     }

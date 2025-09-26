@@ -55,10 +55,3 @@ export interface TickerConfig {
   last_sync?: Date;
   last_aggregate?: Date;
 }
-
-export interface SyncState {
-  ticker: string;
-  last_aggregate_timestamp?: Date | undefined;
-  last_sync: Date;
-  is_streaming: boolean;
-}

@@ -6,6 +6,16 @@ import { OptionContract, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
 import { getMaxDate, getMinDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
+/**
+ * Get table name with test prefix if in test environment
+ */
+function getTableName(originalTableName: string): string {
+  if (process.env.NODE_ENV === 'test') {
+    return `test_${originalTableName}`;
+  }
+  return originalTableName;
+}
+
 export class OptionIngestionService {
   private polygonClient: PolygonClient;
   private questdbAdapter: QuestDBServiceInterface;
@@ -184,7 +194,7 @@ export class OptionIngestionService {
     try {
       const tickerList = config.tickers.map(t => `'${t}'`).join(',');
       const result = await db.query(`
-        SELECT DISTINCT ticker FROM option_contracts
+        SELECT DISTINCT ticker FROM ${getTableName('option_contracts')}
         WHERE underlying_ticker IN (${tickerList})
       `);
 

@@ -61,7 +61,7 @@ __tests__/
 
 ### Configuration Utilities (`test-utils/config.ts`)
 
-- `getTestTableName()`: Get table name with test prefix
+- `getTableName()`: Get table name with test prefix
 - `testDataGenerators`: Generate test data for different entity types
 
 ## Test Tables

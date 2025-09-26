@@ -647,7 +647,7 @@ describe('OptionIngestionService', () => {
 
       // Assert
       expect(mockedDb.query).toHaveBeenCalledWith(`
-        SELECT DISTINCT ticker FROM option_contracts
+        SELECT DISTINCT ticker FROM test_option_contracts
         WHERE underlying_ticker IN ('AAPL','GOOGL','TSLA')
       `);
       expect(result).toEqual([

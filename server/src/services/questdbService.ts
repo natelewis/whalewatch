@@ -404,45 +404,6 @@ export class QuestDBService {
   }
 
   /**
-   * Get sync state for a ticker
-   */
-  async getSyncState(ticker: string): Promise<QuestDBSyncState | null> {
-    // First check if the table exists
-    await this.ensureTableExists('sync_state');
-
-    const query = `SELECT * FROM sync_state WHERE ticker = '${ticker.toUpperCase()}' LIMIT 1`;
-
-    const response = await this.executeQuery<QuestDBSyncState>(query);
-    const converted = this.convertArrayToObject<QuestDBSyncState>(response.dataset, response.columns);
-    return converted.length > 0 ? converted[0] : null;
-  }
-
-  /**
-   * Update sync state for a ticker
-   */
-  async updateSyncState(ticker: string, updates: Partial<Omit<QuestDBSyncState, 'ticker'>>): Promise<void> {
-    // First check if the table exists
-    await this.ensureTableExists('sync_state');
-
-    const setClause = Object.entries(updates)
-      .filter(([_, value]) => value !== undefined)
-      .map(([key, value]) => {
-        if (typeof value === 'string') {
-          return `${key} = '${value}'`;
-        } else if (typeof value === 'boolean') {
-          return `${key} = ${value}`;
-        } else {
-          return `${key} = ${value}`;
-        }
-      })
-      .join(', ');
-
-    const query = `UPDATE sync_state SET ${setClause} WHERE ticker = '${ticker.toUpperCase()}'`;
-
-    await this.executeQuery(query);
-  }
-
-  /**
    * Get the latest trade timestamp for a symbol
    */
   async getLatestTradeTimestamp(symbol: string): Promise<string | null> {

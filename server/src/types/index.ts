@@ -96,14 +96,6 @@ export interface QuestDBOptionQuote {
   sequence_number: number;
 }
 
-export interface QuestDBSyncState {
-  ticker: string;
-  last_trade_timestamp: string; // ISO timestamp
-  last_aggregate_timestamp: string; // ISO timestamp
-  last_sync: string; // ISO timestamp
-  is_streaming: boolean;
-}
-
 // Query parameters for QuestDB queries
 export interface QuestDBQueryParams {
   symbol?: string | undefined;

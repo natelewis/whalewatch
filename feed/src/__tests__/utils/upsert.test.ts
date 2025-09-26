@@ -1,6 +1,6 @@
 // Test file for UpsertService with real database operations
 import { UpsertService } from '../../utils/upsert';
-import { StockAggregate, OptionContract, OptionTrade, OptionQuote, SyncState } from '../../types/database';
+import { StockAggregate, OptionContract, OptionTrade, OptionQuote } from '../../types/database';
 import { getTestTableData, dropTestTables } from '../test-utils/database';
 import { createTestTable } from '../test-utils/schema-helper';
 import { db } from '../../db/connection';
@@ -539,6 +539,8 @@ describe('UpsertService', () => {
     });
   });
 
+  // TODO: Remove sync state tests since we no longer use sync_state table
+  /*
   describe('upsertSyncState', () => {
     it('should insert sync state record', async () => {
       // Arrange - Create table using schema helper
@@ -823,7 +825,9 @@ describe('UpsertService', () => {
       expect(foundRecord.last_aggregate_timestamp).toBeNull();
       expect(foundRecord.is_streaming).toBe(false);
     });
+  */
 
+  describe('edge cases and special scenarios', () => {
     it('should handle trades with special characters in ticker', async () => {
       // Arrange - Create table using schema helper
       await createTestTable('test_option_trades', db);

@@ -4,7 +4,7 @@ import { config } from '../../config';
 /**
  * Get table name with test prefix if in test environment
  */
-export function getTestTableName(originalTableName: string): string {
+export function getTableName(originalTableName: string): string {
   if (process.env.NODE_ENV === 'test') {
     return `test_${originalTableName}`;
   }
@@ -18,12 +18,12 @@ export const testConfig = {
   ...config,
   // Override table names to use test prefixes
   tables: {
-    stockTrades: getTestTableName('stock_trades'),
-    stockAggregates: getTestTableName('stock_aggregates'),
-    optionContracts: getTestTableName('option_contracts'),
-    optionTrades: getTestTableName('option_trades'),
-    optionQuotes: getTestTableName('option_quotes'),
-    syncState: getTestTableName('sync_state'),
+    stockTrades: getTableName('stock_trades'),
+    stockAggregates: getTableName('stock_aggregates'),
+    optionContracts: getTableName('option_contracts'),
+    optionTrades: getTableName('option_trades'),
+    optionQuotes: getTableName('option_quotes'),
+    syncState: getTableName('sync_state'),
   },
 };
 

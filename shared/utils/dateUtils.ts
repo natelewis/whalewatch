@@ -23,7 +23,7 @@ export interface QuestDBServiceInterface {
 /**
  * Get table name with test prefix if in test environment
  */
-function getTestTableName(tableName: string): string {
+function getTableName(tableName: string): string {
   if (process.env.NODE_ENV === 'test') {
     return `test_${tableName}`;
   }
@@ -42,7 +42,7 @@ export async function getMaxDate(
 ): Promise<Date | null> {
   try {
     const { ticker, tickerField, dateField, table } = params;
-    const testTableName = getTestTableName(table);
+    const testTableName = getTableName(table);
 
     const query = `SELECT MAX(${dateField}) as max_date FROM ${testTableName} WHERE ${tickerField} = '${ticker.toUpperCase()}'`;
 
@@ -71,7 +71,7 @@ export async function getMinDate(
 ): Promise<Date | null> {
   try {
     const { ticker, tickerField, dateField, table } = params;
-    const testTableName = getTestTableName(table);
+    const testTableName = getTableName(table);
 
     const query = `SELECT MIN(${dateField}) as min_date FROM ${testTableName} WHERE ${tickerField} = '${ticker.toUpperCase()}'`;
 

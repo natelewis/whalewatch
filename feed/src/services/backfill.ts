@@ -4,7 +4,17 @@ import { StockIngestionService } from './stock-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { StockAggregate } from '../types/database';
-import { getMinDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
+import { getMinDate, getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
+
+/**
+ * Get table name with test prefix if in test environment
+ */
+function getTableName(originalTableName: string): string {
+  if (process.env.NODE_ENV === 'test') {
+    return `test_${originalTableName}`;
+  }
+  return originalTableName;
+}
 
 export class BackfillService {
   private optionIngestionService: OptionIngestionService;
@@ -134,7 +144,12 @@ export class BackfillService {
       await db.connect();
 
       // Get the newest timestamp from existing data
-      const newestTimestamp = await this.stockIngestionService.getMaxTimestamp(ticker);
+      const newestTimestamp = await getMaxDate(this.questdbAdapter, {
+        ticker,
+        tickerField: 'symbol',
+        dateField: 'timestamp',
+        table: 'stock_aggregates',
+      });
 
       const backfillStart = newestTimestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago if no data
       const backfillEnd = new Date();
@@ -568,23 +583,27 @@ export class BackfillService {
 
       // First, let's check if there's any data to delete
       const aggregatesCheck = await db.query(
-        `SELECT COUNT(*) as count FROM stock_aggregates WHERE symbol = '${ticker}' AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
+        `SELECT COUNT(*) as count FROM ${getTableName(
+          'stock_aggregates'
+        )} WHERE symbol = '${ticker}' AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
       );
 
       // Check for option contracts, trades, and quotes
       const optionContractsCheck = await db.query(
-        `SELECT COUNT(*) as count FROM option_contracts WHERE underlying_ticker = '${ticker}' AND expiration_date >= '${startDate.toISOString()}' AND expiration_date <= '${endDate.toISOString()}'`
+        `SELECT COUNT(*) as count FROM ${getTableName(
+          'option_contracts'
+        )} WHERE underlying_ticker = '${ticker}' AND expiration_date >= '${startDate.toISOString()}' AND expiration_date <= '${endDate.toISOString()}'`
       );
 
       const optionTradesCheck = await db.query(
-        `SELECT COUNT(*) as count FROM option_trades WHERE ticker IN (
-          SELECT ticker FROM option_contracts WHERE underlying_ticker = '${ticker}'
+        `SELECT COUNT(*) as count FROM ${getTableName('option_trades')} WHERE ticker IN (
+          SELECT ticker FROM ${getTableName('option_contracts')} WHERE underlying_ticker = '${ticker}'
         ) AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
       );
 
       const optionQuotesCheck = await db.query(
-        `SELECT COUNT(*) as count FROM option_quotes WHERE ticker IN (
-          SELECT ticker FROM option_contracts WHERE underlying_ticker = '${ticker}'
+        `SELECT COUNT(*) as count FROM ${getTableName('option_quotes')} WHERE ticker IN (
+          SELECT ticker FROM ${getTableName('option_contracts')} WHERE underlying_ticker = '${ticker}'
         ) AND timestamp >= '${startDate.toISOString()}' AND timestamp <= '${endDate.toISOString()}'`
       );
 
