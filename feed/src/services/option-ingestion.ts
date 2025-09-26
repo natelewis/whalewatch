@@ -293,7 +293,7 @@ export class OptionIngestionService {
     }
   }
 
-  async backfillOptionData(underlyingTicker: string, from: Date, to: Date): Promise<void> {
+  async processOptionContractsBackfill(underlyingTicker: string, from: Date, to: Date): Promise<void> {
     try {
       // First, get all option contracts for this underlying (if not skipped)
       if (!config.polygon.skipOptionContracts) {

@@ -918,7 +918,7 @@ describe('OptionIngestionService', () => {
     });
   });
 
-  describe('backfillOptionData', () => {
+  describe('processOptionContractsBackfill', () => {
     beforeEach(() => {
       // Mock the private methods
       jest.spyOn(optionIngestionService as any, 'backfillOptionContractsWithAsOf').mockImplementation();
@@ -948,7 +948,7 @@ describe('OptionIngestionService', () => {
         .mockResolvedValue(undefined);
 
       // Act
-      await optionIngestionService.backfillOptionData(underlyingTicker, from, to);
+      await optionIngestionService.processOptionContractsBackfill(underlyingTicker, from, to);
 
       // Assert
       expect(backfillOptionContractsWithAsOfSpy).toHaveBeenCalledWith(underlyingTicker, from, to);
@@ -977,7 +977,7 @@ describe('OptionIngestionService', () => {
       const quotesSpy = jest.spyOn(optionIngestionService as any, 'ingestOptionQuotes').mockResolvedValue(undefined);
 
       // Act
-      await optionIngestionService.backfillOptionData(underlyingTicker, from, to);
+      await optionIngestionService.processOptionContractsBackfill(underlyingTicker, from, to);
 
       // Assert
       expect(backfillSpy).not.toHaveBeenCalled();
@@ -1013,7 +1013,7 @@ describe('OptionIngestionService', () => {
         .mockResolvedValue(undefined);
 
       // Act
-      await optionIngestionService.backfillOptionData(underlyingTicker, from, to);
+      await optionIngestionService.processOptionContractsBackfill(underlyingTicker, from, to);
 
       // Assert
       expect(backfillOptionContractsWithAsOfSpy).toHaveBeenCalledWith(underlyingTicker, from, to);
@@ -1049,7 +1049,7 @@ describe('OptionIngestionService', () => {
         .mockResolvedValue(undefined);
 
       // Act
-      await optionIngestionService.backfillOptionData(underlyingTicker, from, to);
+      await optionIngestionService.processOptionContractsBackfill(underlyingTicker, from, to);
 
       // Assert
       expect(backfillOptionContractsWithAsOfSpy).toHaveBeenCalledWith(underlyingTicker, from, to);
@@ -1079,7 +1079,7 @@ describe('OptionIngestionService', () => {
         .mockResolvedValue(undefined);
 
       // Act
-      await optionIngestionService.backfillOptionData(underlyingTicker, from, to);
+      await optionIngestionService.processOptionContractsBackfill(underlyingTicker, from, to);
 
       // Assert
       expect(ingestOptionTradesSpy).toHaveBeenCalledTimes(2); // Should continue despite first error
@@ -1097,7 +1097,7 @@ describe('OptionIngestionService', () => {
         .mockRejectedValue(new Error('Contract error'));
 
       // Act & Assert
-      await expect(optionIngestionService.backfillOptionData(underlyingTicker, from, to)).rejects.toThrow(
+      await expect(optionIngestionService.processOptionContractsBackfill(underlyingTicker, from, to)).rejects.toThrow(
         'Contract error'
       );
     });
