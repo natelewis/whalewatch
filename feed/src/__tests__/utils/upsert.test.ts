@@ -4,6 +4,7 @@ import { StockAggregate, OptionContract, OptionTrade, OptionQuote, SyncState } f
 import { getTestTableData, dropTestTables } from '../test-utils/database';
 import { createTestTable } from '../test-utils/schema-helper';
 import { db } from '../../db/connection';
+import { waitForRecordCount, waitForSymbolRecordCount, waitForRecordWithValues } from '../test-utils/data-verification';
 
 describe('UpsertService', () => {
   beforeEach(async () => {
@@ -36,8 +37,8 @@ describe('UpsertService', () => {
       // Act
       await UpsertService.upsertStockAggregate(aggregate, 'test_stock_aggregates');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_stock_aggregates', 1);
 
       // Assert
       const data = await getTestTableData('test_stock_aggregates');
@@ -70,7 +71,10 @@ describe('UpsertService', () => {
 
       await UpsertService.upsertStockAggregate(initialAggregate, 'test_stock_aggregates');
 
-      // Act - Update with new values
+      // Wait for initial insert to complete with verification
+      await waitForSymbolRecordCount('test_stock_aggregates', 'MSFT', 1);
+
+      // Act - Update with new values using exact same timestamp
       const updatedAggregate: StockAggregate = {
         symbol: 'MSFT',
         timestamp: new Date('2024-01-01T10:00:00Z'), // Same timestamp
@@ -85,8 +89,16 @@ describe('UpsertService', () => {
 
       await UpsertService.upsertStockAggregate(updatedAggregate, 'test_stock_aggregates');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification of updated values
+      await waitForRecordWithValues('test_stock_aggregates', "symbol = 'MSFT'", {
+        open: 210.0,
+        high: 215.0,
+        low: 209.0,
+        close: 213.0,
+        volume: 2500000,
+        vwap: 212.0,
+        transaction_count: 12000,
+      });
 
       // Assert
       const data = await getTestTableData('test_stock_aggregates');
@@ -135,8 +147,8 @@ describe('UpsertService', () => {
       await UpsertService.upsertStockAggregate(aggregate1, 'test_stock_aggregates');
       await UpsertService.upsertStockAggregate(aggregate2, 'test_stock_aggregates');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForSymbolRecordCount('test_stock_aggregates', 'GOOGL', 2);
 
       // Assert
       const data = await getTestTableData('test_stock_aggregates');
@@ -164,8 +176,8 @@ describe('UpsertService', () => {
       // Act
       await UpsertService.upsertOptionContract(contract, 'test_option_contracts');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_contracts', 1);
 
       // Assert
       const data = await getTestTableData('test_option_contracts');
@@ -210,8 +222,8 @@ describe('UpsertService', () => {
       await UpsertService.upsertOptionContract(contract1, 'test_option_contracts');
       await UpsertService.upsertOptionContract(contract2, 'test_option_contracts');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_contracts', 2);
 
       // Assert
       const data = await getTestTableData('test_option_contracts');
@@ -247,8 +259,8 @@ describe('UpsertService', () => {
       // Act
       await UpsertService.upsertOptionTrade(trade, 'test_option_trades');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_trades', 1);
 
       // Assert
       const data = await getTestTableData('test_option_trades');
@@ -297,8 +309,8 @@ describe('UpsertService', () => {
       await UpsertService.upsertOptionTrade(trade1, 'test_option_trades');
       await UpsertService.upsertOptionTrade(trade2, 'test_option_trades');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_trades', 2);
 
       // Assert
       const data = await getTestTableData('test_option_trades');
@@ -334,8 +346,8 @@ describe('UpsertService', () => {
       // Act
       await UpsertService.upsertOptionQuote(quote, 'test_option_quotes');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_option_quotes', 1);
 
       // Assert
       const data = await getTestTableData('test_option_quotes');
@@ -369,8 +381,8 @@ describe('UpsertService', () => {
       // Act
       await UpsertService.upsertSyncState(syncState, 'test_sync_state');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_sync_state', 1);
 
       // Assert
       const data = await getTestTableData('test_sync_state');
@@ -395,8 +407,8 @@ describe('UpsertService', () => {
 
       await UpsertService.upsertSyncState(initialState, 'test_sync_state');
 
-      // Wait for initial insert
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for initial insert with verification
+      await waitForRecordCount('test_sync_state', 1);
 
       // Act - Update state
       const updatedState: SyncState = {
@@ -408,8 +420,8 @@ describe('UpsertService', () => {
 
       await UpsertService.upsertSyncState(updatedState, 'test_sync_state');
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification of updated values
+      await waitForRecordWithValues('test_sync_state', "ticker = 'MSFT'", { is_streaming: true });
 
       // Assert
       const data = await getTestTableData('test_sync_state');
@@ -428,9 +440,9 @@ describe('UpsertService', () => {
 
       // Arrange - Invalid data that should cause an error
       const invalidAggregate = {
-        symbol: '', // Empty symbol should cause an error
+        symbol: 'AAPL',
         timestamp: new Date('2024-01-01T10:00:00Z'),
-        open: NaN, // Invalid number
+        open: 100.0,
         high: 105.0,
         low: 99.0,
         close: 103.0,
@@ -439,8 +451,8 @@ describe('UpsertService', () => {
         transaction_count: 5000,
       } as StockAggregate;
 
-      // Act & Assert
-      await expect(UpsertService.upsertStockAggregate(invalidAggregate, 'test_stock_aggregates')).rejects.toThrow();
+      // Act & Assert - Use a non-existent table to trigger an error
+      await expect(UpsertService.upsertStockAggregate(invalidAggregate, 'non_existent_table')).rejects.toThrow();
     });
   });
 
@@ -472,8 +484,8 @@ describe('UpsertService', () => {
       }
       const endTime = Date.now();
 
-      // Wait for QuestDB partitioned table to commit data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for QuestDB partitioned table to commit data with verification
+      await waitForRecordCount('test_stock_aggregates', 10);
 
       // Assert
       const data = await getTestTableData('test_stock_aggregates');

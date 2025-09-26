@@ -18,8 +18,7 @@ help:
 	@echo "  make test             Run all tests"
 	@echo "  make test-server      Run server tests only"
 	@echo "  make test-dashboard   Run dashboard tests only"
-	@echo "  make test-feed        Run feed tests (working tests only)"
-	@echo "  make test-feed-all    Run all feed tests (including problematic ones)"
+	@echo "  make test-feed        Run all feed tests"
 	@echo "  make test-coverage    Run tests with coverage report"
 	@echo ""
 	@echo "Linting:"
@@ -144,11 +143,7 @@ test-dashboard:
 	cd dashboard && npm run test:ci
 
 test-feed:
-	@echo "🧪 Running feed tests..."
-	cd feed && npm test -- --testPathPattern="(logger|config).test.ts" --ci --coverage --watchAll=false
-
-test-feed-all:
-	@echo "🧪 Running all feed tests (including problematic ones)..."
+	@echo "🧪 Running all feed tests..."
 	cd feed && npm run test:ci
 
 test-coverage:
