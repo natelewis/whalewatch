@@ -85,7 +85,7 @@
       "<rootDir>/src/__tests__/setup.ts"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!(p-limit|yocto-queue)/)"
+      "node_modules/(?!(p-limit|yocto-queue|@whalewatch)/)"
     ],
     "extensionsToTreatAsEsm": [
       ".ts"

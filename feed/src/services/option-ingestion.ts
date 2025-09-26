@@ -4,6 +4,7 @@ import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { OptionContract, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
+import { getMaxDate, getMinDate } from '../../../shared/utils/dateUtils';
 
 export class OptionIngestionService {
   private polygonClient: PolygonClient;
@@ -177,59 +178,21 @@ export class OptionIngestionService {
   }
 
   async getNewestAsOfDate(underlyingTicker: string): Promise<Date | null> {
-    try {
-      const result = await db.query(
-        `
-        SELECT MAX(as_of) as newest_as_of
-        FROM option_contracts
-        WHERE underlying_ticker = $1
-      `,
-        [underlyingTicker]
-      );
-
-      // Handle QuestDB result format
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
-
-      if (questResult.dataset.length > 0 && questResult.dataset[0][0]) {
-        const newestDate = new Date(questResult.dataset[0][0] as string);
-        return newestDate;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error getting newest as_of date:', error);
-      return null;
-    }
+    return getMaxDate(db, {
+      ticker: underlyingTicker,
+      tickerField: 'underlying_ticker',
+      dateField: 'as_of',
+      table: 'option_contracts',
+    });
   }
 
   async getOldestDataDate(underlyingTicker: string): Promise<Date | null> {
-    try {
-      const result = await db.query(
-        `
-        SELECT MIN(as_of) as oldest_as_of
-        FROM option_contracts
-        WHERE underlying_ticker = $1
-      `,
-        [underlyingTicker]
-      );
-
-      // Handle QuestDB result format
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
-
-      if (questResult.dataset.length > 0 && questResult.dataset[0][0]) {
-        const oldestDate = new Date(questResult.dataset[0][0] as string);
-        return oldestDate;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error getting oldest as_of date:', error);
-      return null;
-    }
+    return getMinDate(db, {
+      ticker: underlyingTicker,
+      tickerField: 'underlying_ticker',
+      dateField: 'as_of',
+      table: 'option_contracts',
+    });
   }
 
   async catchUpOptionContracts(underlyingTicker: string): Promise<void> {

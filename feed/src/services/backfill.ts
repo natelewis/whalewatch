@@ -4,6 +4,7 @@ import { OptionIngestionService } from './option-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { StockAggregate, SyncState } from '../types/database';
+import { getMinDate } from '../../../shared/utils/dateUtils';
 
 export class BackfillService {
   private alpacaClient: AlpacaClient;
@@ -577,25 +578,12 @@ export class BackfillService {
   }
 
   private async getOldestDataDate(ticker: string): Promise<Date | null> {
-    const result = await db.query(
-      `
-      SELECT MIN(timestamp) as oldest_timestamp
-      FROM stock_aggregates
-      WHERE symbol = $1
-    `,
-      [ticker]
-    );
-
-    const questResult = result as {
-      columns: { name: string; type: string }[];
-      dataset: unknown[][];
-    };
-
-    if (questResult.dataset.length > 0 && questResult.dataset[0][0]) {
-      return new Date(questResult.dataset[0][0] as string);
-    }
-
-    return null;
+    return getMinDate(db, {
+      ticker,
+      tickerField: 'symbol',
+      dateField: 'timestamp',
+      table: 'stock_aggregates',
+    });
   }
 
   private async insertAlpacaAggregates(

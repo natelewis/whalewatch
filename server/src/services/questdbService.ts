@@ -14,6 +14,7 @@ import {
   QuestDBError,
 } from '../types/index';
 import { logger } from '../utils/logger';
+import { getMaxTimestampString } from '../../../shared/utils/dateUtils';
 
 // Load environment variables from the server directory
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -53,7 +54,7 @@ export class QuestDBService {
   /**
    * Execute a raw SQL query against QuestDB
    */
-  private async executeQuery<T>(query: string): Promise<QuestDBResponse<T>> {
+  async executeQuery<T>(query: string): Promise<QuestDBResponse<T>> {
     try {
       const response: AxiosResponse<QuestDBResponse<T>> = await axios.get(`${this.baseUrl}/exec`, {
         params: { query },
@@ -119,7 +120,7 @@ export class QuestDBService {
   /**
    * Convert QuestDB array data to object format
    */
-  private convertArrayToObject<T>(data: unknown[], columns: Array<{ name: string; type: string }>): T[] {
+  convertArrayToObject<T>(data: unknown[], columns: Array<{ name: string; type: string }>): T[] {
     return data.map((row: unknown) => {
       if (!Array.isArray(row)) {
         throw new Error('Expected array data from QuestDB');
@@ -448,11 +449,12 @@ export class QuestDBService {
     // First check if the table exists
     await this.ensureTableExists('stock_trades');
 
-    const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
-
-    const response = await this.executeQuery<{ latest_timestamp: string }>(query);
-    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(response.dataset, response.columns);
-    return converted.length > 0 ? converted[0].latest_timestamp : null;
+    return getMaxTimestampString(this, {
+      ticker: symbol,
+      tickerField: 'symbol',
+      dateField: 'timestamp',
+      table: 'stock_trades',
+    });
   }
 
   /**
@@ -462,11 +464,12 @@ export class QuestDBService {
     // First check if the table exists
     await this.ensureTableExists('stock_aggregates');
 
-    const query = `SELECT MAX(timestamp) as latest_timestamp FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
-
-    const response = await this.executeQuery<{ latest_timestamp: string }>(query);
-    const converted = this.convertArrayToObject<{ latest_timestamp: string }>(response.dataset, response.columns);
-    return converted.length > 0 ? converted[0].latest_timestamp : null;
+    return getMaxTimestampString(this, {
+      ticker: symbol,
+      tickerField: 'symbol',
+      dateField: 'timestamp',
+      table: 'stock_aggregates',
+    });
   }
 
   /**
