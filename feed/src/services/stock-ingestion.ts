@@ -2,21 +2,41 @@ import { db } from '../db/connection';
 import { AlpacaClient } from './alpaca-client';
 import { OptionIngestionService } from './option-ingestion';
 import { UpsertService } from '../utils/upsert';
-import { StockAggregate, SyncState } from '../types/database';
+import { StockAggregate } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
 import { AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
+import { getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
 export class StockIngestionService {
   private alpacaClient: AlpacaClient;
   private optionIngestionService: OptionIngestionService;
   private isIngesting = false;
-  private syncStates = new Map<string, SyncState>();
   private pollingInterval: NodeJS.Timeout | null = null;
+  private questdbAdapter: QuestDBServiceInterface;
 
   constructor() {
     this.alpacaClient = new AlpacaClient();
     this.optionIngestionService = new OptionIngestionService();
+    // Create adapter for the feed's database connection
+    this.questdbAdapter = {
+      executeQuery: async (query: string) => {
+        const result = await db.query(query);
+        return result as { columns: { name: string; type: string }[]; dataset: unknown[][] };
+      },
+      convertArrayToObject: <T>(dataset: unknown[][], columns: { name: string; type: string }[]): T[] => {
+        return dataset.map((row: unknown) => {
+          if (!Array.isArray(row)) {
+            throw new Error('Expected array data from QuestDB');
+          }
+          const obj: Record<string, string | number | boolean | null> = {};
+          columns.forEach((col, index) => {
+            obj[col.name] = row[index] as string | number | boolean | null;
+          });
+          return obj as T;
+        });
+      },
+    };
   }
 
   private startPolling(): void {
@@ -46,9 +66,6 @@ export class StockIngestionService {
       // Connect to database
       await db.connect();
 
-      // Initialize sync states
-      await this.initializeSyncStates();
-
       // Catch up on missing data before starting real-time
       await this.catchUpData();
 
@@ -71,60 +88,16 @@ export class StockIngestionService {
     console.log('Data ingestion stopped');
   }
 
-  private async initializeSyncStates(): Promise<void> {
-    try {
-      // Get current sync states from database
-      const result = await db.query(
-        `
-        SELECT ticker, last_aggregate_timestamp, last_sync, is_streaming
-        FROM sync_state
-        WHERE ticker IN (${config.tickers.map((_, index) => `$${index + 1}`).join(',')})
-      `,
-        config.tickers
-      );
-
-      // Handle QuestDB result format
-      const questResult = result as {
-        dataset: unknown[][];
-      };
-
-      const rows = questResult.dataset || [];
-
-      for (const row of rows) {
-        const ticker = row[0] as string;
-        // eslint-disable-next-line camelcase
-        const last_aggregate_timestamp = row[1] ? new Date(row[1] as string) : null;
-        // eslint-disable-next-line camelcase
-        const last_sync = new Date(row[2] as string);
-        // eslint-disable-next-line camelcase
-        const is_streaming = Boolean(row[3]);
-
-        this.syncStates.set(ticker, {
-          ticker,
-          // eslint-disable-next-line camelcase
-          last_aggregate_timestamp: last_aggregate_timestamp ?? undefined,
-          last_sync,
-          is_streaming,
-        });
-      }
-
-      // Initialize missing tickers
-      for (const ticker of config.tickers) {
-        if (!this.syncStates.has(ticker)) {
-          this.syncStates.set(ticker, {
-            ticker,
-            last_aggregate_timestamp: undefined,
-            last_sync: new Date(),
-            is_streaming: false,
-          });
-        }
-      }
-
-      console.log(`Initialized sync states for ${this.syncStates.size} tickers`);
-    } catch (error) {
-      console.error('Error initializing sync states:', error);
-      throw error;
-    }
+  /**
+   * Get the newest timestamp for a ticker from stock_aggregates table
+   */
+  async getMaxTimestamp(ticker: string): Promise<Date | null> {
+    return getMaxDate(this.questdbAdapter, {
+      ticker,
+      tickerField: 'symbol',
+      dateField: 'timestamp',
+      table: 'stock_aggregates',
+    });
   }
 
   private async catchUpData(): Promise<void> {
@@ -149,26 +122,23 @@ export class StockIngestionService {
   }
 
   private async catchUpTickerData(ticker: string): Promise<void> {
-    const syncState = this.syncStates.get(ticker);
-    if (!syncState) {
-      return;
-    }
-
     const now = new Date();
 
-    // If last_aggregate_timestamp is null or epoch (1970), use a reasonable start date
-    let lastSync: Date;
-    if (!syncState.last_aggregate_timestamp || syncState.last_aggregate_timestamp.getTime() === 0) {
+    // Get the newest timestamp from existing data
+    const lastSync = await this.getMaxTimestamp(ticker);
+
+    let startDate: Date;
+    if (!lastSync) {
       // Start from 7 days ago to avoid fetching too much historical data
-      lastSync = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      console.log(`No previous sync found for ${ticker}, starting from ${lastSync.toISOString()}`);
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      console.log(`No previous data found for ${ticker}, starting from ${startDate.toISOString()}`);
     } else {
-      lastSync = syncState.last_aggregate_timestamp;
-      console.log(`Catching up ${ticker} from ${lastSync.toISOString()} to ${now.toISOString()}`);
+      startDate = lastSync;
+      console.log(`Catching up ${ticker} from ${startDate.toISOString()} to ${now.toISOString()}`);
     }
 
     // Get missing aggregates using Alpaca
-    const bars = await this.alpacaClient.getHistoricalBars(ticker, lastSync, now, '1Min');
+    const bars = await this.alpacaClient.getHistoricalBars(ticker, startDate, now, '1Min');
 
     if (bars.length > 0) {
       console.log(`Found ${bars.length} bars for ${ticker} catch-up`);
@@ -186,20 +156,10 @@ export class StockIngestionService {
       }));
 
       await this.insertAggregates(ticker, aggregates);
-
-      // Update the last aggregate timestamp to the most recent bar
-      const lastBarTimestamp = new Date(bars[bars.length - 1].t);
-      syncState.last_aggregate_timestamp = lastBarTimestamp;
-      console.log(`Updated ${ticker} last_aggregate_timestamp to ${lastBarTimestamp.toISOString()}`);
+      console.log(`Successfully inserted ${bars.length} bars for ${ticker}`);
     } else {
       console.log(`No new bars found for ${ticker} catch-up`);
     }
-
-    // Update sync state
-    syncState.last_sync = now;
-    syncState.is_streaming = true;
-    await this.updateSyncState(syncState);
-    console.log(`Updated sync state for ${ticker}`);
   }
 
   private async pollLatestData(): Promise<void> {
@@ -254,10 +214,6 @@ export class StockIngestionService {
     }));
 
     await UpsertService.batchUpsertStockAggregates(stockAggregates);
-  }
-
-  private async updateSyncState(syncState: SyncState): Promise<void> {
-    await UpsertService.upsertSyncState(syncState);
   }
 
   /**

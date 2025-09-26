@@ -3,7 +3,7 @@ import { OptionIngestionService } from './option-ingestion';
 import { StockIngestionService } from './stock-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
-import { StockAggregate, SyncState } from '../types/database';
+import { StockAggregate } from '../types/database';
 import { getMinDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
 
 export class BackfillService {
@@ -59,15 +59,16 @@ export class BackfillService {
     try {
       await db.connect();
 
-      // Get current sync states
-      const syncStates = await this.getSyncStates();
+      // Get the oldest timestamp across all tickers
+      let oldestTimestamp: Date | null = null;
+      for (const ticker of config.tickers) {
+        const tickerOldest = await this.getOldestAsOfDate(ticker);
+        if (tickerOldest && (!oldestTimestamp || tickerOldest < oldestTimestamp)) {
+          oldestTimestamp = tickerOldest;
+        }
+      }
 
-      // Find the oldest last sync date
-      const timestamps = Array.from(syncStates.values())
-        .map(state => state.last_aggregate_timestamp?.getTime())
-        .filter(ts => ts !== undefined) as number[];
-
-      const oldestSync = timestamps.length > 0 ? Math.min(...timestamps) : null;
+      const oldestSync = oldestTimestamp;
 
       const backfillStart = oldestSync ? new Date(oldestSync) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago if no data
       const backfillEnd = new Date();
@@ -132,10 +133,10 @@ export class BackfillService {
     try {
       await db.connect();
 
-      // Get current sync state for this ticker
-      const syncState = await this.getSyncState(ticker);
+      // Get the newest timestamp from existing data
+      const newestTimestamp = await this.stockIngestionService.getMaxTimestamp(ticker);
 
-      const backfillStart = syncState.last_aggregate_timestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago if no data
+      const backfillStart = newestTimestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago if no data
       const backfillEnd = new Date();
 
       const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, backfillEnd);
@@ -282,16 +283,17 @@ export class BackfillService {
     try {
       await db.connect();
 
-      // Get current sync states to find the oldest data point
-      const syncStates = await this.getSyncStates();
-
-      // Find the oldest last sync date across all tickers
-      const timestamps = Array.from(syncStates.values())
-        .map(state => state.last_aggregate_timestamp?.getTime())
-        .filter(ts => ts !== undefined) as number[];
+      // Get the oldest timestamp across all tickers
+      let oldestTimestamp: Date | null = null;
+      for (const ticker of config.tickers) {
+        const tickerOldest = await this.getOldestAsOfDate(ticker);
+        if (tickerOldest && (!oldestTimestamp || tickerOldest < oldestTimestamp)) {
+          oldestTimestamp = tickerOldest;
+        }
+      }
 
       // Use the oldest sync date as the starting point, or default to a reasonable historical date
-      const oldestSync = timestamps.length > 0 ? Math.min(...timestamps) : null;
+      const oldestSync = oldestTimestamp;
       const backfillStart = oldestSync ? new Date(oldestSync) : new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // Default to 1 year back if no data
 
       console.log(
@@ -501,8 +503,7 @@ export class BackfillService {
             throw insertError;
           }
 
-          // Update sync state
-          await this.updateSyncState(ticker, new Date(parseInt(bars[bars.length - 1].t) / 1000000));
+          // Data successfully inserted
         } else {
           console.log(`No data found for ${ticker} on ${currentDate.toISOString().split('T')[0]}`);
         }
@@ -517,84 +518,7 @@ export class BackfillService {
       // Small delay to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-
     return totalItemsProcessed;
-  }
-
-  private async getSyncStates(): Promise<Map<string, SyncState>> {
-    const result = await db.query(
-      `
-      SELECT ticker, last_aggregate_timestamp, last_sync, is_streaming
-      FROM sync_state
-      WHERE ticker IN (${config.tickers.map((_, i) => `$${i + 1}`).join(',')})
-    `,
-      config.tickers
-    );
-
-    const questResult = result as {
-      columns: { name: string; type: string }[];
-      dataset: unknown[][];
-    };
-
-    const syncStates = new Map<string, SyncState>();
-
-    for (const row of questResult.dataset) {
-      const ticker = row[0] as string;
-      // eslint-disable-next-line camelcase
-      const last_aggregate_timestamp = row[1] ? new Date(row[1] as string) : null;
-      // eslint-disable-next-line camelcase
-      const last_sync = new Date(row[2] as string);
-      // eslint-disable-next-line camelcase
-      const is_streaming = row[3] as boolean;
-
-      syncStates.set(ticker, {
-        ticker,
-        // eslint-disable-next-line camelcase
-        last_aggregate_timestamp: last_aggregate_timestamp ?? undefined,
-        last_sync,
-        is_streaming,
-      });
-    }
-
-    return syncStates;
-  }
-
-  private async getSyncState(ticker: string): Promise<SyncState> {
-    const result = await db.query(
-      `
-      SELECT ticker, last_aggregate_timestamp, last_sync, is_streaming
-      FROM sync_state
-      WHERE ticker = $1
-    `,
-      [ticker]
-    );
-
-    const questResult = result as {
-      columns: { name: string; type: string }[];
-      dataset: unknown[][];
-    };
-
-    if (questResult.dataset.length > 0) {
-      const row = questResult.dataset[0];
-      const tickerValue = row[0] as string;
-      const lastAggregateTimestamp = row[1] ? new Date(row[1] as string) : null;
-      const lastSync = new Date(row[2] as string);
-      const isStreaming = row[3] as boolean;
-
-      return {
-        ticker: tickerValue,
-        last_aggregate_timestamp: lastAggregateTimestamp ?? undefined,
-        last_sync: lastSync,
-        is_streaming: isStreaming,
-      };
-    }
-
-    // Return default sync state if not found
-    return {
-      ticker,
-      last_sync: new Date(),
-      is_streaming: false,
-    };
   }
 
   private async getOldestAsOfDate(ticker: string): Promise<Date | null> {
@@ -633,17 +557,6 @@ export class BackfillService {
     }));
 
     await UpsertService.batchUpsertStockAggregates(stockAggregates);
-  }
-
-  private async updateSyncState(ticker: string, lastTimestamp: Date): Promise<void> {
-    const syncState: SyncState = {
-      ticker,
-      last_aggregate_timestamp: lastTimestamp,
-      last_sync: new Date(),
-      is_streaming: false,
-    };
-
-    await UpsertService.upsertSyncState(syncState);
   }
 
   private async deleteDataForDateRange(ticker: string, startDate: Date, endDate: Date): Promise<void> {
