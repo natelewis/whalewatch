@@ -36,7 +36,32 @@ export async function createTestTables(): Promise<void> {
 }
 
 /**
- * Drop all test tables
+ * Drop all test tables (including simple test tables not in schema)
+ */
+export async function dropAllTestTables(): Promise<void> {
+  try {
+    // Get all tables with test_ prefix
+    const result = await db.query("SELECT table_name FROM tables() WHERE table_name LIKE 'test_%'");
+    const questResult = result as { dataset: unknown[][] };
+
+    if (questResult.dataset && questResult.dataset.length > 0) {
+      for (const row of questResult.dataset) {
+        const tableName = row[0] as string;
+        try {
+          await db.query(`DROP TABLE IF EXISTS ${tableName}`);
+          console.log(`Dropped test table: ${tableName}`);
+        } catch (error) {
+          console.error(`Failed to drop test table ${tableName}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error getting test tables to drop:', error);
+  }
+}
+
+/**
+ * Drop test tables defined in schema only
  */
 export async function dropTestTables(): Promise<void> {
   for (const table of TEST_TABLES) {
@@ -133,7 +158,15 @@ export async function insertTestData(tableName: string, data: Record<string, unk
  * Get all data from a test table
  */
 export async function getTestTableData(tableName: string): Promise<unknown[]> {
-  const result = await db.query(`SELECT * FROM ${tableName} ORDER BY timestamp DESC`);
+  // Determine the timestamp column based on table name
+  let timestampColumn = 'timestamp'; // default
+  if (tableName.includes('option_contracts')) {
+    timestampColumn = 'as_of';
+  } else if (tableName.includes('sync_state')) {
+    timestampColumn = 'last_sync';
+  }
+
+  const result = await db.query(`SELECT * FROM ${tableName} ORDER BY ${timestampColumn} DESC`);
   const questResult = result as {
     columns: { name: string; type: string }[];
     dataset: unknown[][];

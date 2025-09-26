@@ -300,7 +300,7 @@ export class UpsertService {
    * Batch upsert multiple option trades using bulk insert
    * Uses QuestDB's deduplication feature to handle upserts efficiently
    */
-  static async batchUpsertOptionTrades(trades: OptionTrade[]): Promise<void> {
+  static async batchUpsertOptionTrades(trades: OptionTrade[], tableName = 'option_trades'): Promise<void> {
     if (trades.length === 0) {
       return;
     }
@@ -329,7 +329,7 @@ export class UpsertService {
           })
           .join(',\n');
 
-        const query = `INSERT INTO option_trades (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number)
+        const query = `INSERT INTO ${tableName} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number)
 VALUES ${values}`;
 
         await db.bulkInsert(query);
@@ -352,7 +352,7 @@ VALUES ${values}`;
    * Uses QuestDB's deduplication feature to handle upserts efficiently
    * Implements retry logic and smaller batch sizes to prevent socket hang up errors
    */
-  static async batchUpsertOptionQuotes(quotes: OptionQuote[]): Promise<void> {
+  static async batchUpsertOptionQuotes(quotes: OptionQuote[], tableName = 'option_quotes'): Promise<void> {
     if (quotes.length === 0) {
       return;
     }
@@ -388,7 +388,7 @@ VALUES ${values}`;
               })
               .join(',\n');
 
-            const query = `INSERT INTO option_quotes (ticker, underlying_ticker, timestamp, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, sequence_number)
+            const query = `INSERT INTO ${tableName} (ticker, underlying_ticker, timestamp, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, sequence_number)
 VALUES ${values}`;
 
             await db.bulkInsert(query);

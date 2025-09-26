@@ -10,6 +10,13 @@ describe('QuestDBConnection', () => {
   });
 
   afterEach(async () => {
+    // Clean up test table
+    try {
+      await connection.query('DROP TABLE IF EXISTS test_connection_table');
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+
     // Disconnect after each test
     if (connection && (connection as any).isConnected) {
       await connection.disconnect();

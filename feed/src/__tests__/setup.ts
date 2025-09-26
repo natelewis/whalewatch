@@ -1,6 +1,7 @@
 // Test setup file for Jest
 // This file runs before each test file
 
+import { dropAllTestTables } from './test-utils/database';
 import { db } from '../db/connection';
 
 // Set test environment variables
@@ -31,7 +32,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   // Truncate all test tables before each test
-  await truncateTestTables();
+  await cleanupTestTables();
 });
 
 afterAll(async () => {
@@ -50,35 +51,16 @@ afterAll(async () => {
 });
 
 /**
- * Truncate all test tables (tables prefixed with 'test_')
+ * Clean up all test tables before each test
  */
-async function truncateTestTables(): Promise<void> {
-  const testTables = [
-    'test_stock_trades',
-    'test_stock_aggregates',
-    'test_option_contracts',
-    'test_option_trades',
-    'test_option_quotes',
-    'test_sync_state',
-  ];
-
-  for (const table of testTables) {
-    try {
-      // Check if table exists first
-      const tableExists = await db.query(`SELECT * FROM tables() WHERE table_name = '${table}'`);
-      const result = tableExists as { dataset: unknown[][] };
-
-      if (result.dataset && result.dataset.length > 0) {
-        // Table exists, truncate it
-        await db.query(`TRUNCATE TABLE ${table}`);
-        console.log(`Truncated test table: ${table}`);
-      }
-    } catch (error) {
-      // Table might not exist, which is fine
-      console.log(`Table ${table} does not exist or could not be truncated:`, error);
-    }
+async function cleanupTestTables(): Promise<void> {
+  try {
+    await dropAllTestTables();
+    console.log('Cleaned up all test tables');
+  } catch (error) {
+    console.error('Error cleaning up test tables:', error);
   }
 }
 
 // Export test utilities
-export { truncateTestTables };
+export { cleanupTestTables };
