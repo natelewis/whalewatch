@@ -86,7 +86,7 @@ export class BackfillService {
       for (const ticker of config.tickers) {
         try {
           const tickerStartTime = Date.now();
-          const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, backfillEnd);
+          const itemsProcessed = await this.backfillStockAggregateData(ticker, backfillStart, backfillEnd);
           const tickerDuration = Date.now() - tickerStartTime;
           totalItemsProcessed += itemsProcessed;
           console.log(`Completed ${ticker} in ${this.formatDuration(tickerDuration)} - ${itemsProcessed} items`);
@@ -104,7 +104,7 @@ export class BackfillService {
       for (const ticker of config.tickers) {
         try {
           const tickerStartTime = Date.now();
-          const itemsProcessed = await this.backfillTickerData(ticker, additionalWeekStart, additionalWeekEnd);
+          const itemsProcessed = await this.backfillStockAggregateData(ticker, additionalWeekStart, additionalWeekEnd);
           const tickerDuration = Date.now() - tickerStartTime;
           totalItemsProcessed += itemsProcessed;
           console.log(
@@ -149,7 +149,7 @@ export class BackfillService {
       const backfillStart = newestTimestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago if no data
       const backfillEnd = new Date();
 
-      const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, backfillEnd);
+      const itemsProcessed = await this.backfillStockAggregateData(ticker, backfillStart, backfillEnd);
 
       const duration = Date.now() - startTime;
       console.log(
@@ -186,7 +186,7 @@ export class BackfillService {
         );
       }
 
-      const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, backfillEnd);
+      const itemsProcessed = await this.backfillStockAggregateData(ticker, backfillStart, backfillEnd);
 
       // Also backfill option contracts and trades for this ticker
       console.log(`Backfilling option data for ${ticker}...`);
@@ -233,7 +233,7 @@ export class BackfillService {
       for (const ticker of config.tickers) {
         try {
           // Backfill the data (upserts will handle duplicates)
-          const itemsProcessed = await this.backfillTickerData(ticker, backfillStart, backfillEnd);
+          const itemsProcessed = await this.backfillStockAggregateData(ticker, backfillStart, backfillEnd);
           totalItemsProcessed += itemsProcessed;
 
           // Also backfill option contracts and trades for this ticker
@@ -345,8 +345,8 @@ export class BackfillService {
     }
   }
 
-  private async backfillTickerStocksAndOptions(ticker: string, endDate: Date): Promise<void> {
-    console.log(`Checking backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
+  private async backfillTickerStocks(ticker: string, endDate: Date): Promise<void> {
+    console.log(`Checking stock backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
 
     // Check stocks independently
     const oldestStockDataDate = await getMinDate(this.questdbAdapter, {
@@ -386,6 +386,19 @@ export class BackfillService {
       );
     }
 
+    // Backfill stocks if needed
+    if (stocksNeedBackfill && stockBackfillStart) {
+      try {
+        await this.backfillStockAggregateData(ticker, stockBackfillStart, endDate);
+      } catch (error) {
+        console.error(`Error backfilling stocks for ${ticker}:`, error);
+      }
+    }
+  }
+
+  private async backfillTickerOptions(ticker: string, endDate: Date): Promise<void> {
+    console.log(`Checking option backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
+
     // Check options independently
     const oldestOptionAsOfDate = await this.optionIngestionService.getOldestAsOfDate(ticker);
     let optionsNeedBackfill = false;
@@ -422,15 +435,6 @@ export class BackfillService {
       );
     }
 
-    // Backfill stocks if needed
-    if (stocksNeedBackfill && stockBackfillStart) {
-      try {
-        await this.backfillTickerData(ticker, stockBackfillStart, endDate);
-      } catch (error) {
-        console.error(`Error backfilling stocks for ${ticker}:`, error);
-      }
-    }
-
     // Backfill options if needed
     if (optionsNeedBackfill && optionBackfillStart) {
       try {
@@ -442,7 +446,15 @@ export class BackfillService {
     }
   }
 
-  private async backfillTickerData(ticker: string, startDate: Date, endDate: Date): Promise<number> {
+  private async backfillTickerStocksAndOptions(ticker: string, endDate: Date): Promise<void> {
+    console.log(`Checking backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
+
+    // Backfill stocks and options independently
+    await this.backfillTickerStocks(ticker, endDate);
+    await this.backfillTickerOptions(ticker, endDate);
+  }
+
+  private async backfillStockAggregateData(ticker: string, startDate: Date, endDate: Date): Promise<number> {
     console.log(`Backfilling ${ticker} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
     // Validate dates
