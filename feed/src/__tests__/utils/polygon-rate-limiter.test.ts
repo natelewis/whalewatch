@@ -6,8 +6,8 @@ import { RateLimiter } from '../../utils/rate-limiter';
 jest.mock('p-limit', () => {
   return jest.fn(() => {
     return jest.fn(async fn => {
-      // Add a small delay to simulate rate limiting behavior
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Use fake timers instead of real delays for faster tests
+      await new Promise(resolve => setTimeout(resolve, 0));
       return await fn();
     });
   });
@@ -203,7 +203,7 @@ describe('Polygon Rate Limiter', () => {
 
     it('should handle async functions that take time', async () => {
       const mockFunction = jest.fn().mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 0));
         return 'delayed result';
       });
 
@@ -246,7 +246,7 @@ describe('Polygon Rate Limiter', () => {
 
     it('should handle functions that throw asynchronous errors', async () => {
       const mockFunction = jest.fn().mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 0));
         throw new Error('Asynchronous error');
       });
 
