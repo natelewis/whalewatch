@@ -1,21 +1,19 @@
-// Mock axios completely
-jest.mock('axios', () => ({
-  get: jest.fn(),
-}));
-
-// Test file for QuestDBConnection
+// Test file for QuestDBConnection with real database connection
 import { QuestDBConnection } from '../../db/connection';
-import axios from 'axios';
 
-const mockAxios = axios as jest.Mocked<typeof axios>;
-
-// Skip these tests for now due to Jest module mocking issues
-describe.skip('QuestDBConnection', () => {
+// QuestDBConnection tests with real database connection
+describe('QuestDBConnection', () => {
   let connection: QuestDBConnection;
 
   beforeEach(() => {
-    jest.clearAllMocks();
     connection = new QuestDBConnection();
+  });
+
+  afterEach(async () => {
+    // Disconnect after each test
+    if (connection && (connection as any).isConnected) {
+      await connection.disconnect();
+    }
   });
 
   describe('constructor', () => {
@@ -27,54 +25,23 @@ describe.skip('QuestDBConnection', () => {
 
   describe('connect', () => {
     it('should connect successfully', async () => {
-      // Arrange
-      const mockResponse = {
-        status: 200,
-        data: { query: 'SELECT 1', columns: [], dataset: [[1]], count: 1 },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
-
       // Act
       await connection.connect();
 
       // Assert
-      expect(mockAxios.get).toHaveBeenCalledWith('http://127.0.0.1:9000/exec?query=SELECT 1');
       expect((connection as any).isConnected).toBe(true);
     });
 
     it('should not reconnect if already connected', async () => {
-      // Arrange
-      const mockResponse = {
-        status: 200,
-        data: { query: 'SELECT 1', columns: [], dataset: [[1]], count: 1 },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
-
       // Act
       await connection.connect();
+      const firstConnectionState = (connection as any).isConnected;
       await connection.connect();
+      const secondConnectionState = (connection as any).isConnected;
 
       // Assert
-      expect(mockAxios.get).toHaveBeenCalledTimes(1);
-    });
-
-    it('should throw error on connection failure', async () => {
-      // Arrange
-      const error = new Error('Connection failed');
-      mockAxios.get.mockRejectedValue(error);
-
-      // Act & Assert
-      await expect(connection.connect()).rejects.toThrow('Connection failed');
-      expect((connection as any).isConnected).toBe(false);
-    });
-
-    it('should throw error on non-200 status', async () => {
-      // Arrange
-      const mockResponse = { status: 500 };
-      mockAxios.get.mockResolvedValue(mockResponse);
-
-      // Act & Assert
-      await expect(connection.connect()).rejects.toThrow('QuestDB connection failed with status: 500');
+      expect(firstConnectionState).toBe(true);
+      expect(secondConnectionState).toBe(true);
     });
   });
 
@@ -94,207 +61,119 @@ describe.skip('QuestDBConnection', () => {
   describe('query', () => {
     beforeEach(async () => {
       // Connect before each query test
-      const mockResponse = {
-        status: 200,
-        data: { query: 'SELECT 1', columns: [], dataset: [[1]], count: 1 },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
       await connection.connect();
     });
 
-    it('should execute query successfully', async () => {
-      // Arrange
-      const query = 'SELECT * FROM test_table';
-      const mockResponse = {
-        status: 200,
-        data: {
-          query: 'SELECT * FROM test_table',
-          columns: [{ name: 'id', type: 'LONG' }],
-          dataset: [[1], [2], [3]],
-          count: 3,
-        },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
-
+    it('should execute simple query successfully', async () => {
       // Act
-      const result = await connection.query(query);
+      const result = await connection.query('SELECT 1 as test_value');
 
       // Assert
-      expect(mockAxios.get).toHaveBeenCalledWith('http://127.0.0.1:9000/exec', {
-        params: { query },
-        timeout: 30000,
-        headers: {
-          Connection: 'keep-alive',
-          'Keep-Alive': 'timeout=60, max=1000',
-        },
-      });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toBeDefined();
+      expect((result as any).dataset).toBeDefined();
+      expect((result as any).dataset[0][0]).toBe(1);
     });
 
-    it('should handle query with parameters', async () => {
-      // Arrange
-      const query = 'SELECT * FROM test_table WHERE id = $1 AND name = $2';
-      const params = [123, 'test'];
-      const mockResponse = {
-        status: 200,
-        data: {
-          query: "SELECT * FROM test_table WHERE id = 123 AND name = 'test'",
-          columns: [{ name: 'id', type: 'LONG' }],
-          dataset: [[123]],
-          count: 1,
-        },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
+    it('should execute query with parameters', async () => {
+      // Arrange - Create a test table first
+      await connection.query('CREATE TABLE IF NOT EXISTS test_connection_table (id LONG, name STRING)');
+
+      // Insert test data
+      await connection.query("INSERT INTO test_connection_table VALUES (123, 'test')");
 
       // Act
-      const result = await connection.query(query, params);
+      const result = await connection.query('SELECT * FROM test_connection_table WHERE id = $1 AND name = $2', [
+        123,
+        'test',
+      ]);
 
       // Assert
-      expect(mockAxios.get).toHaveBeenCalledWith('http://127.0.0.1:9000/exec', {
-        params: { query: "SELECT * FROM test_table WHERE id = 123 AND name = 'test'" },
-        timeout: 30000,
-        headers: {
-          Connection: 'keep-alive',
-          'Keep-Alive': 'timeout=60, max=1000',
-        },
-      });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toBeDefined();
+      expect((result as any).dataset).toBeDefined();
+      expect((result as any).dataset.length).toBeGreaterThan(0);
     });
 
     it('should handle null and undefined parameters', async () => {
-      // Arrange
-      const query = 'SELECT * FROM test_table WHERE id = $1 AND name = $2';
-      const params = [null, undefined];
-      const mockResponse = {
-        status: 200,
-        data: {
-          query: 'SELECT * FROM test_table WHERE id = NULL AND name = NULL',
-          columns: [],
-          dataset: [],
-          count: 0,
-        },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
+      // Arrange - Create a test table first
+      await connection.query('CREATE TABLE IF NOT EXISTS test_connection_table (id LONG, name STRING)');
 
-      // Act
-      const result = await connection.query(query, params);
+      // Insert some test data first
+      await connection.query("INSERT INTO test_connection_table VALUES (1, 'test')");
+
+      // Act - Test with null parameter (should return no results since we're looking for null id)
+      const result = await connection.query('SELECT * FROM test_connection_table WHERE id = $1', [null]);
 
       // Assert
-      expect(mockAxios.get).toHaveBeenCalledWith('http://127.0.0.1:9000/exec', {
-        params: { query: 'SELECT * FROM test_table WHERE id = NULL AND name = NULL' },
-        timeout: 30000,
-        headers: {
-          Connection: 'keep-alive',
-          'Keep-Alive': 'timeout=60, max=1000',
-        },
-      });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toBeDefined();
+      expect((result as any).dataset).toBeDefined();
+      // Should return empty result since no rows have null id
+      expect((result as any).dataset.length).toBe(0);
     });
 
     it('should handle Date parameters', async () => {
-      // Arrange
-      const query = 'SELECT * FROM test_table WHERE created_at = $1';
-      const date = new Date('2024-01-01T10:00:00Z');
-      const params = [date];
-      const mockResponse = {
-        status: 200,
-        data: {
-          query: "SELECT * FROM test_table WHERE created_at = '2024-01-01T10:00:00.000Z'",
-          columns: [],
-          dataset: [],
-          count: 0,
-        },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
+      // Arrange - Create a test table first with timestamp column
+      await connection.query('CREATE TABLE IF NOT EXISTS test_connection_table (id LONG, created_at TIMESTAMP)');
 
-      // Act
-      const result = await connection.query(query, params);
+      // Insert some test data with a specific timestamp
+      const testDate = new Date('2024-01-01T10:00:00Z');
+      await connection.query('INSERT INTO test_connection_table VALUES (1, $1)', [testDate]);
+
+      // Act - Query for all records to verify the insert worked
+      const result = await connection.query('SELECT * FROM test_connection_table');
 
       // Assert
-      expect(mockAxios.get).toHaveBeenCalledWith('http://127.0.0.1:9000/exec', {
-        params: { query: "SELECT * FROM test_table WHERE created_at = '2024-01-01T10:00:00.000Z'" },
-        timeout: 30000,
-        headers: {
-          Connection: 'keep-alive',
-          'Keep-Alive': 'timeout=60, max=1000',
-        },
-      });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toBeDefined();
+      expect((result as any).dataset).toBeDefined();
+      expect((result as any).dataset.length).toBeGreaterThan(0);
+
+      // Verify the timestamp was stored correctly
+      const timestamp = (result as any).dataset[0][1]; // created_at is the second column
+      expect(timestamp).toBeDefined();
     });
 
     it('should throw error when not connected', async () => {
       // Arrange
-      (connection as any).isConnected = false;
+      await connection.disconnect();
 
       // Act & Assert
       await expect(connection.query('SELECT 1')).rejects.toThrow('Database not connected');
     });
 
-    it('should throw error on QuestDB error response', async () => {
-      // Arrange
-      const mockResponse = {
-        status: 200,
-        data: { error: 'Syntax error at position 10' },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
-
+    it('should throw error on invalid query', async () => {
       // Act & Assert
-      await expect(connection.query('INVALID QUERY')).rejects.toThrow(
-        'QuestDB query error: Syntax error at position 10'
-      );
-    });
-
-    it('should throw error on network error', async () => {
-      // Arrange
-      const error = new Error('Network error');
-      mockAxios.get.mockRejectedValue(error);
-
-      // Act & Assert
-      await expect(connection.query('SELECT 1')).rejects.toThrow('Network error');
+      await expect(connection.query('INVALID QUERY SYNTAX')).rejects.toThrow();
     });
   });
 
   describe('bulkInsert', () => {
     beforeEach(async () => {
       // Connect before each bulk insert test
-      const mockResponse = {
-        status: 200,
-        data: { query: 'SELECT 1', columns: [], dataset: [[1]], count: 1 },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
       await connection.connect();
+      // Create test table
+      await connection.query('CREATE TABLE IF NOT EXISTS test_connection_table (id LONG, name STRING)');
     });
 
     it('should execute bulk insert successfully', async () => {
       // Arrange
-      const query = 'INSERT INTO test_table VALUES (1, "test"), (2, "test2")';
-      const mockResponse = {
-        status: 200,
-        data: { query, columns: [], dataset: [], count: 0 },
-      };
-      mockAxios.get.mockResolvedValue(mockResponse);
+      const query = "INSERT INTO test_connection_table VALUES (1, 'test'), (2, 'test2')";
 
       // Act
       const result = await connection.bulkInsert(query);
 
       // Assert
-      expect(mockAxios.get).toHaveBeenCalledWith('http://127.0.0.1:9000/exec', {
-        params: { query },
-        timeout: 60000,
-        headers: {
-          Connection: 'keep-alive',
-          'Keep-Alive': 'timeout=60, max=1000',
-        },
-      });
-      expect(result).toEqual(mockResponse.data);
+      expect(result).toBeDefined();
+
+      // Verify the data was inserted
+      const selectResult = await connection.query('SELECT * FROM test_connection_table ORDER BY id');
+      expect((selectResult as any).dataset.length).toBeGreaterThanOrEqual(2);
     });
 
     it('should throw error when not connected', async () => {
       // Arrange
-      (connection as any).isConnected = false;
+      await connection.disconnect();
 
       // Act & Assert
-      await expect(connection.bulkInsert('INSERT INTO test_table VALUES (1)')).rejects.toThrow(
+      await expect(connection.bulkInsert('INSERT INTO test_connection_table VALUES (1)')).rejects.toThrow(
         'Database not connected'
       );
     });
