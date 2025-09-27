@@ -8,16 +8,6 @@ import { AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
 import { getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
 
-/**
- * Get table name with test prefix if in test environment
- */
-function getTableName(originalTableName: string): string {
-  if (process.env.NODE_ENV === 'test') {
-    return `test_${originalTableName}`;
-  }
-  return originalTableName;
-}
-
 export class StockIngestionService {
   private alpacaClient: AlpacaClient;
   private optionIngestionService: OptionIngestionService;

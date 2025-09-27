@@ -94,12 +94,16 @@
       "^.+\\.ts$": [
         "ts-jest",
         {
-          "useESM": true
+          "useESM": true,
+          "tsconfig": {
+            "module": "commonjs"
+          }
         }
       ]
     },
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1",
+      "^@whalewatch/shared$": "<rootDir>/../shared/dist/cjs/index.js",
       "^@whalewatch/shared/(.*)$": "<rootDir>/../shared/$1"
     },
     "maxWorkers": 1,

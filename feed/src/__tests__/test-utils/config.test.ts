@@ -162,18 +162,5 @@ describe('Test Configuration Utilities', () => {
         expect(quote.timestamp).toBeInstanceOf(Date);
       });
     });
-
-    describe('generateSyncState', () => {
-      it('should generate sync state with default values', () => {
-        const syncState = testDataGenerators.generateSyncState();
-
-        expect(syncState).toMatchObject({
-          ticker: 'AAPL',
-          is_streaming: true,
-        });
-        expect(syncState.last_aggregate_timestamp).toBeInstanceOf(Date);
-        expect(syncState.last_sync).toBeInstanceOf(Date);
-      });
-    });
   });
 });

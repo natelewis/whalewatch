@@ -23,7 +23,6 @@ export const testConfig = {
     optionContracts: getTableName('option_contracts'),
     optionTrades: getTableName('option_trades'),
     optionQuotes: getTableName('option_quotes'),
-    syncState: getTableName('sync_state'),
   },
 };
 
@@ -161,21 +160,6 @@ export const testDataGenerators = {
     bid_exchange: 1,
     ask_exchange: 1,
     sequence_number: 12345,
-    ...overrides,
-  }),
-
-  generateSyncState: (
-    overrides: Partial<{
-      ticker: string;
-      last_aggregate_timestamp: Date;
-      last_sync: Date;
-      is_streaming: boolean;
-    }> = {}
-  ) => ({
-    ticker: 'AAPL',
-    last_aggregate_timestamp: new Date('2024-01-01T10:00:00Z'),
-    last_sync: new Date('2024-01-01T10:00:00Z'),
-    is_streaming: true,
     ...overrides,
   }),
 };

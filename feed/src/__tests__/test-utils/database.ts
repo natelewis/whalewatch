@@ -164,8 +164,6 @@ export async function getTestTableData(tableName: string): Promise<unknown[]> {
     timestampColumn = 'expiration_date';
   } else if (tableName.includes('option_contract_index')) {
     timestampColumn = 'as_of';
-  } else if (tableName.includes('sync_state')) {
-    timestampColumn = 'last_sync';
   }
 
   const result = await db.query(`SELECT * FROM ${tableName} ORDER BY ${timestampColumn} DESC`);

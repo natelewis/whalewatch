@@ -536,75 +536,6 @@ describe('UpsertService', () => {
     });
   });
 
-  // TODO: Remove sync state tests since we no longer use sync_state table
-  /*
-  describe('upsertSyncState', () => {
-    it('should insert sync state record', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable('test_sync_state', db);
-
-      const syncState: SyncState = {
-        ticker: 'AAPL',
-        last_aggregate_timestamp: new Date('2024-01-01T10:00:00Z'),
-        last_sync: new Date('2024-01-01T10:00:00Z'),
-        is_streaming: true,
-      };
-
-      // Act
-      await UpsertService.upsertSyncState(syncState, 'test_sync_state');
-
-      // Wait for QuestDB partitioned table to commit data with verification
-      await waitForRecordCount('test_sync_state', 1);
-
-      // Assert
-      const data = await getTestTableData('test_sync_state');
-      expect(data).toHaveLength(1);
-
-      const record = data[0] as any;
-      expect(record.ticker).toBe('AAPL');
-      expect(record.is_streaming).toBe(true);
-    });
-
-    it('should update existing sync state', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable('test_sync_state', db);
-
-      // Insert initial state
-      const initialState: SyncState = {
-        ticker: 'MSFT',
-        last_aggregate_timestamp: new Date('2024-01-01T10:00:00Z'),
-        last_sync: new Date('2024-01-01T10:00:00Z'),
-        is_streaming: false,
-      };
-
-      await UpsertService.upsertSyncState(initialState, 'test_sync_state');
-
-      // Wait for initial insert with verification
-      await waitForRecordCount('test_sync_state', 1);
-
-      // Act - Update state
-      const updatedState: SyncState = {
-        ticker: 'MSFT',
-        last_aggregate_timestamp: new Date('2024-01-01T11:00:00Z'),
-        last_sync: new Date('2024-01-01T11:00:00Z'),
-        is_streaming: true,
-      };
-
-      await UpsertService.upsertSyncState(updatedState, 'test_sync_state');
-
-      // Wait for QuestDB partitioned table to commit data with verification of updated values
-      await waitForRecordWithValues('test_sync_state', "ticker = 'MSFT'", { is_streaming: true });
-
-      // Assert
-      const data = await getTestTableData('test_sync_state');
-      const msftRecords = data.filter((record: any) => record.ticker === 'MSFT');
-      expect(msftRecords).toHaveLength(1); // Should still be only one record
-
-      const record = msftRecords[0] as any;
-      expect(record.is_streaming).toBe(true); // Updated value
-    });
-  });
-
   describe('error handling', () => {
     it('should handle database connection errors gracefully for stock aggregates', async () => {
       // Arrange - Create table using schema helper
@@ -680,19 +611,6 @@ describe('UpsertService', () => {
       await expect(UpsertService.upsertOptionQuote(quote, 'non_existent_table')).rejects.toThrow();
     });
 
-    it('should handle database connection errors gracefully for sync state', async () => {
-      // Arrange
-      const syncState: SyncState = {
-        ticker: 'AAPL',
-        last_aggregate_timestamp: new Date('2024-01-01T10:00:00Z'),
-        last_sync: new Date('2024-01-01T10:00:00Z'),
-        is_streaming: true,
-      };
-
-      // Act & Assert - Use a non-existent table to trigger an error
-      await expect(UpsertService.upsertSyncState(syncState, 'non_existent_table')).rejects.toThrow();
-    });
-
     it('should handle database connection errors gracefully for batch stock aggregates', async () => {
       // Arrange
       const aggregates: StockAggregate[] = [
@@ -754,74 +672,6 @@ describe('UpsertService', () => {
       await expect(UpsertService.batchUpsertOptionQuotes(quotes, 'non_existent_table')).rejects.toThrow();
     });
   });
-
-  describe('edge cases and special scenarios', () => {
-    it('should handle sync state with null last_aggregate_timestamp', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable('test_sync_state', db);
-
-      const syncState: SyncState = {
-        ticker: 'NULL_TEST',
-        last_aggregate_timestamp: undefined,
-        last_sync: new Date('2024-01-01T10:00:00Z'),
-        is_streaming: false,
-      };
-
-      // Act
-      await UpsertService.upsertSyncState(syncState, 'test_sync_state');
-
-      // Wait for QuestDB partitioned table to commit data with verification
-      await waitForRecordCount('test_sync_state', 1);
-
-      // Assert
-      const data = await getTestTableData('test_sync_state');
-      const foundRecord = data.find((record: any) => record.ticker === 'NULL_TEST') as any;
-      expect(foundRecord).toBeDefined();
-      expect(foundRecord.last_aggregate_timestamp).toBeNull();
-      expect(foundRecord.is_streaming).toBe(false);
-    });
-
-    it('should handle sync state update with null last_aggregate_timestamp', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable('test_sync_state', db);
-
-      // Insert initial state with timestamp
-      const initialState: SyncState = {
-        ticker: 'UPDATE_NULL_TEST',
-        last_aggregate_timestamp: new Date('2024-01-01T10:00:00Z'),
-        last_sync: new Date('2024-01-01T10:00:00Z'),
-        is_streaming: true,
-      };
-
-      await UpsertService.upsertSyncState(initialState, 'test_sync_state');
-
-      // Wait for initial insert with verification
-      await waitForRecordCount('test_sync_state', 1);
-
-      // Act - Update with undefined timestamp
-      const updatedState: SyncState = {
-        ticker: 'UPDATE_NULL_TEST',
-        last_aggregate_timestamp: undefined,
-        last_sync: new Date('2024-01-01T11:00:00Z'),
-        is_streaming: false,
-      };
-
-      await UpsertService.upsertSyncState(updatedState, 'test_sync_state');
-
-      // Wait for QuestDB partitioned table to commit data with verification of updated values
-      await waitForRecordWithValues('test_sync_state', "ticker = 'UPDATE_NULL_TEST'", {
-        last_aggregate_timestamp: null,
-        is_streaming: false,
-      });
-
-      // Assert
-      const data = await getTestTableData('test_sync_state');
-      const foundRecord = data.find((record: any) => record.ticker === 'UPDATE_NULL_TEST') as any;
-      expect(foundRecord).toBeDefined();
-      expect(foundRecord.last_aggregate_timestamp).toBeNull();
-      expect(foundRecord.is_streaming).toBe(false);
-    });
-  */
 
   describe('edge cases and special scenarios', () => {
     it('should handle trades with special characters in ticker', async () => {

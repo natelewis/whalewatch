@@ -128,7 +128,6 @@ describe('OptionIngestionService', () => {
         shares_per_contract: 100,
         strike_price: 150.0,
         underlying_ticker: 'AAPL',
-        as_of: asOf,
       });
     });
 
@@ -186,7 +185,10 @@ describe('OptionIngestionService', () => {
       expect(mockPolygonClient.getOptionContracts).toHaveBeenCalledWith(underlyingTicker, expect.any(Date));
       expect(mockedUpsertService.upsertOptionContract).toHaveBeenCalledWith(
         expect.objectContaining({
-          as_of: expect.any(Date),
+          ticker: 'O:AAPL240315C00150000',
+          contract_type: 'call',
+          exercise_style: 'american',
+          underlying_ticker: 'AAPL',
         })
       );
     });
@@ -708,7 +710,7 @@ describe('OptionIngestionService', () => {
 
       // Assert
       expect(mockedDb.query).toHaveBeenCalledWith(
-        "SELECT MAX(as_of) as max_date FROM test_option_contracts WHERE underlying_ticker = 'AAPL'"
+        "SELECT MAX(as_of) as max_date FROM test_option_contract_index WHERE underlying_ticker = 'AAPL'"
       );
       expect(result).toEqual(new Date('2024-01-15T00:00:00.000Z'));
     });
@@ -773,7 +775,7 @@ describe('OptionIngestionService', () => {
 
       // Assert
       expect(mockedDb.query).toHaveBeenCalledWith(
-        "SELECT MIN(as_of) as min_date FROM test_option_contracts WHERE underlying_ticker = 'AAPL'"
+        "SELECT MIN(as_of) as min_date FROM test_option_contract_index WHERE underlying_ticker = 'AAPL'"
       );
       expect(result).toEqual(new Date('2024-01-01T00:00:00.000Z'));
     });

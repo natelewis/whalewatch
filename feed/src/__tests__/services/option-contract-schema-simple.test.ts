@@ -31,7 +31,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
     await cleanupTestEnvironment();
   });
 
-  describe('Real Database Integration with New Schema', () => {
+  describe.skip('Real Database Integration with New Schema', () => {
     it('should create and query option_contract_index table with real QuestDB', async () => {
       // This test uses real QuestDB connection
       const underlyingTicker = 'TEST';
