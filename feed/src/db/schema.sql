@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS option_contracts (
     expiration_date TIMESTAMP,
     shares_per_contract LONG,
     strike_price DOUBLE,
+    underlying_ticker SYMBOL
+) TIMESTAMP(expiration_date) PARTITION BY DAY;
+
+-- Option contract index - tracks which days we have synced option contracts
+CREATE TABLE IF NOT EXISTS option_contract_index (
     underlying_ticker SYMBOL,
     as_of TIMESTAMP
 ) TIMESTAMP(as_of) PARTITION BY DAY;

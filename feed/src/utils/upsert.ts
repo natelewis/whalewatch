@@ -1,5 +1,5 @@
 import { db } from '../db/connection';
-import { StockAggregate, OptionContract, OptionTrade, OptionQuote } from '../types/database';
+import { StockAggregate, OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
 
 /**
  * Get table name with test prefix if in test environment
@@ -86,31 +86,102 @@ export class UpsertService {
   }
 
   /**
-   * Insert an option contract record
+   * Upsert an option contract record
    */
   static async upsertOptionContract(
     contract: OptionContract,
     tableName = getTableName('option_contracts')
   ): Promise<void> {
     try {
-      // Since there's no existing data, we can just insert directly
-      await db.query(
-        `INSERT INTO ${tableName} (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker, as_of)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [
-          contract.ticker,
-          contract.contract_type,
-          contract.exercise_style,
-          contract.expiration_date,
-          contract.shares_per_contract,
-          contract.strike_price,
-          contract.underlying_ticker,
-          contract.as_of,
-        ]
-      );
-      console.log(`Inserted option contract: ${contract.ticker}`);
+      // Check if record exists using ticker as unique identifier
+      const existing = await db.query(`SELECT ticker FROM ${tableName} WHERE ticker = $1`, [contract.ticker]);
+
+      const questResult = existing as {
+        columns: { name: string; type: string }[];
+        dataset: unknown[][];
+      };
+
+      if (questResult.dataset && questResult.dataset.length > 0) {
+        // Update existing record
+        await db.query(
+          `UPDATE ${tableName} 
+           SET contract_type = $1, exercise_style = $2, expiration_date = $3, shares_per_contract = $4, 
+               strike_price = $5, underlying_ticker = $6
+           WHERE ticker = $7`,
+          [
+            contract.contract_type,
+            contract.exercise_style,
+            contract.expiration_date,
+            contract.shares_per_contract,
+            contract.strike_price,
+            contract.underlying_ticker,
+            contract.ticker,
+          ]
+        );
+        console.log(`Updated option contract: ${contract.ticker}`);
+      } else {
+        // Insert new record
+        await db.query(
+          `INSERT INTO ${tableName} (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            contract.ticker,
+            contract.contract_type,
+            contract.exercise_style,
+            contract.expiration_date,
+            contract.shares_per_contract,
+            contract.strike_price,
+            contract.underlying_ticker,
+          ]
+        );
+        console.log(`Inserted option contract: ${contract.ticker}`);
+      }
     } catch (error) {
-      console.error('Error inserting option contract:', error);
+      console.error('Error upserting option contract:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upsert an option contract index record
+   */
+  static async upsertOptionContractIndex(
+    index: OptionContractIndex,
+    tableName = getTableName('option_contract_index')
+  ): Promise<void> {
+    try {
+      // Check if record exists
+      const existing = await db.query(
+        `SELECT underlying_ticker, as_of FROM ${tableName} 
+         WHERE underlying_ticker = $1 AND as_of = $2`,
+        [index.underlying_ticker, index.as_of]
+      );
+
+      const questResult = existing as {
+        columns: { name: string; type: string }[];
+        dataset: unknown[][];
+      };
+
+      if (questResult.dataset && questResult.dataset.length > 0) {
+        // Record already exists, no need to update
+        console.log(
+          `Option contract index already exists: ${index.underlying_ticker} for ${
+            index.as_of.toISOString().split('T')[0]
+          }`
+        );
+      } else {
+        // Insert new record
+        await db.query(
+          `INSERT INTO ${tableName} (underlying_ticker, as_of)
+           VALUES ($1, $2)`,
+          [index.underlying_ticker, index.as_of]
+        );
+        console.log(
+          `Inserted option contract index: ${index.underlying_ticker} for ${index.as_of.toISOString().split('T')[0]}`
+        );
+      }
+    } catch (error) {
+      console.error('Error upserting option contract index:', error);
       throw error;
     }
   }
@@ -328,6 +399,44 @@ VALUES ${values}`;
       console.log(`Completed bulk insert of ${trades.length} option trades`);
     } catch (error) {
       console.error('Error bulk upserting option trades:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Batch upsert multiple option contracts using individual upserts to prevent duplicates
+   * This ensures proper duplicate checking for each record
+   */
+  static async batchUpsertOptionContracts(
+    contracts: OptionContract[],
+    tableName = getTableName('option_contracts')
+  ): Promise<void> {
+    if (contracts.length === 0) {
+      return;
+    }
+
+    try {
+      // Process in batches to avoid overwhelming the database
+      const BATCH_SIZE = 50; // Smaller batch size for individual upserts
+
+      for (let i = 0; i < contracts.length; i += BATCH_SIZE) {
+        const batch = contracts.slice(i, i + BATCH_SIZE);
+
+        // Process each contract individually to ensure proper duplicate checking
+        for (const contract of batch) {
+          await this.upsertOptionContract(contract, tableName);
+        }
+
+        console.log(
+          `Processed ${batch.length} option contracts (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
+            contracts.length / BATCH_SIZE
+          )})`
+        );
+      }
+
+      console.log(`Completed upsert of ${contracts.length} option contracts`);
+    } catch (error) {
+      console.error('Error bulk upserting option contracts:', error);
       throw error;
     }
   }

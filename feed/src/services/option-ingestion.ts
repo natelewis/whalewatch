@@ -2,8 +2,8 @@ import { db } from '../db/connection';
 import { PolygonClient } from './polygon-client';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
-import { OptionContract, OptionTrade, OptionQuote } from '../types/database';
-import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
+import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
+import { PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
 import { getMaxDate, getMinDate, QuestDBServiceInterface } from '@whalewatch/shared';
 
 /**
@@ -50,9 +50,21 @@ export class OptionIngestionService {
 
       const contracts = await this.polygonClient.getOptionContracts(underlyingTicker, asOf);
 
-      for (const contract of contracts) {
-        await this.insertOptionContract(contract, asOf);
-      }
+      // Convert expiration_date from string to Date, all other fields are identical
+      const optionContracts: OptionContract[] = contracts.map(contract => ({
+        ...contract,
+        expiration_date: new Date(contract.expiration_date),
+      }));
+
+      // Batch upsert the contracts
+      await UpsertService.batchUpsertOptionContracts(optionContracts);
+
+      // Record the sync in the index table
+      const indexRecord: OptionContractIndex = {
+        underlying_ticker: underlyingTicker,
+        as_of: asOf,
+      };
+      await UpsertService.upsertOptionContractIndex(indexRecord);
 
       console.log(`Ingested ${contracts.length} option contracts for ${underlyingTicker} as of ${asOfStr}`);
     } catch (error) {
@@ -175,21 +187,6 @@ export class OptionIngestionService {
     }
   }
 
-  private async insertOptionContract(contract: PolygonOptionContract, asOf?: Date): Promise<void> {
-    const optionContract: OptionContract = {
-      ticker: contract.ticker,
-      contract_type: contract.contract_type,
-      exercise_style: contract.exercise_style,
-      expiration_date: new Date(contract.expiration_date), // Convert string to Date for TIMESTAMP
-      shares_per_contract: contract.shares_per_contract,
-      strike_price: contract.strike_price,
-      underlying_ticker: contract.underlying_ticker,
-      as_of: asOf || new Date(), // Use provided as_of date or current timestamp
-    };
-
-    await UpsertService.upsertOptionContract(optionContract);
-  }
-
   async getAllOptionTickers(): Promise<string[]> {
     try {
       const tickerList = config.tickers.map(t => `'${t}'`).join(',');
@@ -212,7 +209,7 @@ export class OptionIngestionService {
       ticker: underlyingTicker,
       tickerField: 'underlying_ticker',
       dateField: 'as_of',
-      table: 'option_contracts',
+      table: 'option_contract_index',
     });
   }
 
@@ -221,7 +218,7 @@ export class OptionIngestionService {
       ticker: underlyingTicker,
       tickerField: 'underlying_ticker',
       dateField: 'as_of',
-      table: 'option_contracts',
+      table: 'option_contract_index',
     });
   }
 

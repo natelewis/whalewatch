@@ -170,7 +170,6 @@ describe('UpsertService', () => {
         shares_per_contract: 100,
         strike_price: 150.0,
         underlying_ticker: 'AAPL',
-        as_of: new Date('2024-01-01T10:00:00Z'),
       };
 
       // Act
@@ -204,7 +203,6 @@ describe('UpsertService', () => {
         shares_per_contract: 100,
         strike_price: 150.0,
         underlying_ticker: 'AAPL',
-        as_of: new Date('2024-01-01T10:00:00Z'),
       };
 
       const contract2: OptionContract = {
@@ -215,7 +213,6 @@ describe('UpsertService', () => {
         shares_per_contract: 100,
         strike_price: 150.0,
         underlying_ticker: 'AAPL',
-        as_of: new Date('2024-01-01T10:00:00Z'),
       };
 
       // Act
@@ -640,7 +637,6 @@ describe('UpsertService', () => {
         shares_per_contract: 100,
         strike_price: 150.0,
         underlying_ticker: 'AAPL',
-        as_of: new Date('2024-01-01T10:00:00Z'),
       };
 
       // Act & Assert - Use a non-existent table to trigger an error

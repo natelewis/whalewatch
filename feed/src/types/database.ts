@@ -21,7 +21,11 @@ export interface OptionContract {
   strike_price: number;
   ticker: string;
   underlying_ticker: string;
-  as_of: Date; // TIMESTAMP for QuestDB partitioning
+}
+
+export interface OptionContractIndex {
+  underlying_ticker: string;
+  as_of: Date; // The date we synced option contracts for
 }
 
 export interface OptionTrade {

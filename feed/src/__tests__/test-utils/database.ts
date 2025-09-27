@@ -161,6 +161,8 @@ export async function getTestTableData(tableName: string): Promise<unknown[]> {
   // Determine the timestamp column based on table name
   let timestampColumn = 'timestamp'; // default
   if (tableName.includes('option_contracts')) {
+    timestampColumn = 'expiration_date';
+  } else if (tableName.includes('option_contract_index')) {
     timestampColumn = 'as_of';
   } else if (tableName.includes('sync_state')) {
     timestampColumn = 'last_sync';
