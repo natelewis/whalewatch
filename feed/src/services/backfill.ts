@@ -193,7 +193,7 @@ export class BackfillService {
       const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
 
       // Also backfill option contracts and trades for this ticker
-      console.log(`Backfilling option data for ${ticker}...`);
+      console.log(`Backfilling option contractsdata for ${ticker}...`);
       await this.optionIngestionService.processOptionContractsBackfill(ticker, backfillStart, backfillEnd);
 
       const duration = Date.now() - startTime;
@@ -241,7 +241,7 @@ export class BackfillService {
           totalItemsProcessed += itemsProcessed;
 
           // Also backfill option contracts and trades for this ticker
-          console.log(`Backfilling option data for ${ticker}...`);
+          console.log(`Backfilling option contracts for ${ticker}...`);
           await this.optionIngestionService.processOptionContractsBackfill(ticker, backfillStart, backfillEnd);
         } catch (error) {
           console.error(`Error backfilling ${ticker}:`, error);
@@ -350,7 +350,9 @@ export class BackfillService {
   }
 
   private async backfillStockAggregates(ticker: string, endDate: Date): Promise<void> {
-    console.log(`Checking stock backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
+    console.log(
+      `Checking stock aggregates backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`
+    );
 
     // Check stocks independently
     const oldestStockDataDate = await getMinDate(this.questdbAdapter, {
@@ -365,7 +367,7 @@ export class BackfillService {
     if (oldestStockDataDate) {
       if (oldestStockDataDate <= endDate) {
         console.log(
-          `${ticker} stocks already have data through ${endDate.toISOString().split('T')[0]} (oldest data: ${
+          `${ticker} stock aggregates already have data through ${endDate.toISOString().split('T')[0]} (oldest data: ${
             oldestStockDataDate.toISOString().split('T')[0]
           }), skipping stock backfill`
         );
@@ -401,7 +403,9 @@ export class BackfillService {
   }
 
   private async backfillOptionContracts(ticker: string, endDate: Date): Promise<void> {
-    console.log(`Checking option backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
+    console.log(
+      `Checking option contracts backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`
+    );
 
     // Check options independently
     const oldestOptionAsOfDate = await this.optionIngestionService.getOldestAsOfDate(ticker);
@@ -411,9 +415,9 @@ export class BackfillService {
     if (oldestOptionAsOfDate) {
       if (oldestOptionAsOfDate <= endDate) {
         console.log(
-          `${ticker} options already have data through ${endDate.toISOString().split('T')[0]} (oldest as_of: ${
-            oldestOptionAsOfDate.toISOString().split('T')[0]
-          }), skipping option backfill`
+          `${ticker} options contracts already have data through ${
+            endDate.toISOString().split('T')[0]
+          } (oldest as_of: ${oldestOptionAsOfDate.toISOString().split('T')[0]}), skipping option backfill`
         );
       } else {
         optionsNeedBackfill = true;
@@ -430,10 +434,10 @@ export class BackfillService {
       }
     } else {
       optionsNeedBackfill = true;
-      // If no existing option data, only backfill the target date itself
+      // If no existing option contracts, only backfill the target date itself
       optionBackfillStart = new Date(endDate);
       console.log(
-        `${ticker} has no existing option data, backfilling options for target date only: ${
+        `${ticker} has no existing option contracts, backfilling options for target date only: ${
           endDate.toISOString().split('T')[0]
         }`
       );
@@ -442,7 +446,7 @@ export class BackfillService {
     // Backfill options if needed
     if (optionsNeedBackfill && optionBackfillStart) {
       try {
-        console.log(`Backfilling option data for ${ticker}...`);
+        console.log(`Backfilling option contracts for ${ticker}...`);
         await this.optionIngestionService.processOptionContractsBackfill(ticker, optionBackfillStart, endDate);
       } catch (error) {
         console.error(`Error backfilling options for ${ticker}:`, error);

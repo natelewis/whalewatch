@@ -346,7 +346,7 @@ export class OptionIngestionService {
         console.log(`Skipping option quotes ingestion (POLYGON_SKIP_OPTION_QUOTES=true)`);
       }
     } catch (error) {
-      console.error(`Error backfilling option data for ${underlyingTicker}:`, error);
+      console.error(`Error backfilling option contracts for ${underlyingTicker}:`, error);
       throw error;
     }
   }
