@@ -6,7 +6,7 @@ import { StockAggregate } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
 import { AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
-import { getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
+import { getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
 
 /**
  * Get table name with test prefix if in test environment

@@ -4,7 +4,7 @@ import { StockIngestionService } from './stock-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { StockAggregate } from '../types/database';
-import { getMinDate, getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared/utils/dateUtils';
+import { getMinDate, getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
 
 export class BackfillService {
   private optionIngestionService: OptionIngestionService;
