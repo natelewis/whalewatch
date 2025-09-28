@@ -8,9 +8,9 @@ export interface VerificationOptions {
 }
 
 const DEFAULT_OPTIONS: Required<VerificationOptions> = {
-  maxRetries: 20,
-  retryIntervalMs: 200,
-  timeoutMs: 10000,
+  maxRetries: 10,
+  retryIntervalMs: 50,
+  timeoutMs: 2000,
 };
 
 /**

@@ -19,7 +19,6 @@ export function generateTestTableSchemas(): { [tableName: string]: string } {
   while ((match = createTableRegex.exec(schemaContent)) !== null) {
     const tableName = match[1];
     let tableDefinition = match[2];
-    const timestampColumn = match[3];
 
     // Clean up the table definition - remove extra whitespace and normalize
     tableDefinition = tableDefinition
@@ -31,7 +30,8 @@ export function generateTestTableSchemas(): { [tableName: string]: string } {
     const testTableName = `test_${tableName}`;
 
     // Create the test table schema with proper formatting
-    const testTableSchema = `CREATE TABLE IF NOT EXISTS ${testTableName} (\n    ${tableDefinition}\n) TIMESTAMP(${timestampColumn}) PARTITION BY DAY`;
+    // Use non-partitioned tables for testing to avoid QuestDB eventual consistency issues
+    const testTableSchema = `CREATE TABLE IF NOT EXISTS ${testTableName} (\n    ${tableDefinition}\n)`;
 
     tableSchemas[testTableName] = testTableSchema;
   }

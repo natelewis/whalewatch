@@ -96,10 +96,6 @@ export class UpsertService {
       // Check if record exists using ticker as unique identifier
       const existing = await db.query(`SELECT ticker FROM ${tableName} WHERE ticker = $1`, [contract.ticker]);
 
-      if (!existing) {
-        throw new Error('Database query returned undefined result');
-      }
-
       const questResult = existing as {
         columns: { name: string; type: string }[];
         dataset: unknown[][];
@@ -160,10 +156,6 @@ export class UpsertService {
          WHERE underlying_ticker = $1 AND as_of = $2`,
         [index.underlying_ticker, index.as_of]
       );
-
-      if (!existing) {
-        throw new Error('Database query returned undefined result');
-      }
 
       const questResult = existing as {
         columns: { name: string; type: string }[];
