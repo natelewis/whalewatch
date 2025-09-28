@@ -457,25 +457,44 @@ export async function waitForSingleRecordWithCondition(
   options: VerificationOptions = {}
 ): Promise<Record<string, unknown>> {
   const query = `SELECT * FROM ${tableName} WHERE ${whereClause}`;
-  const results = await waitForQueryResultExists(query, options);
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const startTime = Date.now();
+  let retryCount = 0;
 
-  if (results.length === 0) {
-    throw new Error(`No records found in ${tableName} with condition: ${whereClause}`);
+  while (retryCount < opts.maxRetries) {
+    // Check timeout
+    if (Date.now() - startTime > opts.timeoutMs) {
+      throw new Error(
+        `Timeout waiting for query to return results: ${query}. ` + `No results found after ${opts.timeoutMs}ms`
+      );
+    }
+
+    try {
+      const result = await db.query(query);
+      const questResult = result ? (result as { columns: { name: string; type: string }[]; dataset: unknown[][] }) : { columns: [], dataset: [] };
+
+      if (questResult.dataset && questResult.dataset.length > 0) {
+        // Convert the first result to an object using the data we just retrieved
+        const recordObj: Record<string, unknown> = {};
+        questResult.columns.forEach((col, index) => {
+          recordObj[col.name] = questResult.dataset[0][index];
+        });
+        return recordObj; // Success!
+      }
+
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      }
+    } catch (error) {
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      } else {
+        throw new Error(`Failed to verify query result exists: ${error}`);
+      }
+    }
   }
 
-  // Convert the first result to an object
-  const result = await db.query(query);
-  const questResult = result
-    ? (result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      })
-    : { columns: [], dataset: [] };
-
-  const recordObj: Record<string, unknown> = {};
-  questResult.columns.forEach((col, index) => {
-    recordObj[col.name] = questResult.dataset[0][index];
-  });
-
-  return recordObj;
+  throw new Error(`No records found in ${tableName} with condition: ${whereClause}`);
 }

@@ -114,9 +114,19 @@ export class UpsertService {
         : { columns: [], dataset: [] };
 
       console.log(`Processed result:`, questResult);
+      console.log(`Dataset length:`, questResult.dataset ? questResult.dataset.length : 0);
 
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Update existing record (exclude timestamp column as QuestDB doesn't allow updating designated timestamp)
+        console.log(`Found existing record for ticker: ${contract.ticker}`);
+        console.log(`Attempting to update with new values:`, {
+          contract_type: contract.contract_type,
+          exercise_style: contract.exercise_style,
+          shares_per_contract: contract.shares_per_contract,
+          strike_price: contract.strike_price,
+          underlying_ticker: contract.underlying_ticker,
+        });
+        
         const updateResult = await db.query(
           `UPDATE ${tableName} 
            SET contract_type = $1, exercise_style = $2, shares_per_contract = $3, 

@@ -123,6 +123,9 @@ describe('Option Contract Schema Migration', () => {
       // First insert
       await UpsertService.upsertOptionContract(contract);
 
+      // Wait for the first insert to be committed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Update the contract
       const updatedContract: OptionContract = {
         ...contract,
@@ -132,6 +135,9 @@ describe('Option Contract Schema Migration', () => {
 
       // Act - Update with real database
       await UpsertService.upsertOptionContract(updatedContract);
+
+      // Wait for QuestDB eventual consistency
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Assert - Verify the record was updated in real database
       const questResult = await waitForSingleRecordWithCondition(
