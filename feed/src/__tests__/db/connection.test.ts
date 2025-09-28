@@ -506,12 +506,13 @@ describe('QuestDBConnection', () => {
 
     it('should get correct schema for specific table', async () => {
       const schema = getTestTableSchema('test_stock_aggregates');
-      expect(schema).toContain('CREATE TABLE IF NOT EXISTS test_stock_aggregates');
+      expect(schema).toContain('CREATE TABLE test_stock_aggregates');
+      expect(schema).toContain('DROP TABLE IF EXISTS test_stock_aggregates');
       expect(schema).toContain('symbol SYMBOL');
       expect(schema).toContain('timestamp TIMESTAMP');
-      // Note: Test tables are created without partitions to avoid QuestDB eventual consistency issues
-      // The original schema.sql contains PARTITION BY DAY, but test tables don't
-      expect(schema).not.toContain('PARTITION BY DAY');
+      // Note: Test tables use DROP + CREATE pattern to ensure schema changes are applied
+      // and include PARTITION BY DAY for proper QuestDB functionality
+      expect(schema).toContain('PARTITION BY DAY');
     });
   });
 });
