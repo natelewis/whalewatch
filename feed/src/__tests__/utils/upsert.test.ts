@@ -361,9 +361,6 @@ describe('UpsertService', () => {
 
       await UpsertService.upsertOptionTrade(updatedTrade, 'test_option_trades');
 
-      // Small delay to allow QuestDB to commit the data
-      await new Promise(resolve => setTimeout(resolve, 500));
-
       // Wait for QuestDB partitioned table to commit data with verification of updated values
       await waitForRecordWithValues('test_option_trades', "ticker = 'MSFT240315C00200000'", {
         price: 12.0,
@@ -466,9 +463,6 @@ describe('UpsertService', () => {
       };
 
       await UpsertService.upsertOptionQuote(updatedQuote, 'test_option_quotes');
-
-      // Small delay to allow QuestDB to commit the data
-      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Wait for QuestDB partitioned table to commit data with verification of updated values
       await waitForRecordWithValues('test_option_quotes', "ticker = 'GOOGL240315C00300000'", {

@@ -5,6 +5,7 @@ import { config } from '../config';
 import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
 import { getMaxDate, getMinDate, QuestDBServiceInterface } from '@whalewatch/shared';
+import pLimit from 'p-limit';
 
 /**
  * Get table name with test prefix if in test environment
@@ -323,7 +324,6 @@ export class OptionIngestionService {
 
       // Process option tickers in parallel with controlled concurrency
       const CONCURRENCY_LIMIT = parseInt(process.env.OPTION_CONCURRENCY_LIMIT || '5');
-      const pLimit = (await import('p-limit')).default;
       const limit = pLimit(CONCURRENCY_LIMIT);
 
       // Backfill trades for each option ticker (if not skipped)

@@ -29,10 +29,11 @@ jest.mock('../../services/polygon-client', () => ({
   })),
 }));
 
-// Mock StockIngestionService
+// Mock StockIngestionService to prevent infinite loops in tests
+const mockGetHistoricalBars = jest.fn().mockResolvedValue([]);
 jest.mock('../../services/stock-ingestion', () => ({
   StockIngestionService: jest.fn().mockImplementation(() => ({
-    getHistoricalBars: jest.fn().mockResolvedValue([]), // Return empty array by default
+    getHistoricalBars: mockGetHistoricalBars,
   })),
 }));
 
@@ -252,6 +253,14 @@ describe('Option Contract Backfill Integration with New Schema', () => {
 
       // Mock polygon client
       mockPolygonClient.getOptionContracts.mockResolvedValue([]);
+
+      // Mock the stock ingestion service to prevent infinite loops
+      const mockStockIngestionService = {
+        getHistoricalBars: jest.fn().mockResolvedValue([]),
+      };
+
+      // Replace the stock ingestion service in the backfill service
+      (backfillService as any).stockIngestionService = mockStockIngestionService;
 
       // Act
       try {
