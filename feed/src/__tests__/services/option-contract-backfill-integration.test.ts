@@ -180,8 +180,8 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       // Act - Run the backfill process
       await optionIngestionService.processOptionContractsBackfill(underlyingTicker, startDate, endDate);
 
-      // Wait for all async operations to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for all async operations to complete using proper waitFor method
+      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 2);
 
       // Assert
       // Verify that contracts were fetched for each day

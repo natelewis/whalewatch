@@ -1,6 +1,7 @@
 // Test file for QuestDBConnection with real database connection
 import { QuestDBConnection } from '../../db/connection';
 import { createTestTable, getTestTableSchema, getAllTestTableSchemas } from '../test-utils/schema-helper';
+import { waitForRecordCount } from '../test-utils/data-verification';
 
 // QuestDBConnection tests with real database connection
 describe('QuestDBConnection', () => {
@@ -104,6 +105,9 @@ describe('QuestDBConnection', () => {
       // Insert test data
       await connection.query("INSERT INTO test_connection_table VALUES (123, 'test')");
 
+      // Wait for data to be available
+      await waitForRecordCount('test_connection_table', 1);
+
       // Act
       const result = await connection.query('SELECT * FROM test_connection_table WHERE id = $1 AND name = $2', [
         123,
@@ -123,6 +127,9 @@ describe('QuestDBConnection', () => {
       // Insert some test data first
       await connection.query("INSERT INTO test_connection_table VALUES (1, 'test')");
 
+      // Wait for data to be available
+      await waitForRecordCount('test_connection_table', 1);
+
       // Act - Test with null parameter (should return no results since we're looking for null id)
       const result = await connection.query('SELECT * FROM test_connection_table WHERE id = $1', [null]);
 
@@ -140,6 +147,9 @@ describe('QuestDBConnection', () => {
       // Insert some test data with a specific timestamp
       const testDate = new Date('2024-01-01T10:00:00Z');
       await connection.query('INSERT INTO test_connection_table VALUES (1, $1)', [testDate]);
+
+      // Wait for data to be available
+      await waitForRecordCount('test_connection_table', 1);
 
       // Act - Query for all records to verify the insert worked
       const result = await connection.query('SELECT * FROM test_connection_table');
@@ -185,6 +195,9 @@ describe('QuestDBConnection', () => {
 
       // Assert
       expect(result).toBeDefined();
+
+      // Wait for data to be available
+      await waitForRecordCount('test_connection_table', 2);
 
       // Verify the data was inserted
       const selectResult = await connection.query('SELECT * FROM test_connection_table ORDER BY id');
@@ -242,6 +255,9 @@ describe('QuestDBConnection', () => {
         "INSERT INTO test_stock_trades VALUES ('AAPL', '2024-01-01T10:00:00Z', 100.5, 100, '[]', 1, 1, 'test''s trade')"
       );
 
+      // Wait for data to be available
+      await waitForRecordCount('test_stock_trades', 1);
+
       // Query with parameter containing single quotes
       const result = await connection.query('SELECT * FROM test_stock_trades WHERE trade_id = $1', ["test's trade"]);
 
@@ -259,6 +275,9 @@ describe('QuestDBConnection', () => {
       await connection.query(
         "INSERT INTO test_stock_aggregates VALUES ('AAPL', '2024-01-01T10:00:00Z', 100, 105, 95, 102, 1000, 101, 50)"
       );
+
+      // Wait for data to be available
+      await waitForRecordCount('test_stock_aggregates', 1);
 
       // Query with various parameter types
       const result = await connection.query('SELECT * FROM test_stock_aggregates WHERE symbol = $1 AND volume = $2', [
@@ -284,6 +303,9 @@ describe('QuestDBConnection', () => {
       // Insert some test data first
       await connection.query("INSERT INTO test_error_table VALUES (1, 'test')");
 
+      // Wait for data to be available
+      await waitForRecordCount('test_error_table', 1);
+
       // Test with null parameter
       const result = await connection.query('SELECT * FROM test_error_table WHERE id = $1', [null]);
 
@@ -304,6 +326,9 @@ describe('QuestDBConnection', () => {
         ('AAPL240101C00100000', 'call', 'american', '${testDate.toISOString()}', 100, 100.0, 'AAPL')
       `);
 
+      // Wait for data to be available
+      await waitForRecordCount('test_option_contracts', 1);
+
       // Query for all records to verify the insert worked
       const result = await connection.query('SELECT * FROM test_option_contracts');
 
@@ -323,6 +348,9 @@ describe('QuestDBConnection', () => {
         ('AAPL240101C00100000', 'call', 'american', '2024-01-01T10:00:00Z', 100, 100.0, 'AAPL')
       `);
 
+      // Wait for data to be available
+      await waitForRecordCount('test_option_contracts', 1);
+
       // Query with string parameter (since QuestDB doesn't have native boolean type)
       const result = await connection.query('SELECT * FROM test_option_contracts WHERE contract_type = $1', ['call']);
 
@@ -336,6 +364,9 @@ describe('QuestDBConnection', () => {
 
       // Insert data
       await connection.query("INSERT INTO test_error_table VALUES (1, 'test')");
+
+      // Wait for data to be available
+      await waitForRecordCount('test_error_table', 1);
 
       // Query with multiple parameters including edge cases
       const result = await connection.query('SELECT * FROM test_error_table WHERE id = $1 AND name = $2 AND id = $1', [
@@ -369,6 +400,9 @@ describe('QuestDBConnection', () => {
 
       // Assert
       expect(result).toBeDefined();
+
+      // Wait for data to be available
+      await waitForRecordCount('test_bulk_table', 2);
 
       // Verify the data was inserted
       const selectResult = await connection.query('SELECT COUNT(*) FROM test_bulk_table');
@@ -408,6 +442,9 @@ describe('QuestDBConnection', () => {
         "INSERT INTO test_stock_aggregates VALUES ('AAPL', '2024-01-01T10:00:00Z', 100.123, 105.456, 95.789, 102.321, 1000.5, 101.25, 50)"
       );
 
+      // Wait for data to be available
+      await waitForRecordCount('test_stock_aggregates', 1);
+
       // Query with decimal parameter
       const result = await connection.query('SELECT * FROM test_stock_aggregates WHERE open = $1', [100.123]);
 
@@ -423,6 +460,9 @@ describe('QuestDBConnection', () => {
       for (let i = 1; i <= 10; i++) {
         await connection.query(`INSERT INTO test_error_table VALUES (${i}, 'test${i}')`);
       }
+
+      // Wait for all data to be available
+      await waitForRecordCount('test_error_table', 10);
 
       // Query with multiple parameters
       const params = Array.from({ length: 10 }, (_, i) => i + 1);
