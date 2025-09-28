@@ -35,10 +35,9 @@ jest.mock('../../config', () => ({
   },
 }));
 
-// Mock shared functions
+// Mock shared functions - only mock interfaces, let all database functions use real implementation
 jest.mock('@whalewatch/shared', () => ({
-  getMaxDate: jest.fn(),
-  getMinDate: jest.fn(),
+  ...jest.requireActual('@whalewatch/shared'),
   QuestDBServiceInterface: jest.fn(),
 }));
 
@@ -274,6 +273,9 @@ describe('Option Contract Schema Migration', () => {
         as_of: expectedDate,
       });
 
+      // Wait for the data to be available (QuestDB eventual consistency)
+      await waitForSingleRecordWithCondition('test_option_contract_index', `underlying_ticker = '${underlyingTicker}'`);
+
       // Act - Use real database
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
@@ -292,6 +294,9 @@ describe('Option Contract Schema Migration', () => {
         underlying_ticker: underlyingTicker,
         as_of: expectedDate,
       });
+
+      // Wait for the data to be available (QuestDB eventual consistency)
+      await waitForSingleRecordWithCondition('test_option_contract_index', `underlying_ticker = '${underlyingTicker}'`);
 
       // Act - Use real database
       const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);

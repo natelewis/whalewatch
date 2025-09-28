@@ -228,12 +228,18 @@ export class OptionIngestionService {
   }
 
   async getNewestAsOfDate(underlyingTicker: string): Promise<Date | null> {
-    return getMaxDate(this.questdbAdapter, {
-      ticker: underlyingTicker,
-      tickerField: 'underlying_ticker',
-      dateField: 'as_of',
-      table: 'option_contract_index',
-    });
+    try {
+      const result = await getMaxDate(this.questdbAdapter, {
+        ticker: underlyingTicker,
+        tickerField: 'underlying_ticker',
+        dateField: 'as_of',
+        table: 'option_contract_index',
+      });
+      return result;
+    } catch (error) {
+      console.error('Error in getNewestAsOfDate:', error);
+      return null;
+    }
   }
 
   async getOldestAsOfDate(underlyingTicker: string): Promise<Date | null> {

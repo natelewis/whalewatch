@@ -45,9 +45,13 @@ export async function getMaxDate(
     const testTableName = getTableName(table);
 
     const query = `SELECT MAX(${dateField}) as max_date FROM ${testTableName} WHERE ${tickerField} = '${ticker.toUpperCase()}'`;
+    console.log('getMaxDate query:', query);
 
     const response = await questdbService.executeQuery(query);
+    console.log('getMaxDate response:', response);
+    
     const converted = questdbService.convertArrayToObject<{ max_date: string }>(response.dataset, response.columns);
+    console.log('getMaxDate converted:', converted);
 
     if (converted.length > 0 && converted[0].max_date) {
       return new Date(converted[0].max_date);
