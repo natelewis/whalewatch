@@ -529,7 +529,7 @@ export class BackfillService {
       }
 
       // Move to the next day
-      currentDate = new Date(actualEnd);
+      currentDate.setDate(currentDate.getDate() + 1);
 
       // Small delay to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 100));
