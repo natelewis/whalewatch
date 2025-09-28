@@ -19,9 +19,8 @@ jest.mock('../../services/polygon-client', () => ({
   })),
 }));
 
-// Mock UpsertService - we'll use the real service for integration tests
-
-// Mock database connection - we'll use the real database for integration tests
+// Don't mock the database connection - we use real database for integration tests
+// Don't mock UpsertService - we use real service for integration tests
 
 // Mock config
 jest.mock('../../config', () => ({
@@ -37,6 +36,7 @@ jest.mock('../../config', () => ({
 
 import { PolygonClient } from '../../services/polygon-client';
 import { UpsertService } from '../../utils/upsert';
+import { db } from '../../db/connection';
 import { config } from '../../config';
 
 // Mock the static method
