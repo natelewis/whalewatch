@@ -116,16 +116,15 @@ export class UpsertService {
       console.log(`Processed result:`, questResult);
 
       if (questResult.dataset && questResult.dataset.length > 0) {
-        // Update existing record
+        // Update existing record (exclude timestamp column as QuestDB doesn't allow updating designated timestamp)
         const updateResult = await db.query(
           `UPDATE ${tableName} 
-           SET contract_type = $1, exercise_style = $2, expiration_date = $3, shares_per_contract = $4, 
-               strike_price = $5, underlying_ticker = $6
-           WHERE ticker = $7`,
+           SET contract_type = $1, exercise_style = $2, shares_per_contract = $3, 
+               strike_price = $4, underlying_ticker = $5
+           WHERE ticker = $6`,
           [
             contract.contract_type,
             contract.exercise_style,
-            contract.expiration_date,
             contract.shares_per_contract,
             contract.strike_price,
             contract.underlying_ticker,
