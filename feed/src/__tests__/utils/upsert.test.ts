@@ -3,17 +3,18 @@ import { UpsertService } from '../../utils/upsert';
 import { StockAggregate, OptionContract, OptionTrade, OptionQuote } from '../../types/database';
 import { createTestTable } from '../test-utils/schema-helper';
 import { db } from '../../db/connection';
+import { getTableName } from '../test-utils/config';
 
 describe('UpsertService', () => {
   beforeEach(async () => {
     // Create test tables manually to ensure they exist
-    await createTestTable('test_stock_aggregates', db);
+    await createTestTable(getTableName('stock_aggregates'), db);
   });
 
   describe('upsertStockAggregate', () => {
     it('should insert new stock aggregate record', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_stock_aggregates', db);
+      await createTestTable(getTableName('stock_aggregates'), db);
 
       const aggregate: StockAggregate = {
         symbol: 'AAPL',
@@ -29,7 +30,9 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertStockAggregate(aggregate, 'test_stock_aggregates')).resolves.not.toThrow();
+      await expect(
+        UpsertService.upsertStockAggregate(aggregate, getTableName('stock_aggregates'))
+      ).resolves.not.toThrow();
     });
 
     it('should update existing stock aggregate record', async () => {
@@ -46,7 +49,7 @@ describe('UpsertService', () => {
         transaction_count: 10000,
       };
 
-      await UpsertService.upsertStockAggregate(initialAggregate, 'test_stock_aggregates');
+      await UpsertService.upsertStockAggregate(initialAggregate, getTableName('stock_aggregates'));
 
       // Act - Update with new values using exact same timestamp
       const updatedAggregate: StockAggregate = {
@@ -64,13 +67,13 @@ describe('UpsertService', () => {
       // Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
-        UpsertService.upsertStockAggregate(updatedAggregate, 'test_stock_aggregates')
+        UpsertService.upsertStockAggregate(updatedAggregate, getTableName('stock_aggregates'))
       ).resolves.not.toThrow();
     });
 
     it('should handle multiple different timestamps for same symbol', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_stock_aggregates', db);
+      await createTestTable(getTableName('stock_aggregates'), db);
 
       const aggregate1: StockAggregate = {
         symbol: 'GOOGL',
@@ -98,15 +101,19 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that both upsert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertStockAggregate(aggregate1, 'test_stock_aggregates')).resolves.not.toThrow();
-      await expect(UpsertService.upsertStockAggregate(aggregate2, 'test_stock_aggregates')).resolves.not.toThrow();
+      await expect(
+        UpsertService.upsertStockAggregate(aggregate1, getTableName('stock_aggregates'))
+      ).resolves.not.toThrow();
+      await expect(
+        UpsertService.upsertStockAggregate(aggregate2, getTableName('stock_aggregates'))
+      ).resolves.not.toThrow();
     });
   });
 
   describe('upsertOptionContract', () => {
     it('should insert option contract record', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_contracts', db);
+      await createTestTable(getTableName('option_contracts'), db);
 
       const contract: OptionContract = {
         ticker: 'AAPL240315C00150000',
@@ -120,12 +127,14 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionContract(contract, 'test_option_contracts')).resolves.not.toThrow();
+      await expect(
+        UpsertService.upsertOptionContract(contract, getTableName('option_contracts'))
+      ).resolves.not.toThrow();
     });
 
     it('should insert multiple option contracts', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_contracts', db);
+      await createTestTable(getTableName('option_contracts'), db);
 
       const contract1: OptionContract = {
         ticker: 'AAPL240315C00150000',
@@ -149,15 +158,19 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that both upsert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionContract(contract1, 'test_option_contracts')).resolves.not.toThrow();
-      await expect(UpsertService.upsertOptionContract(contract2, 'test_option_contracts')).resolves.not.toThrow();
+      await expect(
+        UpsertService.upsertOptionContract(contract1, getTableName('option_contracts'))
+      ).resolves.not.toThrow();
+      await expect(
+        UpsertService.upsertOptionContract(contract2, getTableName('option_contracts'))
+      ).resolves.not.toThrow();
     });
   });
 
   describe('upsertOptionTrade', () => {
     it('should insert option trade record', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_trades', db);
+      await createTestTable(getTableName('option_trades'), db);
 
       const trade: OptionTrade = {
         ticker: 'AAPL240315C00150000',
@@ -173,12 +186,12 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionTrade(trade, 'test_option_trades')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(trade, getTableName('option_trades'))).resolves.not.toThrow();
     });
 
     it('should insert multiple option trades', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_trades', db);
+      await createTestTable(getTableName('option_trades'), db);
 
       const trade1: OptionTrade = {
         ticker: 'AAPL240315C00150000',
@@ -206,13 +219,13 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that both upsert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionTrade(trade1, 'test_option_trades')).resolves.not.toThrow();
-      await expect(UpsertService.upsertOptionTrade(trade2, 'test_option_trades')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(trade1, getTableName('option_trades'))).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(trade2, getTableName('option_trades'))).resolves.not.toThrow();
     });
 
     it('should update existing option trade record', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_trades', db);
+      await createTestTable(getTableName('option_trades'), db);
 
       // Insert initial trade
       const initialTrade: OptionTrade = {
@@ -227,7 +240,7 @@ describe('UpsertService', () => {
         sequence_number: 54321,
       };
 
-      await UpsertService.upsertOptionTrade(initialTrade, 'test_option_trades');
+      await UpsertService.upsertOptionTrade(initialTrade, getTableName('option_trades'));
 
       // Act - Update with new values using exact same identifiers
       const updatedTrade: OptionTrade = {
@@ -244,14 +257,14 @@ describe('UpsertService', () => {
 
       // Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionTrade(updatedTrade, 'test_option_trades')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(updatedTrade, getTableName('option_trades'))).resolves.not.toThrow();
     });
   });
 
   describe('upsertOptionQuote', () => {
     it('should insert option quote record', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_quotes', db);
+      await createTestTable(getTableName('option_quotes'), db);
 
       const quote: OptionQuote = {
         ticker: 'AAPL240315C00150000',
@@ -268,12 +281,12 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionQuote(quote, 'test_option_quotes')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionQuote(quote, getTableName('option_quotes'))).resolves.not.toThrow();
     });
 
     it('should update existing option quote record', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_quotes', db);
+      await createTestTable(getTableName('option_quotes'), db);
 
       // Insert initial quote
       const initialQuote: OptionQuote = {
@@ -289,7 +302,7 @@ describe('UpsertService', () => {
         sequence_number: 98765,
       };
 
-      await UpsertService.upsertOptionQuote(initialQuote, 'test_option_quotes');
+      await UpsertService.upsertOptionQuote(initialQuote, getTableName('option_quotes'));
 
       // Act - Update with new values using exact same identifiers
       const updatedQuote: OptionQuote = {
@@ -307,12 +320,12 @@ describe('UpsertService', () => {
 
       // Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionQuote(updatedQuote, 'test_option_quotes')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionQuote(updatedQuote, getTableName('option_quotes'))).resolves.not.toThrow();
     });
 
     it('should insert multiple option quotes', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_quotes', db);
+      await createTestTable(getTableName('option_quotes'), db);
 
       const quote1: OptionQuote = {
         ticker: 'TSLA240315C00250000',
@@ -342,15 +355,15 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that both upsert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionQuote(quote1, 'test_option_quotes')).resolves.not.toThrow();
-      await expect(UpsertService.upsertOptionQuote(quote2, 'test_option_quotes')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionQuote(quote1, getTableName('option_quotes'))).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionQuote(quote2, getTableName('option_quotes'))).resolves.not.toThrow();
     });
   });
 
   describe('error handling', () => {
     it('should handle database connection errors gracefully for stock aggregates', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_stock_aggregates', db);
+      await createTestTable(getTableName('stock_aggregates'), db);
 
       // Arrange - Invalid data that should cause an error
       const invalidAggregate = {
@@ -487,7 +500,7 @@ describe('UpsertService', () => {
   describe('edge cases and special scenarios', () => {
     it('should handle trades with special characters in ticker', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_trades', db);
+      await createTestTable(getTableName('option_trades'), db);
 
       const trade: OptionTrade = {
         ticker: "AAPL'240315C00150000", // Contains single quote
@@ -503,12 +516,12 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionTrade(trade, 'test_option_trades')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(trade, getTableName('option_trades'))).resolves.not.toThrow();
     });
 
     it('should handle quotes with special characters in ticker', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_quotes', db);
+      await createTestTable(getTableName('option_quotes'), db);
 
       const quote: OptionQuote = {
         ticker: "AAPL'240315C00150000", // Contains single quote
@@ -525,12 +538,12 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionQuote(quote, 'test_option_quotes')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionQuote(quote, getTableName('option_quotes'))).resolves.not.toThrow();
     });
 
     it('should handle trades with special characters in conditions', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_trades', db);
+      await createTestTable(getTableName('option_trades'), db);
 
       const trade: OptionTrade = {
         ticker: 'AAPL240315C00150000',
@@ -546,12 +559,12 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.upsertOptionTrade(trade, 'test_option_trades')).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(trade, getTableName('option_trades'))).resolves.not.toThrow();
     });
 
     it('should handle batch operations with mixed null and non-null values', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_option_trades', db);
+      await createTestTable(getTableName('option_trades'), db);
 
       const trades: OptionTrade[] = [
         {
@@ -580,7 +593,7 @@ describe('UpsertService', () => {
 
       // Act & Assert - Test that the batch upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades')).resolves.not.toThrow();
+      await expect(UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))).resolves.not.toThrow();
     });
   });
 
@@ -593,7 +606,7 @@ describe('UpsertService', () => {
 
       it('should batch upsert multiple stock aggregates', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_stock_aggregates', db);
+        await createTestTable(getTableName('stock_aggregates'), db);
 
         // Create multiple records
         const aggregates: StockAggregate[] = [];
@@ -614,13 +627,13 @@ describe('UpsertService', () => {
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
-          UpsertService.batchUpsertStockAggregates(aggregates, 'test_stock_aggregates')
+          UpsertService.batchUpsertStockAggregates(aggregates, getTableName('stock_aggregates'))
         ).resolves.not.toThrow();
       });
 
       it('should handle large batches by processing in chunks', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_stock_aggregates', db);
+        await createTestTable(getTableName('stock_aggregates'), db);
 
         // Create 75 records to test batching (BATCH_SIZE is 50)
         const aggregates: StockAggregate[] = [];
@@ -641,7 +654,7 @@ describe('UpsertService', () => {
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
-          UpsertService.batchUpsertStockAggregates(aggregates, 'test_stock_aggregates')
+          UpsertService.batchUpsertStockAggregates(aggregates, getTableName('stock_aggregates'))
         ).resolves.not.toThrow();
       });
     });
@@ -654,7 +667,7 @@ describe('UpsertService', () => {
 
       it('should batch upsert multiple option trades', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_option_trades', db);
+        await createTestTable(getTableName('option_trades'), db);
 
         // Create multiple trades
         const trades: OptionTrade[] = [];
@@ -674,12 +687,14 @@ describe('UpsertService', () => {
 
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades')).resolves.not.toThrow();
+        await expect(
+          UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))
+        ).resolves.not.toThrow();
       });
 
       it('should handle large batches by processing in chunks', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_option_trades', db);
+        await createTestTable(getTableName('option_trades'), db);
 
         // Create 150 records to test batching (BATCH_SIZE is 100)
         const trades: OptionTrade[] = [];
@@ -699,12 +714,14 @@ describe('UpsertService', () => {
 
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades')).resolves.not.toThrow();
+        await expect(
+          UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))
+        ).resolves.not.toThrow();
       });
 
       it('should handle trades with null values correctly', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_option_trades', db);
+        await createTestTable(getTableName('option_trades'), db);
 
         const trades: OptionTrade[] = [
           {
@@ -733,7 +750,9 @@ describe('UpsertService', () => {
 
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(UpsertService.batchUpsertOptionTrades(trades, 'test_option_trades')).resolves.not.toThrow();
+        await expect(
+          UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))
+        ).resolves.not.toThrow();
       });
     });
 
@@ -745,7 +764,7 @@ describe('UpsertService', () => {
 
       it('should batch upsert multiple option quotes', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_option_quotes', db);
+        await createTestTable(getTableName('option_quotes'), db);
 
         // Create multiple quotes
         const quotes: OptionQuote[] = [];
@@ -766,12 +785,14 @@ describe('UpsertService', () => {
 
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(UpsertService.batchUpsertOptionQuotes(quotes, 'test_option_quotes')).resolves.not.toThrow();
+        await expect(
+          UpsertService.batchUpsertOptionQuotes(quotes, getTableName('option_quotes'))
+        ).resolves.not.toThrow();
       });
 
       it('should handle large batches by processing in chunks', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_option_quotes', db);
+        await createTestTable(getTableName('option_quotes'), db);
 
         // Create 150 records to test batching (BATCH_SIZE is 100)
         const quotes: OptionQuote[] = [];
@@ -792,12 +813,14 @@ describe('UpsertService', () => {
 
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(UpsertService.batchUpsertOptionQuotes(quotes, 'test_option_quotes')).resolves.not.toThrow();
+        await expect(
+          UpsertService.batchUpsertOptionQuotes(quotes, getTableName('option_quotes'))
+        ).resolves.not.toThrow();
       });
 
       it('should handle quotes with null values correctly', async () => {
         // Arrange - Create table using schema helper
-        await createTestTable('test_option_quotes', db);
+        await createTestTable(getTableName('option_quotes'), db);
 
         const quotes: OptionQuote[] = [
           {
@@ -828,7 +851,9 @@ describe('UpsertService', () => {
 
         // Act & Assert - Test that the batch upsert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(UpsertService.batchUpsertOptionQuotes(quotes, 'test_option_quotes')).resolves.not.toThrow();
+        await expect(
+          UpsertService.batchUpsertOptionQuotes(quotes, getTableName('option_quotes'))
+        ).resolves.not.toThrow();
       });
     });
   });
@@ -836,7 +861,7 @@ describe('UpsertService', () => {
   describe('performance and bulk operations', () => {
     it('should handle bulk inserts efficiently', async () => {
       // Arrange - Create table using schema helper
-      await createTestTable('test_stock_aggregates', db);
+      await createTestTable(getTableName('stock_aggregates'), db);
 
       // Create multiple records
       const aggregates: StockAggregate[] = [];
@@ -858,7 +883,9 @@ describe('UpsertService', () => {
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       const startTime = Date.now();
       for (const aggregate of aggregates) {
-        await expect(UpsertService.upsertStockAggregate(aggregate, 'test_stock_aggregates')).resolves.not.toThrow();
+        await expect(
+          UpsertService.upsertStockAggregate(aggregate, getTableName('stock_aggregates'))
+        ).resolves.not.toThrow();
       }
       const endTime = Date.now();
 

@@ -9,9 +9,14 @@ import pLimit from 'p-limit';
 
 /**
  * Get table name with test prefix if in test environment
+ * Resilient to double prefixes - if already prefixed, returns as-is
  */
 function getTableName(originalTableName: string): string {
   if (process.env.NODE_ENV === 'test') {
+    // Check if already has test prefix to avoid double prefixes
+    if (originalTableName.startsWith('test_')) {
+      return originalTableName;
+    }
     return `test_${originalTableName}`;
   }
   return originalTableName;

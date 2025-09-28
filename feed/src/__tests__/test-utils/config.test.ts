@@ -14,6 +14,34 @@ describe('Test Configuration Utilities', () => {
       expect(getTableName('stock_trades')).toBe('stock_trades');
       expect(getTableName('option_contracts')).toBe('option_contracts');
     });
+
+    it('should be resilient to double prefixes', () => {
+      process.env.NODE_ENV = 'test';
+      // Test that already prefixed names are not double-prefixed
+      expect(getTableName('test_stock_trades')).toBe('test_stock_trades');
+      expect(getTableName('test_option_contracts')).toBe('test_option_contracts');
+
+      // Test that calling getTableName multiple times doesn't add more prefixes
+      const once = getTableName('stock_trades');
+      const twice = getTableName(once);
+      const thrice = getTableName(twice);
+
+      expect(once).toBe('test_stock_trades');
+      expect(twice).toBe('test_stock_trades');
+      expect(thrice).toBe('test_stock_trades');
+    });
+
+    it('should handle edge cases', () => {
+      process.env.NODE_ENV = 'test';
+      // Test with empty string
+      expect(getTableName('')).toBe('test_');
+
+      // Test with string that starts with test_ but is not exactly test_
+      expect(getTableName('test_something')).toBe('test_something');
+
+      // Test with string that contains test_ but doesn't start with it
+      expect(getTableName('my_test_table')).toBe('test_my_test_table');
+    });
   });
 
   describe('testDataGenerators', () => {

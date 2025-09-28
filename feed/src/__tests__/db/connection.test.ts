@@ -2,6 +2,7 @@
 import { QuestDBConnection } from '../../db/connection';
 import { createTestTable, getTestTableSchema, getAllTestTableSchemas } from '../test-utils/schema-helper';
 import { waitForRecordCount } from '../test-utils/data-verification';
+import { getTableName } from '../test-utils/config';
 
 // QuestDBConnection tests with real database connection
 describe('QuestDBConnection', () => {
@@ -248,18 +249,22 @@ describe('QuestDBConnection', () => {
 
     it('should handle string parameters with single quotes', async () => {
       // Create test table using schema helper
-      await createTestTable('test_stock_trades', connection);
+      await createTestTable(getTableName('stock_trades'), connection);
 
       // Insert data with single quotes
       await connection.query(
-        "INSERT INTO test_stock_trades VALUES ('AAPL', '2024-01-01T10:00:00Z', 100.5, 100, '[]', 1, 1, 'test''s trade')"
+        `INSERT INTO ${getTableName(
+          'stock_trades'
+        )} VALUES ('AAPL', '2024-01-01T10:00:00Z', 100.5, 100, '[]', 1, 1, 'test''s trade')`
       );
 
       // Wait for data to be available
-      await waitForRecordCount('test_stock_trades', 1);
+      await waitForRecordCount(getTableName('stock_trades'), 1);
 
       // Query with parameter containing single quotes
-      const result = await connection.query('SELECT * FROM test_stock_trades WHERE trade_id = $1', ["test's trade"]);
+      const result = await connection.query(`SELECT * FROM ${getTableName('stock_trades')} WHERE trade_id = $1`, [
+        "test's trade",
+      ]);
 
       expect(result).toBeDefined();
       expect((result as any).dataset).toBeDefined();

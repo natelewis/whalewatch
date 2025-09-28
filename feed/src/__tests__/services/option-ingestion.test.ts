@@ -4,6 +4,7 @@ import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/data
 import { waitForSingleRecordWithCondition, waitForRecordsWithCondition } from '../test-utils/data-verification';
 import { OptionTrade, OptionQuote } from '../../types/database';
 import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../../types/polygon';
+import { getTableName } from '../test-utils/config';
 
 // Mock p-limit
 jest.mock('p-limit', () => {
@@ -104,11 +105,15 @@ describe('OptionIngestionService', () => {
       expect(mockPolygonClient.getOptionContracts).toHaveBeenCalledWith(underlyingTicker, asOf);
 
       // Verify contracts were created in real database
-      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 2);
+      await waitForRecordsWithCondition(
+        getTableName('option_contracts'),
+        `underlying_ticker = '${underlyingTicker}'`,
+        2
+      );
 
       // Verify index record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contract_index',
+        getTableName('option_contract_index'),
         `underlying_ticker = '${underlyingTicker}'`
       );
 
@@ -152,7 +157,7 @@ describe('OptionIngestionService', () => {
 
       // Verify index record was still created even with empty contracts
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contract_index',
+        getTableName('option_contract_index'),
         `underlying_ticker = '${underlyingTicker}'`
       );
 
@@ -188,7 +193,7 @@ describe('OptionIngestionService', () => {
 
       // Verify contract was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contracts',
+        getTableName('option_contracts'),
         `ticker = 'O:${underlyingTicker}240315C00150000'`
       );
 
@@ -228,7 +233,7 @@ describe('OptionIngestionService', () => {
 
       // Verify contract was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contracts',
+        getTableName('option_contracts'),
         `ticker = 'O:${underlyingTicker}240315C00150000'`
       );
 

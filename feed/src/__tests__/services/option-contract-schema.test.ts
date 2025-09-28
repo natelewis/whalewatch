@@ -5,6 +5,7 @@ import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/data
 import { waitForSingleRecordWithCondition, waitForRecordsWithCondition } from '../test-utils/data-verification';
 import { OptionContract, OptionContractIndex } from '../../types/database';
 import { PolygonOptionContract } from '../../types/polygon';
+import { getTableName } from '../test-utils/config';
 
 // Mock p-limit
 jest.mock('p-limit', () => {
@@ -94,7 +95,7 @@ describe('Option Contract Schema Migration', () => {
 
       // Assert - Verify the record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contracts',
+        getTableName('option_contracts'),
         `ticker = '${contract.ticker}'`
       );
 
@@ -135,7 +136,7 @@ describe('Option Contract Schema Migration', () => {
 
       // Assert - Verify the record was updated in real database
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contracts',
+        getTableName('option_contracts'),
         `ticker = '${contract.ticker}'`
       );
 
@@ -164,7 +165,7 @@ describe('Option Contract Schema Migration', () => {
 
       // Assert - Verify the record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contract_index',
+        getTableName('option_contract_index'),
         `underlying_ticker = '${index.underlying_ticker}'`
       );
 
@@ -188,7 +189,7 @@ describe('Option Contract Schema Migration', () => {
 
       // Assert - Verify only one record exists
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contract_index',
+        getTableName('option_contract_index'),
         `underlying_ticker = '${index.underlying_ticker}'`
       );
 
@@ -239,11 +240,15 @@ describe('Option Contract Schema Migration', () => {
       expect(mockPolygonClient.getOptionContracts).toHaveBeenCalledWith(underlyingTicker, asOf);
 
       // Verify contracts were created in real database
-      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 2);
+      await waitForRecordsWithCondition(
+        getTableName('option_contracts'),
+        `underlying_ticker = '${underlyingTicker}'`,
+        2
+      );
 
       // Verify index record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        'test_option_contract_index',
+        getTableName('option_contract_index'),
         `underlying_ticker = '${underlyingTicker}'`
       );
 
@@ -341,17 +346,17 @@ describe('Option Contract Schema Migration', () => {
       await UpsertService.batchUpsertOptionContracts(contracts);
 
       // Assert - Verify contracts were created in real database
-      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = 'AAPL_${uniqueId}'`, 2);
+      await waitForRecordsWithCondition(getTableName('option_contracts'), `underlying_ticker = 'AAPL_${uniqueId}'`, 2);
 
       // Verify the specific contracts exist
       const questResult1 = await waitForSingleRecordWithCondition(
-        'test_option_contracts',
+        getTableName('option_contracts'),
         `ticker = 'O:AAPL${uniqueId}240315C00150000'`
       );
       expect(questResult1.contract_type).toBe('call');
 
       const questResult2 = await waitForSingleRecordWithCondition(
-        'test_option_contracts',
+        getTableName('option_contracts'),
         `ticker = 'O:AAPL${uniqueId}240315P00150000'`
       );
       expect(questResult2.contract_type).toBe('put');

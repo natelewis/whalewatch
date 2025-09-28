@@ -3,6 +3,7 @@
 
 import { dropAllTestTables, createTestTables } from './test-utils/database';
 import { db } from '../db/connection';
+import { getTableName } from './test-utils/config';
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
@@ -59,11 +60,11 @@ async function cleanupTestData(): Promise<void> {
   try {
     // Delete test data from all test tables
     const testTables = [
-      'test_stock_aggregates',
-      'test_option_contracts',
-      'test_option_contract_index',
-      'test_stock_trades',
-      'test_option_trades',
+      getTableName('stock_aggregates'),
+      getTableName('option_contracts'),
+      getTableName('option_contract_index'),
+      getTableName('stock_trades'),
+      getTableName('option_trades'),
     ];
 
     for (const table of testTables) {
