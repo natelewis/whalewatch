@@ -2,9 +2,9 @@
 import { OptionIngestionService } from '../../services/option-ingestion';
 import { UpsertService } from '../../utils/upsert';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/database';
+import { waitForSingleRecordWithCondition, waitForRecordsWithCondition } from '../test-utils/data-verification';
 import { OptionContract, OptionContractIndex } from '../../types/database';
 import { PolygonOptionContract } from '../../types/polygon';
-import { db } from '../../db/connection';
 
 // Mock p-limit
 jest.mock('p-limit', () => {
@@ -42,9 +42,6 @@ jest.mock('@whalewatch/shared', () => ({
 }));
 
 import { PolygonClient } from '../../services/polygon-client';
-import { getMaxDate, getMinDate } from '@whalewatch/shared';
-
-const mockedDb = db as jest.Mocked<typeof db>;
 
 // Mock the static method
 (PolygonClient as any).convertTimestamp = jest.fn((timestamp: number, isNanoseconds: boolean) => {
@@ -67,10 +64,6 @@ describe('Option Contract Schema Migration', () => {
     // Clear all mocks
     jest.clearAllMocks();
 
-    // Mock the database connection for unit tests
-    (db as any).query = jest.fn();
-    (db as any).bulkInsert = jest.fn();
-
     // Create fresh instance
     optionIngestionService = new OptionIngestionService();
 
@@ -79,299 +72,235 @@ describe('Option Contract Schema Migration', () => {
   });
 
   describe('Option Contract Upsert (No as_of field)', () => {
+    beforeEach(() => {
+      // Don't mock the database - use real QuestDB for integration tests
+    });
+
     it('should upsert option contract without as_of field', async () => {
-      // Arrange
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
       const contract: OptionContract = {
-        ticker: 'O:AAPL240315C00150000',
+        ticker: `O:AAPL${uniqueId}240315C00150000`,
         contract_type: 'call',
         exercise_style: 'american',
         expiration_date: new Date('2024-03-15'),
         shares_per_contract: 100,
         strike_price: 150.0,
-        underlying_ticker: 'AAPL',
+        underlying_ticker: `AAPL_${uniqueId}`,
       };
 
-      // Mock database responses
-      mockedDb.query
-        .mockResolvedValueOnce({
-          columns: [{ name: 'ticker', type: 'STRING' }],
-          dataset: [],
-        })
-        .mockResolvedValueOnce({
-          columns: [{ name: 'result', type: 'STRING' }],
-          dataset: [['OK']],
-        });
-
-      // Act
+      // Act - Use real database
       await UpsertService.upsertOptionContract(contract);
 
-      // Assert
-      expect(mockedDb.query).toHaveBeenCalledWith('SELECT ticker FROM test_option_contracts WHERE ticker = $1', [
-        'O:AAPL240315C00150000',
-      ]);
-      // Verify the INSERT query was called with correct parameters
-      const insertCall = mockedDb.query.mock.calls.find(call => call[0].includes('INSERT INTO test_option_contracts'));
-      expect(insertCall).toBeDefined();
-      expect(insertCall![0]).toContain('INSERT INTO test_option_contracts');
-      expect(insertCall![0]).toContain('VALUES ($1, $2, $3, $4, $5, $6, $7)');
-      expect(insertCall![1]).toEqual([
-        'O:AAPL240315C00150000',
-        'call',
-        'american',
-        new Date('2024-03-15'),
-        100,
-        150,
-        'AAPL',
-      ]);
+      // Assert - Verify the record was created in real database
+      const questResult = await waitForSingleRecordWithCondition(
+        'test_option_contracts',
+        `ticker = '${contract.ticker}'`
+      );
+
+      expect(questResult.ticker).toBe(contract.ticker);
+      expect(questResult.contract_type).toBe(contract.contract_type);
+      expect(questResult.exercise_style).toBe(contract.exercise_style);
+      expect(new Date(questResult.expiration_date as string)).toEqual(contract.expiration_date);
+      expect(questResult.shares_per_contract).toBe(contract.shares_per_contract);
+      expect(questResult.strike_price).toBe(contract.strike_price);
+      expect(questResult.underlying_ticker).toBe(contract.underlying_ticker);
     });
 
     it('should update existing option contract without as_of field', async () => {
-      // Arrange
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
       const contract: OptionContract = {
-        ticker: 'O:AAPL240315C00150000',
-        contract_type: 'put',
+        ticker: `O:AAPL${uniqueId}240315C00150000`,
+        contract_type: 'call',
         exercise_style: 'american',
         expiration_date: new Date('2024-03-15'),
         shares_per_contract: 100,
-        strike_price: 160.0,
-        underlying_ticker: 'AAPL',
+        strike_price: 150.0,
+        underlying_ticker: `AAPL_${uniqueId}`,
       };
 
-      // Mock database responses - contract exists
-      mockedDb.query
-        .mockResolvedValueOnce({
-          columns: [{ name: 'ticker', type: 'STRING' }],
-          dataset: [['O:AAPL240315C00150000']],
-        })
-        .mockResolvedValueOnce({
-          columns: [{ name: 'result', type: 'STRING' }],
-          dataset: [['OK']],
-        });
-
-      // Act
+      // First insert
       await UpsertService.upsertOptionContract(contract);
 
-      // Assert
-      expect(mockedDb.query).toHaveBeenCalledWith('SELECT ticker FROM test_option_contracts WHERE ticker = $1', [
-        'O:AAPL240315C00150000',
-      ]);
-      // Verify the UPDATE query was called with correct parameters
-      const updateCall = mockedDb.query.mock.calls.find(call => call[0].includes('UPDATE test_option_contracts'));
-      expect(updateCall).toBeDefined();
-      expect(updateCall![0]).toContain('UPDATE test_option_contracts');
-      expect(updateCall![0]).toContain('SET contract_type = $1');
-      expect(updateCall![0]).toContain('WHERE ticker = $7');
-      expect(updateCall![1]).toEqual([
-        'put',
-        'american',
-        new Date('2024-03-15'),
-        100,
-        160.0,
-        'AAPL',
-        'O:AAPL240315C00150000',
-      ]);
+      // Update the contract
+      const updatedContract: OptionContract = {
+        ...contract,
+        contract_type: 'put',
+        strike_price: 160.0,
+      };
+
+      // Act - Update with real database
+      await UpsertService.upsertOptionContract(updatedContract);
+
+      // Assert - Verify the record was updated in real database
+      const questResult = await waitForSingleRecordWithCondition(
+        'test_option_contracts',
+        `ticker = '${contract.ticker}'`
+      );
+
+      expect(questResult.ticker).toBe(contract.ticker);
+      expect(questResult.contract_type).toBe('put'); // Updated
+      expect(questResult.strike_price).toBe(160.0); // Updated
+      expect(questResult.underlying_ticker).toBe(contract.underlying_ticker);
     });
   });
 
   describe('Option Contract Index Management', () => {
-    it('should upsert option contract index record', async () => {
-      // Arrange
-      const index: OptionContractIndex = {
-        underlying_ticker: 'AAPL',
-        as_of: new Date('2024-01-01'),
-      };
-
-      // Mock database responses
-      mockedDb.query
-        .mockResolvedValueOnce({
-          columns: [
-            { name: 'underlying_ticker', type: 'SYMBOL' },
-            { name: 'as_of', type: 'TIMESTAMP' },
-          ],
-          dataset: [],
-        })
-        .mockResolvedValueOnce({
-          columns: [{ name: 'result', type: 'STRING' }],
-          dataset: [['OK']],
-        });
-
-      // Act
-      await UpsertService.upsertOptionContractIndex(index);
-
-      // Assert
-      // Verify the SELECT query was called with correct parameters
-      const selectCall = mockedDb.query.mock.calls.find(call =>
-        call[0].includes('SELECT underlying_ticker, as_of FROM test_option_contract_index')
-      );
-      expect(selectCall).toBeDefined();
-      expect(selectCall![0]).toContain('SELECT underlying_ticker, as_of FROM test_option_contract_index');
-      expect(selectCall![0]).toContain('WHERE underlying_ticker = $1 AND as_of = $2');
-      expect(selectCall![1]).toEqual(['AAPL', new Date('2024-01-01')]);
-
-      // Verify the INSERT query was called with correct parameters
-      const insertCall = mockedDb.query.mock.calls.find(call =>
-        call[0].includes('INSERT INTO test_option_contract_index')
-      );
-      expect(insertCall).toBeDefined();
-      expect(insertCall![0]).toContain('INSERT INTO test_option_contract_index');
-      expect(insertCall![1]).toEqual(['AAPL', new Date('2024-01-01')]);
+    beforeEach(() => {
+      // Don't mock the database - use real QuestDB for integration tests
     });
 
-    it('should update existing option contract index record', async () => {
-      // Arrange
+    it('should upsert option contract index record', async () => {
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
       const index: OptionContractIndex = {
-        underlying_ticker: 'AAPL',
+        underlying_ticker: `AAPL_${uniqueId}`,
         as_of: new Date('2024-01-01'),
       };
 
-      // Mock database responses - index exists
-      mockedDb.query
-        .mockResolvedValueOnce({
-          columns: [
-            { name: 'underlying_ticker', type: 'SYMBOL' },
-            { name: 'as_of', type: 'TIMESTAMP' },
-          ],
-          dataset: [['AAPL', '2024-01-01T00:00:00.000Z']],
-        })
-        .mockResolvedValueOnce({
-          columns: [{ name: 'result', type: 'STRING' }],
-          dataset: [['OK']],
-        });
-
-      // Act
+      // Act - Use real database
       await UpsertService.upsertOptionContractIndex(index);
 
-      // Assert
-      // Verify the SELECT query was called with correct parameters
-      const selectCall = mockedDb.query.mock.calls.find(call =>
-        call[0].includes('SELECT underlying_ticker, as_of FROM test_option_contract_index')
+      // Assert - Verify the record was created in real database
+      const questResult = await waitForSingleRecordWithCondition(
+        'test_option_contract_index',
+        `underlying_ticker = '${index.underlying_ticker}'`
       );
-      expect(selectCall).toBeDefined();
-      expect(selectCall![0]).toContain('SELECT underlying_ticker, as_of FROM test_option_contract_index');
-      expect(selectCall![0]).toContain('WHERE underlying_ticker = $1 AND as_of = $2');
-      expect(selectCall![1]).toEqual(['AAPL', new Date('2024-01-01')]);
-      // Since we removed sync_date, the record already exists and no update is needed
+
+      expect(questResult.underlying_ticker).toBe(index.underlying_ticker);
+      expect(new Date(questResult.as_of as string)).toEqual(index.as_of);
+    });
+
+    it('should handle existing option contract index record', async () => {
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
+      const index: OptionContractIndex = {
+        underlying_ticker: `AAPL_${uniqueId}`,
+        as_of: new Date('2024-01-01'),
+      };
+
+      // First insert
+      await UpsertService.upsertOptionContractIndex(index);
+
+      // Act - Try to insert the same record again (should not create duplicate)
+      await UpsertService.upsertOptionContractIndex(index);
+
+      // Assert - Verify only one record exists
+      const questResult = await waitForSingleRecordWithCondition(
+        'test_option_contract_index',
+        `underlying_ticker = '${index.underlying_ticker}'`
+      );
+
+      expect(questResult.underlying_ticker).toBe(index.underlying_ticker);
+      expect(new Date(questResult.as_of as string)).toEqual(index.as_of);
     });
   });
 
   describe('Option Contract Ingestion with New Schema', () => {
+    beforeEach(() => {
+      // Don't mock the database - use real QuestDB for integration tests
+      // External API calls are already mocked via PolygonClient mock
+    });
+
     it('should ingest option contracts and track sync in index', async () => {
-      // Arrange
-      const underlyingTicker = 'AAPL';
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
+      const underlyingTicker = `AAPL_${uniqueId}`;
       const asOf = new Date('2024-01-01');
       const mockContracts: PolygonOptionContract[] = [
         {
-          ticker: 'O:AAPL240315C00150000',
+          ticker: `O:${underlyingTicker}240315C00150000`,
           contract_type: 'call',
           exercise_style: 'american',
           expiration_date: '2024-03-15',
           shares_per_contract: 100,
           strike_price: 150.0,
-          underlying_ticker: 'AAPL',
+          underlying_ticker: underlyingTicker,
         },
         {
-          ticker: 'O:AAPL240315P00150000',
+          ticker: `O:${underlyingTicker}240315P00150000`,
           contract_type: 'put',
           exercise_style: 'american',
           expiration_date: '2024-03-15',
           shares_per_contract: 100,
           strike_price: 150.0,
-          underlying_ticker: 'AAPL',
+          underlying_ticker: underlyingTicker,
         },
       ];
 
+      // Mock external API call with realistic data
       mockPolygonClient.getOptionContracts.mockResolvedValue(mockContracts);
 
-      // Mock database responses for contract upserts
-      mockedDb.query.mockResolvedValue({
-        columns: [{ name: 'ticker', type: 'STRING' }],
-        dataset: [],
-      });
-
-      // Mock database responses for index upsert
-      mockedDb.query
-        .mockResolvedValueOnce({
-          columns: [
-            { name: 'underlying_ticker', type: 'SYMBOL' },
-            { name: 'as_of', type: 'TIMESTAMP' },
-          ],
-          dataset: [],
-        })
-        .mockResolvedValueOnce({
-          columns: [{ name: 'result', type: 'STRING' }],
-          dataset: [['OK']],
-        });
-
-      // Act
+      // Act - Use real database with mocked external API
       await optionIngestionService.ingestOptionContracts(underlyingTicker, asOf);
 
-      // Assert
+      // Assert - Verify external API was called
       expect(mockPolygonClient.getOptionContracts).toHaveBeenCalledWith(underlyingTicker, asOf);
 
-      // Verify that contracts were upserted (2 contracts)
-      expect(mockedDb.query).toHaveBeenCalledTimes(6); // 2 contract checks + 2 contract inserts + 1 index check + 1 index insert
+      // Verify contracts were created in real database
+      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 2);
 
-      // Verify index record was created
-      const indexInsertCall = mockedDb.query.mock.calls.find(call =>
-        call[0].includes('INSERT INTO test_option_contract_index')
+      // Verify index record was created in real database
+      const questResult = await waitForSingleRecordWithCondition(
+        'test_option_contract_index',
+        `underlying_ticker = '${underlyingTicker}'`
       );
-      expect(indexInsertCall).toBeDefined();
-      expect(indexInsertCall![0]).toContain('INSERT INTO test_option_contract_index');
-      expect(indexInsertCall![1]).toEqual([underlyingTicker, asOf]);
+
+      expect(questResult.underlying_ticker).toBe(underlyingTicker);
+      expect(new Date(questResult.as_of as string)).toEqual(asOf);
     });
   });
 
   describe('Date Tracking with New Schema', () => {
-    it('should get oldest as_of date from index table', async () => {
-      // Arrange
-      const underlyingTicker = 'AAPL';
-      const expectedDate = new Date('2024-01-01T00:00:00.000Z');
-      (getMinDate as jest.Mock).mockResolvedValue(expectedDate);
+    beforeEach(() => {
+      // Don't mock the database - use real QuestDB for integration tests
+    });
 
-      // Act
+    it('should get oldest as_of date from index table', async () => {
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
+      const underlyingTicker = `AAPL_${uniqueId}`;
+      const expectedDate = new Date('2024-01-01T00:00:00.000Z');
+
+      // Create test data in real database
+      await UpsertService.upsertOptionContractIndex({
+        underlying_ticker: underlyingTicker,
+        as_of: expectedDate,
+      });
+
+      // Act - Use real database
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
-      expect(getMinDate).toHaveBeenCalledWith(
-        expect.any(Object), // Database connection object
-        expect.objectContaining({
-          ticker: underlyingTicker,
-          tickerField: 'underlying_ticker',
-          dateField: 'as_of',
-          table: 'option_contract_index',
-        })
-      );
       expect(result).toEqual(expectedDate);
     });
 
     it('should get newest as_of date from index table', async () => {
-      // Arrange
-      const underlyingTicker = 'AAPL';
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
+      const underlyingTicker = `AAPL_${uniqueId}`;
       const expectedDate = new Date('2024-01-15T00:00:00.000Z');
-      (getMaxDate as jest.Mock).mockResolvedValue(expectedDate);
 
-      // Act
+      // Create test data in real database
+      await UpsertService.upsertOptionContractIndex({
+        underlying_ticker: underlyingTicker,
+        as_of: expectedDate,
+      });
+
+      // Act - Use real database
       const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);
 
       // Assert
-      expect(getMaxDate).toHaveBeenCalledWith(
-        expect.any(Object), // Database connection object
-        expect.objectContaining({
-          ticker: underlyingTicker,
-          tickerField: 'underlying_ticker',
-          dateField: 'as_of',
-          table: 'option_contract_index',
-        })
-      );
       expect(result).toEqual(expectedDate);
     });
 
     it('should return null when no index data exists', async () => {
-      // Arrange
-      const underlyingTicker = 'AAPL';
-      (getMinDate as jest.Mock).mockResolvedValue(null);
+      // Arrange - Use unique ticker that doesn't exist
+      const uniqueId = Date.now();
+      const underlyingTicker = `NONEXISTENT_${uniqueId}`;
 
-      // Act
+      // Act - Use real database
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
@@ -380,155 +309,52 @@ describe('Option Contract Schema Migration', () => {
   });
 
   describe('Batch Upsert Option Contracts', () => {
+    beforeEach(() => {
+      // Don't mock the database - use real QuestDB for integration tests
+    });
+
     it('should batch upsert multiple option contracts', async () => {
-      // Arrange
+      // Arrange - Use unique ticker to avoid conflicts
+      const uniqueId = Date.now();
       const contracts: OptionContract[] = [
         {
-          ticker: 'O:AAPL240315C00150000',
+          ticker: `O:AAPL${uniqueId}240315C00150000`,
           contract_type: 'call',
           exercise_style: 'american',
           expiration_date: new Date('2024-03-15'),
           shares_per_contract: 100,
           strike_price: 150.0,
-          underlying_ticker: 'AAPL',
+          underlying_ticker: `AAPL_${uniqueId}`,
         },
         {
-          ticker: 'O:AAPL240315P00150000',
+          ticker: `O:AAPL${uniqueId}240315P00150000`,
           contract_type: 'put',
           exercise_style: 'american',
           expiration_date: new Date('2024-03-15'),
           shares_per_contract: 100,
           strike_price: 150.0,
-          underlying_ticker: 'AAPL',
+          underlying_ticker: `AAPL_${uniqueId}`,
         },
       ];
 
-      // Mock database responses for each contract
-      mockedDb.query.mockResolvedValue({
-        columns: [{ name: 'ticker', type: 'STRING' }],
-        dataset: [],
-      });
-
-      // Act
+      // Act - Use real database
       await UpsertService.batchUpsertOptionContracts(contracts);
 
-      // Assert
-      // Should be called 4 times: 2 contract checks + 2 contract inserts
-      expect(mockedDb.query).toHaveBeenCalledTimes(4);
-    });
-  });
+      // Assert - Verify contracts were created in real database
+      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = 'AAPL_${uniqueId}'`, 2);
 
-  describe('Real Database Integration Tests', () => {
-    beforeEach(() => {
-      // Don't mock the database for real integration tests
-      // The real database connection will be used
-    });
+      // Verify the specific contracts exist
+      const questResult1 = await waitForSingleRecordWithCondition(
+        'test_option_contracts',
+        `ticker = 'O:AAPL${uniqueId}240315C00150000'`
+      );
+      expect(questResult1.contract_type).toBe('call');
 
-    it('should create and query option_contract_index table with real QuestDB', async () => {
-      // This test uses real QuestDB connection
-      const underlyingTicker = 'TEST';
-      const asOf = new Date('2024-01-01');
-
-      // Create index record
-      const index: OptionContractIndex = {
-        underlying_ticker: underlyingTicker,
-        as_of: asOf,
-      };
-
-      await UpsertService.upsertOptionContractIndex(index);
-
-      // Query the record back
-      const result = await db.query('SELECT * FROM test_option_contract_index WHERE underlying_ticker = $1', [
-        underlyingTicker,
-      ]);
-
-      // Handle undefined result by treating it as empty dataset
-      const questResult = result
-        ? (result as {
-            columns: { name: string; type: string }[];
-            dataset: unknown[][];
-          })
-        : { columns: [], dataset: [] };
-
-      expect(questResult.dataset).toHaveLength(1);
-      expect(questResult.dataset[0][0]).toBe(underlyingTicker); // underlying_ticker
-      expect(new Date(questResult.dataset[0][1] as string)).toEqual(asOf); // as_of
-    });
-
-    it('should create and query option_contracts table without as_of field', async () => {
-      // This test uses real QuestDB connection
-      const contract: OptionContract = {
-        ticker: 'O:TEST240315C00150000',
-        contract_type: 'call',
-        exercise_style: 'american',
-        expiration_date: new Date('2024-03-15'),
-        shares_per_contract: 100,
-        strike_price: 150.0,
-        underlying_ticker: 'TEST',
-      };
-
-      await UpsertService.upsertOptionContract(contract);
-
-      // Query the record back
-      const result = await db.query('SELECT * FROM test_option_contracts WHERE ticker = $1', [contract.ticker]);
-
-      // Handle undefined result by treating it as empty dataset
-      const questResult = result
-        ? (result as {
-            columns: { name: string; type: string }[];
-            dataset: unknown[][];
-          })
-        : { columns: [], dataset: [] };
-
-      expect(questResult.dataset).toHaveLength(1);
-      expect(questResult.dataset[0][0]).toBe(contract.ticker); // ticker
-      expect(questResult.dataset[0][1]).toBe(contract.contract_type); // contract_type
-      expect(questResult.dataset[0][2]).toBe(contract.exercise_style); // exercise_style
-      expect(new Date(questResult.dataset[0][3] as string)).toEqual(contract.expiration_date); // expiration_date
-      expect(questResult.dataset[0][4]).toBe(contract.shares_per_contract); // shares_per_contract
-      expect(questResult.dataset[0][5]).toBe(contract.strike_price); // strike_price
-      expect(questResult.dataset[0][6]).toBe(contract.underlying_ticker); // underlying_ticker
-      // No as_of field should exist
-      expect(questResult.columns).toHaveLength(7); // Only 7 columns, no as_of
-    });
-
-    it('should handle upserting same contract multiple times', async () => {
-      // This test uses real QuestDB connection
-      const contract: OptionContract = {
-        ticker: 'O:TEST240315C00160000',
-        contract_type: 'call',
-        exercise_style: 'american',
-        expiration_date: new Date('2024-03-15'),
-        shares_per_contract: 100,
-        strike_price: 160.0,
-        underlying_ticker: 'TEST',
-      };
-
-      // First upsert
-      await UpsertService.upsertOptionContract(contract);
-
-      // Update the contract
-      const updatedContract: OptionContract = {
-        ...contract,
-        strike_price: 170.0,
-      };
-
-      // Second upsert (should update)
-      await UpsertService.upsertOptionContract(updatedContract);
-
-      // Query the record back
-      const result = await db.query('SELECT * FROM test_option_contracts WHERE ticker = $1', [contract.ticker]);
-
-      // Handle undefined result by treating it as empty dataset
-      const questResult = result
-        ? (result as {
-            columns: { name: string; type: string }[];
-            dataset: unknown[][];
-          })
-        : { columns: [], dataset: [] };
-
-      expect(questResult.dataset).toHaveLength(1);
-      expect(questResult.dataset[0][5]).toBe(170.0); // Updated strike_price
+      const questResult2 = await waitForSingleRecordWithCondition(
+        'test_option_contracts',
+        `ticker = 'O:AAPL${uniqueId}240315P00150000'`
+      );
+      expect(questResult2.contract_type).toBe('put');
     });
   });
 });

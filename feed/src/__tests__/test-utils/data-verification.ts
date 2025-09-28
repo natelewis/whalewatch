@@ -37,7 +37,7 @@ export async function waitForRecordCount(
 
     try {
       const result = await db.query(`SELECT COUNT(*) as count FROM ${tableName}`);
-      const questResult = result as { dataset: unknown[][] };
+      const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
       const actualCount = questResult.dataset && questResult.dataset.length > 0 ? Number(questResult.dataset[0][0]) : 0;
 
       if (actualCount === expectedCount) {
@@ -61,7 +61,7 @@ export async function waitForRecordCount(
   // Final attempt to get the actual count for error message
   try {
     const result = await db.query(`SELECT COUNT(*) as count FROM ${tableName}`);
-    const questResult = result as { dataset: unknown[][] };
+    const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
     const actualCount = questResult.dataset && questResult.dataset.length > 0 ? Number(questResult.dataset[0][0]) : 0;
 
     throw new Error(
@@ -97,10 +97,12 @@ export async function waitForRecordWithValues(
 
     try {
       const result = await db.query(`SELECT * FROM ${tableName} WHERE ${whereClause}`);
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       if (questResult.dataset && questResult.dataset.length > 0) {
         const record = questResult.dataset[0];
@@ -169,7 +171,7 @@ export async function waitForSymbolRecordCount(
 
     try {
       const result = await db.query(`SELECT COUNT(*) as count FROM ${tableName} WHERE symbol = '${symbol}'`);
-      const questResult = result as { dataset: unknown[][] };
+      const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
       const actualCount = questResult.dataset && questResult.dataset.length > 0 ? Number(questResult.dataset[0][0]) : 0;
 
       if (actualCount === expectedCount) {
@@ -193,7 +195,7 @@ export async function waitForSymbolRecordCount(
   // Final attempt to get the actual count for error message
   try {
     const result = await db.query(`SELECT COUNT(*) as count FROM ${tableName} WHERE symbol = '${symbol}'`);
-    const questResult = result as { dataset: unknown[][] };
+    const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
     const actualCount = questResult.dataset && questResult.dataset.length > 0 ? Number(questResult.dataset[0][0]) : 0;
 
     throw new Error(
@@ -226,7 +228,7 @@ export async function waitForTickerRecordCount(
 
     try {
       const result = await db.query(`SELECT COUNT(*) as count FROM ${tableName} WHERE ticker = '${ticker}'`);
-      const questResult = result as { dataset: unknown[][] };
+      const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
       const actualCount = questResult.dataset && questResult.dataset.length > 0 ? Number(questResult.dataset[0][0]) : 0;
 
       if (actualCount === expectedCount) {
@@ -250,7 +252,7 @@ export async function waitForTickerRecordCount(
   // Final attempt to get the actual count for error message
   try {
     const result = await db.query(`SELECT COUNT(*) as count FROM ${tableName} WHERE ticker = '${ticker}'`);
-    const questResult = result as { dataset: unknown[][] };
+    const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
     const actualCount = questResult.dataset && questResult.dataset.length > 0 ? Number(questResult.dataset[0][0]) : 0;
 
     throw new Error(
@@ -259,4 +261,221 @@ export async function waitForTickerRecordCount(
   } catch (error) {
     throw new Error(`Failed to verify record count for ticker ${ticker} in ${tableName}: ${error}`);
   }
+}
+
+/**
+ * Generic function to wait for any query to return the expected number of records
+ * This is the most flexible approach for QuestDB eventual consistency
+ */
+export async function waitForQueryResultCount(
+  query: string,
+  expectedCount: number,
+  options: VerificationOptions = {}
+): Promise<void> {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const startTime = Date.now();
+  let retryCount = 0;
+
+  while (retryCount < opts.maxRetries) {
+    // Check timeout
+    if (Date.now() - startTime > opts.timeoutMs) {
+      throw new Error(
+        `Timeout waiting for ${expectedCount} records from query: ${query}. ` +
+          `Last attempt found different count after ${opts.timeoutMs}ms`
+      );
+    }
+
+    try {
+      const result = await db.query(query);
+      const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
+      const actualCount = questResult.dataset ? questResult.dataset.length : 0;
+
+      if (actualCount === expectedCount) {
+        return; // Success!
+      }
+
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      }
+    } catch (error) {
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      } else {
+        throw new Error(`Failed to verify query result count: ${error}`);
+      }
+    }
+  }
+
+  // Final attempt to get the actual count for error message
+  try {
+    const result = await db.query(query);
+    const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
+    const actualCount = questResult.dataset ? questResult.dataset.length : 0;
+
+    throw new Error(
+      `Expected ${expectedCount} records from query, but found ${actualCount} after ${retryCount} attempts. Query: ${query}`
+    );
+  } catch (error) {
+    throw new Error(`Failed to verify query result count: ${error}`);
+  }
+}
+
+/**
+ * Generic function to wait for any query to return at least one record
+ * Useful for verifying data exists after insertions
+ */
+export async function waitForQueryResultExists(query: string, options: VerificationOptions = {}): Promise<unknown[]> {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const startTime = Date.now();
+  let retryCount = 0;
+
+  while (retryCount < opts.maxRetries) {
+    // Check timeout
+    if (Date.now() - startTime > opts.timeoutMs) {
+      throw new Error(
+        `Timeout waiting for query to return results: ${query}. ` + `No results found after ${opts.timeoutMs}ms`
+      );
+    }
+
+    try {
+      const result = await db.query(query);
+      const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
+
+      if (questResult.dataset && questResult.dataset.length > 0) {
+        return questResult.dataset; // Success!
+      }
+
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      }
+    } catch (error) {
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      } else {
+        throw new Error(`Failed to verify query result exists: ${error}`);
+      }
+    }
+  }
+
+  throw new Error(`Query returned no results after ${retryCount} attempts. Query: ${query}`);
+}
+
+/**
+ * Generic function to wait for a specific field value in a query result
+ * Useful for verifying specific data after updates
+ */
+export async function waitForQueryFieldValue(
+  query: string,
+  fieldName: string,
+  expectedValue: unknown,
+  options: VerificationOptions = {}
+): Promise<Record<string, unknown>> {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const startTime = Date.now();
+  let retryCount = 0;
+
+  while (retryCount < opts.maxRetries) {
+    // Check timeout
+    if (Date.now() - startTime > opts.timeoutMs) {
+      throw new Error(`Timeout waiting for field ${fieldName} to equal ${expectedValue} in query: ${query}`);
+    }
+
+    try {
+      const result = await db.query(query);
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
+
+      if (questResult.dataset && questResult.dataset.length > 0) {
+        const record = questResult.dataset[0];
+        const recordObj: Record<string, unknown> = {};
+
+        questResult.columns.forEach((col, index) => {
+          recordObj[col.name] = record[index];
+        });
+
+        const actualValue = recordObj[fieldName];
+
+        // Handle different data types
+        let valuesMatch = false;
+        if (expectedValue instanceof Date && actualValue instanceof Date) {
+          valuesMatch = Math.abs(expectedValue.getTime() - actualValue.getTime()) < 1000; // Within 1 second
+        } else {
+          valuesMatch = actualValue === expectedValue;
+        }
+
+        if (valuesMatch) {
+          return recordObj; // Success!
+        }
+      }
+
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      }
+    } catch (error) {
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      } else {
+        throw new Error(`Failed to verify field value: ${error}`);
+      }
+    }
+  }
+
+  throw new Error(`Field ${fieldName} did not equal ${expectedValue} after ${retryCount} attempts. Query: ${query}`);
+}
+
+/**
+ * Convenience function for waiting for records with specific WHERE conditions
+ * Combines the flexibility of custom queries with common patterns
+ */
+export async function waitForRecordsWithCondition(
+  tableName: string,
+  whereClause: string,
+  expectedCount: number,
+  options: VerificationOptions = {}
+): Promise<void> {
+  const query = `SELECT * FROM ${tableName} WHERE ${whereClause}`;
+  await waitForQueryResultCount(query, expectedCount, options);
+}
+
+/**
+ * Convenience function for waiting for a single record with specific WHERE conditions
+ * Returns the record data when found
+ */
+export async function waitForSingleRecordWithCondition(
+  tableName: string,
+  whereClause: string,
+  options: VerificationOptions = {}
+): Promise<Record<string, unknown>> {
+  const query = `SELECT * FROM ${tableName} WHERE ${whereClause}`;
+  const results = await waitForQueryResultExists(query, options);
+
+  if (results.length === 0) {
+    throw new Error(`No records found in ${tableName} with condition: ${whereClause}`);
+  }
+
+  // Convert the first result to an object
+  const result = await db.query(query);
+  const questResult = result
+    ? (result as {
+        columns: { name: string; type: string }[];
+        dataset: unknown[][];
+      })
+    : { columns: [], dataset: [] };
+
+  const recordObj: Record<string, unknown> = {};
+  questResult.columns.forEach((col, index) => {
+    recordObj[col.name] = questResult.dataset[0][index];
+  });
+
+  return recordObj;
 }

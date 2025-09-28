@@ -57,6 +57,8 @@ export class QuestDBConnection {
         });
       }
 
+      console.log(`Executing query: ${query}`);
+
       const response = await axios.get(`${this.baseUrl}/exec`, {
         params: { query },
         timeout: 30000, // 30 second timeout for regular queries
@@ -66,6 +68,9 @@ export class QuestDBConnection {
         },
       });
 
+      console.log(`Query response status: ${response.status}`);
+      console.log(`Query response data:`, response.data);
+
       if (response.data.error) {
         throw new Error(`QuestDB query error: ${response.data.error}`);
       }
@@ -73,6 +78,8 @@ export class QuestDBConnection {
       return response.data;
     } catch (error) {
       console.error('Database query error:', error);
+      console.error('Query that failed:', text);
+      console.error('Parameters:', params);
       throw error;
     }
   }

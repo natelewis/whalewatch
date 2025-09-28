@@ -93,8 +93,12 @@ export class UpsertService {
     tableName = getTableName('option_contracts')
   ): Promise<void> {
     try {
+      console.log(`Attempting to upsert option contract: ${contract.ticker}`);
+
       // Check if record exists using ticker as unique identifier
       const existing = await db.query(`SELECT ticker FROM ${tableName} WHERE ticker = $1`, [contract.ticker]);
+
+      console.log(`Query result:`, existing);
 
       // Handle undefined result by treating it as empty dataset
       const questResult = existing
@@ -104,9 +108,11 @@ export class UpsertService {
           })
         : { columns: [], dataset: [] };
 
+      console.log(`Processed result:`, questResult);
+
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Update existing record
-        await db.query(
+        const updateResult = await db.query(
           `UPDATE ${tableName} 
            SET contract_type = $1, exercise_style = $2, expiration_date = $3, shares_per_contract = $4, 
                strike_price = $5, underlying_ticker = $6
@@ -121,10 +127,11 @@ export class UpsertService {
             contract.ticker,
           ]
         );
+        console.log(`Update result:`, updateResult);
         console.log(`Updated option contract: ${contract.ticker}`);
       } else {
         // Insert new record
-        await db.query(
+        const insertResult = await db.query(
           `INSERT INTO ${tableName} (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
@@ -137,6 +144,7 @@ export class UpsertService {
             contract.underlying_ticker,
           ]
         );
+        console.log(`Insert result:`, insertResult);
         console.log(`Inserted option contract: ${contract.ticker}`);
       }
     } catch (error) {
@@ -153,12 +161,29 @@ export class UpsertService {
     tableName = getTableName('option_contract_index')
   ): Promise<void> {
     try {
-      // Check if record exists
-      const existing = await db.query(
-        `SELECT underlying_ticker, as_of FROM ${tableName} 
-         WHERE underlying_ticker = $1 AND as_of = $2`,
-        [index.underlying_ticker, index.as_of]
+      console.log(
+        `Attempting to upsert option contract index: ${index.underlying_ticker} for ${
+          index.as_of.toISOString().split('T')[0]
+        }`
       );
+      console.log(`Table name: ${tableName}`);
+
+      // Check if record exists
+      console.log(`About to execute SELECT query...`);
+      let existing;
+      try {
+        existing = await db.query(
+          `SELECT underlying_ticker, as_of FROM ${tableName} 
+           WHERE underlying_ticker = $1 AND as_of = $2`,
+          [index.underlying_ticker, index.as_of]
+        );
+        console.log(`Query executed successfully`);
+      } catch (error) {
+        console.error(`Query failed with error:`, error);
+        throw error;
+      }
+
+      console.log(`Query result:`, existing);
 
       // Handle undefined result by treating it as empty dataset
       const questResult = existing
@@ -167,6 +192,8 @@ export class UpsertService {
             dataset: unknown[][];
           })
         : { columns: [], dataset: [] };
+
+      console.log(`Processed result:`, questResult);
 
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Record already exists, no need to update
@@ -177,11 +204,20 @@ export class UpsertService {
         );
       } else {
         // Insert new record
-        await db.query(
-          `INSERT INTO ${tableName} (underlying_ticker, as_of)
-           VALUES ($1, $2)`,
-          [index.underlying_ticker, index.as_of]
-        );
+        console.log(`About to execute INSERT query...`);
+        let insertResult;
+        try {
+          insertResult = await db.query(
+            `INSERT INTO ${tableName} (underlying_ticker, as_of)
+             VALUES ($1, $2)`,
+            [index.underlying_ticker, index.as_of]
+          );
+          console.log(`Insert executed successfully`);
+        } catch (error) {
+          console.error(`Insert failed with error:`, error);
+          throw error;
+        }
+        console.log(`Insert result:`, insertResult);
         console.log(
           `Inserted option contract index: ${index.underlying_ticker} for ${index.as_of.toISOString().split('T')[0]}`
         );

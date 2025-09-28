@@ -2,6 +2,7 @@
 import { OptionIngestionService } from '../../services/option-ingestion';
 import { BackfillService } from '../../services/backfill';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/database';
+import { waitForRecordsWithCondition } from '../test-utils/data-verification';
 import { OptionContract, OptionContractIndex } from '../../types/database';
 import { PolygonOptionContract } from '../../types/polygon';
 
@@ -10,15 +11,7 @@ jest.mock('p-limit', () => {
   return jest.fn(() => jest.fn(fn => fn()));
 });
 
-// Mock database connection
-jest.mock('../../db/connection', () => ({
-  db: {
-    query: jest.fn(),
-    bulkInsert: jest.fn(),
-    connect: jest.fn(),
-    disconnect: jest.fn(),
-  },
-}));
+// Don't mock the database connection - we'll mock it manually in tests that need it
 
 // Mock PolygonClient
 jest.mock('../../services/polygon-client', () => ({
@@ -56,7 +49,7 @@ import { db } from '../../db/connection';
 import { PolygonClient } from '../../services/polygon-client';
 import { UpsertService } from '../../utils/upsert';
 
-const mockedDb = db as jest.Mocked<typeof db>;
+// Database will be mocked in individual test describe blocks as needed
 
 // Mock the static method
 (PolygonClient as any).convertTimestamp = jest.fn((timestamp: number, isNanoseconds: boolean) => {
@@ -89,10 +82,15 @@ describe('Option Contract Backfill Integration with New Schema', () => {
 
     // Reset mock implementations
     mockPolygonClient.getOptionContracts.mockClear();
-    mockedDb.query.mockClear();
   });
 
   describe('Full Backfill Process with New Schema', () => {
+    beforeEach(() => {
+      // Mock the database connection for unit tests
+      (db as any).query = jest.fn();
+      (db as any).bulkInsert = jest.fn();
+    });
+
     it('should complete full backfill process with option contract index tracking', async () => {
       // Arrange
       const underlyingTicker = 'TEST';
@@ -157,7 +155,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         .mockResolvedValueOnce(mockContractsDay2); // 2024-01-03
 
       // Mock database responses - we need to set up the mock to handle all the queries
-      mockedDb.query
+      (db as any).query
         // First call for checking existing contracts (2024-01-04)
         .mockResolvedValueOnce({
           columns: [{ name: 'ticker', type: 'STRING' }],
@@ -199,7 +197,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       expect(mockPolygonClient.getOptionContracts).toHaveBeenCalledWith(underlyingTicker, expect.any(Date));
 
       // Verify that option contracts were inserted
-      const insertCalls = mockedDb.query.mock.calls.filter(call =>
+      const insertCalls = (db as any).query.mock.calls.filter((call: any) =>
         call[0].includes('INSERT INTO test_option_contracts')
       );
       expect(insertCalls.length).toBeGreaterThan(0);
@@ -214,20 +212,26 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       expect(insertCall[1]).toContain('TEST');
 
       // Verify that existing contracts were checked before insertion
-      expect(mockedDb.query).toHaveBeenCalledWith('SELECT ticker FROM test_option_contracts WHERE ticker = $1', [
+      expect((db as any).query).toHaveBeenCalledWith('SELECT ticker FROM test_option_contracts WHERE ticker = $1', [
         'O:TEST240315C00150000',
       ]);
     });
   });
 
   describe('Backfill Service Integration with New Schema', () => {
+    beforeEach(() => {
+      // Mock the database connection for unit tests
+      (db as any).query = jest.fn();
+      (db as any).bulkInsert = jest.fn();
+    });
+
     it('should use option_contract_index for tracking sync dates', async () => {
       // Arrange
       const underlyingTicker = 'TEST';
       const endDate = new Date('2024-01-05');
 
       // Mock that we have existing index data
-      mockedDb.query
+      (db as any).query
         .mockResolvedValueOnce({
           columns: [{ name: 'min_date', type: 'TIMESTAMP' }],
           dataset: [['2024-01-01T00:00:00.000Z']],
@@ -266,7 +270,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       const endDate = new Date('2024-01-05');
 
       // Mock that no existing index data exists
-      mockedDb.query
+      (db as any).query
         .mockResolvedValueOnce({
           columns: [{ name: 'min_date', type: 'TIMESTAMP' }],
           dataset: [[null]],
@@ -303,13 +307,13 @@ describe('Option Contract Backfill Integration with New Schema', () => {
   describe('Real Database Integration with New Schema', () => {
     it('should complete full backfill process with real QuestDB', async () => {
       // This test uses real QuestDB connection
-      const underlyingTicker = 'REALTEST';
+      const underlyingTicker = `REALTEST_${Date.now()}`;
       const asOf = new Date('2024-01-01');
 
       // Create some test contracts
       const contracts: OptionContract[] = [
         {
-          ticker: 'O:REALTEST240315C00150000',
+          ticker: `O:${underlyingTicker}240315C00150000`,
           contract_type: 'call',
           exercise_style: 'american',
           expiration_date: new Date('2024-03-15'),
@@ -318,7 +322,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
           underlying_ticker: underlyingTicker,
         },
         {
-          ticker: 'O:REALTEST240315P00150000',
+          ticker: `O:${underlyingTicker}240315P00150000`,
           contract_type: 'put',
           exercise_style: 'american',
           expiration_date: new Date('2024-03-15'),
@@ -329,27 +333,41 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       ];
 
       // Upsert contracts
-      await UpsertService.batchUpsertOptionContracts(contracts);
+      console.log('About to call batchUpsertOptionContracts with contracts:', contracts);
+      try {
+        await UpsertService.batchUpsertOptionContracts(contracts);
+        console.log('batchUpsertOptionContracts completed successfully');
+      } catch (error) {
+        console.error('batchUpsertOptionContracts failed:', error);
+        throw error;
+      }
 
       // Create index record
       const index: OptionContractIndex = {
         underlying_ticker: underlyingTicker,
         as_of: asOf,
       };
-      await UpsertService.upsertOptionContractIndex(index);
+      console.log('About to call upsertOptionContractIndex with index:', index);
+      try {
+        await UpsertService.upsertOptionContractIndex(index);
+        console.log('upsertOptionContractIndex completed successfully');
+      } catch (error) {
+        console.error('upsertOptionContractIndex failed:', error);
+        throw error;
+      }
+
+      // Wait for exactly 2 contracts to be available
+      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 2);
 
       // Verify contracts were stored without as_of field
       const contractResult = await db.query('SELECT * FROM test_option_contracts WHERE underlying_ticker = $1', [
         underlyingTicker,
       ]);
 
-      // Handle undefined result by treating it as empty dataset
-      const contractQuestResult = contractResult
-        ? (contractResult as {
-            columns: { name: string; type: string }[];
-            dataset: unknown[][];
-          })
-        : { columns: [], dataset: [] };
+      const contractQuestResult = contractResult as {
+        columns: { name: string; type: string }[];
+        dataset: unknown[][];
+      };
 
       expect(contractQuestResult.dataset).toHaveLength(2);
       expect(contractQuestResult.columns).toHaveLength(7); // No as_of field
@@ -383,14 +401,14 @@ describe('Option Contract Backfill Integration with New Schema', () => {
 
     it('should handle upserting same contracts multiple times with different as_of dates', async () => {
       // This test uses real QuestDB connection
-      const underlyingTicker = 'UPDATETEST';
+      const underlyingTicker = `UPDATETEST_${Date.now()}`;
       const asOf1 = new Date('2024-01-01');
       const asOf2 = new Date('2024-01-02');
 
       // Create initial contracts
       const contracts1: OptionContract[] = [
         {
-          ticker: 'O:UPDATETEST240315C00150000',
+          ticker: `O:${underlyingTicker}240315C00150000`,
           contract_type: 'call',
           exercise_style: 'american',
           expiration_date: new Date('2024-03-15'),
@@ -410,7 +428,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       // Update contracts for second date
       const contracts2: OptionContract[] = [
         {
-          ticker: 'O:UPDATETEST240315C00150000',
+          ticker: `O:${underlyingTicker}240315C00150000`,
           contract_type: 'call',
           exercise_style: 'american',
           expiration_date: new Date('2024-03-15'),
@@ -427,18 +445,18 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         as_of: asOf2,
       });
 
+      // Wait for exactly 1 contract record to exist (upserted)
+      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 1);
+
       // Verify only one contract record exists (upserted)
       const contractResult = await db.query('SELECT * FROM test_option_contracts WHERE underlying_ticker = $1', [
         underlyingTicker,
       ]);
 
-      // Handle undefined result by treating it as empty dataset
-      const contractQuestResult = contractResult
-        ? (contractResult as {
-            columns: { name: string; type: string }[];
-            dataset: unknown[][];
-          })
-        : { columns: [], dataset: [] };
+      const contractQuestResult = contractResult as {
+        columns: { name: string; type: string }[];
+        dataset: unknown[][];
+      };
 
       expect(contractQuestResult.dataset).toHaveLength(1);
       expect(contractQuestResult.dataset[0][5]).toBe(155.0); // Updated strike price

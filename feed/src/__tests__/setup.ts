@@ -33,8 +33,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   // Create test tables if they don't exist
   await createTestTables();
-  // Don't truncate tables - just ensure they exist
-  // await truncateTestTables();
+  // Don't clean up data - tables are dropped after each test anyway
 });
 
 afterAll(async () => {
@@ -53,6 +52,39 @@ afterAll(async () => {
 });
 
 /**
+ * Clean up test data without truncating tables
+ * This avoids QuestDB eventual consistency issues
+ */
+async function cleanupTestData(): Promise<void> {
+  try {
+    // Delete test data from all test tables
+    const testTables = [
+      'test_stock_aggregates',
+      'test_option_contracts',
+      'test_option_contract_index',
+      'test_stock_trades',
+      'test_option_trades',
+    ];
+
+    for (const table of testTables) {
+      try {
+        // QuestDB doesn't support DELETE FROM table without WHERE clause
+        // Instead, we'll drop and recreate the table
+        await db.query(`DROP TABLE IF EXISTS ${table}`);
+        console.log(`Dropped table ${table} for cleanup`);
+      } catch (error) {
+        // Table might not exist, ignore error
+        console.log(`Table ${table} doesn't exist or couldn't be cleaned`);
+      }
+    }
+
+    console.log('Cleaned up test data');
+  } catch (error) {
+    console.error('Error cleaning up test data:', error);
+  }
+}
+
+/**
  * Clean up all test tables before each test
  */
 async function cleanupTestTables(): Promise<void> {
@@ -65,4 +97,4 @@ async function cleanupTestTables(): Promise<void> {
 }
 
 // Export test utilities
-export { cleanupTestTables };
+export { cleanupTestTables, cleanupTestData };
