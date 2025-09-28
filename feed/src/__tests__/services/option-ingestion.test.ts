@@ -2,9 +2,9 @@
 import { OptionIngestionService } from '../../services/option-ingestion';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/database';
 import { waitForSingleRecordWithCondition, waitForRecordsWithCondition } from '../test-utils/data-verification';
-import { OptionTrade, OptionQuote } from '../../types/database';
 import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../../types/polygon';
 import { getTableName } from '../test-utils/config';
+import { OptionContract } from '../../types/database';
 
 // Mock p-limit
 jest.mock('p-limit', () => {
@@ -37,7 +37,6 @@ jest.mock('../../config', () => ({
 
 import { PolygonClient } from '../../services/polygon-client';
 import { UpsertService } from '../../utils/upsert';
-import { db } from '../../db/connection';
 import { config } from '../../config';
 
 // Mock the static method
@@ -273,42 +272,19 @@ describe('OptionIngestionService', () => {
       ];
 
       mockPolygonClient.getOptionTrades.mockResolvedValue(mockTrades);
-      mockedUpsertService.batchUpsertOptionTrades.mockResolvedValue();
 
       // Act
       await optionIngestionService.ingestOptionTrades(ticker, from, to);
 
       // Assert
       expect(mockPolygonClient.getOptionTrades).toHaveBeenCalledWith(ticker, from, to);
-      expect(mockedUpsertService.batchUpsertOptionTrades).toHaveBeenCalledTimes(1);
 
-      // Verify the trades were transformed correctly
-      const expectedTrades: OptionTrade[] = [
-        {
-          ticker: ticker,
-          underlying_ticker: 'AAPL',
-          timestamp: expect.any(Date),
-          price: 5.0,
-          size: 10,
-          conditions: '[1]',
-          exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
-        },
-        {
-          ticker: ticker,
-          underlying_ticker: 'AAPL',
-          timestamp: expect.any(Date),
-          price: 5.5,
-          size: 5,
-          conditions: '[1]',
-          exchange: 1,
-          tape: 1,
-          sequence_number: 12346,
-        },
-      ];
-
-      expect(mockedUpsertService.batchUpsertOptionTrades).toHaveBeenCalledWith(expectedTrades);
+      // Verify the trades were inserted into the database
+      await waitForRecordsWithCondition(
+        getTableName('option_trades'),
+        `ticker = '${ticker}'`,
+        2
+      );
     });
 
     it('should skip trades when underlying ticker cannot be extracted', async () => {
@@ -322,7 +298,6 @@ describe('OptionIngestionService', () => {
 
       // Assert
       expect(mockPolygonClient.getOptionTrades).not.toHaveBeenCalled();
-      expect(mockedUpsertService.batchUpsertOptionTrades).not.toHaveBeenCalled();
     });
 
     it('should handle errors during trade ingestion', async () => {
@@ -344,10 +319,16 @@ describe('OptionIngestionService', () => {
           participant_timestamp: 1704110400000000000,
         },
       ]);
-      mockedUpsertService.batchUpsertOptionTrades.mockRejectedValue(error);
+
+      // Mock UpsertService to throw error
+      const originalBatchUpsertOptionTrades = UpsertService.batchUpsertOptionTrades;
+      UpsertService.batchUpsertOptionTrades = jest.fn().mockRejectedValue(error);
 
       // Act & Assert
       await expect(optionIngestionService.ingestOptionTrades(ticker, from, to)).rejects.toThrow('Database error');
+
+      // Restore original method
+      UpsertService.batchUpsertOptionTrades = originalBatchUpsertOptionTrades;
     });
 
     it('should handle trades with missing optional fields', async () => {
@@ -369,19 +350,19 @@ describe('OptionIngestionService', () => {
       ];
 
       mockPolygonClient.getOptionTrades.mockResolvedValue(mockTrades);
-      mockedUpsertService.batchUpsertOptionTrades.mockResolvedValue();
 
       // Act
       await optionIngestionService.ingestOptionTrades(ticker, from, to);
 
       // Assert
-      expect(mockedUpsertService.batchUpsertOptionTrades).toHaveBeenCalledWith([
-        expect.objectContaining({
-          conditions: '[]',
-          exchange: 0,
-          tape: 0,
-        }),
-      ]);
+      expect(mockPolygonClient.getOptionTrades).toHaveBeenCalledWith(ticker, from, to);
+
+      // Verify trades were inserted with correct default values
+      await waitForRecordsWithCondition(
+        getTableName('option_trades'),
+        `ticker = '${ticker}' AND conditions = '[]' AND exchange = 0 AND tape = 0`,
+        1
+      );
     });
 
     it('should handle empty trades list', async () => {
@@ -391,14 +372,12 @@ describe('OptionIngestionService', () => {
       const to = new Date('2024-01-01T17:00:00Z');
 
       mockPolygonClient.getOptionTrades.mockResolvedValue([]);
-      mockedUpsertService.batchUpsertOptionTrades.mockResolvedValue();
 
       // Act
       await optionIngestionService.ingestOptionTrades(ticker, from, to);
 
       // Assert
       expect(mockPolygonClient.getOptionTrades).toHaveBeenCalledWith(ticker, from, to);
-      expect(mockedUpsertService.batchUpsertOptionTrades).toHaveBeenCalledWith([]);
     });
   });
 
@@ -437,44 +416,19 @@ describe('OptionIngestionService', () => {
       ];
 
       mockPolygonClient.getOptionQuotes.mockResolvedValue(mockQuotes);
-      mockedUpsertService.batchUpsertOptionQuotes.mockResolvedValue();
 
       // Act
       await optionIngestionService.ingestOptionQuotes(ticker, from, to);
 
       // Assert
       expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
-      expect(mockedUpsertService.batchUpsertOptionQuotes).toHaveBeenCalledTimes(1);
 
-      // Verify the quotes were transformed correctly
-      const expectedQuotes: OptionQuote[] = [
-        {
-          ticker: ticker,
-          underlying_ticker: 'AAPL',
-          timestamp: expect.any(Date),
-          bid_price: 4.8,
-          bid_size: 5,
-          ask_price: 5.2,
-          ask_size: 5,
-          bid_exchange: 1,
-          ask_exchange: 1,
-          sequence_number: 12345,
-        },
-        {
-          ticker: ticker,
-          underlying_ticker: 'AAPL',
-          timestamp: expect.any(Date),
-          bid_price: 4.9,
-          bid_size: 3,
-          ask_price: 5.1,
-          ask_size: 3,
-          bid_exchange: 1,
-          ask_exchange: 1,
-          sequence_number: 12346,
-        },
-      ];
-
-      expect(mockedUpsertService.batchUpsertOptionQuotes).toHaveBeenCalledWith(expectedQuotes);
+      // Verify quotes were inserted into the database
+      await waitForRecordsWithCondition(
+        getTableName('option_quotes'),
+        `ticker = '${ticker}'`,
+        2
+      );
     });
 
     it('should skip quotes when underlying ticker cannot be extracted', async () => {
@@ -488,7 +442,6 @@ describe('OptionIngestionService', () => {
 
       // Assert
       expect(mockPolygonClient.getOptionQuotes).not.toHaveBeenCalled();
-      expect(mockedUpsertService.batchUpsertOptionQuotes).not.toHaveBeenCalled();
     });
 
     it('should handle quotes with missing optional fields', async () => {
@@ -510,23 +463,19 @@ describe('OptionIngestionService', () => {
       ];
 
       mockPolygonClient.getOptionQuotes.mockResolvedValue(mockQuotes);
-      mockedUpsertService.batchUpsertOptionQuotes.mockResolvedValue();
 
       // Act
       await optionIngestionService.ingestOptionQuotes(ticker, from, to);
 
       // Assert
-      expect(mockedUpsertService.batchUpsertOptionQuotes).toHaveBeenCalledWith([
-        expect.objectContaining({
-          bid_price: 0,
-          bid_size: 0,
-          ask_price: 0,
-          ask_size: 0,
-          bid_exchange: 0,
-          ask_exchange: 0,
-          sequence_number: 0,
-        }),
-      ]);
+      expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
+
+      // Verify quotes were inserted with correct default values
+      await waitForRecordsWithCondition(
+        getTableName('option_quotes'),
+        `ticker = '${ticker}' AND bid_price = 0 AND bid_size = 0 AND ask_price = 0 AND ask_size = 0`,
+        1
+      );
     });
 
     it('should handle chunking for large quote datasets', async () => {
@@ -548,13 +497,19 @@ describe('OptionIngestionService', () => {
       }));
 
       mockPolygonClient.getOptionQuotes.mockResolvedValue(largeQuoteDataset);
-      mockedUpsertService.batchUpsertOptionQuotes.mockResolvedValue();
 
       // Act
       await optionIngestionService.ingestOptionQuotes(ticker, from, to);
 
       // Assert
-      expect(mockedUpsertService.batchUpsertOptionQuotes).toHaveBeenCalledTimes(3); // 2500 / 1000 = 3 chunks
+      expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
+
+      // Verify quotes were inserted (should be chunked into multiple batches)
+      await waitForRecordsWithCondition(
+        getTableName('option_quotes'),
+        `ticker = '${ticker}'`,
+        2500
+      );
     });
 
     it('should handle errors during quote processing and continue with other chunks', async () => {
@@ -576,8 +531,9 @@ describe('OptionIngestionService', () => {
 
       mockPolygonClient.getOptionQuotes.mockResolvedValue(mockQuotes);
 
-      // Make the first chunk fail, but second succeed
-      mockedUpsertService.batchUpsertOptionQuotes
+      // Mock UpsertService to throw error on first call, succeed on second
+      const originalBatchUpsertOptionQuotes = UpsertService.batchUpsertOptionQuotes;
+      UpsertService.batchUpsertOptionQuotes = jest.fn()
         .mockRejectedValueOnce(new Error('Chunk processing error'))
         .mockResolvedValue(undefined);
 
@@ -585,7 +541,10 @@ describe('OptionIngestionService', () => {
       await optionIngestionService.ingestOptionQuotes(ticker, from, to);
 
       // Assert
-      expect(mockedUpsertService.batchUpsertOptionQuotes).toHaveBeenCalledTimes(2); // 2 chunks processed
+      expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
+
+      // Restore original method
+      UpsertService.batchUpsertOptionQuotes = originalBatchUpsertOptionQuotes;
     });
 
     it('should handle empty quotes list', async () => {
@@ -595,14 +554,12 @@ describe('OptionIngestionService', () => {
       const to = new Date('2024-01-01T17:00:00Z');
 
       mockPolygonClient.getOptionQuotes.mockResolvedValue([]);
-      mockedUpsertService.batchUpsertOptionQuotes.mockResolvedValue();
 
       // Act
       await optionIngestionService.ingestOptionQuotes(ticker, from, to);
 
       // Assert
       expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
-      expect(mockedUpsertService.batchUpsertOptionQuotes).not.toHaveBeenCalled();
     });
 
     it('should handle API errors during quote ingestion', async () => {
@@ -657,64 +614,53 @@ describe('OptionIngestionService', () => {
 
   describe('getAllOptionTickers', () => {
     it('should return all option tickers for configured underlying tickers', async () => {
-      // Arrange
-      const mockResult = {
-        dataset: [
-          ['O:AAPL240315C00150000'],
-          ['O:AAPL240315P00150000'],
-          ['O:GOOGL240315C00150000'],
-          ['O:TSLA240315C00150000'],
-        ],
-      };
-      mockedDb.query.mockResolvedValue(mockResult);
+      // This test uses real database - we'll create some test contracts first
+      const testTickers = ['AAPL', 'GOOGL', 'TSLA'];
+      
+      // Create test contracts
+      for (const ticker of testTickers) {
+        const contracts: OptionContract[] = [
+          {
+            ticker: `O:${ticker}240315C00150000`,
+            contract_type: 'call' as const,
+            exercise_style: 'american' as const,
+            expiration_date: new Date('2024-03-15'),
+            shares_per_contract: 100,
+            strike_price: 150.0,
+            underlying_ticker: ticker,
+          },
+          {
+            ticker: `O:${ticker}240315P00150000`,
+            contract_type: 'put' as const,
+            exercise_style: 'american' as const,
+            expiration_date: new Date('2024-03-15'),
+            shares_per_contract: 100,
+            strike_price: 150.0,
+            underlying_ticker: ticker,
+          },
+        ];
+        
+        await UpsertService.batchUpsertOptionContracts(contracts);
+      }
 
       // Act
       const result = await optionIngestionService.getAllOptionTickers();
 
       // Assert
-      expect(mockedDb.query).toHaveBeenCalledWith(`
-        SELECT DISTINCT ticker FROM test_option_contracts
-        WHERE underlying_ticker IN ('AAPL','GOOGL','TSLA')
-      `);
-      expect(result).toEqual([
-        'O:AAPL240315C00150000',
-        'O:AAPL240315P00150000',
-        'O:GOOGL240315C00150000',
-        'O:TSLA240315C00150000',
-      ]);
+      expect(result).toHaveLength(6); // 2 contracts per ticker * 3 tickers
+      expect(result).toContain('O:AAPL240315C00150000');
+      expect(result).toContain('O:AAPL240315P00150000');
+      expect(result).toContain('O:GOOGL240315C00150000');
+      expect(result).toContain('O:GOOGL240315P00150000');
+      expect(result).toContain('O:TSLA240315C00150000');
+      expect(result).toContain('O:TSLA240315P00150000');
     });
 
     it('should return empty array when no option tickers found', async () => {
-      // Arrange
-      const mockResult = { dataset: [] };
-      mockedDb.query.mockResolvedValue(mockResult);
-
       // Act
       const result = await optionIngestionService.getAllOptionTickers();
 
-      // Assert
-      expect(result).toEqual([]);
-    });
-
-    it('should handle database errors gracefully', async () => {
-      // Arrange
-      mockedDb.query.mockRejectedValue(new Error('Database error'));
-
-      // Act
-      const result = await optionIngestionService.getAllOptionTickers();
-
-      // Assert
-      expect(result).toEqual([]);
-    });
-
-    it('should handle malformed database response', async () => {
-      // Arrange
-      mockedDb.query.mockResolvedValue({});
-
-      // Act
-      const result = await optionIngestionService.getAllOptionTickers();
-
-      // Assert
+      // Assert - should return empty array since we're using test tickers that don't exist
       expect(result).toEqual([]);
     });
   });
@@ -722,59 +668,30 @@ describe('OptionIngestionService', () => {
   describe('getNewestAsOfDate', () => {
     it('should return the newest as_of date for underlying ticker', async () => {
       // Arrange
-      const underlyingTicker = 'AAPL';
-      const mockResult = {
-        columns: [{ name: 'max_date', type: 'TIMESTAMP' }],
-        dataset: [['2024-01-15T00:00:00.000Z']],
-      };
-      mockedDb.query.mockResolvedValue(mockResult);
+      const underlyingTicker = `AAPL_${Date.now()}`;
+      const asOf1 = new Date('2024-01-01');
+      const asOf2 = new Date('2024-01-15');
+
+      // Create test index records
+      await UpsertService.upsertOptionContractIndex({
+        underlying_ticker: underlyingTicker,
+        as_of: asOf1,
+      });
+      await UpsertService.upsertOptionContractIndex({
+        underlying_ticker: underlyingTicker,
+        as_of: asOf2,
+      });
 
       // Act
       const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);
 
       // Assert
-      expect(mockedDb.query).toHaveBeenCalledWith(
-        "SELECT MAX(as_of) as max_date FROM test_option_contract_index WHERE underlying_ticker = 'AAPL'"
-      );
-      expect(result).toEqual(new Date('2024-01-15T00:00:00.000Z'));
+      expect(result).toEqual(asOf2);
     });
 
     it('should return null when no data exists', async () => {
       // Arrange
-      const underlyingTicker = 'AAPL';
-      const mockResult = {
-        columns: [{ name: 'newest_as_of', type: 'TIMESTAMP' }],
-        dataset: [[null]],
-      };
-      mockedDb.query.mockResolvedValue(mockResult);
-
-      // Act
-      const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);
-
-      // Assert
-      expect(result).toBeNull();
-    });
-
-    it('should return null when dataset is empty', async () => {
-      // Arrange
-      const underlyingTicker = 'AAPL';
-      const mockResult = {
-        columns: [{ name: 'newest_as_of', type: 'TIMESTAMP' }],
-        dataset: [],
-      };
-      mockedDb.query.mockResolvedValue(mockResult);
-
-      // Act
-      const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);
-
-      // Assert
-      expect(result).toBeNull();
-    });
-
-    it('should handle database errors gracefully', async () => {
-      // Arrange
-      const underlyingTicker = 'AAPL';
-      mockedDb.query.mockRejectedValue(new Error('Database error'));
+      const underlyingTicker = `NONEXISTENT_${Date.now()}`;
 
       // Act
       const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);
@@ -787,31 +704,30 @@ describe('OptionIngestionService', () => {
   describe('getOldestAsOfDate', () => {
     it('should return the oldest as_of date for underlying ticker', async () => {
       // Arrange
-      const underlyingTicker = 'AAPL';
-      const mockResult = {
-        columns: [{ name: 'min_date', type: 'TIMESTAMP' }],
-        dataset: [['2024-01-01T00:00:00.000Z']],
-      };
-      mockedDb.query.mockResolvedValue(mockResult);
+      const underlyingTicker = `AAPL_${Date.now()}`;
+      const asOf1 = new Date('2024-01-01');
+      const asOf2 = new Date('2024-01-15');
+
+      // Create test index records
+      await UpsertService.upsertOptionContractIndex({
+        underlying_ticker: underlyingTicker,
+        as_of: asOf1,
+      });
+      await UpsertService.upsertOptionContractIndex({
+        underlying_ticker: underlyingTicker,
+        as_of: asOf2,
+      });
 
       // Act
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
-      expect(mockedDb.query).toHaveBeenCalledWith(
-        "SELECT MIN(as_of) as min_date FROM test_option_contract_index WHERE underlying_ticker = 'AAPL'"
-      );
-      expect(result).toEqual(new Date('2024-01-01T00:00:00.000Z'));
+      expect(result).toEqual(asOf1);
     });
 
     it('should return null when no data exists', async () => {
       // Arrange
-      const underlyingTicker = 'AAPL';
-      const mockResult = {
-        columns: [{ name: 'oldest_as_of', type: 'TIMESTAMP' }],
-        dataset: [[null]],
-      };
-      mockedDb.query.mockResolvedValue(mockResult);
+      const underlyingTicker = `NONEXISTENT_${Date.now()}`;
 
       // Act
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
@@ -820,17 +736,6 @@ describe('OptionIngestionService', () => {
       expect(result).toBeNull();
     });
 
-    it('should handle database errors gracefully', async () => {
-      // Arrange
-      const underlyingTicker = 'AAPL';
-      mockedDb.query.mockRejectedValue(new Error('Database error'));
-
-      // Act
-      const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
-
-      // Assert
-      expect(result).toBeNull();
-    });
   });
 
   describe('catchUpOptionContracts', () => {

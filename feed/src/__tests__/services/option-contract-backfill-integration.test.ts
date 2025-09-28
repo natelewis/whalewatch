@@ -85,10 +85,28 @@ describe('Option Contract Backfill Integration with New Schema', () => {
   });
 
   describe('Full Backfill Process with New Schema', () => {
+    let originalQuery: any;
+    let originalBulkInsert: any;
+
     beforeEach(() => {
+      // Store original methods
+      originalQuery = (db as any).query;
+      originalBulkInsert = (db as any).bulkInsert;
+
       // Mock the database connection for unit tests
       (db as any).query = jest.fn();
       (db as any).bulkInsert = jest.fn();
+    });
+
+    afterEach(async () => {
+      // Restore original methods
+      (db as any).query = originalQuery;
+      (db as any).bulkInsert = originalBulkInsert;
+
+      // Ensure database connection is restored
+      if (!(db as any).isConnected) {
+        await db.connect();
+      }
     });
 
     it('should complete full backfill process with option contract index tracking', async () => {
@@ -180,9 +198,6 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       // Act - Run the backfill process
       await optionIngestionService.processOptionContractsBackfill(underlyingTicker, startDate, endDate);
 
-      // Wait for all async operations to complete using proper waitFor method
-      await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 2);
-
       // Assert
       // Verify that contracts were fetched for each day
       // The method processes from startDate-1 backwards to endDate
@@ -219,10 +234,28 @@ describe('Option Contract Backfill Integration with New Schema', () => {
   });
 
   describe('Backfill Service Integration with New Schema', () => {
+    let originalQuery: any;
+    let originalBulkInsert: any;
+
     beforeEach(() => {
+      // Store original methods
+      originalQuery = (db as any).query;
+      originalBulkInsert = (db as any).bulkInsert;
+
       // Mock the database connection for unit tests
       (db as any).query = jest.fn();
       (db as any).bulkInsert = jest.fn();
+    });
+
+    afterEach(async () => {
+      // Restore original methods
+      (db as any).query = originalQuery;
+      (db as any).bulkInsert = originalBulkInsert;
+
+      // Ensure database connection is restored
+      if (!(db as any).isConnected) {
+        await db.connect();
+      }
     });
 
     it('should use option_contract_index for tracking sync dates', async () => {
@@ -409,8 +442,8 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       const contracts1: OptionContract[] = [
         {
           ticker: `O:${underlyingTicker}240315C00150000`,
-          contract_type: 'call',
-          exercise_style: 'american',
+          contract_type: 'call' as const,
+          exercise_style: 'american' as const,
           expiration_date: new Date('2024-03-15'),
           shares_per_contract: 100,
           strike_price: 150.0,
@@ -419,18 +452,21 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       ];
 
       // Upsert contracts for first date
-      await UpsertService.batchUpsertOptionContracts(contracts1);
-      await UpsertService.upsertOptionContractIndex({
-        underlying_ticker: underlyingTicker,
-        as_of: asOf1,
-      });
+      await UpsertService.batchUpsertOptionContracts(contracts1, 'test_option_contracts');
+      await UpsertService.upsertOptionContractIndex(
+        {
+          underlying_ticker: underlyingTicker,
+          as_of: asOf1,
+        },
+        'test_option_contract_index'
+      );
 
       // Update contracts for second date
       const contracts2: OptionContract[] = [
         {
           ticker: `O:${underlyingTicker}240315C00150000`,
-          contract_type: 'call',
-          exercise_style: 'american',
+          contract_type: 'call' as const,
+          exercise_style: 'american' as const,
           expiration_date: new Date('2024-03-15'),
           shares_per_contract: 100,
           strike_price: 155.0, // Updated price
@@ -439,11 +475,14 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       ];
 
       // Upsert updated contracts for second date
-      await UpsertService.batchUpsertOptionContracts(contracts2);
-      await UpsertService.upsertOptionContractIndex({
-        underlying_ticker: underlyingTicker,
-        as_of: asOf2,
-      });
+      await UpsertService.batchUpsertOptionContracts(contracts2, 'test_option_contracts');
+      await UpsertService.upsertOptionContractIndex(
+        {
+          underlying_ticker: underlyingTicker,
+          as_of: asOf2,
+        },
+        'test_option_contract_index'
+      );
 
       // Wait for exactly 1 contract record to exist (upserted)
       await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 1);

@@ -25,8 +25,19 @@ export async function createTestTables(): Promise<void> {
   for (const table of TEST_TABLES) {
     try {
       console.log(`Creating table ${table.name} with schema: ${table.schema}`);
-      const result = await db.query(table.schema);
-      console.log(`Table creation result for ${table.name}:`, result);
+      
+      // Split multi-statement schemas and execute each statement separately
+      const statements = table.schema.split(';\n').filter(stmt => stmt.trim());
+      
+      for (const statement of statements) {
+        const trimmedStatement = statement.trim();
+        if (trimmedStatement) {
+          console.log(`Executing statement: ${trimmedStatement}`);
+          const result = await db.query(trimmedStatement);
+          console.log(`Statement result:`, result);
+        }
+      }
+      
       console.log(`Created test table: ${table.name}`);
     } catch (error) {
       console.error(`Failed to create test table ${table.name}:`, error);

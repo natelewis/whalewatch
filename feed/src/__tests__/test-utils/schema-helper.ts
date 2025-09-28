@@ -30,8 +30,10 @@ export function generateTestTableSchemas(): { [tableName: string]: string } {
     const testTableName = `test_${tableName}`;
 
     // Create the test table schema with proper formatting
-    // Use non-partitioned tables for testing to avoid QuestDB eventual consistency issues
-    const testTableSchema = `CREATE TABLE IF NOT EXISTS ${testTableName} (\n    ${tableDefinition}\n)`;
+    // Include proper QuestDB partitioning for test tables to ensure they work correctly
+    // Use DROP + CREATE to ensure schema changes are applied
+    const timestampColumn = match[3]; // The timestamp column from the original schema
+    const testTableSchema = `DROP TABLE IF EXISTS ${testTableName};\nCREATE TABLE ${testTableName} (\n    ${tableDefinition}\n) TIMESTAMP(${timestampColumn}) PARTITION BY DAY`;
 
     tableSchemas[testTableName] = testTableSchema;
   }
