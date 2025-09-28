@@ -31,7 +31,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
     await cleanupTestEnvironment();
   });
 
-  describe.skip('Real Database Integration with New Schema', () => {
+  describe('Real Database Integration with New Schema', () => {
     it('should create and query option_contract_index table with real QuestDB', async () => {
       // This test uses real QuestDB connection
       const underlyingTicker = 'TEST';
@@ -50,10 +50,13 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         underlyingTicker,
       ]);
 
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(questResult.dataset).toHaveLength(1);
       expect(questResult.dataset[0][0]).toBe(underlyingTicker); // underlying_ticker
@@ -77,10 +80,13 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       // Query the record back
       const result = await db.query('SELECT * FROM test_option_contracts WHERE ticker = $1', [contract.ticker]);
 
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(questResult.dataset).toHaveLength(1);
       expect(questResult.dataset[0][0]).toBe(contract.ticker); // ticker
@@ -121,10 +127,13 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       // Query the record back
       const result = await db.query('SELECT * FROM test_option_contracts WHERE ticker = $1', [contract.ticker]);
 
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(questResult.dataset).toHaveLength(1);
       expect(questResult.dataset[0][5]).toBe(170.0); // Updated strike_price
@@ -222,10 +231,13 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         underlyingTicker,
       ]);
 
-      const contractQuestResult = contractResult as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const contractQuestResult = contractResult
+        ? (contractResult as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(contractQuestResult.dataset).toHaveLength(1);
       expect(contractQuestResult.dataset[0][5]).toBe(155.0); // Updated strike price
@@ -236,10 +248,13 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         [underlyingTicker]
       );
 
-      const indexQuestResult = indexResult as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const indexQuestResult = indexResult
+        ? (indexResult as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(indexQuestResult.dataset).toHaveLength(2);
       expect(new Date(indexQuestResult.dataset[0][1] as string)).toEqual(asOf1);

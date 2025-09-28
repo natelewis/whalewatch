@@ -418,7 +418,7 @@ describe('Option Contract Schema Migration', () => {
     });
   });
 
-  describe.skip('Real Database Integration Tests', () => {
+  describe('Real Database Integration Tests', () => {
     beforeEach(() => {
       // Don't mock the database for real integration tests
       // The real database connection will be used
@@ -442,10 +442,13 @@ describe('Option Contract Schema Migration', () => {
         underlyingTicker,
       ]);
 
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(questResult.dataset).toHaveLength(1);
       expect(questResult.dataset[0][0]).toBe(underlyingTicker); // underlying_ticker
@@ -469,10 +472,13 @@ describe('Option Contract Schema Migration', () => {
       // Query the record back
       const result = await db.query('SELECT * FROM test_option_contracts WHERE ticker = $1', [contract.ticker]);
 
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(questResult.dataset).toHaveLength(1);
       expect(questResult.dataset[0][0]).toBe(contract.ticker); // ticker
@@ -513,10 +519,13 @@ describe('Option Contract Schema Migration', () => {
       // Query the record back
       const result = await db.query('SELECT * FROM test_option_contracts WHERE ticker = $1', [contract.ticker]);
 
-      const questResult = result as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = result
+        ? (result as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(questResult.dataset).toHaveLength(1);
       expect(questResult.dataset[0][5]).toBe(170.0); // Updated strike_price

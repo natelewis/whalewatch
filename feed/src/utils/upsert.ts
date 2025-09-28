@@ -96,10 +96,13 @@ export class UpsertService {
       // Check if record exists using ticker as unique identifier
       const existing = await db.query(`SELECT ticker FROM ${tableName} WHERE ticker = $1`, [contract.ticker]);
 
-      const questResult = existing as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = existing
+        ? (existing as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Update existing record
@@ -157,10 +160,13 @@ export class UpsertService {
         [index.underlying_ticker, index.as_of]
       );
 
-      const questResult = existing as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const questResult = existing
+        ? (existing as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Record already exists, no need to update

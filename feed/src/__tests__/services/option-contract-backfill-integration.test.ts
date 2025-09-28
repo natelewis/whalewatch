@@ -300,7 +300,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
     });
   });
 
-  describe.skip('Real Database Integration with New Schema', () => {
+  describe('Real Database Integration with New Schema', () => {
     it('should complete full backfill process with real QuestDB', async () => {
       // This test uses real QuestDB connection
       const underlyingTicker = 'REALTEST';
@@ -343,10 +343,13 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         underlyingTicker,
       ]);
 
-      const contractQuestResult = contractResult as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const contractQuestResult = contractResult
+        ? (contractResult as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(contractQuestResult.dataset).toHaveLength(2);
       expect(contractQuestResult.columns).toHaveLength(7); // No as_of field
@@ -365,10 +368,13 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         underlyingTicker,
       ]);
 
-      const indexQuestResult = indexResult as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const indexQuestResult = indexResult
+        ? (indexResult as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(indexQuestResult.dataset).toHaveLength(1);
       expect(indexQuestResult.columns).toHaveLength(2);
@@ -426,10 +432,13 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         underlyingTicker,
       ]);
 
-      const contractQuestResult = contractResult as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const contractQuestResult = contractResult
+        ? (contractResult as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(contractQuestResult.dataset).toHaveLength(1);
       expect(contractQuestResult.dataset[0][5]).toBe(155.0); // Updated strike price
@@ -440,10 +449,13 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         [underlyingTicker]
       );
 
-      const indexQuestResult = indexResult as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
+      // Handle undefined result by treating it as empty dataset
+      const indexQuestResult = indexResult
+        ? (indexResult as {
+            columns: { name: string; type: string }[];
+            dataset: unknown[][];
+          })
+        : { columns: [], dataset: [] };
 
       expect(indexQuestResult.dataset).toHaveLength(2);
       expect(new Date(indexQuestResult.dataset[0][1] as string)).toEqual(asOf1);

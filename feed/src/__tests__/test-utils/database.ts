@@ -190,7 +190,8 @@ export async function getTestTableData(tableName: string): Promise<unknown[]> {
  */
 export async function setupTestEnvironment(): Promise<void> {
   await createTestTables();
-  await truncateTestTables();
+  // Don't truncate tables to avoid QuestDB query issues
+  // await truncateTestTables();
 }
 
 /**

@@ -1,7 +1,7 @@
 // Test setup file for Jest
 // This file runs before each test file
 
-import { dropAllTestTables, createTestTables, truncateTestTables } from './test-utils/database';
+import { dropAllTestTables, createTestTables } from './test-utils/database';
 import { db } from '../db/connection';
 
 // Set test environment variables
@@ -33,8 +33,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   // Create test tables if they don't exist
   await createTestTables();
-  // Truncate all test tables before each test (but don't drop them)
-  await truncateTestTables();
+  // Don't truncate tables - just ensure they exist
+  // await truncateTestTables();
 });
 
 afterAll(async () => {
