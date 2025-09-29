@@ -12,17 +12,18 @@ export const WhaleFinderPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    // Default to today's date
-    return new Date().toISOString().split('T')[0];
+    // Default to today's date, but check session storage first
+    const today = new Date().toISOString().split('T')[0];
+    return getSessionStorageItem('whaleFinderSelectedDate', today);
   });
-  const [maxPrice, setMaxPrice] = useState<number>(() => {
-    return getSessionStorageItem('whaleFinderMaxPrice', 1000);
+  const [maxPrice, setMaxPrice] = useState<string>(() => {
+    return getSessionStorageItem('whaleFinderMaxPrice', 1000).toString();
   });
-  const [repeatMin, setRepeatMin] = useState<number>(() => {
-    return getSessionStorageItem('whaleFinderRepeatMin', 10);
+  const [repeatMin, setRepeatMin] = useState<string>(() => {
+    return getSessionStorageItem('whaleFinderRepeatMin', 10).toString();
   });
-  const [volumeMin, setVolumeMin] = useState<number>(() => {
-    return getSessionStorageItem('whaleFinderVolumeMin', 1000);
+  const [volumeMin, setVolumeMin] = useState<string>(() => {
+    return getSessionStorageItem('whaleFinderVolumeMin', 1000).toString();
   });
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
 
@@ -54,21 +55,31 @@ export const WhaleFinderPage: React.FC = () => {
   }, [volumeMin]);
 
   useEffect(() => {
-    loadOptionsTrades(selectedSymbol, selectedDate, debouncedMaxPrice, debouncedRepeatMin, debouncedVolumeMin);
+    const maxPriceNum = debouncedMaxPrice === '' ? 0 : Number(debouncedMaxPrice);
+    const repeatMinNum = debouncedRepeatMin === '' ? 0 : Number(debouncedRepeatMin);
+    const volumeMinNum = debouncedVolumeMin === '' ? 0 : Number(debouncedVolumeMin);
+    loadOptionsTrades(selectedSymbol, selectedDate, maxPriceNum, repeatMinNum, volumeMinNum);
   }, [selectedSymbol, selectedDate, debouncedMaxPrice, debouncedRepeatMin, debouncedVolumeMin]);
 
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
-    setSessionStorageItem('whaleFinderMaxPrice', maxPrice);
+    const maxPriceNum = maxPrice === '' ? 0 : Number(maxPrice);
+    setSessionStorageItem('whaleFinderMaxPrice', maxPriceNum);
   }, [maxPrice]);
 
   useEffect(() => {
-    setSessionStorageItem('whaleFinderRepeatMin', repeatMin);
+    const repeatMinNum = repeatMin === '' ? 0 : Number(repeatMin);
+    setSessionStorageItem('whaleFinderRepeatMin', repeatMinNum);
   }, [repeatMin]);
 
   useEffect(() => {
-    setSessionStorageItem('whaleFinderVolumeMin', volumeMin);
+    const volumeMinNum = volumeMin === '' ? 0 : Number(volumeMin);
+    setSessionStorageItem('whaleFinderVolumeMin', volumeMinNum);
   }, [volumeMin]);
+
+  useEffect(() => {
+    setSessionStorageItem('whaleFinderSelectedDate', selectedDate);
+  }, [selectedDate]);
 
   const loadOptionsTrades = async (
     symbol: string,
@@ -246,7 +257,7 @@ export const WhaleFinderPage: React.FC = () => {
                       <input
                         type="number"
                         value={maxPrice}
-                        onChange={e => setMaxPrice(Number(e.target.value))}
+                        onChange={e => setMaxPrice(e.target.value)}
                         min="0"
                         step="0.01"
                         className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-20"
@@ -258,7 +269,7 @@ export const WhaleFinderPage: React.FC = () => {
                       <input
                         type="number"
                         value={repeatMin}
-                        onChange={e => setRepeatMin(Number(e.target.value))}
+                        onChange={e => setRepeatMin(e.target.value)}
                         min="1"
                         step="1"
                         className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-16"
@@ -270,7 +281,7 @@ export const WhaleFinderPage: React.FC = () => {
                       <input
                         type="number"
                         value={volumeMin}
-                        onChange={e => setVolumeMin(Number(e.target.value))}
+                        onChange={e => setVolumeMin(e.target.value)}
                         min="0"
                         step="1"
                         className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-20"
