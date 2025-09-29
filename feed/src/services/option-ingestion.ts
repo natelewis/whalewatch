@@ -438,6 +438,8 @@ export class OptionIngestionService {
 
       // Backfill quotes for each option ticker (if not skipped)
       if (!config.polygon.skipOptionQuotes) {
+        const CONCURRENCY_LIMIT = parseInt(process.env.OPTION_CONCURRENCY_LIMIT || '5');
+        const limit = pLimit(CONCURRENCY_LIMIT);
         console.log(`Starting parallel backfill of option quotes for ${optionTickers.length} tickers...`);
         const quotePromises = optionTickers.map(ticker =>
           limit(() =>

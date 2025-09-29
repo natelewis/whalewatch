@@ -332,12 +332,12 @@ export const WhaleFinderPage: React.FC = () => {
                     <>
                       {/* Table Header */}
                       <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
-                        <div>Time</div>
+                        <div></div>
                         <div className="text-right">Price</div>
-                        <div className="text-left">Size</div>
+                        <div className="text-left"></div>
                         <div className="text-right">Value</div>
-                        <div className="text-right">Strike</div>
-                        <div className="text-right">Expiry</div>
+                        <div className="text-right"></div>
+                        <div className="text-right"></div>
                         <div className="text-right">Repeat</div>
                         <div className="text-right">Volume</div>
                       </div>
