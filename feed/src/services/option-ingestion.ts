@@ -4,6 +4,7 @@ import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
+import { ContractType } from '@whalewatch/shared';
 import { getMaxDate, getMinDate, QuestDBServiceInterface, normalizeToMidnight } from '@whalewatch/shared';
 import pLimit from 'p-limit';
 
@@ -109,7 +110,19 @@ export class OptionIngestionService {
 
       const trades = await this.polygonClient.getOptionTrades(ticker, from, to);
 
-      const optionTrades: OptionTrade[] = trades.map(trade => {
+      // Get contract details to determine shares_per_contract
+      const contractDetails = await this.getContractDetails(ticker);
+      const sharesPerContract = contractDetails?.shares_per_contract || 100; // Default to 100 if not found
+
+      // Filter trades by value threshold
+      const threshold = config.polygon.optionTradeValueThreshold;
+      const filteredTrades = trades.filter(trade => {
+        const optionTrade = trade as unknown as PolygonOptionTrade;
+        const tradeValue = optionTrade.price * sharesPerContract * optionTrade.size;
+        return tradeValue >= threshold;
+      });
+
+      const optionTrades: OptionTrade[] = filteredTrades.map(trade => {
         const optionTrade = trade as unknown as PolygonOptionTrade;
         const tradeDate = PolygonClient.convertTimestamp(optionTrade.sip_timestamp, true);
 
@@ -128,7 +141,9 @@ export class OptionIngestionService {
 
       await UpsertService.batchUpsertOptionTrades(optionTrades);
 
-      console.log(`Ingested ${trades.length} option trades for ${ticker}`);
+      console.log(
+        `Ingested ${optionTrades.length} option trades for ${ticker} (filtered from ${trades.length} total trades, threshold: $${threshold})`
+      );
     } catch (error) {
       console.error(`Error ingesting option trades for ${ticker}:`, error);
       throw error;
@@ -463,6 +478,38 @@ export class OptionIngestionService {
       return null;
     } catch (error) {
       console.error('Error extracting underlying ticker from option ticker:', error);
+      return null;
+    }
+  }
+
+  private async getContractDetails(ticker: string): Promise<OptionContract | null> {
+    try {
+      const result = await db.query(
+        `SELECT ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker 
+         FROM option_contracts 
+         WHERE ticker = $1 
+         LIMIT 1`,
+        [ticker]
+      );
+
+      if (result && typeof result === 'object' && 'dataset' in result) {
+        const dataset = (result as { dataset: unknown[][] }).dataset;
+        if (dataset && dataset.length > 0) {
+          const row = dataset[0];
+          return {
+            ticker: row[0] as string,
+            contract_type: row[1] as ContractType,
+            exercise_style: row[2] as 'american' | 'european',
+            expiration_date: new Date(row[3] as string),
+            shares_per_contract: row[4] as number,
+            strike_price: row[5] as number,
+            underlying_ticker: row[6] as string,
+          };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn(`Could not retrieve contract details for ${ticker}:`, error);
       return null;
     }
   }
