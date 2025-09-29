@@ -221,10 +221,12 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       }
     });
 
-    // Convert map to array
+    // Convert map to array and identify contracts that meet thresholds
     let frontendTrades: FrontendOptionTrade[] = Array.from(tradeMap.values());
 
-    // Apply filters if specified
+    // Apply filters to identify which contracts meet the criteria
+    const qualifyingContracts: Set<string> = new Set();
+
     if (maxPriceNum !== undefined) {
       frontendTrades = frontendTrades.filter(trade => trade.price <= maxPriceNum);
     }
@@ -237,10 +239,50 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       frontendTrades = frontendTrades.filter(trade => trade.volume >= volumeMinNum);
     }
 
+    // Collect the group keys of contracts that meet all criteria
+    frontendTrades.forEach(trade => {
+      const parsedTicker = parseOptionTicker(trade.ticker);
+      const groupKey = `${trade.ticker}-${parsedTicker?.strikePrice || 0}`;
+      qualifyingContracts.add(groupKey);
+    });
+
+    // Now return ALL individual trades for qualifying contracts, but with cumulative info
+    const individualTrades: FrontendOptionTrade[] = [];
+
+    trades.forEach(trade => {
+      const parsedTicker = parseOptionTicker(trade.ticker);
+      const groupKey = `${trade.ticker}-${parsedTicker?.strikePrice || 0}`;
+
+      // Only include trades for contracts that meet the thresholds
+      if (qualifyingContracts.has(groupKey)) {
+        // Get the aggregated info for this contract
+        const aggregatedInfo = tradeMap.get(groupKey);
+
+        individualTrades.push({
+          ticker: trade.ticker,
+          underlying_ticker: trade.underlying_ticker,
+          timestamp: trade.timestamp,
+          price: trade.price,
+          size: trade.size,
+          conditions: trade.conditions,
+          tape: trade.tape.toString(),
+          sequence_number: trade.sequence_number,
+          option_type: parsedTicker?.optionType || 'call',
+          strike_price: parsedTicker?.strikePrice || 0,
+          expiration_date: parsedTicker?.expirationDate || '',
+          repeat_count: aggregatedInfo?.repeat_count || 1, // Show total repeat count for this contract
+          volume: aggregatedInfo?.volume || trade.size, // Show total volume for this contract
+        });
+      }
+    });
+
+    // Sort by timestamp (most recent first)
+    individualTrades.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
     return res.json({
       symbol: symbol.toUpperCase(),
-      trades: frontendTrades,
-      count: frontendTrades.length,
+      trades: individualTrades,
+      count: individualTrades.length,
       data_source: 'questdb',
       success: true,
     });
