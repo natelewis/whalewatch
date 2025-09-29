@@ -4,7 +4,6 @@ import { apiService } from '../services/apiService';
 import { PageHeader } from '../components/PageHeader';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
-import { Target } from 'lucide-react';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
@@ -98,16 +97,6 @@ export const WhaleFinderPage: React.FC = () => {
     });
   };
 
-  const getContractIcon = (contractType: string) => {
-    if (contractType === 'call') {
-      return <Target className="h-4 w-4 text-green-500" />;
-    } else if (contractType === 'put') {
-      return <Target className="h-4 w-4 text-red-500" />;
-    } else {
-      return <div className="h-4 w-4 rounded-full bg-gray-400" />;
-    }
-  };
-
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -195,9 +184,9 @@ export const WhaleFinderPage: React.FC = () => {
                 {/* Table Header */}
                 <div className="grid grid-cols-10 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
                   <div>Time</div>
-                  <div>Contract</div>
                   <div className="text-right">Price</div>
-                  <div className="text-right">Size</div>
+                  <div className="text-center">x</div>
+                  <div className="text-left">Size</div>
                   <div className="text-right">Notional</div>
                   <div className="text-right">Strike</div>
                   <div className="text-right">Expiry</div>
@@ -218,17 +207,28 @@ export const WhaleFinderPage: React.FC = () => {
                           <div>{formatTime(trade.timestamp)}</div>
                         </div>
 
-                        {/* Contract */}
-                        <div className="flex items-center space-x-1">
-                          {getContractIcon(trade.option_type)}
-                          <span className="font-medium text-foreground truncate text-xs">{trade.ticker}</span>
+                        {/* Price */}
+                        <div className={`font-medium text-right ${
+                          trade.option_type === 'call' 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {formatCurrency(trade.price)}
                         </div>
 
-                        {/* Price */}
-                        <div className="font-medium text-foreground text-right">{formatCurrency(trade.price)}</div>
+                        {/* x */}
+                        <div className="text-center text-muted-foreground">
+                          x
+                        </div>
 
                         {/* Size */}
-                        <div className="text-muted-foreground text-right">{trade.size.toLocaleString()}</div>
+                        <div className={`font-medium text-left ${
+                          trade.option_type === 'call' 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {trade.size.toLocaleString()}
+                        </div>
 
                         {/* Notional */}
                         <div className="font-medium text-foreground text-right">
