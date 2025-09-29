@@ -104,8 +104,16 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
       trades: AlpacaOptionsTrade[];
       hours: number;
     }> {
-      const response = await api.get(`/api/options/${symbol}/recent`, {
-        params: { hours },
+      // Calculate start_time based on hours
+      const endTime = new Date();
+      const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
+
+      const response = await api.get(`/api/options/${symbol}/trades`, {
+        params: {
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          limit: 1000,
+        },
       });
       return response.data;
     },

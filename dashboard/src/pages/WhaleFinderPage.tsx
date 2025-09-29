@@ -1,63 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { AlpacaOptionsContract } from '../types';
+import { AlpacaOptionsTrade } from '../types';
 import { apiService } from '../services/apiService';
-import { useWebSocketContext } from '../hooks/useWebSocketContext';
-import { WhaleWatchFeed } from '../components/WhaleWatchFeed';
 import { PageHeader } from '../components/PageHeader';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
-import { logger } from '../utils/logger';
+import { Target, TrendingUp, TrendingDown } from 'lucide-react';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
-  const [optionsContracts, setOptionsContracts] = useState<AlpacaOptionsContract[]>([]);
+  const [optionsTrades, setOptionsTrades] = useState<AlpacaOptionsTrade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasRealTimeData, setHasRealTimeData] = useState<boolean>(false);
-
-  // WebSocket for real-time options contracts
-  const { lastMessage, sendMessage, isConnected } = useWebSocketContext();
 
   useEffect(() => {
-    loadOptionsContracts(selectedSymbol);
+    loadOptionsTrades(selectedSymbol);
   }, [selectedSymbol]);
 
-  // Resubscribe when WebSocket reconnects
-  useEffect(() => {
-    if (isConnected && selectedSymbol) {
-      logger.chart.loading(`WebSocket reconnected, resubscribing to options contracts for ${selectedSymbol}`);
-      sendMessage({
-        type: 'subscribe',
-        data: { channel: 'options_contract', symbol: selectedSymbol },
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }, [isConnected, selectedSymbol, sendMessage]);
-
-  useEffect(() => {
-    if (lastMessage?.type === 'options_contract') {
-      const contractData = lastMessage.data as AlpacaOptionsContract;
-      setOptionsContracts(prev => [contractData, ...prev.slice(0, 99)]); // Keep last 100 contracts
-      setHasRealTimeData(true);
-    }
-  }, [lastMessage]);
-
-  const loadOptionsContracts = async (symbol: string) => {
+  const loadOptionsTrades = async (symbol: string) => {
     setIsLoading(true);
     setError(null);
 
     const result = await safeCallAsync(async () => {
-      return apiService.getOptionsContracts(symbol);
+      return apiService.getOptionsTrades(symbol, 24); // Load last 24 hours of trades
     });
 
     if (result.isOk()) {
-      setOptionsContracts(result.value.contracts);
-
-      // Subscribe to real-time options contracts for this symbol
-      sendMessage({
-        type: 'subscribe',
-        data: { channel: 'options_contract', symbol },
-        timestamp: new Date().toISOString(),
-      });
+      setOptionsTrades(result.value.trades);
     } else {
       const userMessage = createUserFriendlyMessage(result.error);
       setError(userMessage);
@@ -70,12 +38,61 @@ export const WhaleFinderPage: React.FC = () => {
     setSelectedSymbol(symbol);
   };
 
+  const formatDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  const formatTime = (dateString: string): string => {
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const getTradeIcon = (side: string) => {
+    if (side === 'buy') {
+      return <TrendingUp className="h-4 w-4 text-green-500" />;
+    } else if (side === 'sell') {
+      return <TrendingDown className="h-4 w-4 text-red-500" />;
+    } else {
+      return <Target className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getContractIcon = (contractType: string) => {
+    if (contractType === 'call') {
+      return <Target className="h-4 w-4 text-green-500" />;
+    } else if (contractType === 'put') {
+      return <Target className="h-4 w-4 text-red-500" />;
+    } else {
+      return <div className="h-4 w-4 rounded-full bg-gray-400" />;
+    }
+  };
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatNotional = (price: number, size: number): string => {
+    return formatCurrency(price * size * 100); // Options are typically 100 shares per contract
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Options Contracts"
-        subtitle="Browse available options contracts for any symbol"
+        title="Options Trades"
+        subtitle="View recent options trading activity for any symbol"
         selectedSymbol={selectedSymbol}
         onSymbolChange={handleSymbolChange}
       />
@@ -83,17 +100,117 @@ export const WhaleFinderPage: React.FC = () => {
       {/* Main Content */}
       <div className="h-[calc(100vh-200px)]">
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Options Contracts Feed</h2>
-          <WhaleWatchFeed
-            contracts={optionsContracts}
-            selectedSymbol={selectedSymbol}
-            onSymbolChange={handleSymbolChange}
-            isLoading={isLoading}
-            error={error}
-            isConnected={isConnected}
-            hasRealTimeData={hasRealTimeData}
-            showTickerSelector={false}
-          />
+          <h2 className="text-xl font-semibold text-foreground">Recent Options Trades</h2>
+
+          {/* Options Trades Display */}
+          <div className="bg-card rounded-lg border border-border h-full flex flex-col">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <LoadingSpinner />
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center">
+                <p className="text-destructive">{error}</p>
+              </div>
+            ) : !optionsTrades || optionsTrades.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-muted-foreground">
+                  No options trades found for {selectedSymbol} in the last 24 hours
+                </p>
+              </div>
+            ) : (
+              <div className="p-4">
+                {/* Summary */}
+                <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center justify-between text-sm">
+                    <div>
+                      <span className="font-medium text-foreground">{optionsTrades?.length || 0} trades</span>
+                      <span className="text-muted-foreground ml-2">for {selectedSymbol}</span>
+                    </div>
+                    <div className="text-muted-foreground">{selectedSymbol} • Last 24 Hours</div>
+                  </div>
+                </div>
+
+                {/* Table Header */}
+                <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+                  <div>Time</div>
+                  <div>Contract</div>
+                  <div>Side</div>
+                  <div className="text-right">Price</div>
+                  <div className="text-right">Size</div>
+                  <div className="text-right">Notional</div>
+                  <div className="text-right">Strike</div>
+                  <div className="text-right">Expiry</div>
+                </div>
+
+                {/* Table Rows */}
+                <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
+                  {(optionsTrades || []).map((trade, index) => {
+                    const isBuy = trade.side === 'buy';
+                    const isSell = trade.side === 'sell';
+
+                    return (
+                      <div
+                        key={`${trade.id}-${index}`}
+                        className="grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
+                      >
+                        {/* Time */}
+                        <div className="text-muted-foreground text-xs">
+                          <div>{formatTime(trade.timestamp)}</div>
+                          <div>{formatDate(trade.timestamp)}</div>
+                        </div>
+
+                        {/* Contract */}
+                        <div className="flex items-center space-x-1">
+                          {getContractIcon(trade.contract.option_type)}
+                          <span className="font-medium text-foreground truncate text-xs">{trade.contract.symbol}</span>
+                        </div>
+
+                        {/* Side */}
+                        <div className="flex items-center">
+                          <div className="flex items-center space-x-1">
+                            {getTradeIcon(trade.side)}
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                isBuy
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                  : isSell
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                              }`}
+                            >
+                              {trade.side.toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Price */}
+                        <div className="font-medium text-foreground text-right">{formatCurrency(trade.price)}</div>
+
+                        {/* Size */}
+                        <div className="text-muted-foreground text-right">{trade.size.toLocaleString()}</div>
+
+                        {/* Notional */}
+                        <div className="font-medium text-foreground text-right">
+                          {formatNotional(trade.price, trade.size)}
+                        </div>
+
+                        {/* Strike */}
+                        <div className="text-muted-foreground text-right">
+                          ${trade.contract.strike_price.toFixed(2)}
+                        </div>
+
+                        {/* Expiry */}
+                        <div className="text-muted-foreground text-right text-xs">
+                          {formatDate(trade.contract.expiration_date)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
