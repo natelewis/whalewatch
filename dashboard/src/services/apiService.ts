@@ -101,7 +101,9 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
       symbol: string,
       startTime: Date,
       endTime: Date,
-      maxPrice?: number
+      maxPrice?: number,
+      repeatMin?: number,
+      volumeMin?: number
     ): Promise<{
       symbol: string;
       trades: FrontendOptionTrade[];
@@ -115,6 +117,14 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
 
       if (maxPrice !== undefined) {
         params.max_price = maxPrice;
+      }
+
+      if (repeatMin !== undefined) {
+        params.repeat_min = repeatMin;
+      }
+
+      if (volumeMin !== undefined) {
+        params.volume_min = volumeMin;
       }
 
       const response = await api.get(`/api/options/${symbol}/trades`, {

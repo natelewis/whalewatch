@@ -18,17 +18,37 @@ export const WhaleFinderPage: React.FC = () => {
   const [maxPrice, setMaxPrice] = useState<number>(() => {
     return getSessionStorageItem('whaleFinderMaxPrice', 1000);
   });
+  const [repeatMin, setRepeatMin] = useState<number>(() => {
+    return getSessionStorageItem('whaleFinderRepeatMin', 10);
+  });
+  const [volumeMin, setVolumeMin] = useState<number>(() => {
+    return getSessionStorageItem('whaleFinderVolumeMin', 1000);
+  });
 
   useEffect(() => {
-    loadOptionsTrades(selectedSymbol, selectedDate, maxPrice);
-  }, [selectedSymbol, selectedDate, maxPrice]);
+    loadOptionsTrades(selectedSymbol, selectedDate, maxPrice, repeatMin, volumeMin);
+  }, [selectedSymbol, selectedDate, maxPrice, repeatMin, volumeMin]);
 
-  // Save maxPrice to sessionStorage whenever it changes
+  // Save filters to sessionStorage whenever they change
   useEffect(() => {
     setSessionStorageItem('whaleFinderMaxPrice', maxPrice);
   }, [maxPrice]);
 
-  const loadOptionsTrades = async (symbol: string, date: string, maxPriceFilter: number) => {
+  useEffect(() => {
+    setSessionStorageItem('whaleFinderRepeatMin', repeatMin);
+  }, [repeatMin]);
+
+  useEffect(() => {
+    setSessionStorageItem('whaleFinderVolumeMin', volumeMin);
+  }, [volumeMin]);
+
+  const loadOptionsTrades = async (
+    symbol: string,
+    date: string,
+    maxPriceFilter: number,
+    repeatMinFilter: number,
+    volumeMinFilter: number
+  ) => {
     setIsLoading(true);
     setError(null);
 
@@ -37,7 +57,7 @@ export const WhaleFinderPage: React.FC = () => {
     const endTime = new Date(`${date}T23:59:59.999Z`);
 
     const result = await safeCallAsync(async () => {
-      return apiService.getOptionsTrades(symbol, startTime, endTime, maxPriceFilter);
+      return apiService.getOptionsTrades(symbol, startTime, endTime, maxPriceFilter, repeatMinFilter, volumeMinFilter);
     });
 
     if (result.isOk()) {
@@ -150,11 +170,9 @@ export const WhaleFinderPage: React.FC = () => {
                   <div className="flex items-center justify-between text-sm">
                     <div>
                       <span className="font-medium text-foreground">{optionsTrades?.length || 0} trades</span>
-                      <span className="text-muted-foreground ml-2">for {selectedSymbol}</span>
                     </div>
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
-                        <span className="text-muted-foreground">Date:</span>
                         <select
                           value={selectedDate}
                           onChange={e => setSelectedDate(e.target.value)}
@@ -175,6 +193,30 @@ export const WhaleFinderPage: React.FC = () => {
                           onChange={e => setMaxPrice(Number(e.target.value))}
                           min="0"
                           step="0.01"
+                          className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-20"
+                          placeholder="1000"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-muted-foreground">Repeat:</span>
+                        <input
+                          type="number"
+                          value={repeatMin}
+                          onChange={e => setRepeatMin(Number(e.target.value))}
+                          min="1"
+                          step="1"
+                          className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-16"
+                          placeholder="10"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-muted-foreground">Volume:</span>
+                        <input
+                          type="number"
+                          value={volumeMin}
+                          onChange={e => setVolumeMin(Number(e.target.value))}
+                          min="0"
+                          step="1"
                           className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-20"
                           placeholder="1000"
                         />

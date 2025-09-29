@@ -76,7 +76,14 @@ describe('WhaleFinderPage', () => {
     renderWithRouter(<WhaleFinderPage />);
 
     await waitFor(() => {
-      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith('TSLA', expect.any(Date), expect.any(Date), 1000);
+      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith(
+        'TSLA',
+        expect.any(Date),
+        expect.any(Date),
+        1000,
+        10,
+        1000
+      );
     });
   });
 

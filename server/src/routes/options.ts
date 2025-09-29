@@ -111,6 +111,8 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       order_by = 'timestamp',
       order_direction = 'DESC',
       max_price: maxPrice,
+      repeat_min: repeatMin,
+      volume_min: volumeMin,
     } = req.query;
 
     if (!symbol) {
@@ -128,6 +130,24 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       maxPriceNum = parseFloat(maxPrice as string);
       if (isNaN(maxPriceNum) || maxPriceNum < 0) {
         return res.status(400).json({ error: 'Max price must be a positive number' });
+      }
+    }
+
+    // Validate repeat_min parameter
+    let repeatMinNum: number | undefined;
+    if (repeatMin !== undefined) {
+      repeatMinNum = parseInt(repeatMin as string);
+      if (isNaN(repeatMinNum) || repeatMinNum < 1) {
+        return res.status(400).json({ error: 'Repeat min must be a positive integer' });
+      }
+    }
+
+    // Validate volume_min parameter
+    let volumeMinNum: number | undefined;
+    if (volumeMin !== undefined) {
+      volumeMinNum = parseInt(volumeMin as string);
+      if (isNaN(volumeMinNum) || volumeMinNum < 0) {
+        return res.status(400).json({ error: 'Volume min must be a non-negative integer' });
       }
     }
 
@@ -204,9 +224,17 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
     // Convert map to array
     let frontendTrades: FrontendOptionTrade[] = Array.from(tradeMap.values());
 
-    // Apply max price filter if specified
+    // Apply filters if specified
     if (maxPriceNum !== undefined) {
       frontendTrades = frontendTrades.filter(trade => trade.price <= maxPriceNum);
+    }
+
+    if (repeatMinNum !== undefined) {
+      frontendTrades = frontendTrades.filter(trade => trade.repeat_count >= repeatMinNum);
+    }
+
+    if (volumeMinNum !== undefined) {
+      frontendTrades = frontendTrades.filter(trade => trade.volume >= volumeMinNum);
     }
 
     return res.json({
