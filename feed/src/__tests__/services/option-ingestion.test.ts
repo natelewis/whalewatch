@@ -280,11 +280,7 @@ describe('OptionIngestionService', () => {
       expect(mockPolygonClient.getOptionTrades).toHaveBeenCalledWith(ticker, from, to);
 
       // Verify the trades were inserted into the database
-      await waitForRecordsWithCondition(
-        getTableName('option_trades'),
-        `ticker = '${ticker}'`,
-        2
-      );
+      await waitForRecordsWithCondition(getTableName('option_trades'), `ticker = '${ticker}'`, 2);
     });
 
     it('should skip trades when underlying ticker cannot be extracted', async () => {
@@ -424,11 +420,7 @@ describe('OptionIngestionService', () => {
       expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
 
       // Verify quotes were inserted into the database
-      await waitForRecordsWithCondition(
-        getTableName('option_quotes'),
-        `ticker = '${ticker}'`,
-        2
-      );
+      await waitForRecordsWithCondition(getTableName('option_quotes'), `ticker = '${ticker}'`, 2);
     });
 
     it('should skip quotes when underlying ticker cannot be extracted', async () => {
@@ -505,11 +497,7 @@ describe('OptionIngestionService', () => {
       expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
 
       // Verify quotes were inserted (should be chunked into multiple batches)
-      await waitForRecordsWithCondition(
-        getTableName('option_quotes'),
-        `ticker = '${ticker}'`,
-        2500
-      );
+      await waitForRecordsWithCondition(getTableName('option_quotes'), `ticker = '${ticker}'`, 2500);
     });
 
     it('should handle errors during quote processing and continue with other chunks', async () => {
@@ -533,7 +521,8 @@ describe('OptionIngestionService', () => {
 
       // Mock UpsertService to throw error on first call, succeed on second
       const originalBatchUpsertOptionQuotes = UpsertService.batchUpsertOptionQuotes;
-      UpsertService.batchUpsertOptionQuotes = jest.fn()
+      UpsertService.batchUpsertOptionQuotes = jest
+        .fn()
         .mockRejectedValueOnce(new Error('Chunk processing error'))
         .mockResolvedValue(undefined);
 
@@ -616,7 +605,7 @@ describe('OptionIngestionService', () => {
     it('should return all option tickers for configured underlying tickers', async () => {
       // This test uses real database - we'll create some test contracts first
       const testTickers = ['AAPL', 'GOOGL', 'TSLA'];
-      
+
       // Create test contracts
       for (const ticker of testTickers) {
         const contracts: OptionContract[] = [
@@ -639,7 +628,7 @@ describe('OptionIngestionService', () => {
             underlying_ticker: ticker,
           },
         ];
-        
+
         await UpsertService.batchUpsertOptionContracts(contracts);
       }
 
@@ -681,6 +670,12 @@ describe('OptionIngestionService', () => {
         underlying_ticker: underlyingTicker,
         as_of: asOf2,
       });
+
+      // Wait for data to be available (QuestDB eventual consistency)
+      await waitForSingleRecordWithCondition(
+        getTableName('option_contract_index'),
+        `underlying_ticker = '${underlyingTicker}' AND as_of = '${asOf2.toISOString()}'`
+      );
 
       // Act
       const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);
@@ -735,7 +730,6 @@ describe('OptionIngestionService', () => {
       // Assert
       expect(result).toBeNull();
     });
-
   });
 
   describe('catchUpOptionContracts', () => {
