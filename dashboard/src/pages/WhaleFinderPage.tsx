@@ -177,7 +177,7 @@ export const WhaleFinderPage: React.FC = () => {
                         </select>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-muted-foreground">Max Price:</span>
+                        <span className="text-muted-foreground">Max: $</span>
                         <input
                           type="number"
                           value={maxPrice}
@@ -187,7 +187,6 @@ export const WhaleFinderPage: React.FC = () => {
                           className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-20"
                           placeholder="1000"
                         />
-                        <span className="text-muted-foreground text-xs">$</span>
                       </div>
                     </div>
                   </div>
