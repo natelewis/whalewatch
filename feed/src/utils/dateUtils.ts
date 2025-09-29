@@ -1,4 +1,3 @@
-q;
 /**
  * Normalize a date to midnight (00:00:00.000) for consistent timestamp storage
  * This ensures that all timestamps for the same date are identical
