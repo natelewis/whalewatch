@@ -86,23 +86,21 @@ describe('WhaleFinderPage', () => {
     await waitFor(() => {
       expect(screen.getByText('2 trades')).toBeInTheDocument();
       expect(screen.getByText('for TSLA')).toBeInTheDocument();
-      
-      // Test new separate column headers
+
+      // Test new column headers (no x column)
       expect(screen.getByText('Price')).toBeInTheDocument();
-      expect(screen.getByText('x')).toBeInTheDocument();
       expect(screen.getByText('Size')).toBeInTheDocument();
-      
+
       // Test new columns
       expect(screen.getByText('Repeat')).toBeInTheDocument();
       expect(screen.getByText('Volume')).toBeInTheDocument();
       expect(screen.getByText('1')).toBeInTheDocument(); // repeat_count for first trade
       expect(screen.getByText('2')).toBeInTheDocument(); // repeat_count for second trade
-      
-      // Test price and size format (should show $5.50 and $3.20 in separate columns)
-      expect(screen.getByText('$5.50')).toBeInTheDocument();
-      expect(screen.getByText('$3.20')).toBeInTheDocument();
-      expect(screen.getAllByText('x')).toHaveLength(3); // One header "x" + two data "x" elements
-      
+
+      // Test price with P/C indicator (should show $5.50 C and $3.20 P)
+      expect(screen.getByText('$5.50 C')).toBeInTheDocument();
+      expect(screen.getByText('$3.20 P')).toBeInTheDocument();
+
       // Test volume values
       expect(screen.getAllByText('100')).toHaveLength(2); // Size in Size column and Volume column
       expect(screen.getByText('150')).toBeInTheDocument(); // Volume for second trade

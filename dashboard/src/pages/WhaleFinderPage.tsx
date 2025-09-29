@@ -182,10 +182,9 @@ export const WhaleFinderPage: React.FC = () => {
                 </div>
 
                 {/* Table Header */}
-                <div className="grid grid-cols-10 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+                <div className="grid grid-cols-9 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
                   <div>Time</div>
                   <div className="text-right">Price</div>
-                  <div className="text-center">x</div>
                   <div className="text-left">Size</div>
                   <div className="text-right">Notional</div>
                   <div className="text-right">Strike</div>
@@ -200,36 +199,23 @@ export const WhaleFinderPage: React.FC = () => {
                     return (
                       <div
                         key={`${trade.sequence_number}-${index}`}
-                        className="grid grid-cols-10 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
+                        className="grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
                       >
                         {/* Time */}
                         <div className="text-muted-foreground text-xs">
                           <div>{formatTime(trade.timestamp)}</div>
                         </div>
 
-                        {/* Price */}
-                        <div
-                          className={`font-medium text-right ${
-                            trade.option_type === 'call'
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}
-                        >
-                          {formatCurrency(trade.price)}
+                        {/* Price with P/C indicator */}
+                        <div className="text-right">
+                          <div className="font-medium text-foreground">
+                            {formatCurrency(trade.price)} {trade.option_type === 'call' ? 'C' : 'P'}
+                          </div>
                         </div>
 
-                        {/* x */}
-                        <div className="text-center text-muted-foreground">x</div>
-
                         {/* Size */}
-                        <div
-                          className={`font-medium text-left ${
-                            trade.option_type === 'call'
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}
-                        >
-                          {trade.size.toLocaleString()}
+                        <div className="text-left">
+                          <div className="font-medium text-foreground">{trade.size.toLocaleString()}</div>
                         </div>
 
                         {/* Notional */}
