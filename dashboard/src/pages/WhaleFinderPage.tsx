@@ -4,7 +4,7 @@ import { apiService } from '../services/apiService';
 import { PageHeader } from '../components/PageHeader';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
-import { getSessionStorageItem, setSessionStorageItem } from '../utils/sessionStorage';
+import { getSessionStorageItem, setSessionStorageItem } from '../utils/localStorage';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
