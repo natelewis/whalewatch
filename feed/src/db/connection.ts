@@ -140,7 +140,7 @@ export class QuestDBConnection {
   }
 
   async resetAllData(): Promise<void> {
-    const tables = ['stock_aggregates', 'option_contracts', 'option_trades', 'option_quotes'];
+    const tables = ['stock_aggregates', 'option_contracts', 'option_contracts_index', 'option_trades', 'option_quotes'];
 
     for (const table of tables) {
       try {
@@ -155,7 +155,12 @@ export class QuestDBConnection {
           console.log(`Found ${questResult.dataset.length} partitions in ${table}...`);
 
           // For tables with timestamp columns, we need to handle active partitions
-          if (table === 'stock_aggregates' || table === 'option_trades' || table === 'option_quotes') {
+          if (
+            table === 'stock_aggregates' ||
+            table === 'option_trades' ||
+            table === 'option_quotes' ||
+            table === 'option_contracts_index'
+          ) {
             // Insert a dummy record with future timestamp to make current partitions inactive
             const futureDate = new Date();
             futureDate.setDate(futureDate.getDate() + 1); // Tomorrow
@@ -173,6 +178,10 @@ export class QuestDBConnection {
               } else if (table === 'option_quotes') {
                 await this.query(
                   `INSERT INTO ${table} (ticker, underlying_ticker, timestamp, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, sequence_number) VALUES ('DUMMY', 'DUMMY', '${futureTimestamp}', 0, 0, 0, 0, 0, 0, 0)`
+                );
+              } else if (table === 'option_contracts_index') {
+                await this.query(
+                  `INSERT INTO ${table} (underlying_ticker, as_of) VALUES ('DUMMY', '${futureTimestamp}')`
                 );
               }
               console.log(`Inserted dummy record with future timestamp to make partitions inactive`);

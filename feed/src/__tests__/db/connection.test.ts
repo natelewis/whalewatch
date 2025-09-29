@@ -514,4 +514,216 @@ describe('QuestDBConnection', () => {
       expect(schema).toContain('PARTITION BY DAY');
     });
   });
+
+  describe('resetAllData', () => {
+    beforeEach(async () => {
+      // Connect before each reset test
+      await connection.connect();
+    });
+
+    it('should reset all production tables including option_contracts_index', async () => {
+      // Arrange - Create all production tables with some test data
+      const productionTables = [
+        'stock_aggregates',
+        'option_contracts',
+        'option_contracts_index',
+        'option_trades',
+        'option_quotes',
+      ];
+
+      // Create tables and insert test data
+      for (const table of productionTables) {
+        try {
+          await connection.query(`DROP TABLE IF EXISTS ${table}`);
+        } catch (_error) {
+          // Ignore if table doesn't exist
+        }
+      }
+
+      // Create stock_aggregates table
+      await connection.query(`
+        CREATE TABLE stock_aggregates (
+          symbol SYMBOL,
+          timestamp TIMESTAMP,
+          open DOUBLE,
+          high DOUBLE,
+          low DOUBLE,
+          close DOUBLE,
+          volume DOUBLE,
+          vwap DOUBLE,
+          transaction_count LONG
+        ) TIMESTAMP(timestamp) PARTITION BY DAY
+      `);
+
+      // Create option_contracts table
+      await connection.query(`
+        CREATE TABLE option_contracts (
+          ticker STRING,
+          contract_type STRING,
+          exercise_style STRING,
+          expiration_date TIMESTAMP,
+          shares_per_contract LONG,
+          strike_price DOUBLE,
+          underlying_ticker SYMBOL
+        ) TIMESTAMP(expiration_date) PARTITION BY DAY
+      `);
+
+      // Create option_contracts_index table
+      await connection.query(`
+        CREATE TABLE option_contracts_index (
+          underlying_ticker SYMBOL,
+          as_of TIMESTAMP
+        ) TIMESTAMP(as_of) PARTITION BY DAY
+      `);
+
+      // Create option_trades table
+      await connection.query(`
+        CREATE TABLE option_trades (
+          ticker SYMBOL,
+          underlying_ticker SYMBOL,
+          timestamp TIMESTAMP,
+          price DOUBLE,
+          size DOUBLE,
+          conditions STRING,
+          exchange LONG,
+          tape LONG,
+          sequence_number LONG
+        ) TIMESTAMP(timestamp) PARTITION BY DAY
+      `);
+
+      // Create option_quotes table
+      await connection.query(`
+        CREATE TABLE option_quotes (
+          ticker SYMBOL,
+          underlying_ticker SYMBOL,
+          timestamp TIMESTAMP,
+          bid_price DOUBLE,
+          bid_size DOUBLE,
+          ask_price DOUBLE,
+          ask_size DOUBLE,
+          bid_exchange LONG,
+          ask_exchange LONG,
+          sequence_number LONG
+        ) TIMESTAMP(timestamp) PARTITION BY DAY
+      `);
+
+      // Insert test data into each table
+      const now = new Date().toISOString();
+
+      await connection.query(`
+        INSERT INTO stock_aggregates 
+        (symbol, timestamp, open, high, low, close, volume, vwap, transaction_count) 
+        VALUES ('TEST', '${now}', 100, 105, 95, 102, 1000, 101, 50)
+      `);
+
+      await connection.query(`
+        INSERT INTO option_contracts 
+        (ticker, contract_type, exercise_style, expiration_date, shares_per_contract, strike_price, underlying_ticker) 
+        VALUES ('TEST240115C00100000', 'call', 'american', '2024-01-15T00:00:00.000Z', 100, 100, 'TEST')
+      `);
+
+      await connection.query(`
+        INSERT INTO option_contracts_index 
+        (underlying_ticker, as_of) 
+        VALUES ('TEST', '${now}')
+      `);
+
+      await connection.query(`
+        INSERT INTO option_trades 
+        (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number) 
+        VALUES ('TEST240115C00100000', 'TEST', '${now}', 2.50, 10, '[]', 1, 1, 1)
+      `);
+
+      await connection.query(`
+        INSERT INTO option_quotes 
+        (ticker, underlying_ticker, timestamp, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, sequence_number) 
+        VALUES ('TEST240115C00100000', 'TEST', '${now}', 2.40, 5, 2.60, 5, 1, 1, 1)
+      `);
+
+      // Verify data exists before reset
+      for (const table of productionTables) {
+        const result = await connection.query(`SELECT COUNT(*) FROM ${table}`);
+        const count = (result as any).dataset[0][0];
+        expect(count).toBeGreaterThan(0);
+      }
+
+      // Act - Reset all data
+      await connection.resetAllData();
+
+      // Assert - All tables should be recreated but empty
+      for (const table of productionTables) {
+        const result = await connection.query(`SELECT COUNT(*) FROM ${table}`);
+        const count = (result as any).dataset[0][0];
+        expect(count).toBe(0);
+      }
+    });
+
+    it('should handle reset when tables do not exist', async () => {
+      // Arrange - Ensure tables don't exist
+      const productionTables = [
+        'stock_aggregates',
+        'option_contracts',
+        'option_contracts_index',
+        'option_trades',
+        'option_quotes',
+      ];
+
+      for (const table of productionTables) {
+        try {
+          await connection.query(`DROP TABLE IF EXISTS ${table}`);
+        } catch (_error) {
+          // Ignore if table doesn't exist
+        }
+      }
+
+      // Act & Assert - Should not throw error
+      await expect(connection.resetAllData()).resolves.not.toThrow();
+
+      // Verify tables are created after reset
+      for (const table of productionTables) {
+        const result = await connection.query(`SELECT COUNT(*) FROM ${table}`);
+        expect(result).toBeDefined();
+        const count = (result as any).dataset[0][0];
+        expect(count).toBe(0);
+      }
+    });
+
+    it('should recreate schema after reset', async () => {
+      // Arrange - Create a table with data
+      await connection.query(`DROP TABLE IF EXISTS stock_aggregates`);
+      await connection.query(`
+        CREATE TABLE stock_aggregates (
+          symbol SYMBOL,
+          timestamp TIMESTAMP,
+          open DOUBLE,
+          high DOUBLE,
+          low DOUBLE,
+          close DOUBLE,
+          volume DOUBLE,
+          vwap DOUBLE,
+          transaction_count LONG
+        ) TIMESTAMP(timestamp) PARTITION BY DAY
+      `);
+
+      const now = new Date().toISOString();
+      await connection.query(`
+        INSERT INTO stock_aggregates 
+        (symbol, timestamp, open, high, low, close, volume, vwap, transaction_count) 
+        VALUES ('TEST', '${now}', 100, 105, 95, 102, 1000, 101, 50)
+      `);
+
+      // Act
+      await connection.resetAllData();
+
+      // Assert - Table should exist with correct schema
+      const result = await connection.query(`SELECT COUNT(*) FROM stock_aggregates`);
+      expect(result).toBeDefined();
+
+      // Verify table structure is correct
+      const columnsResult = await connection.query(`DESCRIBE stock_aggregates`);
+      const columns = (columnsResult as any).dataset;
+      expect(columns).toBeDefined();
+      expect(columns.length).toBeGreaterThan(0);
+    });
+  });
 });
