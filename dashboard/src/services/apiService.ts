@@ -98,16 +98,13 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
     // Options endpoints
     async getOptionsTrades(
       symbol: string,
-      hours: number = 1
+      startTime: Date,
+      endTime: Date
     ): Promise<{
       symbol: string;
       trades: AlpacaOptionsTrade[];
       hours: number;
     }> {
-      // Calculate start_time based on hours
-      const endTime = new Date();
-      const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
-
       const response = await api.get(`/api/options/${symbol}/trades`, {
         params: {
           start_time: startTime.toISOString(),

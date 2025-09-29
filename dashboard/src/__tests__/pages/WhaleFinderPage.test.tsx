@@ -84,7 +84,7 @@ describe('WhaleFinderPage', () => {
     renderWithRouter(<WhaleFinderPage />);
 
     await waitFor(() => {
-      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith('TSLA', 24);
+      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith('TSLA', expect.any(Date), expect.any(Date));
     });
   });
 
@@ -130,7 +130,7 @@ describe('WhaleFinderPage', () => {
     renderWithRouter(<WhaleFinderPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('No option trades found for TSLA in the last 24 hours')).toBeInTheDocument();
+      expect(screen.getByText(/No option trades found for TSLA on/)).toBeInTheDocument();
     });
   });
 });

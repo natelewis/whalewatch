@@ -11,17 +11,25 @@ export const WhaleFinderPage: React.FC = () => {
   const [optionsTrades, setOptionsTrades] = useState<AlpacaOptionsTrade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // Default to today's date
+    return new Date().toISOString().split('T')[0];
+  });
 
   useEffect(() => {
-    loadOptionsTrades(selectedSymbol);
-  }, [selectedSymbol]);
+    loadOptionsTrades(selectedSymbol, selectedDate);
+  }, [selectedSymbol, selectedDate]);
 
-  const loadOptionsTrades = async (symbol: string) => {
+  const loadOptionsTrades = async (symbol: string, date: string) => {
     setIsLoading(true);
     setError(null);
 
+    // Calculate start and end time for the selected date
+    const startTime = new Date(`${date}T00:00:00.000Z`);
+    const endTime = new Date(`${date}T23:59:59.999Z`);
+
     const result = await safeCallAsync(async () => {
-      return apiService.getOptionsTrades(symbol, 24); // Load last 24 hours of trades
+      return apiService.getOptionsTrades(symbol, startTime, endTime);
     });
 
     if (result.isOk()) {
@@ -36,6 +44,41 @@ export const WhaleFinderPage: React.FC = () => {
 
   const handleSymbolChange = (symbol: string) => {
     setSelectedSymbol(symbol);
+  };
+
+  const generateDateOptions = () => {
+    const options = [];
+    const today = new Date();
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const dateString = date.toISOString().split('T')[0];
+      const displayString = date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+      options.push({
+        value: dateString,
+        label: displayString,
+        isToday: i === 0,
+      });
+    }
+
+    return options;
+  };
+
+  const formatDateDisplay = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
 
   const formatDate = (dateString: string): string => {
@@ -115,7 +158,7 @@ export const WhaleFinderPage: React.FC = () => {
             ) : !optionsTrades || optionsTrades.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-muted-foreground">
-                  No option trades found for {selectedSymbol} in the last 24 hours
+                  No option trades found for {selectedSymbol} on {formatDateDisplay(selectedDate)}
                 </p>
               </div>
             ) : (
@@ -127,7 +170,20 @@ export const WhaleFinderPage: React.FC = () => {
                       <span className="font-medium text-foreground">{optionsTrades?.length || 0} trades</span>
                       <span className="text-muted-foreground ml-2">for {selectedSymbol}</span>
                     </div>
-                    <div className="text-muted-foreground">{selectedSymbol} • Last 24 Hours</div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-muted-foreground">Date:</span>
+                      <select
+                        value={selectedDate}
+                        onChange={e => setSelectedDate(e.target.value)}
+                        className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {generateDateOptions().map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label} {option.isToday ? '(Today)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -157,7 +213,6 @@ export const WhaleFinderPage: React.FC = () => {
                         {/* Time */}
                         <div className="text-muted-foreground text-xs">
                           <div>{formatTime(trade.timestamp)}</div>
-                          <div>{formatDate(trade.timestamp)}</div>
                         </div>
 
                         {/* Contract */}
