@@ -2,7 +2,7 @@ import { db } from '../db/connection';
 import { PolygonClient } from './polygon-client';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
-import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
+import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote, OptionTradeIndex } from '../types/database';
 import { PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
 import { ContractType } from '@whalewatch/shared';
 import { getMaxDate, getMinDate, QuestDBServiceInterface, normalizeToMidnight } from '@whalewatch/shared';
@@ -48,6 +48,77 @@ export class OptionIngestionService {
         });
       },
     };
+  }
+
+  async backfillOptionTrades(underlyingTicker: string, from: Date, to: Date): Promise<void> {
+    try {
+      console.log(
+        `Backfilling option trades for ${underlyingTicker} from ${from.toISOString()} to ${to.toISOString()}...`
+      );
+
+      const optionTickers = await this.getOptionTickersForUnderlying(underlyingTicker, from);
+      console.log(`Found ${optionTickers.length} option tickers for ${underlyingTicker}`);
+
+      const CONCURRENCY_LIMIT = parseInt(process.env.OPTION_CONCURRENCY_LIMIT || '5');
+      const limit = pLimit(CONCURRENCY_LIMIT);
+
+      const tradePromises = optionTickers.map(ticker =>
+        limit(async () => {
+          try {
+            const lastSync = await this.getOptionTradeLastSync(ticker);
+            const backfillStart = lastSync ? new Date(lastSync.getTime() + 1) : from;
+
+            if (backfillStart >= to) {
+              console.log(`Option trades for ${ticker} are already up to date.`);
+              return;
+            }
+
+            await this.ingestOptionTrades(ticker, backfillStart, to);
+            await this.updateOptionTradeLastSync(ticker, to);
+          } catch (error) {
+            console.error(`Error backfilling option trades for ${ticker}:`, error);
+          }
+        })
+      );
+
+      await Promise.all(tradePromises);
+      console.log(`Completed backfill of option trades for ${underlyingTicker}`);
+    } catch (error) {
+      console.error(`Error backfilling option trades for ${underlyingTicker}:`, error);
+      throw error;
+    }
+  }
+
+  async getOptionTradeLastSync(ticker: string): Promise<Date | null> {
+    try {
+      const result = await db.query(
+        `SELECT last_sync FROM ${getTableName(
+          'option_trades_index'
+        )} WHERE ticker = $1 ORDER BY last_sync DESC LIMIT 1`,
+        [ticker]
+      );
+
+      const rows = (result as { dataset: unknown[][] })?.dataset || [];
+      if (rows.length > 0) {
+        return new Date(rows[0][0] as string);
+      }
+      return null;
+    } catch (error) {
+      console.error(`Error getting last sync for ${ticker}:`, error);
+      return null;
+    }
+  }
+
+  async updateOptionTradeLastSync(ticker: string, lastSync: Date): Promise<void> {
+    try {
+      const indexRecord: OptionTradeIndex = {
+        ticker: ticker,
+        last_sync: lastSync,
+      };
+      await UpsertService.upsertOptionTradeIndex(indexRecord);
+    } catch (error) {
+      console.error(`Error updating last sync for ${ticker}:`, error);
+    }
   }
 
   async ingestOptionContracts(underlyingTicker: string, asOf: Date): Promise<void> {
@@ -115,7 +186,7 @@ export class OptionIngestionService {
       const sharesPerContract = contractDetails?.shares_per_contract || 100; // Default to 100 if not found
 
       // Filter trades by value threshold
-      const threshold = config.polygon.optionTradeValueThreshold;
+      const threshold = 10000;
       const filteredTrades = trades.filter(trade => {
         const optionTrade = trade as unknown as PolygonOptionTrade;
         const tradeValue = optionTrade.price * sharesPerContract * optionTrade.size;
@@ -344,27 +415,13 @@ export class OptionIngestionService {
       }
 
       // Get all option tickers for this underlying
-      const optionTickers = await this.getOptionTickersForUnderlying(underlyingTicker);
+      const optionTickers = await this.getOptionTickersForUnderlying(underlyingTicker, from);
 
       console.log(`Found ${optionTickers.length} option tickers for ${underlyingTicker}`);
 
-      // Process option tickers in parallel with controlled concurrency
-      const CONCURRENCY_LIMIT = parseInt(process.env.OPTION_CONCURRENCY_LIMIT || '5');
-      const limit = pLimit(CONCURRENCY_LIMIT);
-
       // Backfill trades for each option ticker (if not skipped)
       if (!config.polygon.skipOptionTrades) {
-        console.log(`Starting parallel backfill of option trades for ${optionTickers.length} tickers...`);
-        const tradePromises = optionTickers.map(ticker =>
-          limit(() =>
-            this.ingestOptionTrades(ticker, from, to).catch(error => {
-              console.error(`Error backfilling option trades for ${ticker}:`, error);
-              return null; // Continue processing other tickers
-            })
-          )
-        );
-        await Promise.all(tradePromises);
-        console.log(`Completed parallel backfill of option trades`);
+        await this.backfillOptionTrades(underlyingTicker, from, to);
       } else {
         console.log(`Skipping option trades ingestion (POLYGON_SKIP_OPTION_TRADES=true)`);
       }
@@ -391,17 +448,22 @@ export class OptionIngestionService {
     }
   }
 
-  private async getOptionTickersForUnderlying(underlyingTicker: string): Promise<string[]> {
+  private async getOptionTickersForUnderlying(underlyingTicker: string, activeAfter?: Date): Promise<string[]> {
     try {
-      // Use parameterized query for better performance and security
-      const result = await db.query(
-        `
+      const params: (string | Date)[] = [underlyingTicker];
+      let query = `
         SELECT DISTINCT ticker FROM option_contracts
         WHERE underlying_ticker = $1
-        ORDER BY ticker
-      `,
-        [underlyingTicker]
-      );
+      `;
+
+      if (activeAfter) {
+        query += ` AND expiration_date >= $2`;
+        params.push(activeAfter);
+      }
+
+      query += ` ORDER BY ticker`;
+
+      const result = await db.query(query, params);
 
       // Handle QuestDB result format
       const rows = (result as { dataset: unknown[][] })?.dataset || [];

@@ -1,5 +1,5 @@
 // Database table schemas and types
-import { ContractType } from '@whalewatch/shared';
+import { ContractType, WebSocketMessage } from '@whalewatch/shared';
 
 export interface StockAggregate {
   symbol: string;
@@ -40,10 +40,10 @@ export interface OptionTrade {
   sequence_number: number;
 }
 
-export interface OptionQuote {
+export interface OptionQuote extends WebSocketMessage {
   ticker: string;
   underlying_ticker: string;
-  timestamp: Date;
+  timestamp: string;
   bid_price: number;
   bid_size: number;
   ask_price: number;
@@ -51,6 +51,12 @@ export interface OptionQuote {
   bid_exchange: number;
   ask_exchange: number;
   sequence_number: number;
+}
+
+export interface OptionTradeIndex {
+  [key: string]: string | Date;
+  ticker: string;
+  last_sync: Date;
 }
 
 export interface TickerConfig {

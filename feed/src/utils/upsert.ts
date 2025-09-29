@@ -1,5 +1,6 @@
 import { db } from '../db/connection';
-import { StockAggregate, OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
+import { StockAggregate, OptionContract, OptionTrade, OptionQuote, OptionContractIndex } from '../types/database';
+import { OptionTradeIndex } from '../types/database';
 
 /**
  * Get table name with test prefix if in test environment
@@ -365,6 +366,14 @@ export class UpsertService {
       console.error('Error upserting option quote:', error);
       throw error;
     }
+  }
+
+  /**
+   * Upsert an option trade index record
+   */
+  static async upsertOptionTradeIndex(index: OptionTradeIndex): Promise<void> {
+    const tableName = getTableName('option_trades_index');
+    await db.query(`INSERT INTO ${tableName} (ticker, last_sync) VALUES ($1, $2)`, [index.ticker, index.last_sync]);
   }
 
   /**
