@@ -246,8 +246,15 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       qualifyingContracts.add(groupKey);
     });
 
-    // Now return ALL individual trades for qualifying contracts, but with cumulative info
+    // Now return ALL individual trades for qualifying contracts, but with cumulative info at time of trade
     const individualTrades: FrontendOptionTrade[] = [];
+
+    // First, collect all trades for qualifying contracts and sort them chronologically
+    const qualifyingTrades: Array<{
+      trade: (typeof trades)[0];
+      groupKey: string;
+      parsedTicker: ReturnType<typeof parseOptionTicker>;
+    }> = [];
 
     trades.forEach(trade => {
       const parsedTicker = parseOptionTicker(trade.ticker);
@@ -255,28 +262,46 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
 
       // Only include trades for contracts that meet the thresholds
       if (qualifyingContracts.has(groupKey)) {
-        // Get the aggregated info for this contract
-        const aggregatedInfo = tradeMap.get(groupKey);
-
-        individualTrades.push({
-          ticker: trade.ticker,
-          underlying_ticker: trade.underlying_ticker,
-          timestamp: trade.timestamp,
-          price: trade.price,
-          size: trade.size,
-          conditions: trade.conditions,
-          tape: trade.tape.toString(),
-          sequence_number: trade.sequence_number,
-          option_type: parsedTicker?.optionType || 'call',
-          strike_price: parsedTicker?.strikePrice || 0,
-          expiration_date: parsedTicker?.expirationDate || '',
-          repeat_count: aggregatedInfo?.repeat_count || 1, // Show total repeat count for this contract
-          volume: aggregatedInfo?.volume || trade.size, // Show total volume for this contract
-        });
+        qualifyingTrades.push({ trade, groupKey, parsedTicker });
       }
     });
 
-    // Sort by timestamp (most recent first)
+    // Sort by timestamp (oldest first) to calculate cumulative values correctly
+    qualifyingTrades.sort((a, b) => new Date(a.trade.timestamp).getTime() - new Date(b.trade.timestamp).getTime());
+
+    // Track cumulative values for each contract
+    const contractCumulative: Map<string, { repeatCount: number; volume: number }> = new Map();
+
+    // Process trades in chronological order to build cumulative values
+    qualifyingTrades.forEach(({ trade, groupKey, parsedTicker }) => {
+      // Get or initialize cumulative values for this contract
+      const cumulative = contractCumulative.get(groupKey) || { repeatCount: 0, volume: 0 };
+
+      // Increment cumulative values
+      cumulative.repeatCount += 1;
+      cumulative.volume += trade.size;
+
+      // Update the map
+      contractCumulative.set(groupKey, cumulative);
+
+      individualTrades.push({
+        ticker: trade.ticker,
+        underlying_ticker: trade.underlying_ticker,
+        timestamp: trade.timestamp,
+        price: trade.price,
+        size: trade.size,
+        conditions: trade.conditions,
+        tape: trade.tape.toString(),
+        sequence_number: trade.sequence_number,
+        option_type: parsedTicker?.optionType || 'call',
+        strike_price: parsedTicker?.strikePrice || 0,
+        expiration_date: parsedTicker?.expirationDate || '',
+        repeat_count: cumulative.repeatCount, // Show cumulative repeat count at time of this trade
+        volume: cumulative.volume, // Show cumulative volume at time of this trade
+      });
+    });
+
+    // Sort by timestamp (most recent first) for final output
     individualTrades.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     return res.json({
