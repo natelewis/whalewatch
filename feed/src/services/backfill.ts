@@ -490,7 +490,7 @@ export class BackfillService {
       const actualEnd = dayEnd > endDate ? endDate : dayEnd;
 
       try {
-        const bars = await this.stockIngestionService.getHistoricalBars(ticker, currentDate, actualEnd, '1Min');
+        const bars = await this.stockIngestionService.getHistoricalStockBars(ticker, currentDate, actualEnd, '1Min');
 
         console.log(
           `Fetched ${bars.length} bars from Alpaca for ${ticker} on ${currentDate.toISOString().split('T')[0]}`

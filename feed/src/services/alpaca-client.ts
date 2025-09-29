@@ -52,7 +52,7 @@ export class AlpacaClient {
     }
   }
 
-  async getHistoricalBars(
+  async getHistoricalStockBars(
     symbol: string,
     start: Date,
     end: Date,
@@ -124,7 +124,7 @@ export class AlpacaClient {
     });
   }
 
-  async getHistoricalTrades(symbol: string, start: Date, end: Date): Promise<AlpacaTrade[]> {
+  async getHistoricalStockTrades(symbol: string, start: Date, end: Date): Promise<AlpacaTrade[]> {
     return this.rateLimiter.execute(async () => {
       try {
         const startStr = start.toISOString();
@@ -191,7 +191,7 @@ export class AlpacaClient {
     });
   }
 
-  async getHistoricalQuotes(symbol: string, start: Date, end: Date): Promise<AlpacaQuote[]> {
+  async getHistoricalStockQuotes(symbol: string, start: Date, end: Date): Promise<AlpacaQuote[]> {
     return this.rateLimiter.execute(async () => {
       try {
         const startStr = start.toISOString();
@@ -258,7 +258,7 @@ export class AlpacaClient {
     });
   }
 
-  async getLatestTrade(symbol: string): Promise<AlpacaTrade | null> {
+  async getLatestStockTrade(symbol: string): Promise<AlpacaTrade | null> {
     return this.rateLimiter.execute(async () => {
       try {
         const endpoint = `/v2/stocks/${symbol}/trades/latest`;
@@ -280,7 +280,7 @@ export class AlpacaClient {
     });
   }
 
-  async getLatestBar(symbol: string): Promise<AlpacaBar | null> {
+  async getLatestStockBar(symbol: string): Promise<AlpacaBar | null> {
     return this.rateLimiter.execute(async () => {
       try {
         const endpoint = `/v2/stocks/${symbol}/bars/latest`;

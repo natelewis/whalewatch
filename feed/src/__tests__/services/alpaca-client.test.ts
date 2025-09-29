@@ -116,7 +116,7 @@ describe('AlpacaClient', () => {
     });
   });
 
-  describe('getHistoricalBars', () => {
+  describe('getHistoricalStockBars', () => {
     const mockBar: AlpacaBar = {
       t: '2023-01-01T09:30:00Z',
       o: 100,
@@ -137,7 +137,7 @@ describe('AlpacaClient', () => {
         data: mockBarsResponse,
       });
 
-      const result = await alpacaClient.getHistoricalBars(
+      const result = await alpacaClient.getHistoricalStockBars(
         'AAPL',
         new Date('2023-01-01'),
         new Date('2023-01-02'),
@@ -172,7 +172,7 @@ describe('AlpacaClient', () => {
         .mockResolvedValueOnce({ data: firstPageResponse })
         .mockResolvedValueOnce({ data: secondPageResponse });
 
-      const result = await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
 
       expect(result).toHaveLength(2);
       expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
@@ -197,7 +197,7 @@ describe('AlpacaClient', () => {
         data: oldFormatResponse,
       });
 
-      const result = await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
 
       expect(result).toEqual([mockBar]);
     });
@@ -207,7 +207,7 @@ describe('AlpacaClient', () => {
         data: null,
       });
 
-      const result = await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
 
       expect(result).toEqual([]);
     });
@@ -217,7 +217,7 @@ describe('AlpacaClient', () => {
         data: { bars: null },
       });
 
-      const result = await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
 
       expect(result).toEqual([]);
     });
@@ -235,7 +235,7 @@ describe('AlpacaClient', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       try {
-        await alpacaClient.getHistoricalBars('INVALID', new Date('2023-01-01'), new Date('2023-01-02'));
+        await alpacaClient.getHistoricalStockBars('INVALID', new Date('2023-01-01'), new Date('2023-01-02'));
         fail('Expected function to throw');
       } catch (thrownError) {
         expect(thrownError).toBe(error);
@@ -250,7 +250,7 @@ describe('AlpacaClient', () => {
         data: mockBarsResponse,
       });
 
-      await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
 
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/v2/stocks/AAPL/bars', {
         params: expect.objectContaining({
@@ -260,7 +260,7 @@ describe('AlpacaClient', () => {
     });
   });
 
-  describe('getHistoricalTrades', () => {
+  describe('getHistoricalStockTrades', () => {
     const mockTrade: AlpacaTrade = {
       t: '2023-01-01T09:30:00Z',
       x: 'IEX',
@@ -280,7 +280,11 @@ describe('AlpacaClient', () => {
         data: mockTradesResponse,
       });
 
-      const result = await alpacaClient.getHistoricalTrades('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockTrades(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toEqual([mockTrade]);
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/v2/stocks/AAPL/trades', {
@@ -307,7 +311,11 @@ describe('AlpacaClient', () => {
         .mockResolvedValueOnce({ data: firstPageResponse })
         .mockResolvedValueOnce({ data: secondPageResponse });
 
-      const result = await alpacaClient.getHistoricalTrades('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockTrades(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toHaveLength(2);
       expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
@@ -322,7 +330,11 @@ describe('AlpacaClient', () => {
         data: oldFormatResponse,
       });
 
-      const result = await alpacaClient.getHistoricalTrades('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockTrades(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toEqual([mockTrade]);
     });
@@ -332,7 +344,11 @@ describe('AlpacaClient', () => {
         data: null,
       });
 
-      const result = await alpacaClient.getHistoricalTrades('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockTrades(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toEqual([]);
     });
@@ -350,7 +366,7 @@ describe('AlpacaClient', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       try {
-        await alpacaClient.getHistoricalTrades('INVALID', new Date('2023-01-01'), new Date('2023-01-02'));
+        await alpacaClient.getHistoricalStockTrades('INVALID', new Date('2023-01-01'), new Date('2023-01-02'));
         fail('Expected function to throw');
       } catch (thrownError) {
         expect(thrownError).toBe(error);
@@ -361,7 +377,7 @@ describe('AlpacaClient', () => {
     });
   });
 
-  describe('getHistoricalQuotes', () => {
+  describe('getHistoricalStockQuotes', () => {
     const mockQuote: AlpacaQuote = {
       t: '2023-01-01T09:30:00Z',
       ax: 'IEX',
@@ -383,7 +399,11 @@ describe('AlpacaClient', () => {
         data: mockQuotesResponse,
       });
 
-      const result = await alpacaClient.getHistoricalQuotes('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockQuotes(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toEqual([mockQuote]);
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/v2/stocks/AAPL/quotes', {
@@ -410,7 +430,11 @@ describe('AlpacaClient', () => {
         .mockResolvedValueOnce({ data: firstPageResponse })
         .mockResolvedValueOnce({ data: secondPageResponse });
 
-      const result = await alpacaClient.getHistoricalQuotes('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockQuotes(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toHaveLength(2);
       expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
@@ -425,7 +449,11 @@ describe('AlpacaClient', () => {
         data: oldFormatResponse,
       });
 
-      const result = await alpacaClient.getHistoricalQuotes('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockQuotes(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toEqual([mockQuote]);
     });
@@ -435,7 +463,11 @@ describe('AlpacaClient', () => {
         data: null,
       });
 
-      const result = await alpacaClient.getHistoricalQuotes('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      const result = await alpacaClient.getHistoricalStockQuotes(
+        'AAPL',
+        new Date('2023-01-01'),
+        new Date('2023-01-02')
+      );
 
       expect(result).toEqual([]);
     });
@@ -453,7 +485,7 @@ describe('AlpacaClient', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       try {
-        await alpacaClient.getHistoricalQuotes('INVALID', new Date('2023-01-01'), new Date('2023-01-02'));
+        await alpacaClient.getHistoricalStockQuotes('INVALID', new Date('2023-01-01'), new Date('2023-01-02'));
         fail('Expected function to throw');
       } catch (thrownError) {
         expect(thrownError).toBe(error);
@@ -464,7 +496,7 @@ describe('AlpacaClient', () => {
     });
   });
 
-  describe('getLatestTrade', () => {
+  describe('getLatestStockTrade', () => {
     const mockTrade: AlpacaTrade = {
       t: '2023-01-01T09:30:00Z',
       x: 'IEX',
@@ -480,7 +512,7 @@ describe('AlpacaClient', () => {
         data: { trade: mockTrade },
       });
 
-      const result = await alpacaClient.getLatestTrade('AAPL');
+      const result = await alpacaClient.getLatestStockTrade('AAPL');
 
       expect(result).toEqual(mockTrade);
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/v2/stocks/AAPL/trades/latest', {
@@ -495,7 +527,7 @@ describe('AlpacaClient', () => {
         data: { trade: null },
       });
 
-      const result = await alpacaClient.getLatestTrade('AAPL');
+      const result = await alpacaClient.getLatestStockTrade('AAPL');
 
       expect(result).toBeNull();
     });
@@ -503,13 +535,13 @@ describe('AlpacaClient', () => {
     it('should return null on error', async () => {
       mockAxiosInstance.get.mockRejectedValue(new Error('API Error'));
 
-      const result = await alpacaClient.getLatestTrade('AAPL');
+      const result = await alpacaClient.getLatestStockTrade('AAPL');
 
       expect(result).toBeNull();
     });
   });
 
-  describe('getLatestBar', () => {
+  describe('getLatestStockBar', () => {
     const mockBar: AlpacaBar = {
       t: '2023-01-01T09:30:00Z',
       o: 100,
@@ -526,7 +558,7 @@ describe('AlpacaClient', () => {
         data: { bar: mockBar },
       });
 
-      const result = await alpacaClient.getLatestBar('AAPL');
+      const result = await alpacaClient.getLatestStockBar('AAPL');
 
       expect(result).toEqual(mockBar);
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/v2/stocks/AAPL/bars/latest', {
@@ -541,7 +573,7 @@ describe('AlpacaClient', () => {
         data: { bar: null },
       });
 
-      const result = await alpacaClient.getLatestBar('AAPL');
+      const result = await alpacaClient.getLatestStockBar('AAPL');
 
       expect(result).toBeNull();
     });
@@ -549,7 +581,7 @@ describe('AlpacaClient', () => {
     it('should return null on error', async () => {
       mockAxiosInstance.get.mockRejectedValue(new Error('API Error'));
 
-      const result = await alpacaClient.getLatestBar('AAPL');
+      const result = await alpacaClient.getLatestStockBar('AAPL');
 
       expect(result).toBeNull();
     });
@@ -583,7 +615,7 @@ describe('AlpacaClient', () => {
         data: { bars: [] },
       });
 
-      await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
 
       expect(getAlpacaRateLimiter).toHaveBeenCalled();
     });
@@ -594,7 +626,7 @@ describe('AlpacaClient', () => {
         data: { bars: [] },
       });
 
-      await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+      await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
 
       expect(executeSpy).toHaveBeenCalledWith(expect.any(Function));
     });
@@ -614,7 +646,7 @@ describe('AlpacaClient', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       try {
-        await alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
+        await alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'));
         fail('Expected function to throw');
       } catch (thrownError) {
         expect(thrownError).toBe(error);
@@ -632,7 +664,7 @@ describe('AlpacaClient', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
       await expect(
-        alpacaClient.getHistoricalBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'))
+        alpacaClient.getHistoricalStockBars('AAPL', new Date('2023-01-01'), new Date('2023-01-02'))
       ).rejects.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching historical bars for AAPL:', error);

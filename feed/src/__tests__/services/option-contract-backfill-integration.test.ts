@@ -23,10 +23,10 @@ jest.mock('../../services/polygon-client', () => ({
 }));
 
 // Mock StockIngestionService to prevent infinite loops in tests
-const mockGetHistoricalBars = jest.fn().mockResolvedValue([]);
+const mockgetHistoricalStockBars = jest.fn().mockResolvedValue([]);
 jest.mock('../../services/stock-ingestion', () => ({
   StockIngestionService: jest.fn().mockImplementation(() => ({
-    getHistoricalBars: mockGetHistoricalBars,
+    getHistoricalStockBars: mockgetHistoricalStockBars,
   })),
 }));
 

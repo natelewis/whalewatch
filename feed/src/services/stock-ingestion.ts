@@ -131,7 +131,7 @@ export class StockIngestionService {
     }
 
     // Get missing aggregates using Alpaca
-    const bars = await this.alpacaClient.getHistoricalBars(ticker, startDate, now, '1Min');
+    const bars = await this.alpacaClient.getHistoricalStockBars(ticker, startDate, now, '1Min');
 
     if (bars.length > 0) {
       console.log(`Found ${bars.length} bars for ${ticker} catch-up`);
@@ -164,7 +164,7 @@ export class StockIngestionService {
       for (const ticker of config.tickers) {
         try {
           // Get the latest bar for this ticker
-          const latestBar = await this.alpacaClient.getLatestBar(ticker);
+          const latestBar = await this.alpacaClient.getLatestStockBar(ticker);
 
           if (latestBar) {
             const stockAggregate: StockAggregate = {
@@ -213,12 +213,12 @@ export class StockIngestionService {
    * Public method to fetch historical bars for a ticker within a date range
    * Used by backfill service and other components that need historical data
    */
-  async getHistoricalBars(
+  async getHistoricalStockBars(
     ticker: string,
     startDate: Date,
     endDate: Date,
     timeframe: '1Min' | '5Min' | '15Min' | '1Hour' | '1Day' = '1Min'
   ): Promise<AlpacaBar[]> {
-    return this.alpacaClient.getHistoricalBars(ticker, startDate, endDate, timeframe);
+    return this.alpacaClient.getHistoricalStockBars(ticker, startDate, endDate, timeframe);
   }
 }

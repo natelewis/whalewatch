@@ -405,7 +405,7 @@ export class QuestDBService {
   /**
    * Get the latest trade timestamp for a symbol
    */
-  async getLatestTradeTimestamp(symbol: string): Promise<string | null> {
+  async getLatestStockTradeTimestamp(symbol: string): Promise<string | null> {
     // First check if the table exists
     await this.ensureTableExists('stock_trades');
 

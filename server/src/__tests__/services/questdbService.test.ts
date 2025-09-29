@@ -1021,7 +1021,7 @@ describe('QuestDBService', () => {
     });
   });
 
-  describe('getLatestTradeTimestamp', () => {
+  describe('getLatestStockTradeTimestamp', () => {
     beforeEach(() => {
       questdbService = new QuestDBService();
       // Mock ensureTableExists to always pass
@@ -1046,7 +1046,7 @@ describe('QuestDBService', () => {
       // Mock the executeQuery method to return our mock response
       jest.spyOn(questdbService as any, 'executeQuery').mockResolvedValue(mockResponse.data);
 
-      const result = await questdbService.getLatestTradeTimestamp('AAPL');
+      const result = await questdbService.getLatestStockTradeTimestamp('AAPL');
 
       expect(result).toBe('2024-01-01T10:00:00.000Z');
     });
@@ -1069,7 +1069,7 @@ describe('QuestDBService', () => {
       // Mock the executeQuery method to return our mock response
       jest.spyOn(questdbService as any, 'executeQuery').mockResolvedValue(mockResponse.data);
 
-      const result = await questdbService.getLatestTradeTimestamp('AAPL');
+      const result = await questdbService.getLatestStockTradeTimestamp('AAPL');
 
       expect(result).toBeNull();
     });

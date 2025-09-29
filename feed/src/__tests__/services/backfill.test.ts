@@ -46,7 +46,7 @@ describe('BackfillService', () => {
     } as any;
 
     mockStockIngestionService = {
-      getHistoricalBars: jest.fn(),
+      getHistoricalStockBars: jest.fn(),
     } as any;
 
     // Mock the constructors
@@ -161,7 +161,7 @@ describe('BackfillService', () => {
       const existingOldestDate = new Date('2024-01-25'); // Newer than target
 
       (getMinDate as jest.Mock).mockResolvedValue(existingOldestDate);
-      mockStockIngestionService.getHistoricalBars.mockResolvedValue([]);
+      mockStockIngestionService.getHistoricalStockBars.mockResolvedValue([]);
 
       // Act
       await (backfillService as any).backfillStockAggregates(ticker, endDate);
@@ -182,7 +182,7 @@ describe('BackfillService', () => {
       const today = new Date();
 
       (getMinDate as jest.Mock).mockResolvedValue(today); // getMinDate now returns today when no data
-      mockStockIngestionService.getHistoricalBars.mockResolvedValue([]);
+      mockStockIngestionService.getHistoricalStockBars.mockResolvedValue([]);
 
       // Act
       await (backfillService as any).backfillStockAggregates(ticker, endDate);
@@ -264,7 +264,7 @@ describe('BackfillService', () => {
         { t: '2024-01-16T10:00:00Z', o: 104, h: 108, l: 103, c: 107, v: 1200, vw: 105, n: 60 },
       ];
 
-      mockStockIngestionService.getHistoricalBars.mockResolvedValue(mockBars);
+      mockStockIngestionService.getHistoricalStockBars.mockResolvedValue(mockBars);
 
       // Mock the insertAlpacaAggregates method
       const insertAlpacaAggregatesSpy = jest
@@ -276,7 +276,7 @@ describe('BackfillService', () => {
 
       // Assert
       expect(result).toBe(2); // Two bars processed
-      expect(mockStockIngestionService.getHistoricalBars).toHaveBeenCalledTimes(3); // 3 days
+      expect(mockStockIngestionService.getHistoricalStockBars).toHaveBeenCalledTimes(3); // 3 days
       expect(insertAlpacaAggregatesSpy).toHaveBeenCalledTimes(2); // Two days with data
     });
 
@@ -288,7 +288,7 @@ describe('BackfillService', () => {
 
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      mockStockIngestionService.getHistoricalBars.mockResolvedValue([]);
+      mockStockIngestionService.getHistoricalStockBars.mockResolvedValue([]);
 
       // Act
       await (backfillService as any).processStockAggregateBackfill(ticker, startDate, endDate);
@@ -307,7 +307,7 @@ describe('BackfillService', () => {
 
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      mockStockIngestionService.getHistoricalBars.mockResolvedValue([]);
+      mockStockIngestionService.getHistoricalStockBars.mockResolvedValue([]);
 
       // Act
       await (backfillService as any).processStockAggregateBackfill(ticker, startDate, endDate);
