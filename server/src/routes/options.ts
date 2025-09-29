@@ -9,7 +9,7 @@ const router = Router();
 router.get('/:symbol/recent', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { limit = '1000' } = req.query;
+    const { limit = '10000' } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });

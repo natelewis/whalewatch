@@ -24,6 +24,7 @@ export const WhaleFinderPage: React.FC = () => {
   const [volumeMin, setVolumeMin] = useState<number>(() => {
     return getSessionStorageItem('whaleFinderVolumeMin', 1000);
   });
+  const [selectedContract, setSelectedContract] = useState<string | null>(null);
 
   useEffect(() => {
     loadOptionsTrades(selectedSymbol, selectedDate, maxPrice, repeatMin, volumeMin);
@@ -148,6 +149,22 @@ export const WhaleFinderPage: React.FC = () => {
     }
   };
 
+  // Filter trades by selected contract
+  const filteredTrades = selectedContract
+    ? (optionsTrades || []).filter(trade => trade.ticker === selectedContract)
+    : optionsTrades || [];
+
+  // Handle contract selection
+  const handleContractClick = (ticker: string) => {
+    if (selectedContract === ticker) {
+      // If clicking the same contract, deselect it
+      setSelectedContract(null);
+    } else {
+      // Select the new contract
+      setSelectedContract(ticker);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -178,8 +195,19 @@ export const WhaleFinderPage: React.FC = () => {
                 {/* Summary */}
                 <div className="mb-4 p-3 bg-muted/30 rounded-lg">
                   <div className="flex items-center justify-between text-sm">
-                    <div>
-                      <span className="font-medium text-foreground">{optionsTrades?.length || 0} trades</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium text-foreground">
+                        {filteredTrades.length} trades
+                        {selectedContract && <span className="text-muted-foreground ml-1">(filtered by contract)</span>}
+                      </span>
+                      {selectedContract && (
+                        <button
+                          onClick={() => setSelectedContract(null)}
+                          className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                        >
+                          Clear Filter
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
@@ -242,6 +270,10 @@ export const WhaleFinderPage: React.FC = () => {
                       No option trades found for {selectedSymbol} on {formatDateDisplay(selectedDate)}
                     </p>
                   </div>
+                ) : filteredTrades.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="text-muted-foreground">No trades found for the selected contract</p>
+                  </div>
                 ) : (
                   <>
                     {/* Table Header */}
@@ -258,11 +290,15 @@ export const WhaleFinderPage: React.FC = () => {
 
                     {/* Table Rows */}
                     <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
-                      {(optionsTrades || []).map((trade, index) => {
+                      {filteredTrades.map((trade, index) => {
+                        const isSelected = selectedContract === trade.ticker;
                         return (
                           <div
                             key={`${trade.sequence_number}-${index}`}
-                            className="grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
+                            onClick={() => handleContractClick(trade.ticker)}
+                            className={`grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded transition-colors cursor-pointer ${
+                              isSelected ? 'bg-primary/20 border border-primary/30' : 'hover:bg-muted/30'
+                            }`}
                           >
                             {/* Time */}
                             <div className="font-semibold text-muted-foreground text-xs">
