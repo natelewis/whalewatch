@@ -64,15 +64,44 @@ export async function getMaxDate(
 }
 
 /**
+ * Check if there's actual data in the database for a given ticker
+ * @param questdbService - QuestDBService instance
+ * @param params - Query parameters including ticker, tickerField, and table
+ * @returns Promise<boolean> - True if data exists, false otherwise
+ */
+export async function hasData(
+  questdbService: QuestDBServiceInterface,
+  params: Omit<DateQueryParams, 'dateField'>
+): Promise<boolean> {
+  try {
+    const { ticker, tickerField, table } = params;
+    const testTableName = getTableName(table);
+
+    const query = `SELECT COUNT(*) as count FROM ${testTableName} WHERE ${tickerField} = '${ticker.toUpperCase()}'`;
+
+    const response = await questdbService.executeQuery(query);
+    const converted = questdbService.convertArrayToObject<{ count: number }>(response.dataset, response.columns);
+
+    if (converted.length > 0 && converted[0].count > 0) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error checking if data exists:', error);
+    return false;
+  }
+}
+
+/**
  * Get the minimum (oldest) date for a given ticker from a specified table and field
  * @param questdbService - QuestDBService instance
  * @param params - Query parameters including ticker, tickerField, dateField, and table
- * @returns Promise<Date | null> - The oldest date or null if no data exists
+ * @returns Promise<Date> - The oldest date or today's date if no data exists
  */
 export async function getMinDate(
   questdbService: QuestDBServiceInterface,
   params: DateQueryParams
-): Promise<Date | null> {
+): Promise<Date> {
   try {
     const { ticker, tickerField, dateField, table } = params;
     const testTableName = getTableName(table);
@@ -85,9 +114,11 @@ export async function getMinDate(
     if (converted.length > 0 && converted[0].min_date) {
       return new Date(converted[0].min_date);
     }
-    return null;
+    // Return today's date as default when no data exists
+    return new Date();
   } catch (error) {
     console.error('Error getting min date:', error);
-    return null;
+    // Return today's date as default when there's an error
+    return new Date();
   }
 }

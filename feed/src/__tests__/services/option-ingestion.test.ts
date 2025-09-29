@@ -720,7 +720,7 @@ describe('OptionIngestionService', () => {
       expect(result).toEqual(asOf1);
     });
 
-    it('should return null when no data exists', async () => {
+    it("should return today's date when no data exists", async () => {
       // Arrange
       const underlyingTicker = `NONEXISTENT_${Date.now()}`;
 
@@ -728,7 +728,9 @@ describe('OptionIngestionService', () => {
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
-      expect(result).toBeNull();
+      const today = new Date();
+      expect(result).toBeDefined();
+      expect(result!.getTime()).toBeCloseTo(today.getTime(), -2); // Within 1 second
     });
   });
 

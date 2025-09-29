@@ -317,7 +317,7 @@ describe('Option Contract Schema Migration', () => {
       expect(result).toEqual(expectedDate);
     });
 
-    it('should return null when no index data exists', async () => {
+    it("should return today's date when no index data exists", async () => {
       // Arrange - Use unique ticker that doesn't exist
       const uniqueId = Date.now();
       const underlyingTicker = `NONEXISTENT_${uniqueId}`;
@@ -326,7 +326,9 @@ describe('Option Contract Schema Migration', () => {
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
 
       // Assert
-      expect(result).toBeNull();
+      const today = new Date();
+      expect(result).toBeDefined();
+      expect(result!.getTime()).toBeCloseTo(today.getTime(), -2); // Within 1 second
     });
   });
 

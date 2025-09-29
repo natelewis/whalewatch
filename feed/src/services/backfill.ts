@@ -440,10 +440,10 @@ export class BackfillService {
       }
     } else {
       optionsNeedBackfill = true;
-      // If no existing option contracts, only backfill the target date itself
-      optionBackfillStart = new Date(endDate);
+      // If no existing option contracts, start from today and work backwards to the target date
+      optionBackfillStart = new Date();
       console.log(
-        `${ticker} has no existing option contracts, backfilling options for target date only: ${
+        `${ticker} has no existing option contracts, backfilling options from today TO: ${
           endDate.toISOString().split('T')[0]
         }`
       );
