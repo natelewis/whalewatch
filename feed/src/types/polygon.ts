@@ -79,6 +79,13 @@ export interface PolygonOptionQuotesResponse {
   next_url?: string;
 }
 
+export interface PolygonTradesResponse {
+  results: PolygonTrade[];
+  status: string;
+  request_id: string;
+  next_url?: string;
+}
+
 export interface PolygonWebSocketMessage {
   ev: string; // event type
   status?: string;

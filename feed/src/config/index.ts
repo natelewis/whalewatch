@@ -21,6 +21,7 @@ export interface Config {
     skipOptionContracts: boolean;
     optionContractsLimit: number;
     optionQuotesLimit: number;
+    optionTradesLimit: number;
   };
   questdb: {
     host: string;
@@ -50,6 +51,12 @@ function validateConfig(): void {
   if (quotesLimit < 1000 || quotesLimit > 50000) {
     throw new Error(`POLYGON_OPTION_QUOTES_LIMIT must be between 1000 and 50000, got: ${quotesLimit}`);
   }
+
+  // Validate optionTradesLimit
+  const tradesLimit = parseInt(process.env.POLYGON_OPTION_TRADES_LIMIT || '50000');
+  if (tradesLimit < 1000 || tradesLimit > 50000) {
+    throw new Error(`POLYGON_OPTION_TRADES_LIMIT must be between 1000 and 50000, got: ${tradesLimit}`);
+  }
 }
 
 export const config: Config = {
@@ -71,6 +78,7 @@ export const config: Config = {
     skipOptionContracts: process.env.POLYGON_SKIP_OPTION_CONTACTS === 'true',
     optionContractsLimit: parseInt(process.env.POLYGON_OPTION_CONTRACTS_LIMIT || '1000'),
     optionQuotesLimit: parseInt(process.env.POLYGON_OPTION_QUOTES_LIMIT || '50000'),
+    optionTradesLimit: parseInt(process.env.POLYGON_OPTION_TRADES_LIMIT || '50000'),
   },
   questdb: {
     host: process.env.QUESTDB_HOST || '127.0.0.1',

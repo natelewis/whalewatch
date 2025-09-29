@@ -186,6 +186,86 @@ describe('PolygonClient', () => {
         sequence_number: 12345,
       });
     });
+
+    it('should handle pagination correctly', async () => {
+      // Arrange
+      const ticker = 'AAPL240315C00150000';
+      const from = new Date('2024-01-01T09:00:00Z');
+      const to = new Date('2024-01-01T17:00:00Z');
+
+      const firstPageResponse = {
+        data: {
+          results: [
+            {
+              ticker: 'O:AAPL240315C00150000',
+              sip_timestamp: 1704110400000000000,
+              price: 5.0,
+              size: 10,
+              conditions: ['regular'],
+              exchange: 1,
+              tape: 1,
+              sequence_number: 12345,
+            },
+          ],
+          next_url: 'https://api.polygon.io/v3/trades/AAPL240315C00150000?cursor=next',
+        },
+      };
+
+      const secondPageResponse = {
+        data: {
+          results: [
+            {
+              ticker: 'O:AAPL240315C00150000',
+              sip_timestamp: 1704110401000000000,
+              price: 5.1,
+              size: 20,
+              conditions: ['regular'],
+              exchange: 1,
+              tape: 1,
+              sequence_number: 12346,
+            },
+          ],
+        },
+      };
+
+      mockAxiosInstance.get.mockResolvedValueOnce(firstPageResponse).mockResolvedValueOnce(secondPageResponse);
+
+      // Act
+      const result = await polygonClient.getOptionTrades(ticker, from, to);
+
+      // Assert
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
+        1,
+        '/v3/trades/AAPL240315C00150000',
+        expect.objectContaining({
+          params: expect.objectContaining({
+            'timestamp.gte': '2024-01-01T09:00:00.000Z',
+            'timestamp.lte': '2024-01-01T17:00:00.000Z',
+            limit: 50000,
+            order: 'asc',
+          }),
+        })
+      );
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
+        2,
+        'https://api.polygon.io/v3/trades/AAPL240315C00150000?cursor=next'
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        ticker: 'O:AAPL240315C00150000',
+        sip_timestamp: 1704110400000000000,
+        price: 5.0,
+        size: 10,
+      });
+      expect(result[1]).toMatchObject({
+        ticker: 'O:AAPL240315C00150000',
+        sip_timestamp: 1704110401000000000,
+        price: 5.1,
+        size: 20,
+      });
+    });
   });
 
   describe('getOptionQuotes', () => {

@@ -6,6 +6,7 @@ import {
   PolygonOptionQuote,
   PolygonOptionQuotesResponse,
   PolygonTrade,
+  PolygonTradesResponse,
 } from '../types/polygon';
 import { getPolygonRateLimiter } from '../utils/polygon-rate-limiter';
 
@@ -102,6 +103,10 @@ export class PolygonClient {
   async getOptionTrades(ticker: string, from: Date, to: Date): Promise<PolygonTrade[]> {
     return this.rateLimiter.execute(async () => {
       try {
+        const allTrades: PolygonTrade[] = [];
+        let nextUrl: string | undefined;
+
+        // Initial request
         const fromStr = from.toISOString();
         const toStr = to.toISOString();
         const endpoint = `/v3/trades/${ticker}`;
@@ -109,14 +114,33 @@ export class PolygonClient {
           'timestamp.gte': fromStr,
           'timestamp.lte': toStr,
           order: 'asc',
-          limit: 50000,
+          limit: config.polygon.optionTradesLimit || 50000,
         };
 
         this.logRequest('GET', endpoint, requestParams);
 
-        const response = await this.api.get<{ results: PolygonTrade[] }>(endpoint, { params: requestParams });
+        let response = await this.api.get<PolygonTradesResponse>(endpoint, { params: requestParams });
 
-        return response.data.results || [];
+        // Add results from first page
+        if (response.data.results) {
+          allTrades.push(...response.data.results);
+        }
+
+        // Follow pagination
+        nextUrl = response.data.next_url;
+        while (nextUrl) {
+          this.logRequest('GET', nextUrl);
+          response = await this.api.get<PolygonTradesResponse>(nextUrl);
+
+          if (response.data.results) {
+            allTrades.push(...response.data.results);
+          }
+
+          nextUrl = response.data.next_url;
+        }
+
+        console.log(`Fetched ${allTrades.length} option trades for ${ticker}`);
+        return allTrades;
       } catch (error) {
         console.error(`Error fetching option trades for ${ticker}:`, error);
         throw error;
