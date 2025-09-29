@@ -58,6 +58,7 @@ export class BackfillService {
 
     try {
       await db.connect();
+      await db.executeSchema();
 
       // Get the oldest timestamp across all tickers
       let oldestTimestamp: Date | null = null;
@@ -141,6 +142,7 @@ export class BackfillService {
 
     try {
       await db.connect();
+      await db.executeSchema();
 
       // Get the newest timestamp from existing data
       const newestTimestamp = await getMaxDate(this.questdbAdapter, {
@@ -173,6 +175,7 @@ export class BackfillService {
 
     try {
       await db.connect();
+      await db.executeSchema();
 
       // Calculate the date range based on configuration - go backwards from start date
       const maxDays = config.app.backfillMaxDays;
@@ -214,6 +217,7 @@ export class BackfillService {
 
     try {
       await db.connect();
+      await db.executeSchema();
 
       // Calculate the date range based on configuration - go backwards from start date
       const maxDays = config.app.backfillMaxDays;
@@ -272,6 +276,7 @@ export class BackfillService {
 
     try {
       await db.connect();
+      await db.executeSchema();
 
       // Get the oldest timestamp across all tickers
       let oldestTimestamp: Date | null = null;
@@ -335,6 +340,7 @@ export class BackfillService {
 
     try {
       await db.connect();
+      await db.executeSchema();
 
       // Use the new independent check logic
       await this.backfillStockAggregatesAndOptions(ticker, endDate);
