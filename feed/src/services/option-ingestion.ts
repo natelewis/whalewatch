@@ -4,7 +4,7 @@ import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
-import { getMaxDate, getMinDate, QuestDBServiceInterface } from '@whalewatch/shared';
+import { getMaxDate, getMinDate, QuestDBServiceInterface, normalizeToMidnight } from '@whalewatch/shared';
 import pLimit from 'p-limit';
 
 /**
@@ -73,10 +73,10 @@ export class OptionIngestionService {
         }
       }
 
-      // Record the sync in the index table
+      // Record the sync in the index table with normalized timestamp
       const indexRecord: OptionContractIndex = {
         underlying_ticker: underlyingTicker,
-        as_of: asOf,
+        as_of: normalizeToMidnight(asOf),
       };
       // Work around Jest module loading issue
       if (typeof UpsertService.upsertOptionContractIndex === 'function') {

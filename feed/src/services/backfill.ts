@@ -4,7 +4,7 @@ import { StockIngestionService } from './stock-ingestion';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
 import { StockAggregate } from '../types/database';
-import { getMinDate, getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
+import { getMinDate, getMaxDate, QuestDBServiceInterface, normalizeToMidnight } from '@whalewatch/shared';
 
 export class BackfillService {
   private optionIngestionService: OptionIngestionService;
@@ -428,7 +428,7 @@ export class BackfillService {
       } else {
         optionsNeedBackfill = true;
         // Start from the oldest as_of date and work backwards to the target date
-        optionBackfillStart = new Date(oldestOptionAsOfDate);
+        optionBackfillStart = normalizeToMidnight(new Date(oldestOptionAsOfDate));
 
         console.log(
           `${ticker} options oldest as_of is ${
@@ -441,7 +441,7 @@ export class BackfillService {
     } else {
       optionsNeedBackfill = true;
       // If no existing option contracts, start from today and work backwards to the target date
-      optionBackfillStart = new Date();
+      optionBackfillStart = normalizeToMidnight(new Date());
       console.log(
         `${ticker} has no existing option contracts, backfilling options from today TO: ${
           endDate.toISOString().split('T')[0]

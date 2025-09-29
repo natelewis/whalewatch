@@ -5,6 +5,7 @@ import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/data
 import { waitForSingleRecordWithCondition, waitForRecordsWithCondition } from '../test-utils/data-verification';
 import { OptionContract, OptionContractIndex } from '../../types/database';
 import { PolygonOptionContract } from '../../types/polygon';
+import { normalizeToMidnight } from '@whalewatch/shared';
 import { getTableName } from '../test-utils/config';
 
 // Mock p-limit
@@ -258,7 +259,7 @@ describe('Option Contract Schema Migration', () => {
       );
 
       expect(questResult.underlying_ticker).toBe(underlyingTicker);
-      expect(new Date(questResult.as_of as string)).toEqual(asOf);
+      expect(new Date(questResult.as_of as string)).toEqual(normalizeToMidnight(asOf));
     });
   });
 

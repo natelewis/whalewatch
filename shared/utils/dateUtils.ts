@@ -49,7 +49,7 @@ export async function getMaxDate(
 
     const response = await questdbService.executeQuery(query);
     console.log('getMaxDate response:', response);
-    
+
     const converted = questdbService.convertArrayToObject<{ max_date: string }>(response.dataset, response.columns);
     console.log('getMaxDate converted:', converted);
 
@@ -61,6 +61,18 @@ export async function getMaxDate(
     console.error('Error getting max date:', error);
     return null;
   }
+}
+
+/**
+ * Normalize a date to midnight (00:00:00.000) for consistent timestamp storage
+ * This ensures that all timestamps for the same date are identical
+ * @param date - The date to normalize
+ * @returns Date normalized to midnight
+ */
+export function normalizeToMidnight(date: Date): Date {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
 }
 
 /**
@@ -98,10 +110,7 @@ export async function hasData(
  * @param params - Query parameters including ticker, tickerField, dateField, and table
  * @returns Promise<Date> - The oldest date or today's date if no data exists
  */
-export async function getMinDate(
-  questdbService: QuestDBServiceInterface,
-  params: DateQueryParams
-): Promise<Date> {
+export async function getMinDate(questdbService: QuestDBServiceInterface, params: DateQueryParams): Promise<Date> {
   try {
     const { ticker, tickerField, dateField, table } = params;
     const testTableName = getTableName(table);

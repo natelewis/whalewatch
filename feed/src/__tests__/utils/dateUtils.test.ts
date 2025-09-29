@@ -1,4 +1,4 @@
-import { getMinDate, getMaxDate, hasData, QuestDBServiceInterface } from '@whalewatch/shared';
+import { getMinDate, getMaxDate, hasData, normalizeToMidnight, QuestDBServiceInterface } from '@whalewatch/shared';
 
 // Mock QuestDB service interface for testing
 const createMockQuestDBService = (
@@ -216,6 +216,88 @@ describe('DateUtils Functions', () => {
 
       // Assert
       expect(result).toBeNull();
+    });
+  });
+
+  describe('normalizeToMidnight', () => {
+    it('should normalize a date to midnight (00:00:00.000)', () => {
+      // Arrange
+      const date = new Date('2024-01-15T14:30:45.123Z');
+
+      // Act
+      const result = normalizeToMidnight(date);
+
+      // Assert
+      expect(result.getFullYear()).toBe(2024);
+      expect(result.getMonth()).toBe(0); // January is 0
+      expect(result.getDate()).toBe(15);
+      expect(result.getHours()).toBe(0);
+      expect(result.getMinutes()).toBe(0);
+      expect(result.getSeconds()).toBe(0);
+      expect(result.getMilliseconds()).toBe(0);
+    });
+
+    it('should handle dates at different times of day consistently', () => {
+      // Arrange
+      const morning = new Date('2024-01-15T08:30:45.123Z');
+      const afternoon = new Date('2024-01-15T16:45:30.456Z');
+      const evening = new Date('2024-01-15T23:59:59.999Z');
+
+      // Act
+      const normalizedMorning = normalizeToMidnight(morning);
+      const normalizedAfternoon = normalizeToMidnight(afternoon);
+      const normalizedEvening = normalizeToMidnight(evening);
+
+      // Assert
+      expect(normalizedMorning.getTime()).toBe(normalizedAfternoon.getTime());
+      expect(normalizedAfternoon.getTime()).toBe(normalizedEvening.getTime());
+      expect(normalizedMorning.getTime()).toBe(normalizedEvening.getTime());
+    });
+
+    it('should preserve the original date but reset time to midnight', () => {
+      // Arrange
+      const originalDate = new Date('2024-12-25T12:34:56.789Z');
+
+      // Act
+      const normalized = normalizeToMidnight(originalDate);
+
+      // Assert
+      expect(normalized.getFullYear()).toBe(2024);
+      expect(normalized.getMonth()).toBe(11); // December is 11
+      expect(normalized.getDate()).toBe(25);
+      expect(normalized.getHours()).toBe(0);
+      expect(normalized.getMinutes()).toBe(0);
+      expect(normalized.getSeconds()).toBe(0);
+      expect(normalized.getMilliseconds()).toBe(0);
+    });
+
+    it('should handle edge cases like leap year dates', () => {
+      // Arrange
+      const leapYearDate = new Date('2024-02-29T15:30:45.123Z');
+
+      // Act
+      const result = normalizeToMidnight(leapYearDate);
+
+      // Assert
+      expect(result.getFullYear()).toBe(2024);
+      expect(result.getMonth()).toBe(1); // February is 1
+      expect(result.getDate()).toBe(29);
+      expect(result.getHours()).toBe(0);
+      expect(result.getMinutes()).toBe(0);
+      expect(result.getSeconds()).toBe(0);
+      expect(result.getMilliseconds()).toBe(0);
+    });
+
+    it('should not mutate the original date object', () => {
+      // Arrange
+      const originalDate = new Date('2024-01-15T14:30:45.123Z');
+      const originalTime = originalDate.getTime();
+
+      // Act
+      normalizeToMidnight(originalDate);
+
+      // Assert
+      expect(originalDate.getTime()).toBe(originalTime);
     });
   });
 

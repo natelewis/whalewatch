@@ -5,6 +5,7 @@ import { waitForSingleRecordWithCondition, waitForRecordsWithCondition } from '.
 import { PolygonOptionContract, PolygonOptionTrade, PolygonOptionQuote } from '../../types/polygon';
 import { getTableName } from '../test-utils/config';
 import { OptionContract } from '../../types/database';
+import { normalizeToMidnight } from '@whalewatch/shared';
 
 // Mock p-limit
 jest.mock('p-limit', () => {
@@ -117,7 +118,7 @@ describe('OptionIngestionService', () => {
       );
 
       expect(questResult.underlying_ticker).toBe(underlyingTicker);
-      expect(new Date(questResult.as_of as string)).toEqual(asOf);
+      expect(new Date(questResult.as_of as string)).toEqual(normalizeToMidnight(asOf));
     });
 
     it('should handle errors during contract ingestion', async () => {
@@ -161,7 +162,7 @@ describe('OptionIngestionService', () => {
       );
 
       expect(questResult.underlying_ticker).toBe(underlyingTicker);
-      expect(new Date(questResult.as_of as string)).toEqual(asOf);
+      expect(new Date(questResult.as_of as string)).toEqual(normalizeToMidnight(asOf));
     });
 
     it('should use current date when asOf is not provided', async () => {
