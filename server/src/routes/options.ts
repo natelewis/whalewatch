@@ -104,7 +104,14 @@ router.get('/:symbol/recent', async (req: Request, res: Response) => {
 router.get('/:symbol/trades', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const { start_time, end_time, limit = '1000', order_by = 'timestamp', order_direction = 'DESC' } = req.query;
+    const {
+      start_time,
+      end_time,
+      limit = '1000',
+      order_by = 'timestamp',
+      order_direction = 'DESC',
+      max_price,
+    } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
@@ -113,6 +120,15 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
     const limitNum = parseInt(limit as string);
     if (isNaN(limitNum) || limitNum < 1 || limitNum > 10000) {
       return res.status(400).json({ error: 'Limit must be between 1 and 10000' });
+    }
+
+    // Validate max_price parameter
+    let maxPriceNum: number | undefined;
+    if (max_price !== undefined) {
+      maxPriceNum = parseFloat(max_price as string);
+      if (isNaN(maxPriceNum) || maxPriceNum < 0) {
+        return res.status(400).json({ error: 'Max price must be a positive number' });
+      }
     }
 
     const params: QuestDBQueryParams = {
@@ -126,7 +142,7 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
     const trades = await questdbService.getOptionTrades(undefined, symbol.toUpperCase(), params);
 
     // Convert QuestDB trades to frontend-optimized format
-    const frontendTrades: FrontendOptionTrade[] = trades.map(trade => {
+    let frontendTrades: FrontendOptionTrade[] = trades.map(trade => {
       // Parse the ticker to extract option details
       const parsedTicker = parseOptionTicker(trade.ticker);
 
@@ -146,10 +162,15 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       };
     });
 
+    // Apply max price filter if specified
+    if (maxPriceNum !== undefined) {
+      frontendTrades = frontendTrades.filter(trade => trade.price <= maxPriceNum);
+    }
+
     return res.json({
       symbol: symbol.toUpperCase(),
       trades: frontendTrades,
-      count: trades.length,
+      count: frontendTrades.length,
       data_source: 'questdb',
       success: true,
     });

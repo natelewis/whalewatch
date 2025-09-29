@@ -100,18 +100,25 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
     async getOptionsTrades(
       symbol: string,
       startTime: Date,
-      endTime: Date
+      endTime: Date,
+      maxPrice?: number
     ): Promise<{
       symbol: string;
       trades: FrontendOptionTrade[];
       hours: number;
     }> {
+      const params: Record<string, string | number> = {
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        limit: 1000,
+      };
+
+      if (maxPrice !== undefined) {
+        params.max_price = maxPrice;
+      }
+
       const response = await api.get(`/api/options/${symbol}/trades`, {
-        params: {
-          start_time: startTime.toISOString(),
-          end_time: endTime.toISOString(),
-          limit: 1000,
-        },
+        params,
       });
       return response.data;
     },

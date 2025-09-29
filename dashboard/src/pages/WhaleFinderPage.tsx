@@ -15,12 +15,13 @@ export const WhaleFinderPage: React.FC = () => {
     // Default to today's date
     return new Date().toISOString().split('T')[0];
   });
+  const [maxPrice, setMaxPrice] = useState<number>(1000); // Default max price filter
 
   useEffect(() => {
-    loadOptionsTrades(selectedSymbol, selectedDate);
-  }, [selectedSymbol, selectedDate]);
+    loadOptionsTrades(selectedSymbol, selectedDate, maxPrice);
+  }, [selectedSymbol, selectedDate, maxPrice]);
 
-  const loadOptionsTrades = async (symbol: string, date: string) => {
+  const loadOptionsTrades = async (symbol: string, date: string, maxPriceFilter: number) => {
     setIsLoading(true);
     setError(null);
 
@@ -29,7 +30,7 @@ export const WhaleFinderPage: React.FC = () => {
     const endTime = new Date(`${date}T23:59:59.999Z`);
 
     const result = await safeCallAsync(async () => {
-      return apiService.getOptionsTrades(symbol, startTime, endTime);
+      return apiService.getOptionsTrades(symbol, startTime, endTime, maxPriceFilter);
     });
 
     if (result.isOk()) {
@@ -160,19 +161,34 @@ export const WhaleFinderPage: React.FC = () => {
                       <span className="font-medium text-foreground">{optionsTrades?.length || 0} trades</span>
                       <span className="text-muted-foreground ml-2">for {selectedSymbol}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-muted-foreground">Date:</span>
-                      <select
-                        value={selectedDate}
-                        onChange={e => setSelectedDate(e.target.value)}
-                        className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        {generateDateOptions().map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label} {option.isToday ? '(Today)' : ''}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-muted-foreground">Date:</span>
+                        <select
+                          value={selectedDate}
+                          onChange={e => setSelectedDate(e.target.value)}
+                          className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          {generateDateOptions().map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label} {option.isToday ? '(Today)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-muted-foreground">Max Price:</span>
+                        <input
+                          type="number"
+                          value={maxPrice}
+                          onChange={e => setMaxPrice(Number(e.target.value))}
+                          min="0"
+                          step="0.01"
+                          className="px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-20"
+                          placeholder="1000"
+                        />
+                        <span className="text-muted-foreground text-xs">$</span>
+                      </div>
                     </div>
                   </div>
                 </div>
