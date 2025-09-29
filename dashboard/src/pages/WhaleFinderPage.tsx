@@ -208,25 +208,27 @@ export const WhaleFinderPage: React.FC = () => {
                         </div>
 
                         {/* Price */}
-                        <div className={`font-medium text-right ${
-                          trade.option_type === 'call' 
-                            ? 'text-green-600 dark:text-green-400' 
-                            : 'text-red-600 dark:text-red-400'
-                        }`}>
+                        <div
+                          className={`font-medium text-right ${
+                            trade.option_type === 'call'
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
                           {formatCurrency(trade.price)}
                         </div>
 
                         {/* x */}
-                        <div className="text-center text-muted-foreground">
-                          x
-                        </div>
+                        <div className="text-center text-muted-foreground">x</div>
 
                         {/* Size */}
-                        <div className={`font-medium text-left ${
-                          trade.option_type === 'call' 
-                            ? 'text-green-600 dark:text-green-400' 
-                            : 'text-red-600 dark:text-red-400'
-                        }`}>
+                        <div
+                          className={`font-medium text-left ${
+                            trade.option_type === 'call'
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
                           {trade.size.toLocaleString()}
                         </div>
 
