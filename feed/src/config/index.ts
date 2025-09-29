@@ -82,7 +82,7 @@ export const config: Config = {
     optionContractsLimit: parseInt(process.env.POLYGON_OPTION_CONTRACTS_LIMIT || '1000'),
     optionQuotesLimit: parseInt(process.env.POLYGON_OPTION_QUOTES_LIMIT || '50000'),
     optionTradesLimit: parseInt(process.env.POLYGON_OPTION_TRADES_LIMIT || '50000'),
-    optionTradeValueThreshold: parseInt(process.env.POLYGON_OPTION_TRADE_VALUE_THRESHOLD || '10000'),
+    optionTradeValueThreshold: parseInt(process.env.POLYGON_OPTION_TRADE_VALUE_THRESHOLD || '10000', 10),
   },
   questdb: {
     host: process.env.QUESTDB_HOST || '127.0.0.1',

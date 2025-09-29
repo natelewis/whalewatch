@@ -178,7 +178,7 @@ export class OptionIngestionService {
       const sharesPerContract = contractDetails?.shares_per_contract || 100; // Default to 100 if not found
 
       // Filter trades by value threshold
-      const threshold = 10000;
+      const threshold = config.polygon.optionTradeValueThreshold;
       const filteredTrades = trades.filter(trade => {
         const optionTrade = trade as unknown as PolygonOptionTrade;
         const tradeValue = optionTrade.price * sharesPerContract * optionTrade.size;
