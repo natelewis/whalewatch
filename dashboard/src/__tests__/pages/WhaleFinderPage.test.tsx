@@ -102,7 +102,7 @@ describe('WhaleFinderPage', () => {
       expect(screen.getByText('$3.20 P')).toBeInTheDocument();
 
       // Test volume values
-      expect(screen.getAllByText('100')).toHaveLength(2); // Size in Size column and Volume column
+      expect(screen.getByText('100')).toBeInTheDocument(); // Volume for first trade
       expect(screen.getByText('150')).toBeInTheDocument(); // Volume for second trade
     });
   });

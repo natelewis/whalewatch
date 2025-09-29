@@ -4,6 +4,7 @@ import { apiService } from '../services/apiService';
 import { PageHeader } from '../components/PageHeader';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
+import { getSessionStorageItem, setSessionStorageItem } from '../utils/sessionStorage';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
@@ -14,11 +15,18 @@ export const WhaleFinderPage: React.FC = () => {
     // Default to today's date
     return new Date().toISOString().split('T')[0];
   });
-  const [maxPrice, setMaxPrice] = useState<number>(1000); // Default max price filter
+  const [maxPrice, setMaxPrice] = useState<number>(() => {
+    return getSessionStorageItem('whaleFinderMaxPrice', 1000);
+  });
 
   useEffect(() => {
     loadOptionsTrades(selectedSymbol, selectedDate, maxPrice);
   }, [selectedSymbol, selectedDate, maxPrice]);
+
+  // Save maxPrice to sessionStorage whenever it changes
+  useEffect(() => {
+    setSessionStorageItem('whaleFinderMaxPrice', maxPrice);
+  }, [maxPrice]);
 
   const loadOptionsTrades = async (symbol: string, date: string, maxPriceFilter: number) => {
     setIsLoading(true);
@@ -135,12 +143,6 @@ export const WhaleFinderPage: React.FC = () => {
               <div className="p-8 text-center">
                 <p className="text-destructive">{error}</p>
               </div>
-            ) : !optionsTrades || optionsTrades.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-muted-foreground">
-                  No option trades found for {selectedSymbol} on {formatDateDisplay(selectedDate)}
-                </p>
-              </div>
             ) : (
               <div className="p-4">
                 {/* Summary */}
@@ -181,65 +183,78 @@ export const WhaleFinderPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Table Header */}
-                <div className="grid grid-cols-9 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
-                  <div>Time</div>
-                  <div className="text-right">Price</div>
-                  <div className="text-left">Size</div>
-                  <div className="text-right">Notional</div>
-                  <div className="text-right">Strike</div>
-                  <div className="text-right">Expiry</div>
-                  <div className="text-right">Repeat</div>
-                  <div className="text-right">Volume</div>
-                </div>
+                {/* Table or No Data Message */}
+                {!optionsTrades || optionsTrades.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="text-muted-foreground">
+                      No option trades found for {selectedSymbol} on {formatDateDisplay(selectedDate)}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Table Header */}
+                    <div className="grid grid-cols-9 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+                      <div>Time</div>
+                      <div className="text-right">Price</div>
+                      <div className="text-left">Size</div>
+                      <div className="text-right">Notional</div>
+                      <div className="text-right">Strike</div>
+                      <div className="text-right">Expiry</div>
+                      <div className="text-right">Repeat</div>
+                      <div className="text-right">Volume</div>
+                    </div>
 
-                {/* Table Rows */}
-                <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
-                  {(optionsTrades || []).map((trade, index) => {
-                    return (
-                      <div
-                        key={`${trade.sequence_number}-${index}`}
-                        className="grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
-                      >
-                        {/* Time */}
-                        <div className="font-semibold text-muted-foreground text-xs">{formatTime(trade.timestamp)}</div>
+                    {/* Table Rows */}
+                    <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
+                      {(optionsTrades || []).map((trade, index) => {
+                        return (
+                          <div
+                            key={`${trade.sequence_number}-${index}`}
+                            className="grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
+                          >
+                            {/* Time */}
+                            <div className="font-semibold text-muted-foreground text-xs">
+                              {formatTime(trade.timestamp)}
+                            </div>
 
-                        {/* Price with P/C indicator */}
-                        <div className="font-semibold text-muted-foreground text-right">
-                          {formatCurrency(trade.price)} {trade.option_type === 'call' ? 'C' : 'P'}
-                        </div>
+                            {/* Price with P/C indicator */}
+                            <div className="font-semibold text-muted-foreground text-right">
+                              {formatCurrency(trade.price)} {trade.option_type === 'call' ? 'C' : 'P'}
+                            </div>
 
-                        {/* Size */}
-                        <div className="font-semibold text-muted-foreground text-left">
-                          x {trade.size.toLocaleString()}
-                        </div>
+                            {/* Size */}
+                            <div className="font-semibold text-muted-foreground text-left">
+                              x {trade.size.toLocaleString()}
+                            </div>
 
-                        {/* Notional */}
-                        <div className="font-semibold text-muted-foreground text-right">
-                          {formatNotional(trade.price, trade.size)}
-                        </div>
+                            {/* Notional */}
+                            <div className="font-semibold text-muted-foreground text-right">
+                              {formatNotional(trade.price, trade.size)}
+                            </div>
 
-                        {/* Strike */}
-                        <div className="font-semibold text-muted-foreground text-right">
-                          ${trade.strike_price.toFixed(2)}
-                        </div>
+                            {/* Strike */}
+                            <div className="font-semibold text-muted-foreground text-right">
+                              ${trade.strike_price.toFixed(2)}
+                            </div>
 
-                        {/* Expiry */}
-                        <div className="font-semibold text-muted-foreground text-right text-xs">
-                          {formatDate(trade.expiration_date)}
-                        </div>
+                            {/* Expiry */}
+                            <div className="font-semibold text-muted-foreground text-right text-xs">
+                              {formatDate(trade.expiration_date)}
+                            </div>
 
-                        {/* Repeat */}
-                        <div className="font-semibold text-muted-foreground text-right">{trade.repeat_count}</div>
+                            {/* Repeat */}
+                            <div className="font-semibold text-muted-foreground text-right">{trade.repeat_count}</div>
 
-                        {/* Volume */}
-                        <div className="font-semibold text-muted-foreground text-right">
-                          {trade.volume.toLocaleString()}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                            {/* Volume */}
+                            <div className="font-semibold text-muted-foreground text-right">
+                              {trade.volume.toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
