@@ -3,7 +3,7 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import chalk from 'chalk';
-import { WebSocketService } from '../services/web-socket';
+import { WebSocketService } from '../services/polygon-websocket-client';
 import { config } from '../config';
 import { db } from '../db/connection';
 

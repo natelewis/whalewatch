@@ -44,7 +44,6 @@ help:
 	@echo "  make ingest            Start real-time data ingestion"
 	@echo "  make ingest-options    Start real-time option trade ingestion"
 	@echo "  make backfill          Backfill historical data (usage: make backfill [ARGS='ticker date'])"
-	@echo "  make option-trade-catch-up Run catch-up process for option trades"
 	@echo "  make reset             Reset all data in QuestDB (with confirmation)"
 	@echo ""
 	@echo "Utilities:"
@@ -112,10 +111,6 @@ backfill:
 ingest-options:
 	@echo "📡 Starting real-time option trade ingestion..."
 	cd feed && npm run ingest-options
-
-option-trade-catch-up:
-	@echo "🚀 Catching up on missed option trades..."
-	cd feed && npm run catchup-options
 
 # Reset all data (with confirmation)
 reset:

@@ -2,7 +2,7 @@ import { db } from '../db/connection';
 import { PolygonClient } from './polygon-client';
 import { UpsertService } from '../utils/upsert';
 import { config } from '../config';
-import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote, OptionTradeIndex } from '../types/database';
+import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
 import { ContractType } from '@whalewatch/shared';
 import { getMaxDate, getMinDate, QuestDBServiceInterface, normalizeToMidnight } from '@whalewatch/shared';
