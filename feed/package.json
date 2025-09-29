@@ -37,7 +37,7 @@
     "dotenv": "^16.3.1",
     "inquirer": "^8.2.6",
     "node-cron": "^3.0.3",
-    "p-limit": "^7.1.1",
+    "p-limit": "^3.1.0",
     "ws": "^8.14.2"
   },
   "devDependencies": {
@@ -53,7 +53,7 @@
     "typescript-eslint": "^8.44.1"
   },
   "jest": {
-    "preset": "ts-jest/presets/default-esm",
+    "preset": "ts-jest",
     "testEnvironment": "node",
     "roots": [
       "<rootDir>/src"
@@ -87,25 +87,25 @@
     "transformIgnorePatterns": [
       "node_modules/(?!(p-limit|yocto-queue|@whalewatch)/)"
     ],
-    "extensionsToTreatAsEsm": [
-      ".ts"
-    ],
     "transform": {
       "^.+\\.ts$": [
         "ts-jest",
         {
-          "useESM": true,
           "tsconfig": {
             "module": "commonjs"
+          },
+          "moduleNameMapper": {
+            "^@whalewatch/shared$": "<rootDir>/../shared/dist/cjs/index.cjs",
+            "^@whalewatch/shared/(.*)$": "<rootDir>/../shared/dist/cjs/$1.cjs"
           }
         }
       ]
     },
     "moduleNameMapper": {
-      "^(\\.{1,2}/.*)\\.js$": "$1",
-      "^@whalewatch/shared$": "<rootDir>/../shared/dist/cjs/index.js",
-      "^@whalewatch/shared/(.*)$": "<rootDir>/../shared/$1"
+      "^@whalewatch/shared$": "<rootDir>/../shared/dist/cjs/index.cjs",
+      "^@whalewatch/shared/(.*)$": "<rootDir>/../shared/dist/cjs/$1.cjs"
     },
+    "verbose": true,
     "maxWorkers": 1,
     "testTimeout": 30000
   }

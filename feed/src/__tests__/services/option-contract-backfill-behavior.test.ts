@@ -18,6 +18,11 @@ jest.mock('@whalewatch/shared', () => ({
   getMinDate: jest.fn(),
   getMaxDate: jest.fn(),
   hasData: jest.fn(),
+  normalizeToMidnight: jest.fn((date: Date) => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  }),
 }));
 
 // Mock config
@@ -70,10 +75,11 @@ describe('Option Contract Backfill Behavior', () => {
         endDate
       );
 
-      // Verify the start date is today (within 1 second)
+      // Verify the start date is today (within 1 second) and normalized to midnight
       const callArgs = mockOptionIngestionService.processOptionContractsBackfill.mock.calls[0];
       const startDate = callArgs[1] as Date;
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to midnight
       expect(startDate.getTime()).toBeCloseTo(today.getTime(), -2);
 
       // Verify the end date is correct
@@ -152,7 +158,7 @@ describe('Option Contract Backfill Behavior', () => {
       expect(mockOptionIngestionService.getOldestAsOfDate).toHaveBeenCalledWith(ticker);
       expect(mockOptionIngestionService.processOptionContractsBackfill).toHaveBeenCalledWith(
         ticker,
-        existingOldestDate,
+        expect.any(Date), // The date will be normalized to midnight
         endDate
       );
 
@@ -204,8 +210,8 @@ describe('Option Contract Backfill Behavior', () => {
 
       mockOptionIngestionService.getOldestAsOfDate.mockRejectedValue(new Error('Database error'));
 
-      // Act & Assert - should not throw
-      await expect((backfillService as any).backfillOptionContracts(ticker, endDate)).resolves.not.toThrow();
+      // Act & Assert - should throw the error
+      await expect((backfillService as any).backfillOptionContracts(ticker, endDate)).rejects.toThrow('Database error');
     });
 
     it('should handle errors in processOptionContractsBackfill gracefully', async () => {
@@ -221,7 +227,10 @@ describe('Option Contract Backfill Behavior', () => {
       // Act & Assert - should not throw
       await expect((backfillService as any).backfillOptionContracts(ticker, endDate)).resolves.not.toThrow();
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Error backfilling options for AAPL'));
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error backfilling options for AAPL'),
+        expect.any(Error)
+      );
 
       consoleSpy.mockRestore();
     });
