@@ -2,7 +2,7 @@
 import { OptionIngestionService } from '../../services/option-ingestion';
 import { BackfillService } from '../../services/backfill';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/database';
-import { waitForRecordsWithCondition } from '../test-utils/data-verification';
+import { waitForRecordsWithCondition, waitForSingleRecordWithCondition } from '../test-utils/data-verification';
 import { OptionContract, OptionContractIndex } from '../../types/database';
 import { PolygonOptionContract } from '../../types/polygon';
 
@@ -486,6 +486,12 @@ describe('Option Contract Backfill Integration with New Schema', () => {
 
       // Wait for exactly 1 contract record to exist (upserted)
       await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 1);
+
+      // Wait for the updated strike price to be committed (QuestDB eventual consistency)
+      await waitForSingleRecordWithCondition(
+        'test_option_contracts',
+        `underlying_ticker = '${underlyingTicker}' AND strike_price = 155.0`
+      );
 
       // Verify only one contract record exists (upserted)
       const contractResult = await db.query('SELECT * FROM test_option_contracts WHERE underlying_ticker = $1', [
