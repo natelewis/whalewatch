@@ -112,7 +112,7 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
       const params: Record<string, string | number> = {
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        limit: 1000,
+        limit: 10000,
       };
 
       if (maxPrice !== undefined) {

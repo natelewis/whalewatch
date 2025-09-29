@@ -107,7 +107,7 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
     const {
       start_time,
       end_time,
-      limit = '1000',
+      limit = '10000',
       order_by = 'timestamp',
       order_direction = 'DESC',
       max_price: maxPrice,
