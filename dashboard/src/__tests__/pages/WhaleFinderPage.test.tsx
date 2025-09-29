@@ -70,14 +70,14 @@ describe('WhaleFinderPage', () => {
   it('renders the page title and description', () => {
     renderWithRouter(<WhaleFinderPage />);
 
-    expect(screen.getByRole('heading', { name: 'Options Trades', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText('View recent options trading activity for any symbol')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Option Trades', level: 1 })).toBeInTheDocument();
+    expect(screen.getByText('View recent option trading activity for any symbol')).toBeInTheDocument();
   });
 
   it('renders the options trades section', () => {
     renderWithRouter(<WhaleFinderPage />);
 
-    expect(screen.getByRole('heading', { name: 'Recent Options Trades', level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Recent Option Trades', level: 2 })).toBeInTheDocument();
   });
 
   it('loads options trades on mount', async () => {
@@ -130,7 +130,7 @@ describe('WhaleFinderPage', () => {
     renderWithRouter(<WhaleFinderPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('No options trades found for TSLA in the last 24 hours')).toBeInTheDocument();
+      expect(screen.getByText('No option trades found for TSLA in the last 24 hours')).toBeInTheDocument();
     });
   });
 });

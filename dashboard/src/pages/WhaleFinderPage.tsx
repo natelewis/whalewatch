@@ -91,8 +91,8 @@ export const WhaleFinderPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Options Trades"
-        subtitle="View recent options trading activity for any symbol"
+        title="Option Trades"
+        subtitle="View recent option trading activity for any symbol"
         selectedSymbol={selectedSymbol}
         onSymbolChange={handleSymbolChange}
       />
@@ -100,9 +100,9 @@ export const WhaleFinderPage: React.FC = () => {
       {/* Main Content */}
       <div className="h-[calc(100vh-200px)]">
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Recent Options Trades</h2>
+          <h2 className="text-xl font-semibold text-foreground">Recent Option Trades</h2>
 
-          {/* Options Trades Display */}
+          {/* Option Trades Display */}
           <div className="bg-card rounded-lg border border-border h-full flex flex-col">
             {isLoading ? (
               <div className="flex items-center justify-center h-32">
@@ -115,7 +115,7 @@ export const WhaleFinderPage: React.FC = () => {
             ) : !optionsTrades || optionsTrades.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-muted-foreground">
-                  No options trades found for {selectedSymbol} in the last 24 hours
+                  No option trades found for {selectedSymbol} in the last 24 hours
                 </p>
               </div>
             ) : (
