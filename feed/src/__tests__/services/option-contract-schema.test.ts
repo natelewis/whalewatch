@@ -170,7 +170,7 @@ describe('Option Contract Schema Migration', () => {
 
       // Assert - Verify the record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        getTableName('option_contract_index'),
+        getTableName('option_contracts_index'),
         `underlying_ticker = '${index.underlying_ticker}'`
       );
 
@@ -194,7 +194,7 @@ describe('Option Contract Schema Migration', () => {
 
       // Assert - Verify only one record exists
       const questResult = await waitForSingleRecordWithCondition(
-        getTableName('option_contract_index'),
+        getTableName('option_contracts_index'),
         `underlying_ticker = '${index.underlying_ticker}'`
       );
 
@@ -253,7 +253,7 @@ describe('Option Contract Schema Migration', () => {
 
       // Verify index record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        getTableName('option_contract_index'),
+        getTableName('option_contracts_index'),
         `underlying_ticker = '${underlyingTicker}'`
       );
 
@@ -280,7 +280,10 @@ describe('Option Contract Schema Migration', () => {
       });
 
       // Wait for the data to be available (QuestDB eventual consistency)
-      await waitForSingleRecordWithCondition('test_option_contract_index', `underlying_ticker = '${underlyingTicker}'`);
+      await waitForSingleRecordWithCondition(
+        'test_option_contracts_index',
+        `underlying_ticker = '${underlyingTicker}'`
+      );
 
       // Act - Use real database
       const result = await optionIngestionService.getOldestAsOfDate(underlyingTicker);
@@ -302,7 +305,10 @@ describe('Option Contract Schema Migration', () => {
       });
 
       // Wait for the data to be available (QuestDB eventual consistency)
-      await waitForSingleRecordWithCondition('test_option_contract_index', `underlying_ticker = '${underlyingTicker}'`);
+      await waitForSingleRecordWithCondition(
+        'test_option_contracts_index',
+        `underlying_ticker = '${underlyingTicker}'`
+      );
 
       // Act - Use real database
       const result = await optionIngestionService.getNewestAsOfDate(underlyingTicker);

@@ -258,7 +258,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       }
     });
 
-    it('should use option_contract_index for tracking sync dates', async () => {
+    it('should use option_contracts_index for tracking sync dates', async () => {
       // Arrange
       const underlyingTicker = 'TEST';
       const endDate = new Date('2024-01-05');
@@ -294,7 +294,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       expect(mockBackfillOptionContracts).toHaveBeenCalledWith(underlyingTicker, endDate);
 
       // Note: Since we mocked the backfill methods, the actual database queries won't be called
-      // The real implementation would call getOldestAsOfDate which queries option_contract_index
+      // The real implementation would call getOldestAsOfDate which queries option_contracts_index
     });
 
     it('should handle case when no existing option contracts exist', async () => {
@@ -333,7 +333,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       expect(mockBackfillOptionContracts).toHaveBeenCalledWith(underlyingTicker, endDate);
 
       // Note: Since we mocked the backfill methods, the actual database queries won't be called
-      // The real implementation would call getOldestAsOfDate which queries option_contract_index
+      // The real implementation would call getOldestAsOfDate which queries option_contracts_index
     });
   });
 
@@ -415,7 +415,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       ]);
 
       // Verify index record was stored
-      const indexResult = await db.query('SELECT * FROM test_option_contract_index WHERE underlying_ticker = $1', [
+      const indexResult = await db.query('SELECT * FROM test_option_contracts_index WHERE underlying_ticker = $1', [
         underlyingTicker,
       ]);
 
@@ -458,7 +458,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
           underlying_ticker: underlyingTicker,
           as_of: asOf1,
         },
-        'test_option_contract_index'
+        'test_option_contracts_index'
       );
 
       // Update contracts for second date
@@ -481,7 +481,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
           underlying_ticker: underlyingTicker,
           as_of: asOf2,
         },
-        'test_option_contract_index'
+        'test_option_contracts_index'
       );
 
       // Wait for exactly 1 contract record to exist (upserted)
@@ -508,7 +508,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
 
       // Verify two index records exist
       const indexResult = await db.query(
-        'SELECT * FROM test_option_contract_index WHERE underlying_ticker = $1 ORDER BY as_of',
+        'SELECT * FROM test_option_contracts_index WHERE underlying_ticker = $1 ORDER BY as_of',
         [underlyingTicker]
       );
 

@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS option_contracts (
 ) TIMESTAMP(expiration_date) PARTITION BY DAY;
 
 -- Option contract index - tracks which days we have synced option contracts
-CREATE TABLE IF NOT EXISTS option_contract_index (
+CREATE TABLE IF NOT EXISTS option_contracts_index (
     underlying_ticker SYMBOL,
     as_of TIMESTAMP
 ) TIMESTAMP(as_of) PARTITION BY DAY;

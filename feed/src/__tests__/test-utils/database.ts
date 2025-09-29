@@ -25,10 +25,10 @@ export async function createTestTables(): Promise<void> {
   for (const table of TEST_TABLES) {
     try {
       console.log(`Creating table ${table.name} with schema: ${table.schema}`);
-      
+
       // Split multi-statement schemas and execute each statement separately
       const statements = table.schema.split(';\n').filter(stmt => stmt.trim());
-      
+
       for (const statement of statements) {
         const trimmedStatement = statement.trim();
         if (trimmedStatement) {
@@ -37,7 +37,7 @@ export async function createTestTables(): Promise<void> {
           console.log(`Statement result:`, result);
         }
       }
-      
+
       console.log(`Created test table: ${table.name}`);
     } catch (error) {
       console.error(`Failed to create test table ${table.name}:`, error);
@@ -173,7 +173,7 @@ export async function getTestTableData(tableName: string): Promise<unknown[]> {
   let timestampColumn = 'timestamp'; // default
   if (tableName.includes('option_contracts')) {
     timestampColumn = 'expiration_date';
-  } else if (tableName.includes('option_contract_index')) {
+  } else if (tableName.includes('option_contracts_index')) {
     timestampColumn = 'as_of';
   }
 

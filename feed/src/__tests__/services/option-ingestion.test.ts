@@ -112,7 +112,7 @@ describe('OptionIngestionService', () => {
 
       // Verify index record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
-        getTableName('option_contract_index'),
+        getTableName('option_contracts_index'),
         `underlying_ticker = '${underlyingTicker}'`
       );
 
@@ -156,7 +156,7 @@ describe('OptionIngestionService', () => {
 
       // Verify index record was still created even with empty contracts
       const questResult = await waitForSingleRecordWithCondition(
-        getTableName('option_contract_index'),
+        getTableName('option_contracts_index'),
         `underlying_ticker = '${underlyingTicker}'`
       );
 
@@ -673,7 +673,7 @@ describe('OptionIngestionService', () => {
 
       // Wait for data to be available (QuestDB eventual consistency)
       await waitForSingleRecordWithCondition(
-        getTableName('option_contract_index'),
+        getTableName('option_contracts_index'),
         `underlying_ticker = '${underlyingTicker}' AND as_of = '${asOf2.toISOString()}'`
       );
 

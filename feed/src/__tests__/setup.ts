@@ -62,7 +62,7 @@ async function cleanupTestData(): Promise<void> {
     const testTables = [
       getTableName('stock_aggregates'),
       getTableName('option_contracts'),
-      getTableName('option_contract_index'),
+      getTableName('option_contracts_index'),
       getTableName('stock_trades'),
       getTableName('option_trades'),
     ];

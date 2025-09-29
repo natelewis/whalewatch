@@ -126,7 +126,7 @@ export class UpsertService {
           strike_price: contract.strike_price,
           underlying_ticker: contract.underlying_ticker,
         });
-        
+
         const updateResult = await db.query(
           `UPDATE ${tableName} 
            SET contract_type = $1, exercise_style = $2, shares_per_contract = $3, 
@@ -172,7 +172,7 @@ export class UpsertService {
    */
   static async upsertOptionContractIndex(
     index: OptionContractIndex,
-    tableName = getTableName('option_contract_index')
+    tableName = getTableName('option_contracts_index')
   ): Promise<void> {
     try {
       console.log(

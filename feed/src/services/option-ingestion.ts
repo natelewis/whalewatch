@@ -84,7 +84,7 @@ export class OptionIngestionService {
       } else {
         // Fallback: insert directly
         await db.query(
-          `INSERT INTO ${getTableName('option_contract_index')} (underlying_ticker, as_of) VALUES ($1, $2)`,
+          `INSERT INTO ${getTableName('option_contracts_index')} (underlying_ticker, as_of) VALUES ($1, $2)`,
           [indexRecord.underlying_ticker, indexRecord.as_of]
         );
       }
@@ -233,7 +233,7 @@ export class OptionIngestionService {
         ticker: underlyingTicker,
         tickerField: 'underlying_ticker',
         dateField: 'as_of',
-        table: 'option_contract_index',
+        table: 'option_contracts_index',
       });
       return result;
     } catch (error) {
@@ -247,7 +247,7 @@ export class OptionIngestionService {
       ticker: underlyingTicker,
       tickerField: 'underlying_ticker',
       dateField: 'as_of',
-      table: 'option_contract_index',
+      table: 'option_contracts_index',
     });
   }
 
