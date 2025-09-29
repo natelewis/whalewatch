@@ -27,6 +27,8 @@ describe('WhaleFinderPage', () => {
       option_type: 'call' as const,
       strike_price: 150,
       expiration_date: '2025-10-03',
+      repeat_count: 1,
+      volume: 100,
     },
     {
       ticker: 'O:TSLA251003P00120000',
@@ -40,6 +42,8 @@ describe('WhaleFinderPage', () => {
       option_type: 'put' as const,
       strike_price: 120,
       expiration_date: '2025-10-03',
+      repeat_count: 2,
+      volume: 150,
     },
   ];
 
@@ -72,7 +76,7 @@ describe('WhaleFinderPage', () => {
     renderWithRouter(<WhaleFinderPage />);
 
     await waitFor(() => {
-      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith('TSLA', expect.any(Date), expect.any(Date));
+      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith('TSLA', expect.any(Date), expect.any(Date), 1000);
     });
   });
 
@@ -84,6 +88,15 @@ describe('WhaleFinderPage', () => {
       expect(screen.getByText('for TSLA')).toBeInTheDocument();
       expect(screen.getByText('O:TSLA251003C00150000')).toBeInTheDocument();
       expect(screen.getByText('O:TSLA251003P00120000')).toBeInTheDocument();
+
+      // Test new columns
+      expect(screen.getByText('Repeat')).toBeInTheDocument();
+      expect(screen.getByText('Volume')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument(); // repeat_count for first trade
+      expect(screen.getByText('2')).toBeInTheDocument(); // repeat_count for second trade
+      // Test volume values specifically (should be in Volume column)
+      expect(screen.getAllByText('100')).toHaveLength(2); // Size and Volume for first trade
+      expect(screen.getByText('150')).toBeInTheDocument(); // Volume for second trade
     });
   });
 

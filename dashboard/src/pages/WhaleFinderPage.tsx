@@ -194,7 +194,7 @@ export const WhaleFinderPage: React.FC = () => {
                 </div>
 
                 {/* Table Header */}
-                <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+                <div className="grid grid-cols-10 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
                   <div>Time</div>
                   <div>Contract</div>
                   <div className="text-right">Price</div>
@@ -202,6 +202,8 @@ export const WhaleFinderPage: React.FC = () => {
                   <div className="text-right">Notional</div>
                   <div className="text-right">Strike</div>
                   <div className="text-right">Expiry</div>
+                  <div className="text-right">Repeat</div>
+                  <div className="text-right">Volume</div>
                 </div>
 
                 {/* Table Rows */}
@@ -210,7 +212,7 @@ export const WhaleFinderPage: React.FC = () => {
                     return (
                       <div
                         key={`${trade.sequence_number}-${index}`}
-                        className="grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
+                        className="grid grid-cols-10 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
                       >
                         {/* Time */}
                         <div className="text-muted-foreground text-xs">
@@ -241,6 +243,22 @@ export const WhaleFinderPage: React.FC = () => {
                         <div className="text-muted-foreground text-right text-xs">
                           {formatDate(trade.expiration_date)}
                         </div>
+
+                        {/* Repeat */}
+                        <div className="text-right">
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full ${
+                              trade.repeat_count > 1
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
+                            }`}
+                          >
+                            {trade.repeat_count}
+                          </span>
+                        </div>
+
+                        {/* Volume */}
+                        <div className="font-medium text-foreground text-right">{trade.volume.toLocaleString()}</div>
                       </div>
                     );
                   })}

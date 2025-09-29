@@ -156,6 +156,9 @@ export interface FrontendOptionTrade {
   option_type: 'call' | 'put';
   strike_price: number;
   expiration_date: string; // YYYY-MM-DD format
+  // Aggregated fields
+  repeat_count: number; // Number of identical trades (same ticker + size + strike_price)
+  volume: number; // Total volume for this contract (sum of sizes)
 }
 
 // Used by feed and dashboard

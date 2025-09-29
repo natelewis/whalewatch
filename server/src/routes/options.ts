@@ -110,7 +110,7 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       limit = '1000',
       order_by = 'timestamp',
       order_direction = 'DESC',
-      max_price,
+      max_price: maxPrice,
     } = req.query;
 
     if (!symbol) {
@@ -124,8 +124,8 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
 
     // Validate max_price parameter
     let maxPriceNum: number | undefined;
-    if (max_price !== undefined) {
-      maxPriceNum = parseFloat(max_price as string);
+    if (maxPrice !== undefined) {
+      maxPriceNum = parseFloat(maxPrice as string);
       if (isNaN(maxPriceNum) || maxPriceNum < 0) {
         return res.status(400).json({ error: 'Max price must be a positive number' });
       }
@@ -141,26 +141,68 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
 
     const trades = await questdbService.getOptionTrades(undefined, symbol.toUpperCase(), params);
 
-    // Convert QuestDB trades to frontend-optimized format
-    let frontendTrades: FrontendOptionTrade[] = trades.map(trade => {
+    // Convert QuestDB trades to frontend-optimized format and group by contract
+    const tradeMap = new Map<
+      string,
+      {
+        ticker: string;
+        underlying_ticker: string;
+        timestamp: string;
+        price: number;
+        size: number;
+        conditions: string;
+        tape: string;
+        sequence_number: number;
+        option_type: 'call' | 'put';
+        strike_price: number;
+        expiration_date: string;
+        repeat_count: number;
+        volume: number;
+      }
+    >();
+
+    trades.forEach(trade => {
       // Parse the ticker to extract option details
       const parsedTicker = parseOptionTicker(trade.ticker);
 
-      return {
-        ticker: trade.ticker,
-        underlying_ticker: trade.underlying_ticker,
-        timestamp: trade.timestamp,
-        price: trade.price,
-        size: trade.size,
-        conditions: trade.conditions,
-        tape: trade.tape.toString(),
-        sequence_number: trade.sequence_number,
-        // Parsed from ticker
-        option_type: parsedTicker?.optionType || 'call',
-        strike_price: parsedTicker?.strikePrice || 0,
-        expiration_date: parsedTicker?.expirationDate || '',
-      };
+      // Create a unique key for grouping: ticker + strike_price (same contract)
+      const groupKey = `${trade.ticker}-${parsedTicker?.strikePrice || 0}`;
+
+      if (tradeMap.has(groupKey)) {
+        // Increment repeat count and add to volume
+        const existing = tradeMap.get(groupKey)!;
+        existing.repeat_count += 1;
+        existing.volume += trade.size;
+        // Keep the most recent timestamp
+        if (new Date(trade.timestamp) > new Date(existing.timestamp)) {
+          existing.timestamp = trade.timestamp;
+          existing.price = trade.price;
+          existing.conditions = trade.conditions;
+          existing.tape = trade.tape.toString();
+          existing.sequence_number = trade.sequence_number;
+        }
+      } else {
+        // First occurrence of this contract
+        tradeMap.set(groupKey, {
+          ticker: trade.ticker,
+          underlying_ticker: trade.underlying_ticker,
+          timestamp: trade.timestamp,
+          price: trade.price,
+          size: trade.size,
+          conditions: trade.conditions,
+          tape: trade.tape.toString(),
+          sequence_number: trade.sequence_number,
+          option_type: parsedTicker?.optionType || 'call',
+          strike_price: parsedTicker?.strikePrice || 0,
+          expiration_date: parsedTicker?.expirationDate || '',
+          repeat_count: 1,
+          volume: trade.size,
+        });
+      }
     });
+
+    // Convert map to array
+    let frontendTrades: FrontendOptionTrade[] = Array.from(tradeMap.values());
 
     // Apply max price filter if specified
     if (maxPriceNum !== undefined) {
