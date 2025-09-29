@@ -68,9 +68,3 @@ CREATE TABLE IF NOT EXISTS option_quotes (
     ask_exchange LONG,
     sequence_number LONG
 ) TIMESTAMP(timestamp) PARTITION BY DAY;
-
--- Option trades index - tracks which days we have synced option trades
-CREATE TABLE IF NOT EXISTS option_trades_index (
-    ticker SYMBOL,
-    last_sync TIMESTAMP
-) TIMESTAMP(last_sync) PARTITION BY DAY;

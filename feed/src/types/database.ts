@@ -53,15 +53,7 @@ export interface OptionQuote extends WebSocketMessage {
   sequence_number: number;
 }
 
-export interface OptionTradeIndex {
-  [key: string]: string | Date;
-  ticker: string;
-  last_sync: Date;
-}
-
 export interface TickerConfig {
-  symbol: string;
-  enabled: boolean;
-  last_sync?: Date;
-  last_aggregate?: Date;
+  ticker: string;
+  type: 'stock' | 'option';
 }

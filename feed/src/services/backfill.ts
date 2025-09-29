@@ -460,7 +460,7 @@ export class BackfillService {
       try {
         console.log(`Backfilling option contracts for ${ticker}...`);
         await this.optionIngestionService.processOptionContractsBackfill(ticker, optionBackfillStart, endDate);
-        await this.optionIngestionService.backfillOptionTrades(ticker, endDate, optionBackfillStart);
+        await this.optionIngestionService.backfillOptionTrades(ticker, endDate);
       } catch (error) {
         console.error(`Error backfilling options for ${ticker}:`, error);
       }

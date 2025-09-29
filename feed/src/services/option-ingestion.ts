@@ -50,31 +50,38 @@ export class OptionIngestionService {
     };
   }
 
-  async backfillOptionTrades(underlyingTicker: string, from: Date, to: Date): Promise<void> {
+  async backfillOptionTrades(underlyingTicker: string, from: Date): Promise<void> {
     try {
-      console.log(
-        `Backfilling option trades for ${underlyingTicker} from ${from.toISOString()} to ${to.toISOString()}...`
-      );
+      console.log(`Backfilling option trades for ${underlyingTicker} historically to ${from.toISOString()}`);
 
       const optionTickers = await this.getOptionTickersForUnderlying(underlyingTicker, from);
-      console.log(`Found ${optionTickers.length} option tickers for ${underlyingTicker}`);
+      console.log(`Found ${optionTickers.length} active option tickers for ${underlyingTicker}`);
 
       const CONCURRENCY_LIMIT = parseInt(process.env.OPTION_CONCURRENCY_LIMIT || '5');
       const limit = pLimit(CONCURRENCY_LIMIT);
 
+      const to = new Date();
+
       const tradePromises = optionTickers.map(ticker =>
         limit(async () => {
           try {
-            const lastSync = await this.getOptionTradeLastSync(ticker);
-            const backfillStart = lastSync ? new Date(lastSync.getTime() + 1) : from;
+            const oldestTradeTimestamp = await this.getOldestOptionTradeTimestamp(ticker);
 
-            if (backfillStart >= to) {
-              console.log(`Option trades for ${ticker} are already up to date.`);
+            // If we have an oldest trade, our historical backfill ends just before it.
+            // If we have no trades, we backfill the entire range from 'from' up to now.
+            const backfillEnd = oldestTradeTimestamp ? new Date(oldestTradeTimestamp.getTime() - 1) : to;
+
+            // 'from' is the historical date we want to backfill TO.
+            // If 'from' is already at or after our backfillEnd point, we have all the history we need.
+            if (from >= backfillEnd) {
+              console.log(`Option trades for ${ticker} are already historically backfilled to the target date.`);
               return;
             }
 
-            await this.ingestOptionTrades(ticker, backfillStart, to);
-            await this.updateOptionTradeLastSync(ticker, to);
+            console.log(
+              `Backfilling historical trades for ${ticker} from ${from.toISOString()} to ${backfillEnd.toISOString()}`
+            );
+            await this.ingestOptionTrades(ticker, from, backfillEnd);
           } catch (error) {
             console.error(`Error backfilling option trades for ${ticker}:`, error);
           }
@@ -89,35 +96,20 @@ export class OptionIngestionService {
     }
   }
 
-  async getOptionTradeLastSync(ticker: string): Promise<Date | null> {
+  async getOldestOptionTradeTimestamp(ticker: string): Promise<Date | null> {
     try {
-      const result = await db.query(
-        `SELECT last_sync FROM ${getTableName(
-          'option_trades_index'
-        )} WHERE ticker = $1 ORDER BY last_sync DESC LIMIT 1`,
-        [ticker]
-      );
+      const result = await db.query(`SELECT MIN(timestamp) FROM ${getTableName('option_trades')} WHERE ticker = $1`, [
+        ticker,
+      ]);
 
       const rows = (result as { dataset: unknown[][] })?.dataset || [];
-      if (rows.length > 0) {
+      if (rows.length > 0 && rows[0][0]) {
         return new Date(rows[0][0] as string);
       }
       return null;
     } catch (error) {
-      console.error(`Error getting last sync for ${ticker}:`, error);
+      console.error(`Error getting oldest trade timestamp for ${ticker}:`, error);
       return null;
-    }
-  }
-
-  async updateOptionTradeLastSync(ticker: string, lastSync: Date): Promise<void> {
-    try {
-      const indexRecord: OptionTradeIndex = {
-        ticker: ticker,
-        last_sync: lastSync,
-      };
-      await UpsertService.upsertOptionTradeIndex(indexRecord);
-    } catch (error) {
-      console.error(`Error updating last sync for ${ticker}:`, error);
     }
   }
 
@@ -421,7 +413,7 @@ export class OptionIngestionService {
 
       // Backfill trades for each option ticker (if not skipped)
       if (!config.polygon.skipOptionTrades) {
-        await this.backfillOptionTrades(underlyingTicker, from, to);
+        await this.backfillOptionTrades(underlyingTicker, to);
       } else {
         console.log(`Skipping option trades ingestion (POLYGON_SKIP_OPTION_TRADES=true)`);
       }
