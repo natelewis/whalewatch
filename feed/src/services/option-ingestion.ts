@@ -96,6 +96,24 @@ export class OptionIngestionService {
     }
   }
 
+  async getLatestTradeForUnderlying(underlyingTicker: string): Promise<Date | null> {
+    try {
+      const result = await db.query(
+        `SELECT MAX(timestamp) FROM ${getTableName('option_trades')} WHERE underlying_ticker = $1`,
+        [underlyingTicker]
+      );
+
+      const rows = (result as { dataset: unknown[][] })?.dataset || [];
+      if (rows.length > 0 && rows[0][0]) {
+        return new Date(rows[0][0] as string);
+      }
+      return null;
+    } catch (error) {
+      console.error(`Error getting latest trade timestamp for ${underlyingTicker}:`, error);
+      return null;
+    }
+  }
+
   async getOldestOptionTradeTimestamp(ticker: string): Promise<Date | null> {
     try {
       const result = await db.query(`SELECT MIN(timestamp) FROM ${getTableName('option_trades')} WHERE ticker = $1`, [

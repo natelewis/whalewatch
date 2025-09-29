@@ -94,13 +94,6 @@ export class StockIngestionService {
     for (const ticker of config.tickers) {
       try {
         await this.catchUpTickerData(ticker);
-
-        // Also catch up option contracts for this ticker
-        try {
-          await this.optionIngestionService.catchUpOptionContracts(ticker);
-        } catch (error) {
-          console.error(`Error catching up option contracts for ${ticker}:`, error);
-        }
       } catch (error) {
         console.error(`Error catching up data for ${ticker}:`, error);
       }

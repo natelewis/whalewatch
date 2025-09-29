@@ -1,13 +1,17 @@
 #!/usr/bin/env tsx
 
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 import { StockIngestionService } from '../services/stock-ingestion';
 import chalk from 'chalk';
 
 async function main() {
   console.log(chalk.blue('Starting real-time data ingestion...'));
-  
+
   const ingestionService = new StockIngestionService();
-  
+
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
     console.log(chalk.yellow('\nReceived SIGINT, shutting down gracefully...'));
@@ -23,15 +27,14 @@ async function main() {
 
   try {
     await ingestionService.startIngestion();
-    
+
     // Keep the process running
     console.log(chalk.green('Data ingestion is running. Press Ctrl+C to stop.'));
-    
+
     // Keep alive
     setInterval(() => {
       // Heartbeat to keep process alive
     }, 60000);
-    
   } catch (error) {
     console.error(chalk.red('Failed to start ingestion:'), error);
     process.exit(1);

@@ -1,5 +1,9 @@
 #!/usr/bin/env tsx
 
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 import { BackfillService } from '../services/backfill';
 import chalk from 'chalk';
 
