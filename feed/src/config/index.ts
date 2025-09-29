@@ -10,6 +10,7 @@ export interface Config {
     wsUrl: string;
     dataUrl: string;
     logRequests: boolean;
+    skipStockAggregates: boolean;
   };
   polygon: {
     apiKey: string;
@@ -68,6 +69,7 @@ export const config: Config = {
     wsUrl: 'wss://stream.data.alpaca.markets/v2/iex',
     dataUrl: 'https://data.alpaca.markets',
     logRequests: process.env.ALPACA_LOG_REQUESTS === 'true',
+    skipStockAggregates: process.env.ALPACA_SKIP_STOCK_AGGREGATES === 'true',
   },
   polygon: {
     apiKey: process.env.POLYGON_API_KEY!,
@@ -76,7 +78,7 @@ export const config: Config = {
     logRequests: process.env.POLYGON_LOG_REQUESTS === 'true',
     skipOptionTrades: process.env.POLYGON_SKIP_OPTION_TRADES === 'true',
     skipOptionQuotes: process.env.POLYGON_SKIP_OPTION_QUOTES === 'true',
-    skipOptionContracts: process.env.POLYGON_SKIP_OPTION_CONTACTS === 'true',
+    skipOptionContracts: process.env.POLYGON_SKIP_OPTION_CONTRACTS === 'true',
     optionContractsLimit: parseInt(process.env.POLYGON_OPTION_CONTRACTS_LIMIT || '1000'),
     optionQuotesLimit: parseInt(process.env.POLYGON_OPTION_QUOTES_LIMIT || '50000'),
     optionTradesLimit: parseInt(process.env.POLYGON_OPTION_TRADES_LIMIT || '50000'),

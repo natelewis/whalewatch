@@ -340,7 +340,7 @@ export class OptionIngestionService {
       if (!config.polygon.skipOptionContracts) {
         await this.backfillOptionContractsWithAsOf(underlyingTicker, from, to);
       } else {
-        console.log(`Skipping option contracts ingestion (POLYGON_SKIP_OPTION_CONTACTS=true)`);
+        console.log(`Skipping option contracts ingestion (POLYGON_SKIP_OPTION_CONTRACTS=true)`);
       }
 
       // Get all option tickers for this underlying

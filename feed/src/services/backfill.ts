@@ -360,6 +360,12 @@ export class BackfillService {
       `Checking stock aggregates backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`
     );
 
+    // Check if stock aggregates backfill is skipped
+    if (config.alpaca.skipStockAggregates) {
+      console.log(`Skipping stock aggregates backfill (ALPACA_SKIP_STOCK_AGGREGATES=true)`);
+      return;
+    }
+
     // Check stocks independently
     const oldestStockDataDate = await getMinDate(this.questdbAdapter, {
       ticker,
