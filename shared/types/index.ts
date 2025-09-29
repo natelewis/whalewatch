@@ -142,6 +142,22 @@ export interface AlpacaOptionsTrade {
   gain_percentage?: number;
 }
 
+// Frontend-optimized option trade with parsed ticker data
+export interface FrontendOptionTrade {
+  ticker: string;
+  underlying_ticker: string;
+  timestamp: string;
+  price: number;
+  size: number;
+  conditions: string;
+  tape: string;
+  sequence_number: number;
+  // Parsed from ticker
+  option_type: 'call' | 'put';
+  strike_price: number;
+  expiration_date: string; // YYYY-MM-DD format
+}
+
 // Used by feed and dashboard
 export type ContractType = 'call' | 'put';
 

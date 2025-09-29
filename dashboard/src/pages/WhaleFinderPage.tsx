@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { AlpacaOptionsTrade } from '../types';
+import { FrontendOptionTrade } from '../types';
 import { apiService } from '../services/apiService';
 import { PageHeader } from '../components/PageHeader';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
-import { Target, TrendingUp, TrendingDown } from 'lucide-react';
+import { Target } from 'lucide-react';
 
 export const WhaleFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
-  const [optionsTrades, setOptionsTrades] = useState<AlpacaOptionsTrade[]>([]);
+  const [optionsTrades, setOptionsTrades] = useState<FrontendOptionTrade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -97,16 +97,6 @@ export const WhaleFinderPage: React.FC = () => {
     });
   };
 
-  const getTradeIcon = (side: string) => {
-    if (side === 'buy') {
-      return <TrendingUp className="h-4 w-4 text-green-500" />;
-    } else if (side === 'sell') {
-      return <TrendingDown className="h-4 w-4 text-red-500" />;
-    } else {
-      return <Target className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
   const getContractIcon = (contractType: string) => {
     if (contractType === 'call') {
       return <Target className="h-4 w-4 text-green-500" />;
@@ -191,7 +181,6 @@ export const WhaleFinderPage: React.FC = () => {
                 <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
                   <div>Time</div>
                   <div>Contract</div>
-                  <div>Side</div>
                   <div className="text-right">Price</div>
                   <div className="text-right">Size</div>
                   <div className="text-right">Notional</div>
@@ -202,12 +191,9 @@ export const WhaleFinderPage: React.FC = () => {
                 {/* Table Rows */}
                 <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
                   {(optionsTrades || []).map((trade, index) => {
-                    const isBuy = trade.side === 'buy';
-                    const isSell = trade.side === 'sell';
-
                     return (
                       <div
-                        key={`${trade.id}-${index}`}
+                        key={`${trade.sequence_number}-${index}`}
                         className="grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
                       >
                         {/* Time */}
@@ -217,26 +203,8 @@ export const WhaleFinderPage: React.FC = () => {
 
                         {/* Contract */}
                         <div className="flex items-center space-x-1">
-                          {getContractIcon(trade.contract.option_type)}
-                          <span className="font-medium text-foreground truncate text-xs">{trade.contract.symbol}</span>
-                        </div>
-
-                        {/* Side */}
-                        <div className="flex items-center">
-                          <div className="flex items-center space-x-1">
-                            {getTradeIcon(trade.side)}
-                            <span
-                              className={`text-xs px-2 py-1 rounded-full ${
-                                isBuy
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                  : isSell
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-                              }`}
-                            >
-                              {trade.side.toUpperCase()}
-                            </span>
-                          </div>
+                          {getContractIcon(trade.option_type)}
+                          <span className="font-medium text-foreground truncate text-xs">{trade.ticker}</span>
                         </div>
 
                         {/* Price */}
@@ -251,13 +219,11 @@ export const WhaleFinderPage: React.FC = () => {
                         </div>
 
                         {/* Strike */}
-                        <div className="text-muted-foreground text-right">
-                          ${trade.contract.strike_price.toFixed(2)}
-                        </div>
+                        <div className="text-muted-foreground text-right">${trade.strike_price.toFixed(2)}</div>
 
                         {/* Expiry */}
                         <div className="text-muted-foreground text-right text-xs">
-                          {formatDate(trade.contract.expiration_date)}
+                          {formatDate(trade.expiration_date)}
                         </div>
                       </div>
                     );

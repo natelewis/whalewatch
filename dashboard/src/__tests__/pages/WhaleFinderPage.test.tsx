@@ -16,42 +16,30 @@ const renderWithRouter = (component: React.ReactElement) => {
 describe('WhaleFinderPage', () => {
   const mockTrades = [
     {
-      id: 'trade-1',
-      symbol: 'TSLA',
+      ticker: 'O:TSLA251003C00150000',
+      underlying_ticker: 'TSLA',
       timestamp: '2024-01-01T10:00:00Z',
       price: 5.5,
       size: 100,
-      side: 'buy' as const,
-      conditions: ['regular'],
-      exchange: 'OPRA',
+      conditions: 'regular',
       tape: 'C',
-      contract: {
-        symbol: 'TSLA240315C00150000',
-        underlying_symbol: 'TSLA',
-        exercise_style: 'american',
-        expiration_date: '2024-03-15',
-        strike_price: 150,
-        option_type: 'call' as const,
-      },
+      sequence_number: 1,
+      option_type: 'call' as const,
+      strike_price: 150,
+      expiration_date: '2025-10-03',
     },
     {
-      id: 'trade-2',
-      symbol: 'TSLA',
+      ticker: 'O:TSLA251003P00120000',
+      underlying_ticker: 'TSLA',
       timestamp: '2024-01-01T11:00:00Z',
       price: 3.2,
       size: 50,
-      side: 'sell' as const,
-      conditions: ['regular'],
-      exchange: 'OPRA',
+      conditions: 'regular',
       tape: 'C',
-      contract: {
-        symbol: 'TSLA240315P00140000',
-        underlying_symbol: 'TSLA',
-        exercise_style: 'american',
-        expiration_date: '2024-03-15',
-        strike_price: 140,
-        option_type: 'put' as const,
-      },
+      sequence_number: 2,
+      option_type: 'put' as const,
+      strike_price: 120,
+      expiration_date: '2025-10-03',
     },
   ];
 
@@ -94,8 +82,8 @@ describe('WhaleFinderPage', () => {
     await waitFor(() => {
       expect(screen.getByText('2 trades')).toBeInTheDocument();
       expect(screen.getByText('for TSLA')).toBeInTheDocument();
-      expect(screen.getByText('TSLA240315C00150000')).toBeInTheDocument();
-      expect(screen.getByText('TSLA240315P00140000')).toBeInTheDocument();
+      expect(screen.getByText('O:TSLA251003C00150000')).toBeInTheDocument();
+      expect(screen.getByText('O:TSLA251003P00120000')).toBeInTheDocument();
     });
   });
 

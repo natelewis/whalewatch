@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { questdbService } from '../services/questdbService';
 import { QuestDBQueryParams } from '../types/index';
+import { parseOptionTicker, FrontendOptionTrade } from '@whalewatch/shared';
 
 const router = Router();
 
@@ -124,30 +125,30 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
 
     const trades = await questdbService.getOptionTrades(undefined, symbol.toUpperCase(), params);
 
-    // Convert QuestDB trades to Alpaca format for frontend compatibility
-    const alpacaTrades = trades.map(trade => ({
-      id: trade.sequence_number.toString(),
-      symbol: trade.ticker,
-      timestamp: trade.timestamp,
-      price: trade.price,
-      size: trade.size,
-      side: 'unknown' as 'buy' | 'sell' | 'unknown', // QuestDB doesn't store trade side
-      conditions: [trade.conditions],
-      exchange: trade.exchange.toString(),
-      tape: trade.tape.toString(),
-      contract: {
-        symbol: trade.ticker,
-        underlying_symbol: trade.underlying_ticker,
-        exercise_style: 'american', // Default assumption
-        expiration_date: '', // Would need to join with contracts table
-        strike_price: 0, // Would need to join with contracts table
-        option_type: 'call' as 'call' | 'put', // Would need to join with contracts table
-      },
-    }));
+    // Convert QuestDB trades to frontend-optimized format
+    const frontendTrades: FrontendOptionTrade[] = trades.map(trade => {
+      // Parse the ticker to extract option details
+      const parsedTicker = parseOptionTicker(trade.ticker);
+
+      return {
+        ticker: trade.ticker,
+        underlying_ticker: trade.underlying_ticker,
+        timestamp: trade.timestamp,
+        price: trade.price,
+        size: trade.size,
+        conditions: trade.conditions,
+        tape: trade.tape.toString(),
+        sequence_number: trade.sequence_number,
+        // Parsed from ticker
+        option_type: parsedTicker?.optionType || 'call',
+        strike_price: parsedTicker?.strikePrice || 0,
+        expiration_date: parsedTicker?.expirationDate || '',
+      };
+    });
 
     return res.json({
       symbol: symbol.toUpperCase(),
-      trades: alpacaTrades,
+      trades: frontendTrades,
       count: trades.length,
       data_source: 'questdb',
       success: true,

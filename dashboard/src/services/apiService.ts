@@ -6,6 +6,7 @@ import {
   AlpacaActivity,
   AlpacaOptionsTrade,
   AlpacaOptionsContract,
+  FrontendOptionTrade,
   CreateOrderRequest,
   CreateOrderResponse,
   ChartDataResponse,
@@ -102,7 +103,7 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
       endTime: Date
     ): Promise<{
       symbol: string;
-      trades: AlpacaOptionsTrade[];
+      trades: FrontendOptionTrade[];
       hours: number;
     }> {
       const response = await api.get(`/api/options/${symbol}/trades`, {
