@@ -1,7 +1,7 @@
 // Test file for QuestDBConnection with real database connection
 import { QuestDBConnection } from '../../db/connection';
 import { createTestTable, getTestTableSchema, getAllTestTableSchemas } from '../test-utils/schema-helper';
-import { waitForRecordCount } from '../test-utils/data-verification';
+import { waitForRecordCount, waitForTestTableExists } from '../test-utils/data-verification';
 import { getTableName } from '../test-utils/config';
 
 // QuestDBConnection tests with real database connection
@@ -491,10 +491,9 @@ describe('QuestDBConnection', () => {
         await createTestTable(tableName, connection);
       }
 
-      // Verify all tables exist
+      // Wait for all tables to exist using the waitFor pattern
       for (const tableName of tableNames) {
-        const result = await connection.query(`SELECT * FROM ${tableName} LIMIT 1`);
-        expect(result).toBeDefined();
+        await waitForTestTableExists(tableName);
       }
     });
 

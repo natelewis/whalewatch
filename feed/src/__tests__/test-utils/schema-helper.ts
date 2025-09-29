@@ -67,6 +67,18 @@ export async function createTestTable(tableName: string, db: any): Promise<void>
   }
 
   console.log(`Creating test table: ${tableName}`);
-  await db.query(schema);
+
+  // Split multi-statement schemas and execute each statement separately
+  const statements = schema.split(';\n').filter(stmt => stmt.trim());
+
+  for (const statement of statements) {
+    const trimmedStatement = statement.trim();
+    if (trimmedStatement) {
+      console.log(`Executing statement: ${trimmedStatement}`);
+      const result = await db.query(trimmedStatement);
+      console.log(`Statement result:`, result);
+    }
+  }
+
   console.log(`Created test table: ${tableName}`);
 }

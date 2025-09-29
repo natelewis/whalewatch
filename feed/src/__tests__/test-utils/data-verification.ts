@@ -471,7 +471,9 @@ export async function waitForSingleRecordWithCondition(
 
     try {
       const result = await db.query(query);
-      const questResult = result ? (result as { columns: { name: string; type: string }[]; dataset: unknown[][] }) : { columns: [], dataset: [] };
+      const questResult = result
+        ? (result as { columns: { name: string; type: string }[]; dataset: unknown[][] })
+        : { columns: [], dataset: [] };
 
       if (questResult.dataset && questResult.dataset.length > 0) {
         // Convert the first result to an object using the data we just retrieved
@@ -497,4 +499,47 @@ export async function waitForSingleRecordWithCondition(
   }
 
   throw new Error(`No records found in ${tableName} with condition: ${whereClause}`);
+}
+
+/**
+ * Polls the database until a test table exists in the tables() system table
+ * This is more reliable than fixed delays for QuestDB table creation
+ */
+export async function waitForTestTableExists(tableName: string, options: VerificationOptions = {}): Promise<void> {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const startTime = Date.now();
+  let retryCount = 0;
+
+  while (retryCount < opts.maxRetries) {
+    // Check timeout
+    if (Date.now() - startTime > opts.timeoutMs) {
+      throw new Error(
+        `Timeout waiting for table ${tableName} to exist. ` +
+          `Table not found in tables() system table after ${opts.timeoutMs}ms`
+      );
+    }
+
+    try {
+      const result = await db.query(`SELECT table_name FROM tables() WHERE table_name = '${tableName}'`);
+      const questResult = result ? (result as { dataset: unknown[][] }) : { dataset: [] };
+
+      if (questResult.dataset && questResult.dataset.length > 0) {
+        return; // Success! Table exists
+      }
+
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      }
+    } catch (error) {
+      retryCount++;
+      if (retryCount < opts.maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, opts.retryIntervalMs));
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`Failed to find table ${tableName} in tables() system table after ${opts.maxRetries} attempts`);
 }
