@@ -73,7 +73,7 @@ async function cleanupTestData(): Promise<void> {
         // Instead, we'll drop and recreate the table
         await db.query(`DROP TABLE IF EXISTS ${table}`);
         console.log(`Dropped table ${table} for cleanup`);
-      } catch (error) {
+      } catch (_error) {
         // Table might not exist, ignore error
         console.log(`Table ${table} doesn't exist or couldn't be cleaned`);
       }

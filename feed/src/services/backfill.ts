@@ -475,7 +475,7 @@ export class BackfillService {
     }
 
     // Start from the start date and work forwards to end date
-    let currentDate = new Date(startDate);
+    const currentDate = new Date(startDate);
     let totalItemsProcessed = 0;
 
     while (currentDate <= endDate) {

@@ -7,7 +7,6 @@ import {
   QuestDBOptionContract,
   QuestDBOptionTrade,
   QuestDBOptionQuote,
-  QuestDBSyncState,
   QuestDBQueryParams,
   QuestDBResponse,
   QuestDBConfig,
