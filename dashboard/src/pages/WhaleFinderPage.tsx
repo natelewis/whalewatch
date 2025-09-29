@@ -148,12 +148,23 @@ export const WhaleFinderPage: React.FC = () => {
     });
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: '2-digit',
+  const formatExpiryWithDays = (expirationDate: string, viewingDate: string): string => {
+    const expiryDate = new Date(expirationDate);
+    const viewDate = new Date(viewingDate);
+
+    // Calculate the difference in days
+    const timeDiff = expiryDate.getTime() - viewDate.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+    // Format the date as "Nov 07, 2025"
+    const formattedDate = expiryDate.toLocaleDateString('en-US', {
+      month: 'short',
       day: '2-digit',
       year: 'numeric',
     });
+
+    // Return the formatted string with days
+    return `${formattedDate} (${daysDiff} days)`;
   };
 
   const formatTime = (dateString: string): string => {
@@ -320,7 +331,7 @@ export const WhaleFinderPage: React.FC = () => {
                   ) : (
                     <>
                       {/* Table Header */}
-                      <div className="grid grid-cols-9 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
+                      <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
                         <div>Time</div>
                         <div className="text-right">Price</div>
                         <div className="text-left">Size</div>
@@ -339,7 +350,7 @@ export const WhaleFinderPage: React.FC = () => {
                             <div
                               key={`${trade.sequence_number}-${index}`}
                               onClick={() => handleContractClick(trade.ticker)}
-                              className={`grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded transition-colors cursor-pointer ${
+                              className={`grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded transition-colors cursor-pointer ${
                                 isSelected ? 'bg-primary/20 border border-primary/30' : 'hover:bg-muted/30'
                               }`}
                             >
@@ -364,13 +375,13 @@ export const WhaleFinderPage: React.FC = () => {
                               </div>
 
                               {/* Strike */}
-                              <div className="font-semibold text-muted-foreground text-right">
+                              <div className="font-semibold text-muted-foreground text-right pr-1">
                                 ${trade.strike_price.toFixed(2)}
                               </div>
 
                               {/* Expiry */}
-                              <div className="font-semibold text-muted-foreground text-right text-xs">
-                                {formatDate(trade.expiration_date)}
+                              <div className="font-semibold text-muted-foreground text-right whitespace-nowrap">
+                                {formatExpiryWithDays(trade.expiration_date, selectedDate)}
                               </div>
 
                               {/* Repeat */}
