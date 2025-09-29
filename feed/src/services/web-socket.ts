@@ -2,7 +2,6 @@ import WebSocket from 'ws';
 import { config } from '../config';
 import { UpsertService } from '../utils/upsert';
 import { OptionTrade } from '../types/database';
-import { PolygonOptionTrade } from '../types/polygon';
 
 interface WebSocketMessage {
   ev: string;
@@ -19,6 +18,7 @@ export class WebSocketService {
   private ws: WebSocket | null = null;
   private tradeBuffer: OptionTrade[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
+  private configuredTickers: string[] = [];
 
   connect(url: string): void {
     this.ws = new WebSocket(url);
@@ -56,17 +56,20 @@ export class WebSocketService {
   }
 
   subscribe(tickers: string[]): void {
+    // Store the configured tickers for filtering
+    this.configuredTickers = tickers;
+
     // we need to wait for the websocket to be open before subscribing
     while (this.ws?.readyState !== WebSocket.OPEN) {
       console.log('WebSocket not open, waiting to subscribe');
       setTimeout(() => this.subscribe(tickers), 1000);
       return;
     }
-    console.log(this.ws?.readyState, 'Subscribing to option trades for:', tickers);
+    console.log(this.ws?.readyState, 'Subscribing to all option trades (T.*) and filtering for:', tickers);
     if (this.ws?.readyState === WebSocket.OPEN) {
-      const formattedTickers = tickers.map(t => `T.O:${t}*`).join(',');
-      console.log(`Subscribing to option trades for: ${formattedTickers}`);
-      this.ws.send(JSON.stringify({ action: 'subscribe', params: formattedTickers }));
+      // Subscribe to all option trades using T.* pattern
+      console.log('Subscribing to all option trades: T.*');
+      this.ws.send(JSON.stringify({ action: 'subscribe', params: 'T.*' }));
     }
   }
 
@@ -87,10 +90,10 @@ export class WebSocketService {
 
   private processTrade(trade: Required<Pick<WebSocketMessage, 'sym' | 'p' | 's' | 'c' | 't'>>): void {
     const tradeValue = trade.p * 100 * trade.s;
-    // if (tradeValue < config.polygon.optionTradeValueThreshold) {
-    //   console.log(`Trade value is less than threshold, skipping: ${tradeValue}`);
-    //   return;
-    // }
+    if (tradeValue < config.polygon.optionTradeValueThreshold) {
+      // console.log(`Trade value is less than threshold, skipping: ${tradeValue}`);
+      return;
+    }
 
     console.log(
       `[Real-Time Trade] ${trade.sym} | Price: ${trade.p} | Size: ${trade.s} | Value: $${tradeValue.toFixed(2)}`
@@ -101,9 +104,17 @@ export class WebSocketService {
       return;
     }
 
+    const underlyingTicker = underlyingTickerMatch[1];
+
+    // Filter trades based on configured tickers
+    if (!this.configuredTickers.includes(underlyingTicker)) {
+      // console.log(`Trade for ${underlyingTicker} not in configured tickers, skipping`);
+      return;
+    }
+
     const optionTrade: OptionTrade = {
       ticker: trade.sym,
-      underlying_ticker: underlyingTickerMatch[1],
+      underlying_ticker: underlyingTicker,
       timestamp: new Date(trade.t),
       price: trade.p,
       size: trade.s,

@@ -5,6 +5,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import chalk from 'chalk';
 import { WebSocketService } from '../services/web-socket';
 import { config } from '../config';
+import { db } from '../db/connection';
 
 function startWebSocket() {
   console.log(chalk.blue('Starting WebSocket for real-time option trades...'));
@@ -14,15 +15,26 @@ function startWebSocket() {
 
   wsService.subscribe(config.tickers);
 
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
     console.log(chalk.yellow('\nShutting down WebSocket...'));
     wsService.close();
+    console.log(chalk.yellow('Disconnecting from database...'));
+    await db.disconnect();
     process.exit(0);
   });
 }
 
 async function main() {
-  startWebSocket();
+  try {
+    console.log(chalk.blue('Connecting to database...'));
+    await db.connect();
+    console.log(chalk.green('Database connected successfully'));
+
+    startWebSocket();
+  } catch (error) {
+    console.error(chalk.red('Failed to connect to database:'), error);
+    process.exit(1);
+  }
 }
 
 main().catch(error => {

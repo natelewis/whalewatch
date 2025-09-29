@@ -26,6 +26,11 @@ socket.on('open', () => {
       params: API_KEY,
     })
   );
+
+  // Close the connection after 30 seconds
+  setTimeout(() => {
+    socket.close();
+  }, 30000);
 });
 
 // 2. Handle incoming messages
@@ -44,8 +49,7 @@ socket.on('message', data => {
         isAuthenticated = true;
         console.log('🔐 Authentication successful!');
 
-        // FIX #1: Added the 'T.O:' prefix and removed the unnecessary '*'
-        const subscriptions = ['T.O:AAPL', 'T.O:AAPL241220C00150000'].join(',');
+        const subscriptions = ['T.AAPL', 'T.AAPL241220C00150000', 'T.*'].join(',');
         socket.send(
           JSON.stringify({
             action: 'subscribe',
