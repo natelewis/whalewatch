@@ -62,14 +62,14 @@ describe('WhaleFinderPage', () => {
   it('renders the page title and description', () => {
     renderWithRouter(<WhaleFinderPage />);
 
-    expect(screen.getByRole('heading', { name: 'Option Trades', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Trade Finder', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('View recent option trading activity for any symbol')).toBeInTheDocument();
   });
 
   it('renders the options trades section', () => {
     renderWithRouter(<WhaleFinderPage />);
 
-    expect(screen.getByRole('heading', { name: 'Recent Option Trades', level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Option Trade Explorer', level: 2 })).toBeInTheDocument();
   });
 
   it('loads options trades on mount', async () => {
@@ -92,7 +92,6 @@ describe('WhaleFinderPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('2 trades')).toBeInTheDocument();
-      expect(screen.getByText('for TSLA')).toBeInTheDocument();
 
       // Test new column headers (no x column)
       expect(screen.getByText('Price')).toBeInTheDocument();

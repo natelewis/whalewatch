@@ -135,14 +135,24 @@ export const WhaleFinderPage: React.FC = () => {
   };
 
   const formatNotional = (price: number, size: number): string => {
-    return formatCurrency(price * size * 100); // Options are typically 100 shares per contract
+    const notional = price * size * 100; // Options are typically 100 shares per contract
+
+    if (notional >= 1000000) {
+      // Format as millions (e.g., 1.8M, 2M)
+      const millions = notional / 1000000;
+      return millions % 1 === 0 ? `${millions}M` : `${millions.toFixed(1)}M`;
+    } else {
+      // Format as thousands (e.g., 16k, 55k, 114k, 209k)
+      const thousands = notional / 1000;
+      return thousands % 1 === 0 ? `${thousands}k` : `${thousands.toFixed(0)}k`;
+    }
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Option Trades"
+        title="Trade Finder"
         subtitle="View recent option trading activity for any symbol"
         selectedSymbol={selectedSymbol}
         onSymbolChange={handleSymbolChange}
@@ -151,7 +161,7 @@ export const WhaleFinderPage: React.FC = () => {
       {/* Main Content */}
       <div className="h-[calc(100vh-200px)]">
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Recent Option Trades</h2>
+          <h2 className="text-xl font-semibold text-foreground">Option Trade Explorer</h2>
 
           {/* Option Trades Display */}
           <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -239,7 +249,7 @@ export const WhaleFinderPage: React.FC = () => {
                       <div>Time</div>
                       <div className="text-right">Price</div>
                       <div className="text-left">Size</div>
-                      <div className="text-right">Notional</div>
+                      <div className="text-right">Value</div>
                       <div className="text-right">Strike</div>
                       <div className="text-right">Expiry</div>
                       <div className="text-right">Repeat</div>
