@@ -202,50 +202,40 @@ export const WhaleFinderPage: React.FC = () => {
                         className="grid grid-cols-9 gap-2 text-sm py-2 px-2 rounded hover:bg-muted/30 transition-colors"
                       >
                         {/* Time */}
-                        <div className="text-muted-foreground text-xs">
-                          <div>{formatTime(trade.timestamp)}</div>
-                        </div>
+                        <div className="font-semibold text-muted-foreground text-xs">{formatTime(trade.timestamp)}</div>
 
                         {/* Price with P/C indicator */}
-                        <div className="text-right">
-                          <div className="font-medium text-foreground">
-                            {formatCurrency(trade.price)} {trade.option_type === 'call' ? 'C' : 'P'}
-                          </div>
+                        <div className="font-semibold text-muted-foreground text-right">
+                          {formatCurrency(trade.price)} {trade.option_type === 'call' ? 'C' : 'P'}
                         </div>
 
                         {/* Size */}
-                        <div className="text-left">
-                          <div className="font-medium text-foreground">{trade.size.toLocaleString()}</div>
+                        <div className="font-semibold text-muted-foreground text-left">
+                          x {trade.size.toLocaleString()}
                         </div>
 
                         {/* Notional */}
-                        <div className="font-medium text-foreground text-right">
+                        <div className="font-semibold text-muted-foreground text-right">
                           {formatNotional(trade.price, trade.size)}
                         </div>
 
                         {/* Strike */}
-                        <div className="text-muted-foreground text-right">${trade.strike_price.toFixed(2)}</div>
+                        <div className="font-semibold text-muted-foreground text-right">
+                          ${trade.strike_price.toFixed(2)}
+                        </div>
 
                         {/* Expiry */}
-                        <div className="text-muted-foreground text-right text-xs">
+                        <div className="font-semibold text-muted-foreground text-right text-xs">
                           {formatDate(trade.expiration_date)}
                         </div>
 
                         {/* Repeat */}
-                        <div className="text-right">
-                          <span
-                            className={`text-xs px-2 py-1 rounded-full ${
-                              trade.repeat_count > 1
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                                : 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
-                            }`}
-                          >
-                            {trade.repeat_count}
-                          </span>
-                        </div>
+                        <div className="font-semibold text-muted-foreground text-right">{trade.repeat_count}</div>
 
                         {/* Volume */}
-                        <div className="font-medium text-foreground text-right">{trade.volume.toLocaleString()}</div>
+                        <div className="font-semibold text-muted-foreground text-right">
+                          {trade.volume.toLocaleString()}
+                        </div>
                       </div>
                     );
                   })}
