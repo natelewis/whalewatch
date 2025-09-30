@@ -10,6 +10,7 @@ import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import zlib from 'zlib';
 import chalk from 'chalk';
+import { Transform } from 'stream';
 
 // Configuration
 const DATA_DIR = path.join(process.cwd(), 'option-trades-data');
@@ -19,6 +20,57 @@ const S3_BASE_PATH = 'us_options_opra/trades_v1';
 // Ensure data directory exists
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });
+}
+
+/**
+ * Create a transform stream that filters trades based on value threshold
+ * @param threshold Minimum trade value threshold
+ * @returns Transform stream
+ */
+function createTradeFilter(threshold: number): Transform {
+  let isFirstLine = true;
+  let headerLine = '';
+
+  return new Transform({
+    objectMode: false,
+    transform(chunk: Buffer, encoding: string, callback: Function) {
+      const lines = chunk.toString().split('\n');
+
+      for (const line of lines) {
+        if (line.trim() === '') continue;
+
+        if (isFirstLine) {
+          // Keep the header line
+          headerLine = line + '\n';
+          isFirstLine = false;
+          this.push(headerLine);
+          continue;
+        }
+
+        // Parse the CSV line
+        const columns = line.split(',');
+        if (columns.length < 7) continue; // Skip malformed lines
+
+        try {
+          const price = parseFloat(columns[4]); // price column
+          const size = parseInt(columns[6]); // size column
+
+          // Calculate trade value: price * 100 * size
+          const tradeValue = price * 100 * size;
+
+          // Only keep trades above the threshold
+          if (tradeValue > threshold) {
+            this.push(line + '\n');
+          }
+        } catch (error) {
+          // Skip lines that can't be parsed
+          continue;
+        }
+      }
+
+      callback();
+    },
+  });
 }
 
 /**
@@ -79,9 +131,10 @@ function generateDateRange(startDate: string, endDate: string): string[] {
  * Download and decompress a single file
  * @param date Date in YYYY-MM-DD format
  * @param s3Client S3 client instance
+ * @param threshold Minimum trade value threshold
  * @returns Success status
  */
-async function downloadAndDecompressFile(date: string, s3Client: S3Client): Promise<boolean> {
+async function downloadAndDecompressFile(date: string, s3Client: S3Client, threshold: number): Promise<boolean> {
   const year = date.substring(0, 4);
   const month = date.substring(5, 7);
 
@@ -117,13 +170,14 @@ async function downloadAndDecompressFile(date: string, s3Client: S3Client): Prom
       return true;
     }
 
-    console.log(`📦 Decompressing to ${decompressedFileName}...`);
+    console.log(chalk.cyan(`📦 Decompressing and filtering to ${decompressedFileName}...`));
     const gunzip = zlib.createGunzip();
+    const filter = createTradeFilter(threshold);
     const destination = createWriteStream(decompressedFilePath);
 
-    await pipeline(Body, gunzip, destination);
+    await pipeline(Body, gunzip, filter, destination);
 
-    console.log(`✅ ${decompressedFileName} downloaded and decompressed successfully!`);
+    console.log(chalk.green(`✅ ${decompressedFileName} downloaded, filtered, and saved successfully!`));
     return true;
   } catch (error) {
     if (error.name === 'NoSuchKey') {
@@ -147,11 +201,16 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
   // Validate credentials
   const accessKey = process.env.POLYGON_ACCESS_KEY;
   const secretKey = process.env.POLYGON_SECRET_KEY;
+  const threshold = parseInt(process.env.POLYGON_OPTION_TRADE_VALUE_THRESHOLD || '10000', 10);
 
   if (!accessKey || !secretKey) {
     console.error(chalk.red('❌ Error: Please set POLYGON_ACCESS_KEY and POLYGON_SECRET_KEY environment variables.'));
     process.exit(1);
   }
+
+  console.log(chalk.blue(`🚀 Starting option trades backfill to ${endDate}...`));
+  console.log(chalk.gray(`📁 Data directory: ${DATA_DIR}`));
+  console.log(chalk.yellow(`💰 Trade value threshold: $${threshold.toLocaleString()}`));
 
   // Validate date format
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -159,9 +218,6 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
     console.error(chalk.red('❌ Error: Date must be in YYYY-MM-DD format'));
     process.exit(1);
   }
-
-  console.log(chalk.blue(`🚀 Starting option trades backfill to ${endDate}...`));
-  console.log(chalk.gray(`📁 Data directory: ${DATA_DIR}`));
 
   // Get oldest file date
   const oldestDate = getOldestFileDate();
@@ -208,7 +264,7 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
   let errorCount = 0;
 
   for (const date of dates) {
-    const success = await downloadAndDecompressFile(date, s3Client);
+    const success = await downloadAndDecompressFile(date, s3Client, threshold);
     if (success) {
       successCount++;
     } else {
