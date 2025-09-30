@@ -6,21 +6,60 @@ import chalk from 'chalk';
 import { WebSocketService } from '../services/polygon-websocket-client';
 import { config } from '../config';
 import { db } from '../db/connection';
+import { healthMonitor } from '../services/health-monitor';
 
 function startWebSocket() {
   console.log(chalk.blue('Starting WebSocket for real-time option trades...'));
   const wsService = new WebSocketService();
   const wsUrl = `wss://socket.polygon.io/options`;
-  wsService.connect(wsUrl);
 
+  // Set up health monitoring
+  healthMonitor.setServices(wsService, db);
+  healthMonitor.startMonitoring(60000); // Check every minute
+
+  wsService.connect(wsUrl);
   wsService.subscribe(config.tickers);
 
+  // Add health status endpoint
+  process.on('SIGUSR1', () => {
+    console.log(chalk.cyan('\n=== HEALTH STATUS ==='));
+    console.log(healthMonitor.getHealthSummary());
+    console.log(chalk.cyan('===================\n'));
+  });
+
+  // Add graceful shutdown
   process.on('SIGINT', async () => {
-    console.log(chalk.yellow('\nShutting down WebSocket...'));
+    console.log(chalk.yellow('\nShutting down WebSocket service...'));
+
+    // Stop health monitoring first
+    healthMonitor.stopMonitoring();
+
+    // Close WebSocket
     wsService.close();
+
+    // Disconnect from database
     console.log(chalk.yellow('Disconnecting from database...'));
     await db.disconnect();
+
+    console.log(chalk.green('Shutdown complete'));
     process.exit(0);
+  });
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', error => {
+    console.error(chalk.red('Uncaught Exception:'), error);
+    console.log(chalk.yellow('Attempting graceful shutdown...'));
+
+    healthMonitor.stopMonitoring();
+    wsService.close();
+    db.disconnect().finally(() => {
+      process.exit(1);
+    });
+  });
+
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error(chalk.red('Unhandled Rejection at:'), promise, chalk.red('reason:'), reason);
   });
 }
 
