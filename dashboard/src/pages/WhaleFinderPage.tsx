@@ -13,8 +13,11 @@ export const WhaleFinderPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     // Default to today's date, but check session storage first
-    const today = new Date().toISOString().split('T')[0];
-    return getSessionStorageItem('whaleFinderSelectedDate', today);
+    const today = new Date();
+    const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
+      today.getDate()
+    ).padStart(2, '0')}`;
+    return getSessionStorageItem('whaleFinderSelectedDate', todayString);
   });
   const [maxPrice, setMaxPrice] = useState<string>(() => {
     return getSessionStorageItem('whaleFinderMaxPrice', 1000).toString();
@@ -91,9 +94,10 @@ export const WhaleFinderPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
-    // Calculate start and end time for the selected date
-    const startTime = new Date(`${date}T00:00:00.000Z`);
-    const endTime = new Date(`${date}T23:59:59.999Z`);
+    // Calculate start and end time for the selected date in local timezone
+    // This ensures we get trades for the actual selected date, not UTC date
+    const startTime = new Date(`${date}T00:00:00`);
+    const endTime = new Date(`${date}T23:59:59.999`);
 
     const result = await safeCallAsync(async () => {
       return apiService.getOptionsTrades(symbol, startTime, endTime, maxPriceFilter, repeatMinFilter, volumeMinFilter);
@@ -120,7 +124,10 @@ export const WhaleFinderPage: React.FC = () => {
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
-      const dateString = date.toISOString().split('T')[0];
+      // Use local timezone to avoid date shifting issues
+      const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+        date.getDate()
+      ).padStart(2, '0')}`;
       const displayString = date.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
