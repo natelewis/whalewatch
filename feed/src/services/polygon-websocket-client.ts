@@ -251,7 +251,7 @@ export class WebSocketService {
         timestamp: new Date(trade.t),
         price: trade.p,
         size: trade.s,
-        conditions: trade.c ? JSON.stringify(trade.c) : '[]',
+        conditions: trade.c[0].toString(),
         exchange: 0,
         tape: 0,
         sequence_number: 0,
