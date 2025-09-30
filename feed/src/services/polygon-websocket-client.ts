@@ -283,7 +283,10 @@ export class WebSocketService {
 
     while (retryCount < maxRetries && !success) {
       try {
-        await UpsertService.batchUpsertOptionTrades(tradesToInsert);
+        // Process each trade individually to ensure proper upsert behavior
+        for (const trade of tradesToInsert) {
+          await UpsertService.upsertOptionTrade(trade);
+        }
         console.log(`Inserted ${tradesToInsert.length} option trades.`);
         this.lastFlushCompleted = new Date();
         success = true;

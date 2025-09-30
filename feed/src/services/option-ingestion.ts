@@ -220,7 +220,10 @@ export class OptionIngestionService {
         };
       });
 
-      await UpsertService.batchUpsertOptionTrades(optionTrades);
+      // Process each trade individually to ensure proper upsert behavior
+      for (const trade of optionTrades) {
+        await UpsertService.upsertOptionTrade(trade);
+      }
 
       console.log(
         `Ingested ${optionTrades.length} option trades for ${ticker} (filtered from ${trades.length} total trades, threshold: $${threshold})`

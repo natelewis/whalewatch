@@ -318,14 +318,14 @@ describe('OptionIngestionService', () => {
       ]);
 
       // Mock UpsertService to throw error
-      const originalBatchUpsertOptionTrades = UpsertService.batchUpsertOptionTrades;
-      UpsertService.batchUpsertOptionTrades = jest.fn().mockRejectedValue(error);
+      const originalUpsertOptionTrade = UpsertService.upsertOptionTrade;
+      UpsertService.upsertOptionTrade = jest.fn().mockRejectedValue(error);
 
       // Act & Assert
       await expect(optionIngestionService.ingestOptionTrades(ticker, from, to)).rejects.toThrow('Database error');
 
       // Restore original method
-      UpsertService.batchUpsertOptionTrades = originalBatchUpsertOptionTrades;
+      UpsertService.upsertOptionTrade = originalUpsertOptionTrade;
     });
 
     it('should handle trades with missing optional fields', async () => {

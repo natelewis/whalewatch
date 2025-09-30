@@ -455,26 +455,6 @@ describe('UpsertService', () => {
       await expect(UpsertService.batchUpsertStockAggregates(aggregates, 'non_existent_table')).rejects.toThrow();
     });
 
-    it('should handle database connection errors gracefully for batch option trades', async () => {
-      // Arrange
-      const trades: OptionTrade[] = [
-        {
-          ticker: 'AAPL240315C00150000',
-          underlying_ticker: 'AAPL',
-          timestamp: new Date('2024-01-01T10:00:00Z'),
-          price: 5.5,
-          size: 10,
-          conditions: '["@", "T"]',
-          exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
-        },
-      ];
-
-      // Act & Assert - Use a non-existent table to trigger an error
-      await expect(UpsertService.batchUpsertOptionTrades(trades, 'non_existent_table')).rejects.toThrow();
-    });
-
     it('should handle database connection errors gracefully for batch option quotes', async () => {
       // Arrange
       const quotes: OptionQuote[] = [
@@ -591,9 +571,10 @@ describe('UpsertService', () => {
         },
       ];
 
-      // Act & Assert - Test that the batch upsert method completes without error
+      // Act & Assert - Test that the upsert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(trades[0], getTableName('option_trades'))).resolves.not.toThrow();
+      await expect(UpsertService.upsertOptionTrade(trades[1], getTableName('option_trades'))).resolves.not.toThrow();
     });
   });
 
@@ -655,103 +636,6 @@ describe('UpsertService', () => {
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
           UpsertService.batchUpsertStockAggregates(aggregates, getTableName('stock_aggregates'))
-        ).resolves.not.toThrow();
-      });
-    });
-
-    describe('batchUpsertOptionTrades', () => {
-      it('should handle empty array gracefully', async () => {
-        // Act & Assert - Should not throw and complete immediately
-        await expect(UpsertService.batchUpsertOptionTrades([])).resolves.not.toThrow();
-      });
-
-      it('should batch upsert multiple option trades', async () => {
-        // Arrange - Create table using schema helper
-        await createTestTable(getTableName('option_trades'), db);
-
-        // Create multiple trades
-        const trades: OptionTrade[] = [];
-        for (let i = 0; i < 5; i++) {
-          trades.push({
-            ticker: `BATCH_TRADE${i}`,
-            underlying_ticker: 'AAPL',
-            timestamp: new Date(`2024-01-01T${10 + i}:00:00Z`),
-            price: 5.0 + i,
-            size: 10 + i,
-            conditions: '["@", "T"]',
-            exchange: 1,
-            tape: 1,
-            sequence_number: 10000 + i,
-          });
-        }
-
-        // Act & Assert - Test that the batch upsert method completes without error
-        // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(
-          UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))
-        ).resolves.not.toThrow();
-      });
-
-      it('should handle large batches by processing in chunks', async () => {
-        // Arrange - Create table using schema helper
-        await createTestTable(getTableName('option_trades'), db);
-
-        // Create 150 records to test batching (BATCH_SIZE is 100)
-        const trades: OptionTrade[] = [];
-        for (let i = 0; i < 150; i++) {
-          trades.push({
-            ticker: `LARGE_TRADE${i}`,
-            underlying_ticker: 'MSFT',
-            timestamp: new Date(`2024-01-01T${10 + (i % 14)}:00:00Z`), // Use modulo 14 to avoid invalid hours
-            price: 10.0 + i,
-            size: 20 + i,
-            conditions: '["@", "T"]',
-            exchange: 2,
-            tape: 2,
-            sequence_number: 20000 + i,
-          });
-        }
-
-        // Act & Assert - Test that the batch upsert method completes without error
-        // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(
-          UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))
-        ).resolves.not.toThrow();
-      });
-
-      it('should handle trades with null values correctly', async () => {
-        // Arrange - Create table using schema helper
-        await createTestTable(getTableName('option_trades'), db);
-
-        const trades: OptionTrade[] = [
-          {
-            ticker: 'NULL_TEST1',
-            underlying_ticker: 'AAPL',
-            timestamp: new Date('2024-01-01T10:00:00Z'),
-            price: 0,
-            size: 0,
-            conditions: '',
-            exchange: 0,
-            tape: 0,
-            sequence_number: 0,
-          },
-          {
-            ticker: 'NULL_TEST2',
-            underlying_ticker: 'AAPL',
-            timestamp: new Date('2024-01-01T10:01:00Z'),
-            price: 5.5,
-            size: 10,
-            conditions: '["@", "T"]',
-            exchange: 1,
-            tape: 1,
-            sequence_number: 12345,
-          },
-        ];
-
-        // Act & Assert - Test that the batch upsert method completes without error
-        // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(
-          UpsertService.batchUpsertOptionTrades(trades, getTableName('option_trades'))
         ).resolves.not.toThrow();
       });
     });

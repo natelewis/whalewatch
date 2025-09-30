@@ -406,60 +406,6 @@ export class UpsertService {
   }
 
   /**
-   * Batch upsert multiple option trades using bulk insert
-   * Uses QuestDB's deduplication feature to handle upserts efficiently
-   */
-  static async batchUpsertOptionTrades(
-    trades: OptionTrade[],
-    tableName = getTableName('option_trades')
-  ): Promise<void> {
-    if (trades.length === 0) {
-      return;
-    }
-
-    try {
-      // Process in batches to avoid query size limits
-      const BATCH_SIZE = 100; // Limit batch size to prevent URL length issues
-
-      for (let i = 0; i < trades.length; i += BATCH_SIZE) {
-        const batch = trades.slice(i, i + BATCH_SIZE);
-
-        // Build bulk insert query with multiple VALUES
-        const values = batch
-          .map(trade => {
-            const ticker = `'${trade.ticker.replace(/'/g, "''")}'`;
-            const underlyingTicker = `'${trade.underlying_ticker.replace(/'/g, "''")}'`;
-            const timestamp = `'${trade.timestamp.toISOString()}'`;
-            const price = trade.price ?? 'NULL';
-            const size = trade.size ?? 'NULL';
-            const conditions = trade.conditions ? `'${trade.conditions.replace(/'/g, "''")}'` : 'NULL';
-            const exchange = trade.exchange ?? 'NULL';
-            const tape = trade.tape ?? 'NULL';
-            const sequenceNumber = trade.sequence_number ?? 'NULL';
-
-            return `(${ticker}, ${underlyingTicker}, ${timestamp}, ${price}, ${size}, ${conditions}, ${exchange}, ${tape}, ${sequenceNumber})`;
-          })
-          .join(',\n');
-
-        const query = `INSERT INTO ${tableName} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number)
-VALUES ${values}`;
-
-        await db.bulkInsert(query);
-        console.log(
-          `Bulk inserted ${batch.length} option trades (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
-            trades.length / BATCH_SIZE
-          )})`
-        );
-      }
-
-      console.log(`Completed bulk insert of ${trades.length} option trades`);
-    } catch (error) {
-      console.error('Error bulk upserting option trades:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Batch upsert multiple option contracts using individual upserts to prevent duplicates
    * This ensures proper duplicate checking for each record
    */
