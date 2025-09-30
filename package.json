@@ -2,6 +2,7 @@
   "name": "whalewatch",
   "version": "1.0.0",
   "description": "Options and portfolio analysis application",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "predev": "pkill -f 'tsx watch' || true; pkill -f 'vite' || true",
@@ -12,6 +13,10 @@
     "server:build": "cd server && npm run build",
     "dashboard:build": "cd dashboard && npm run build",
     "install:all": "npm install && cd server && npm install && cd ../dashboard && npm install"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "dotenv": "^16.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

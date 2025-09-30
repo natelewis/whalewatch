@@ -1,7 +1,7 @@
 # WhaleWatch Makefile
 # Comprehensive build and development commands
 
-.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard lint-feed tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill reset dev-feed clean-feed build-feed
+.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard lint-feed tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill backfill-option-trades reset dev-feed clean-feed build-feed
 
 # Default target
 help:
@@ -44,6 +44,7 @@ help:
 	@echo "  make ingest            Start real-time data ingestion"
 	@echo "  make ingest-options    Start real-time option trade ingestion"
 	@echo "  make backfill          Backfill historical data (usage: make backfill [ARGS='ticker date'])"
+	@echo "  make backfill-option-trades  Download option trade data files (usage: make backfill-option-trades ARGS='2025-09-29')"
 	@echo "  make reset             Reset all data in QuestDB (with confirmation)"
 	@echo ""
 	@echo "Utilities:"
@@ -111,6 +112,17 @@ backfill:
 ingest-options:
 	@echo "📡 Starting real-time option trade ingestion..."
 	cd feed && npm run ingest-options
+
+# Backfill option trades data files
+# Usage: make backfill-option-trades ARGS="2025-09-29"
+backfill-option-trades:
+	@echo "📊 Backfilling option trades data files..."
+	@if [ -z "$(ARGS)" ]; then \
+		echo "❌ Error: Please provide an end date in YYYY-MM-DD format"; \
+		echo "Usage: make backfill-option-trades ARGS='2025-09-29'"; \
+		exit 1; \
+	fi
+	cd feed && npm run backfill-option-trades -- $(ARGS)
 
 # Reset all data (with confirmation)
 reset:

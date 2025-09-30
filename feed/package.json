@@ -10,6 +10,7 @@
     "ingest": "tsx src/commands/ingest.ts",
     "ingest-options": "tsx src/commands/ingest-options.ts",
     "backfill": "tsx src/commands/backfill.ts",
+    "backfill-option-trades": "tsx src/commands/backfill-option-trades.ts",
     "reset": "tsx src/commands/reset.ts",
     "install-deps": "npm install",
     "test": "jest",

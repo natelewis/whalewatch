@@ -110,3 +110,6 @@ test-results.xml
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Option trades data
+option-trades-data/
