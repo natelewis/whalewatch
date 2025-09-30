@@ -335,7 +335,7 @@ export const WhaleFinderPage: React.FC = () => {
                         <div></div>
                         <div className="text-right">Price</div>
                         <div className="text-left"></div>
-                        <div className="text-right">Value</div>
+                        <div className="">Value</div>
                         <div className="text-right"></div>
                         <div className="text-right"></div>
                         <div className="text-right">Repeat</div>
@@ -369,8 +369,8 @@ export const WhaleFinderPage: React.FC = () => {
                                 x {trade.size.toLocaleString()}
                               </div>
 
-                              {/* Notional */}
-                              <div className="font-semibold text-muted-foreground text-right">
+                              {/* Value */}
+                              <div className="font-semibold text-muted-foreground">
                                 {formatNotional(trade.price, trade.size)}
                               </div>
 
