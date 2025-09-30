@@ -885,8 +885,6 @@ describe('QuestDBService', () => {
             { name: 'size', type: 'INT' },
             { name: 'conditions', type: 'STRING' },
             { name: 'exchange', type: 'INT' },
-            { name: 'tape', type: 'INT' },
-            { name: 'sequence_number', type: 'INT' },
           ],
           dataset: [['AAPL240315C00150000', 'AAPL', '2024-01-01T10:00:00Z', 5.0, 10, '', 1, 1, 12345]],
           count: 1,
@@ -912,8 +910,6 @@ describe('QuestDBService', () => {
           size: 10,
           conditions: '',
           exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
         },
       ]);
     });
@@ -931,8 +927,6 @@ describe('QuestDBService', () => {
             { name: 'size', type: 'INT' },
             { name: 'conditions', type: 'STRING' },
             { name: 'exchange', type: 'INT' },
-            { name: 'tape', type: 'INT' },
-            { name: 'sequence_number', type: 'INT' },
           ],
           dataset: [['AAPL240315C00150000', 'AAPL', '2024-01-01T10:00:00Z', 5.0, 10, '', 1, 1, 12345]],
           count: 1,
@@ -958,8 +952,6 @@ describe('QuestDBService', () => {
           size: 10,
           conditions: '',
           exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
         },
       ]);
     });

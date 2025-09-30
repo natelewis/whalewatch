@@ -57,8 +57,6 @@ export interface PolygonOptionTrade {
   sip_timestamp: number; // nanoseconds
   size: number;
   participant_timestamp: number; // nanoseconds
-  sequence_number: number;
-  tape: number;
 }
 
 export interface PolygonOptionQuote {

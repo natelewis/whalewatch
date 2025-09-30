@@ -33,7 +33,6 @@ describe('QuestDB Routes', () => {
           size: 100,
           conditions: 'regular',
           exchange: 1,
-          tape: 1,
           trade_id: 'trade-1',
         },
         {
@@ -43,7 +42,6 @@ describe('QuestDB Routes', () => {
           size: 200,
           conditions: 'regular',
           exchange: 1,
-          tape: 1,
           trade_id: 'trade-2',
         },
       ];
@@ -191,8 +189,6 @@ describe('QuestDB Routes', () => {
           size: 10,
           conditions: 'regular',
           exchange: 1,
-          tape: 1,
-          sequence_number: 1,
         },
       ];
 

@@ -326,7 +326,7 @@ export class QuestDBConnection {
                 );
               } else if (table === 'option_trades') {
                 await this.query(
-                  `INSERT INTO ${table} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number) VALUES ('DUMMY', 'DUMMY', '${futureTimestamp}', 0, 0, '[]', 0, 0, 0)`
+                  `INSERT INTO ${table} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange) VALUES ('DUMMY', 'DUMMY', '${futureTimestamp}', 0, 0, '[]', 0)`
                 );
               } else if (table === 'option_quotes') {
                 await this.query(

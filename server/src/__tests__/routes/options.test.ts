@@ -283,15 +283,12 @@ describe('Options Routes', () => {
     it('should return options trades for a symbol', async () => {
       const mockTrades: QuestDBOptionTrade[] = [
         {
-          sequence_number: 12345,
-          ticker: 'AAPL241220C00150000',
           underlying_ticker: 'AAPL',
           timestamp: '2024-01-01T10:00:00.000Z',
           price: 5.5,
           size: 10,
           conditions: 'regular',
           exchange: 1,
-          tape: 1,
         },
       ];
 

@@ -249,9 +249,9 @@ export class UpsertService {
     try {
       // Check if record exists
       const existing = await db.query(
-        `SELECT ticker, timestamp, sequence_number FROM ${tableName} 
-         WHERE ticker = $1 AND timestamp = $2 AND sequence_number = $3`,
-        [trade.ticker, trade.timestamp, trade.sequence_number]
+        `SELECT ticker, timestamp FROM ${tableName} 
+         WHERE ticker = $1 AND timestamp = $2`,
+        [trade.ticker, trade.timestamp]
       );
 
       const questResult = existing as {
@@ -263,26 +263,24 @@ export class UpsertService {
         // Update existing record
         await db.query(
           `UPDATE ${tableName} 
-           SET underlying_ticker = $1, price = $2, size = $3, conditions = $4, exchange = $5, tape = $6
-           WHERE ticker = $7 AND timestamp = $8 AND sequence_number = $9`,
+           SET underlying_ticker = $1, price = $2, size = $3, conditions = $4, exchange = $5
+           WHERE ticker = $6 AND timestamp = $7`,
           [
             trade.underlying_ticker,
             trade.price,
             trade.size,
             trade.conditions,
             trade.exchange,
-            trade.tape,
             trade.ticker,
             trade.timestamp,
-            trade.sequence_number,
           ]
         );
         console.log(`Updated option trade: ${trade.ticker} at ${trade.timestamp}`);
       } else {
         // Insert new record
         await db.query(
-          `INSERT INTO ${tableName} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          `INSERT INTO ${tableName} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             trade.ticker,
             trade.underlying_ticker,
@@ -291,8 +289,6 @@ export class UpsertService {
             trade.size,
             trade.conditions,
             trade.exchange,
-            trade.tape,
-            trade.sequence_number,
           ]
         );
         console.log(`Inserted new option trade: ${trade.ticker} at ${trade.timestamp}`);

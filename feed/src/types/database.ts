@@ -36,8 +36,6 @@ export interface OptionTrade {
   size: number;
   conditions: string;
   exchange: number;
-  tape: number;
-  sequence_number: number;
 }
 
 export interface OptionQuote {

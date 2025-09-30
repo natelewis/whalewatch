@@ -125,8 +125,6 @@ export const testDataGenerators = {
       size: number;
       conditions: string;
       exchange: number;
-      tape: number;
-      sequence_number: number;
     }> = {}
   ) => ({
     ticker: 'AAPL240315C00150000',
@@ -136,8 +134,6 @@ export const testDataGenerators = {
     size: 10,
     conditions: 'regular',
     exchange: 1,
-    tape: 1,
-    sequence_number: 12345,
     ...overrides,
   }),
 

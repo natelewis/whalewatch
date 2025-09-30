@@ -150,8 +150,6 @@ export interface FrontendOptionTrade {
   price: number;
   size: number;
   conditions: string;
-  tape: string;
-  sequence_number: number;
   // Parsed from ticker
   option_type: 'call' | 'put';
   strike_price: number;

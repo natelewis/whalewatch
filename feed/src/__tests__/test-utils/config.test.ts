@@ -165,8 +165,6 @@ describe('Test Configuration Utilities', () => {
           size: 10,
           conditions: 'regular',
           exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
         });
         expect(trade.timestamp).toBeInstanceOf(Date);
       });

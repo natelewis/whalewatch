@@ -50,9 +50,7 @@ CREATE TABLE IF NOT EXISTS option_trades (
     price DOUBLE,
     size DOUBLE,
     conditions STRING,
-    exchange LONG,
-    tape LONG,
-    sequence_number LONG
+    exchange LONG
 ) TIMESTAMP(timestamp) PARTITION BY DAY;
 
 -- Option quotes

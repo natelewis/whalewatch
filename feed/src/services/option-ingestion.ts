@@ -215,8 +215,6 @@ export class OptionIngestionService {
           size: optionTrade.size,
           conditions: optionTrade.conditions ? JSON.stringify(optionTrade.conditions) : '[]',
           exchange: optionTrade.exchange || 0,
-          tape: optionTrade.tape || 0,
-          sequence_number: optionTrade.sequence_number,
         };
       });
 

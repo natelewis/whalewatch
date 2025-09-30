@@ -10,6 +10,7 @@ interface WebSocketMessage {
   s?: number;
   c?: number[];
   t?: number;
+  x?: number;
   status?: string;
   message?: string;
 }
@@ -220,7 +221,7 @@ export class WebSocketService {
     }
   }
 
-  private processTrade(trade: Required<Pick<WebSocketMessage, 'sym' | 'p' | 's' | 'c' | 't'>>): void {
+  private processTrade(trade: Required<Pick<WebSocketMessage, 'sym' | 'x' | 'p' | 's' | 'c' | 't'>>): void {
     try {
       const tradeValue = trade.p * 100 * trade.s;
       if (tradeValue < config.polygon.optionTradeValueThreshold) {
@@ -252,9 +253,7 @@ export class WebSocketService {
         price: trade.p,
         size: trade.s,
         conditions: trade.c[0].toString(),
-        exchange: 0,
-        tape: 0,
-        sequence_number: 0,
+        exchange: trade.x,
       };
 
       this.tradeBuffer.push(optionTrade);

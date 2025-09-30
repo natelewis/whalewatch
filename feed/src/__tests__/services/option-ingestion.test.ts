@@ -32,6 +32,7 @@ jest.mock('../../config', () => ({
       skipOptionContracts: false,
       skipOptionTrades: false,
       skipOptionQuotes: false,
+      optionTradeValueThreshold: 1000, // Set a low threshold for testing
     },
   },
 }));
@@ -66,6 +67,9 @@ describe('OptionIngestionService', () => {
 
     // Get the mocked polygon client instance
     mockPolygonClient = (optionIngestionService as any).polygonClient;
+
+    // Mock getContractDetails to return null (no contract details)
+    jest.spyOn(optionIngestionService as any, 'getContractDetails').mockResolvedValue(null);
   });
 
   describe('ingestOptionContracts', () => {
@@ -252,22 +256,18 @@ describe('OptionIngestionService', () => {
       const mockTrades: PolygonOptionTrade[] = [
         {
           sip_timestamp: 1704110400000000000,
-          price: 5.0,
+          price: 15.0,
           size: 10,
           conditions: [1],
           exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
           participant_timestamp: 1704110400000000000,
         },
         {
           sip_timestamp: 1704110400000000000,
-          price: 5.5,
+          price: 20.0,
           size: 5,
           conditions: [1],
           exchange: 1,
-          tape: 1,
-          sequence_number: 12346,
           participant_timestamp: 1704110400000000000,
         },
       ];
@@ -311,8 +311,6 @@ describe('OptionIngestionService', () => {
           size: 10,
           conditions: [1],
           exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
           participant_timestamp: 1704110400000000000,
         },
       ]);
@@ -336,12 +334,10 @@ describe('OptionIngestionService', () => {
       const mockTrades: PolygonOptionTrade[] = [
         {
           sip_timestamp: 1704110400000000000,
-          price: 5.0,
+          price: 15.0,
           size: 10,
           conditions: [],
           exchange: 0,
-          tape: 0,
-          sequence_number: 12345,
           participant_timestamp: 1704110400000000000,
         },
       ];
@@ -357,7 +353,7 @@ describe('OptionIngestionService', () => {
       // Verify trades were inserted with correct default values
       await waitForRecordsWithCondition(
         getTableName('option_trades'),
-        `ticker = '${ticker}' AND conditions = '[]' AND exchange = 0 AND tape = 0`,
+        `ticker = '${ticker}' AND conditions = '[]' AND exchange = 0`,
         1
       );
     });

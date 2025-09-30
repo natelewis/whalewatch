@@ -180,8 +180,6 @@ describe('UpsertService', () => {
         size: 10,
         conditions: '["@", "T"]',
         exchange: 1,
-        tape: 1,
-        sequence_number: 12345,
       };
 
       // Act & Assert - Test that the upsert method completes without error
@@ -201,8 +199,6 @@ describe('UpsertService', () => {
         size: 10,
         conditions: '["@", "T"]',
         exchange: 1,
-        tape: 1,
-        sequence_number: 12345,
       };
 
       const trade2: OptionTrade = {
@@ -213,8 +209,6 @@ describe('UpsertService', () => {
         size: 5,
         conditions: '["@", "T"]',
         exchange: 1,
-        tape: 1,
-        sequence_number: 12346,
       };
 
       // Act & Assert - Test that both upsert methods complete without error
@@ -236,8 +230,6 @@ describe('UpsertService', () => {
         size: 20,
         conditions: '["@", "T"]',
         exchange: 2,
-        tape: 2,
-        sequence_number: 54321,
       };
 
       await UpsertService.upsertOptionTrade(initialTrade, getTableName('option_trades'));
@@ -251,8 +243,6 @@ describe('UpsertService', () => {
         size: 25,
         conditions: '["@", "T", "I"]',
         exchange: 3,
-        tape: 3,
-        sequence_number: 54321, // Same sequence number
       };
 
       // Assert - Test that the upsert method completes without error
@@ -408,8 +398,6 @@ describe('UpsertService', () => {
         size: 10,
         conditions: '["@", "T"]',
         exchange: 1,
-        tape: 1,
-        sequence_number: 12345,
       };
 
       // Act & Assert - Use a non-existent table to trigger an error
@@ -490,8 +478,6 @@ describe('UpsertService', () => {
         size: 10,
         conditions: '["@", "T"]',
         exchange: 1,
-        tape: 1,
-        sequence_number: 12345,
       };
 
       // Act & Assert - Test that the upsert method completes without error
@@ -533,8 +519,6 @@ describe('UpsertService', () => {
         size: 10,
         conditions: '["@", "T", "I\'m special"]', // Contains single quote
         exchange: 1,
-        tape: 1,
-        sequence_number: 12345,
       };
 
       // Act & Assert - Test that the upsert method completes without error
@@ -555,8 +539,6 @@ describe('UpsertService', () => {
           size: 10,
           conditions: '["@", "T"]',
           exchange: 0,
-          tape: 1,
-          sequence_number: 12345,
         },
         {
           ticker: 'MIXED_TEST2',
@@ -566,8 +548,6 @@ describe('UpsertService', () => {
           size: 0,
           conditions: '',
           exchange: 1,
-          tape: 0,
-          sequence_number: 12346,
         },
       ];
 

@@ -386,7 +386,6 @@ describe('QuestDBWebSocketService', () => {
           size: 100,
           conditions: 'T',
           exchange: 1,
-          tape: 1,
           trade_id: '12345',
         },
       ];
@@ -432,7 +431,6 @@ describe('QuestDBWebSocketService', () => {
           size: 100,
           conditions: 'T',
           exchange: 1,
-          tape: 1,
           trade_id: '12345',
         },
         {
@@ -442,7 +440,6 @@ describe('QuestDBWebSocketService', () => {
           size: 30, // Below min_size
           conditions: 'T',
           exchange: 1,
-          tape: 1,
           trade_id: '12346',
         },
         {
@@ -452,7 +449,6 @@ describe('QuestDBWebSocketService', () => {
           size: 100, // Within size range
           conditions: 'T',
           exchange: 1,
-          tape: 1,
           trade_id: '12347',
         },
       ];
@@ -516,8 +512,6 @@ describe('QuestDBWebSocketService', () => {
           size: 10,
           conditions: 'T',
           exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
         },
       ];
 
@@ -563,8 +557,6 @@ describe('QuestDBWebSocketService', () => {
           size: 10,
           conditions: 'T',
           exchange: 1,
-          tape: 1,
-          sequence_number: 12345,
         },
         {
           ticker: 'AAPL240315C00150000',
@@ -574,8 +566,6 @@ describe('QuestDBWebSocketService', () => {
           size: 10,
           conditions: 'T',
           exchange: 1,
-          tape: 1,
-          sequence_number: 12346,
         },
       ];
 

@@ -587,7 +587,6 @@ describe('QuestDBConnection', () => {
           conditions STRING,
           exchange LONG,
           tape LONG,
-          sequence_number LONG
         ) TIMESTAMP(timestamp) PARTITION BY DAY
       `);
 
@@ -630,8 +629,8 @@ describe('QuestDBConnection', () => {
 
       await connection.query(`
         INSERT INTO option_trades 
-        (ticker, underlying_ticker, timestamp, price, size, conditions, exchange, tape, sequence_number) 
-        VALUES ('TEST240115C00100000', 'TEST', '${now}', 2.50, 10, '[]', 1, 1, 1)
+        (ticker, underlying_ticker, timestamp, price, size, conditions, exchange) 
+        VALUES ('TEST240115C00100000', 'TEST', '${now}', 2.50, 10, '[]', 1)
       `);
 
       await connection.query(`

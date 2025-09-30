@@ -171,8 +171,6 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
         price: number;
         size: number;
         conditions: string;
-        tape: string;
-        sequence_number: number;
         option_type: 'call' | 'put';
         strike_price: number;
         expiration_date: string;
@@ -198,8 +196,6 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
           existing.timestamp = trade.timestamp;
           existing.price = trade.price;
           existing.conditions = trade.conditions;
-          existing.tape = trade.tape.toString();
-          existing.sequence_number = trade.sequence_number;
         }
       } else {
         // First occurrence of this contract
@@ -210,8 +206,6 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
           price: trade.price,
           size: trade.size,
           conditions: trade.conditions,
-          tape: trade.tape.toString(),
-          sequence_number: trade.sequence_number,
           option_type: parsedTicker?.optionType || 'call',
           strike_price: parsedTicker?.strikePrice || 0,
           expiration_date: parsedTicker?.expirationDate || '',
@@ -291,8 +285,6 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
         price: trade.price,
         size: trade.size,
         conditions: trade.conditions,
-        tape: trade.tape.toString(),
-        sequence_number: trade.sequence_number,
         option_type: parsedTicker?.optionType || 'call',
         strike_price: parsedTicker?.strikePrice || 0,
         expiration_date: parsedTicker?.expirationDate || '',
