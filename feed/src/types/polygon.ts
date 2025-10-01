@@ -21,6 +21,53 @@ export interface PolygonQuote {
   z?: number; // tape
 }
 
+export interface PolygonOptionQuote {
+  p: number; // bid price
+  s: number; // bid size
+  P: number; // ask price
+  S: number; // ask size
+  t: number; // timestamp (nanoseconds)
+  c?: number[]; // conditions
+  x?: number; // exchange
+  z?: number; // tape
+}
+
+export interface PolygonOptionContract {
+  ticker: string;
+  name: string;
+  market: string;
+  locale: string;
+  primary_exchange: string;
+  type: string;
+  active: boolean;
+  currency_name: string;
+  cik: string;
+  composite_figi: string;
+  share_class_figi: string;
+  market_cap: number;
+  phone_number: string;
+  address: {
+    address1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+  };
+  description: string;
+  sic_code: string;
+  sic_description: string;
+  ticker_root: string;
+  homepage_url: string;
+  total_employees: number;
+  list_date: string;
+  branding: {
+    logo_url: string;
+    icon_url: string;
+  };
+  share_class_shares_outstanding: number;
+  weighted_shares_outstanding: number;
+  round_lot: number;
+}
+
 export interface PolygonAggregate {
   v: number; // volume
   vw: number; // volume weighted average price
@@ -34,6 +81,20 @@ export interface PolygonAggregate {
 
 export interface PolygonTradesResponse {
   results: PolygonTrade[];
+  status: string;
+  request_id: string;
+  next_url?: string;
+}
+
+export interface PolygonOptionQuotesResponse {
+  results: PolygonOptionQuote[];
+  status: string;
+  request_id: string;
+  next_url?: string;
+}
+
+export interface PolygonOptionContractsResponse {
+  results: PolygonOptionContract[];
   status: string;
   request_id: string;
   next_url?: string;

@@ -3,14 +3,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export interface Config {
-  alpaca: {
-    apiKey: string;
-    secretKey: string;
-    baseUrl: string;
-    wsUrl: string;
-    dataUrl: string;
-    logRequests: boolean;
-  };
   polygon: {
     apiKey: string;
     baseUrl: string;
@@ -35,10 +27,9 @@ export interface Config {
     maxRetries: number;
     retryDelayMs: number;
   };
-  tickers: string[];
 }
 
-const requiredEnvVars = ['POLYGON_API_KEY', 'ALPACA_API_KEY', 'ALPACA_SECRET_KEY'] as const;
+const requiredEnvVars = ['POLYGON_API_KEY'] as const;
 
 function validateConfig(): void {
   const missing = requiredEnvVars.filter(key => !process.env[key]);
@@ -60,14 +51,6 @@ function validateConfig(): void {
 }
 
 export const config: Config = {
-  alpaca: {
-    apiKey: process.env.ALPACA_API_KEY!,
-    secretKey: process.env.ALPACA_SECRET_KEY!,
-    baseUrl: 'https://paper-api.alpaca.markets',
-    wsUrl: 'wss://stream.data.alpaca.markets/v2/iex',
-    dataUrl: 'https://data.alpaca.markets',
-    logRequests: process.env.ALPACA_LOG_REQUESTS === 'true',
-  },
   polygon: {
     apiKey: process.env.POLYGON_API_KEY!,
     baseUrl: 'https://api.polygon.io',
@@ -92,30 +75,6 @@ export const config: Config = {
     maxRetries: parseInt(process.env.MAX_RETRIES || '3'),
     retryDelayMs: parseInt(process.env.RETRY_DELAY_MS || '1000'),
   },
-  tickers: process.env.TICKERS
-    ? process.env.TICKERS.split(',').map(t => t.trim())
-    : [
-        'AAPL',
-        'MSFT',
-        'GOOGL',
-        'AMZN',
-        'TSLA',
-        'META',
-        'NVDA',
-        'NFLX',
-        'AMD',
-        'INTC',
-        'SPY',
-        'QQQ',
-        'IWM',
-        'VTI',
-        'VOO',
-        'ARKK',
-        'TQQQ',
-        'SQQQ',
-        'UPRO',
-        'SPXL',
-      ],
 };
 
 // Validate configuration on import

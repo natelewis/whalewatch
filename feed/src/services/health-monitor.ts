@@ -189,8 +189,8 @@ export class HealthMonitor {
     return alerts;
   }
 
-  public getHealthSummary(): string {
-    const health = this.getSystemHealth();
+  public async getHealthSummary(): Promise<string> {
+    const health = await this.getSystemHealth();
     return `
 System Health Summary:
 - WebSocket: ${health.websocket.connected ? 'Connected' : 'Disconnected'}
@@ -203,8 +203,8 @@ System Health Summary:
     `.trim();
   }
 
-  public isHealthy(): boolean {
-    const health = this.getSystemHealth();
+  public async isHealthy(): Promise<boolean> {
+    const health = await this.getSystemHealth();
     return (
       health.websocket.connected &&
       health.database.connected &&

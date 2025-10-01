@@ -20,9 +20,9 @@ function startWebSocket() {
   wsService.subscribe();
 
   // Add health status endpoint
-  process.on('SIGUSR1', () => {
+  process.on('SIGUSR1', async () => {
     console.log(chalk.cyan('\n=== HEALTH STATUS ==='));
-    console.log(healthMonitor.getHealthSummary());
+    console.log(await healthMonitor.getHealthSummary());
     console.log(chalk.cyan('===================\n'));
   });
 
@@ -67,6 +67,10 @@ async function main() {
     console.log(chalk.blue('Connecting to database...'));
     await db.connect();
     console.log(chalk.green('Database connected successfully'));
+
+    console.log(chalk.blue('Executing database schema...'));
+    await db.executeSchema();
+    console.log(chalk.green('Database schema executed successfully'));
 
     startWebSocket();
   } catch (error) {

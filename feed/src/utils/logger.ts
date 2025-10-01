@@ -14,7 +14,7 @@ interface LogEntry {
   error?: {
     name: string;
     message: string;
-    stack?: string;
+    stack?: string | undefined;
   };
 }
 
@@ -54,7 +54,7 @@ export class Logger {
       logEntry.error = {
         name: error.name,
         message: error.message,
-        stack: error.stack,
+        stack: error.stack || undefined,
       };
     }
 
@@ -109,11 +109,11 @@ export class Logger {
   databaseOperation(operation: string, query?: string, duration?: number, error?: Error): void {
     const data: Record<string, unknown> = { operation };
     if (query) {
-data.query = query;
-}
+      data.query = query;
+    }
     if (duration) {
-data.duration = duration;
-}
+      data.duration = duration;
+    }
 
     if (error) {
       this.error(`Database ${operation} failed`, data, error);

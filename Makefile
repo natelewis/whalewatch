@@ -1,7 +1,7 @@
 # WhaleWatch Makefile
 # Comprehensive build and development commands
 
-.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard lint-feed tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill-option-trades reset dev-feed clean-feed build-feed
+.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard lint-feed tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed backfill-option-trades reset clean-feed build-feed
 
 # Default target
 help:
@@ -12,7 +12,6 @@ help:
 	@echo "  make dev              Start both server and dashboard in development mode"
 	@echo "  make server-dev       Start server in development mode"
 	@echo "  make dashboard-dev    Start dashboard in development mode"
-	@echo "  make dev-feed         Start feed service in development mode"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test             Run all tests"
@@ -41,7 +40,6 @@ help:
 	@echo ""
 	@echo "Feed Service:"
 	@echo "  make install-feed      Install feed service dependencies"
-	@echo "  make ingest            Start real-time data ingestion"
 	@echo "  make ingest-options    Start real-time option trade ingestion"
 	@echo "  make backfill-option-trades  Download option trade data files (usage: make backfill-option-trades ARGS='2025-09-29')"
 	@echo "  make reset             Reset all data in QuestDB (with confirmation)"
@@ -88,14 +86,6 @@ dashboard-dev:
 install-feed:
 	@echo "📦 Installing feed service dependencies..."
 	cd feed && npm install
-
-dev-feed:
-	@echo "📡 Starting feed service in development mode..."
-	cd feed && npm run dev
-
-ingest:
-	@echo "📡 Starting real-time data ingestion..."
-	cd feed && npm run ingest
 
 ingest-options:
 	@echo "📡 Starting real-time option trade ingestion..."
