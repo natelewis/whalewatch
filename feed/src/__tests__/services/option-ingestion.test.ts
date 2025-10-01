@@ -22,7 +22,7 @@ jest.mock('../../services/polygon-client', () => ({
 }));
 
 // Don't mock the database connection - we use real database for integration tests
-// Don't mock UpsertService - we use real service for integration tests
+// Don't mock InsertIfNotExistsService - we use real service for integration tests
 
 // Mock config
 jest.mock('../../config', () => ({
@@ -38,7 +38,7 @@ jest.mock('../../config', () => ({
 }));
 
 import { PolygonClient } from '../../services/polygon-client';
-import { UpsertService } from '../../utils/upsert';
+import { InsertIfNotExistsService } from '../../utils/insert-if-not-exists';
 import { config } from '../../config';
 
 // Mock the static method
@@ -102,7 +102,7 @@ describe('OptionIngestionService', () => {
       // Mock external API call with realistic data
       mockPolygonClient.getOptionContracts.mockResolvedValue(mockContracts);
 
-      // Act - Use real database and UpsertService
+      // Act - Use real database and InsertIfNotExistsService
       await optionIngestionService.ingestOptionContracts(underlyingTicker, asOf);
 
       // Assert - Verify external API was called
@@ -153,7 +153,7 @@ describe('OptionIngestionService', () => {
       // Mock external API to return empty list
       mockPolygonClient.getOptionContracts.mockResolvedValue([]);
 
-      // Act - Use real database and UpsertService
+      // Act - Use real database and InsertIfNotExistsService
       await optionIngestionService.ingestOptionContracts(underlyingTicker, asOf);
 
       // Assert - Verify external API was called
@@ -188,7 +188,7 @@ describe('OptionIngestionService', () => {
       // Mock external API call with realistic data
       mockPolygonClient.getOptionContracts.mockResolvedValue(mockContracts);
 
-      // Act - Use real database and UpsertService with current date
+      // Act - Use real database and InsertIfNotExistsService with current date
       const currentDate = new Date();
       await optionIngestionService.ingestOptionContracts(underlyingTicker, currentDate);
 
@@ -315,15 +315,15 @@ describe('OptionIngestionService', () => {
         },
       ]);
 
-      // Mock UpsertService to throw error
-      const originalUpsertOptionTrade = UpsertService.upsertOptionTrade;
-      UpsertService.upsertOptionTrade = jest.fn().mockRejectedValue(error);
+      // Mock InsertIfNotExistsService to throw error
+      const originalUpsertOptionTrade = InsertIfNotExistsService.insertOptionTradeIfNotExists;
+      InsertIfNotExistsService.insertOptionTradeIfNotExists = jest.fn().mockRejectedValue(error);
 
       // Act & Assert
       await expect(optionIngestionService.ingestOptionTrades(ticker, from, to)).rejects.toThrow('Database error');
 
       // Restore original method
-      UpsertService.upsertOptionTrade = originalUpsertOptionTrade;
+      InsertIfNotExistsService.insertOptionTradeIfNotExists = originalUpsertOptionTrade;
     });
 
     it('should handle trades with missing optional fields', async () => {
@@ -516,9 +516,9 @@ describe('OptionIngestionService', () => {
 
       mockPolygonClient.getOptionQuotes.mockResolvedValue(mockQuotes);
 
-      // Mock UpsertService to throw error on first call, succeed on second
-      const originalBatchUpsertOptionQuotes = UpsertService.batchUpsertOptionQuotes;
-      UpsertService.batchUpsertOptionQuotes = jest
+      // Mock InsertIfNotExistsService to throw error on first call, succeed on second
+      const originalBatchUpsertOptionQuotes = InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists;
+      InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists = jest
         .fn()
         .mockRejectedValueOnce(new Error('Chunk processing error'))
         .mockResolvedValue(undefined);
@@ -530,7 +530,7 @@ describe('OptionIngestionService', () => {
       expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
 
       // Restore original method
-      UpsertService.batchUpsertOptionQuotes = originalBatchUpsertOptionQuotes;
+      InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists = originalBatchUpsertOptionQuotes;
     });
 
     it('should handle empty quotes list', async () => {
@@ -626,7 +626,7 @@ describe('OptionIngestionService', () => {
           },
         ];
 
-        await UpsertService.batchUpsertOptionContracts(contracts);
+        await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts);
       }
 
       // Act
@@ -659,11 +659,11 @@ describe('OptionIngestionService', () => {
       const asOf2 = new Date('2024-01-15');
 
       // Create test index records
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: asOf1,
       });
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: asOf2,
       });
@@ -701,11 +701,11 @@ describe('OptionIngestionService', () => {
       const asOf2 = new Date('2024-01-15');
 
       // Create test index records
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: asOf1,
       });
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: asOf2,
       });

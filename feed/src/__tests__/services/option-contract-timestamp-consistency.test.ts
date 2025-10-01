@@ -1,5 +1,5 @@
 import { OptionIngestionService } from '../../services/option-ingestion';
-import { UpsertService } from '../../utils/upsert';
+import { InsertIfNotExistsService } from '../../utils/insert-if-not-exists';
 import { normalizeToMidnight } from '@whalewatch/shared';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/database';
 import { waitForSingleRecordWithCondition } from '../test-utils/data-verification';
@@ -53,19 +53,19 @@ describe('Option Contract Index Timestamp Consistency', () => {
         underlying_ticker: underlyingTicker,
         as_of: normalizeToMidnight(morningTime),
       };
-      await UpsertService.upsertOptionContractIndex(index1);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index1);
 
       const index2: any = {
         underlying_ticker: underlyingTicker,
         as_of: normalizeToMidnight(afternoonTime),
       };
-      await UpsertService.upsertOptionContractIndex(index2);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index2);
 
       const index3: any = {
         underlying_ticker: underlyingTicker,
         as_of: normalizeToMidnight(eveningTime),
       };
-      await UpsertService.upsertOptionContractIndex(index3);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index3);
 
       // Assert - All timestamps should be identical (midnight)
       const result = await waitForSingleRecordWithCondition(
@@ -93,13 +93,13 @@ describe('Option Contract Index Timestamp Consistency', () => {
         underlying_ticker: underlyingTicker,
         as_of: normalizeToMidnight(morningTime),
       };
-      await UpsertService.upsertOptionContractIndex(index1);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index1);
 
       const index2: any = {
         underlying_ticker: underlyingTicker,
         as_of: normalizeToMidnight(eveningTime),
       };
-      await UpsertService.upsertOptionContractIndex(index2);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index2);
 
       // Assert - Should only have one record (upserted)
       const result = await waitForSingleRecordWithCondition(
@@ -168,7 +168,7 @@ describe('Option Contract Index Timestamp Consistency', () => {
       ];
 
       for (const record of records) {
-        await UpsertService.upsertOptionContractIndex(record);
+        await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(record);
       }
 
       // Assert - Should have records for both days, each normalized to midnight

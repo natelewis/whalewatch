@@ -28,14 +28,14 @@ describe('InsertIfNotExistsService', () => {
         transaction_count: 5000,
       };
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertStockAggregateIfNotExists(aggregate, getTableName('stock_aggregates'))
       ).resolves.not.toThrow();
     });
 
-    it('should update existing stock aggregate record', async () => {
+    it('should skip insertion if stock aggregate record already exists', async () => {
       // Arrange - Insert initial record
       const initialAggregate: StockAggregate = {
         symbol: 'MSFT',
@@ -54,11 +54,11 @@ describe('InsertIfNotExistsService', () => {
         getTableName('stock_aggregates')
       );
 
-      // Act - Update with new values using exact same timestamp
-      const updatedAggregate: StockAggregate = {
+      // Act - Try to insert the same record again with different values
+      const duplicateAggregate: StockAggregate = {
         symbol: 'MSFT',
         timestamp: new Date('2024-01-01T10:00:00Z'), // Same timestamp
-        open: 210.0,
+        open: 210.0, // Different values
         high: 215.0,
         low: 209.0,
         close: 213.0,
@@ -67,10 +67,9 @@ describe('InsertIfNotExistsService', () => {
         transaction_count: 12000,
       };
 
-      // Assert - Test that the upsert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
+      // Assert - Should complete without error (skips insertion)
       await expect(
-        InsertIfNotExistsService.insertStockAggregateIfNotExists(updatedAggregate, getTableName('stock_aggregates'))
+        InsertIfNotExistsService.insertStockAggregateIfNotExists(duplicateAggregate, getTableName('stock_aggregates'))
       ).resolves.not.toThrow();
     });
 
@@ -102,7 +101,7 @@ describe('InsertIfNotExistsService', () => {
         transaction_count: 6000,
       };
 
-      // Act & Assert - Test that both upsert methods complete without error
+      // Act & Assert - Test that both insert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertStockAggregateIfNotExists(aggregate1, getTableName('stock_aggregates'))
@@ -128,7 +127,7 @@ describe('InsertIfNotExistsService', () => {
         underlying_ticker: 'AAPL',
       };
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionContractIfNotExists(contract, getTableName('option_contracts'))
@@ -159,7 +158,7 @@ describe('InsertIfNotExistsService', () => {
         underlying_ticker: 'AAPL',
       };
 
-      // Act & Assert - Test that both upsert methods complete without error
+      // Act & Assert - Test that both insert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionContractIfNotExists(contract1, getTableName('option_contracts'))
@@ -185,7 +184,7 @@ describe('InsertIfNotExistsService', () => {
         exchange: 1,
       };
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionTradeIfNotExists(trade, getTableName('option_trades'))
@@ -216,7 +215,7 @@ describe('InsertIfNotExistsService', () => {
         exchange: 1,
       };
 
-      // Act & Assert - Test that both upsert methods complete without error
+      // Act & Assert - Test that both insert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionTradeIfNotExists(trade1, getTableName('option_trades'))
@@ -254,7 +253,7 @@ describe('InsertIfNotExistsService', () => {
         exchange: 3,
       };
 
-      // Assert - Test that the upsert method completes without error
+      // Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionTradeIfNotExists(updatedTrade, getTableName('option_trades'))
@@ -280,7 +279,7 @@ describe('InsertIfNotExistsService', () => {
         sequence_number: 12345,
       };
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote, getTableName('option_quotes'))
@@ -321,7 +320,7 @@ describe('InsertIfNotExistsService', () => {
         sequence_number: 98765, // Same sequence number
       };
 
-      // Assert - Test that the upsert method completes without error
+      // Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionQuoteIfNotExists(updatedQuote, getTableName('option_quotes'))
@@ -358,7 +357,7 @@ describe('InsertIfNotExistsService', () => {
         sequence_number: 11112,
       };
 
-      // Act & Assert - Test that both upsert methods complete without error
+      // Act & Assert - Test that both insert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote1, getTableName('option_quotes'))
@@ -511,7 +510,7 @@ describe('InsertIfNotExistsService', () => {
         exchange: 1,
       };
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionTradeIfNotExists(trade, getTableName('option_trades'))
@@ -535,7 +534,7 @@ describe('InsertIfNotExistsService', () => {
         sequence_number: 12345,
       };
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote, getTableName('option_quotes'))
@@ -556,7 +555,7 @@ describe('InsertIfNotExistsService', () => {
         exchange: 1,
       };
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionTradeIfNotExists(trade, getTableName('option_trades'))
@@ -588,7 +587,7 @@ describe('InsertIfNotExistsService', () => {
         },
       ];
 
-      // Act & Assert - Test that the upsert method completes without error
+      // Act & Assert - Test that the insert method completes without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       await expect(
         InsertIfNotExistsService.insertOptionTradeIfNotExists(trades[0], getTableName('option_trades'))
@@ -626,7 +625,7 @@ describe('InsertIfNotExistsService', () => {
           });
         }
 
-        // Act & Assert - Test that the batch upsert method completes without error
+        // Act & Assert - Test that the batch insert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
           InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(aggregates, getTableName('stock_aggregates'))
@@ -653,7 +652,7 @@ describe('InsertIfNotExistsService', () => {
           });
         }
 
-        // Act & Assert - Test that the batch upsert method completes without error
+        // Act & Assert - Test that the batch insert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
           InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(aggregates, getTableName('stock_aggregates'))
@@ -688,7 +687,7 @@ describe('InsertIfNotExistsService', () => {
           });
         }
 
-        // Act & Assert - Test that the batch upsert method completes without error
+        // Act & Assert - Test that the batch insert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
           InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(quotes, getTableName('option_quotes'))
@@ -716,7 +715,7 @@ describe('InsertIfNotExistsService', () => {
           });
         }
 
-        // Act & Assert - Test that the batch upsert method completes without error
+        // Act & Assert - Test that the batch insert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
           InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(quotes, getTableName('option_quotes'))
@@ -754,7 +753,7 @@ describe('InsertIfNotExistsService', () => {
           },
         ];
 
-        // Act & Assert - Test that the batch upsert method completes without error
+        // Act & Assert - Test that the batch insert method completes without error
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
           InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(quotes, getTableName('option_quotes'))
@@ -784,7 +783,7 @@ describe('InsertIfNotExistsService', () => {
         });
       }
 
-      // Act & Assert - Test that all upsert methods complete without error
+      // Act & Assert - Test that all insert methods complete without error
       // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
       const startTime = Date.now();
       for (const aggregate of aggregates) {

@@ -1,7 +1,7 @@
 import { db } from '../db/connection';
 import { AlpacaClient } from './alpaca-client';
 import { OptionIngestionService } from './option-ingestion';
-import { UpsertService } from '../utils/upsert';
+import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { StockAggregate } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
 import { AlpacaBar } from '../types/alpaca';
@@ -172,7 +172,7 @@ export class StockIngestionService {
               transaction_count: latestBar.n,
             };
 
-            await UpsertService.upsertStockAggregate(stockAggregate);
+            await InsertIfNotExistsService.insertStockAggregateIfNotExists(stockAggregate);
             console.log(
               `✓ Latest data for ${ticker}: $${stockAggregate.close} at ${stockAggregate.timestamp.toISOString()}`
             );
@@ -199,7 +199,7 @@ export class StockIngestionService {
       transaction_count: aggregate.n,
     }));
 
-    await UpsertService.batchUpsertStockAggregates(stockAggregates);
+    await InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(stockAggregates);
   }
 
   /**

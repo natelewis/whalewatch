@@ -47,7 +47,7 @@ jest.mock('../../config', () => ({
 
 import { db } from '../../db/connection';
 import { PolygonClient } from '../../services/polygon-client';
-import { UpsertService } from '../../utils/upsert';
+import { InsertIfNotExistsService } from '../../utils/insert-if-not-exists';
 
 // Database will be mocked in individual test describe blocks as needed
 
@@ -366,12 +366,12 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       ];
 
       // Upsert contracts
-      console.log('About to call batchUpsertOptionContracts with contracts:', contracts);
+      console.log('About to call batchInsertOptionContractsIfNotExists with contracts:', contracts);
       try {
-        await UpsertService.batchUpsertOptionContracts(contracts);
-        console.log('batchUpsertOptionContracts completed successfully');
+        await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts);
+        console.log('batchInsertOptionContractsIfNotExists completed successfully');
       } catch (error) {
-        console.error('batchUpsertOptionContracts failed:', error);
+        console.error('batchInsertOptionContractsIfNotExists failed:', error);
         throw error;
       }
 
@@ -380,12 +380,12 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         underlying_ticker: underlyingTicker,
         as_of: asOf,
       };
-      console.log('About to call upsertOptionContractIndex with index:', index);
+      console.log('About to call insertOptionContractIndexIfNotExists with index:', index);
       try {
-        await UpsertService.upsertOptionContractIndex(index);
-        console.log('upsertOptionContractIndex completed successfully');
+        await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index);
+        console.log('insertOptionContractIndexIfNotExists completed successfully');
       } catch (error) {
-        console.error('upsertOptionContractIndex failed:', error);
+        console.error('insertOptionContractIndexIfNotExists failed:', error);
         throw error;
       }
 
@@ -452,8 +452,8 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       ];
 
       // Upsert contracts for first date
-      await UpsertService.batchUpsertOptionContracts(contracts1, 'test_option_contracts');
-      await UpsertService.upsertOptionContractIndex(
+      await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts1, 'test_option_contracts');
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(
         {
           underlying_ticker: underlyingTicker,
           as_of: asOf1,
@@ -475,8 +475,8 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       ];
 
       // Upsert updated contracts for second date
-      await UpsertService.batchUpsertOptionContracts(contracts2, 'test_option_contracts');
-      await UpsertService.upsertOptionContractIndex(
+      await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts2, 'test_option_contracts');
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(
         {
           underlying_ticker: underlyingTicker,
           as_of: asOf2,

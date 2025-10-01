@@ -11,7 +11,7 @@ import zlib from 'zlib';
 import chalk from 'chalk';
 import { Transform } from 'stream';
 import { createInterface } from 'readline';
-import { UpsertService } from '../utils/upsert';
+import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { OptionTrade } from '../types/database';
 import { db } from '../db/connection';
 
@@ -155,7 +155,7 @@ async function upsertCsvTrades(filePath: string): Promise<number> {
         console.log(chalk.cyan(`  📊 Upserting ${trades.length} trades to database...`));
 
         // Process each trade individually (QuestDB doesn't have native upsert)
-        await UpsertService.processOptionTrades(trades);
+        await InsertIfNotExistsService.processOptionTradesIfNotExists(trades);
 
         console.log(chalk.green(`  ✅ Successfully upserted ${trades.length} trades`));
         resolve(trades.length);

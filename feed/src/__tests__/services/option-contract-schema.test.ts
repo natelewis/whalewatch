@@ -1,6 +1,6 @@
 // Comprehensive test file for the new option contract schema structure
 import { OptionIngestionService } from '../../services/option-ingestion';
-import { UpsertService } from '../../utils/upsert';
+import { InsertIfNotExistsService } from '../../utils/insert-if-not-exists';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/database';
 import { waitForSingleRecordWithCondition, waitForRecordsWithCondition } from '../test-utils/data-verification';
 import { OptionContract, OptionContractIndex } from '../../types/database';
@@ -91,7 +91,7 @@ describe('Option Contract Schema Migration', () => {
       };
 
       // Act - Use real database
-      await UpsertService.upsertOptionContract(contract);
+      await InsertIfNotExistsService.insertOptionContractIfNotExists(contract);
 
       // Assert - Verify the record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
@@ -122,7 +122,7 @@ describe('Option Contract Schema Migration', () => {
       };
 
       // First insert
-      await UpsertService.upsertOptionContract(contract);
+      await InsertIfNotExistsService.insertOptionContractIfNotExists(contract);
 
       // Wait for the first insert to be committed
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -135,7 +135,7 @@ describe('Option Contract Schema Migration', () => {
       };
 
       // Act - Update with real database
-      await UpsertService.upsertOptionContract(updatedContract);
+      await InsertIfNotExistsService.insertOptionContractIfNotExists(updatedContract);
 
       // Wait for QuestDB eventual consistency
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -167,7 +167,7 @@ describe('Option Contract Schema Migration', () => {
       };
 
       // Act - Use real database
-      await UpsertService.upsertOptionContractIndex(index);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index);
 
       // Assert - Verify the record was created in real database
       const questResult = await waitForSingleRecordWithCondition(
@@ -188,10 +188,10 @@ describe('Option Contract Schema Migration', () => {
       };
 
       // First insert
-      await UpsertService.upsertOptionContractIndex(index);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index);
 
       // Act - Try to insert the same record again (should not create duplicate)
-      await UpsertService.upsertOptionContractIndex(index);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index);
 
       // Assert - Verify only one record exists
       const questResult = await waitForSingleRecordWithCondition(
@@ -275,7 +275,7 @@ describe('Option Contract Schema Migration', () => {
       const expectedDate = new Date('2024-01-01T00:00:00.000Z');
 
       // Create test data in real database
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: expectedDate,
       });
@@ -300,7 +300,7 @@ describe('Option Contract Schema Migration', () => {
       const expectedDate = new Date('2024-01-15T00:00:00.000Z');
 
       // Create test data in real database
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: expectedDate,
       });
@@ -363,7 +363,7 @@ describe('Option Contract Schema Migration', () => {
       ];
 
       // Act - Use real database
-      await UpsertService.batchUpsertOptionContracts(contracts);
+      await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts);
 
       // Assert - Verify contracts were created in real database
       await waitForRecordsWithCondition(getTableName('option_contracts'), `underlying_ticker = 'AAPL_${uniqueId}'`, 2);

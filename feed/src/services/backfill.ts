@@ -1,7 +1,7 @@
 import { db } from '../db/connection';
 import { OptionIngestionService } from './option-ingestion';
 import { StockIngestionService } from './stock-ingestion';
-import { UpsertService } from '../utils/upsert';
+import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { config } from '../config';
 import { StockAggregate } from '../types/database';
 import { getMinDate, getMaxDate, QuestDBServiceInterface, normalizeToMidnight } from '@whalewatch/shared';
@@ -576,6 +576,6 @@ export class BackfillService {
       transaction_count: aggregate.n,
     }));
 
-    await UpsertService.batchUpsertStockAggregates(stockAggregates);
+    await InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(stockAggregates);
   }
 }

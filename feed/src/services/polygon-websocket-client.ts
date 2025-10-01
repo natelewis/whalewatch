@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { config } from '../config';
-import { UpsertService } from '../utils/upsert';
+import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { OptionTrade } from '../types/database';
 
 interface WebSocketMessage {
@@ -274,7 +274,7 @@ export class WebSocketService {
       try {
         // Process each trade individually to ensure proper upsert behavior
         for (const trade of tradesToInsert) {
-          await UpsertService.upsertOptionTrade(trade);
+          await InsertIfNotExistsService.insertOptionTradeIfNotExists(trade);
         }
         console.log(`Inserted ${tradesToInsert.length} option trades.`);
         this.lastFlushCompleted = new Date();

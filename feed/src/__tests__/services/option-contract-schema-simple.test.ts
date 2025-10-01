@@ -1,5 +1,5 @@
 // Simple test file for the new option contract schema structure
-import { UpsertService } from '../../utils/upsert';
+import { InsertIfNotExistsService } from '../../utils/insert-if-not-exists';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../test-utils/database';
 import { OptionContract, OptionContractIndex } from '../../types/database';
 
@@ -42,7 +42,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       };
 
       // Act - Test the upsert operation
-      await UpsertService.upsertOptionContractIndex(index);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index);
 
       // Assert - Verify the operation completed without error
       // The actual database query verification is tested in QuestDBConnection tests
@@ -63,7 +63,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       };
 
       // Act - Test the upsert operation
-      await UpsertService.upsertOptionContract(contract);
+      await InsertIfNotExistsService.insertOptionContractIfNotExists(contract);
 
       // Assert - Verify the operation completed without error
       // The actual database query verification is tested in QuestDBConnection tests
@@ -84,7 +84,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       };
 
       // First upsert
-      await UpsertService.upsertOptionContract(contract);
+      await InsertIfNotExistsService.insertOptionContractIfNotExists(contract);
 
       // Update the contract
       const updatedContract: OptionContract = {
@@ -93,7 +93,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       };
 
       // Second upsert (should update)
-      await UpsertService.upsertOptionContract(updatedContract);
+      await InsertIfNotExistsService.insertOptionContractIfNotExists(updatedContract);
 
       // Assert - Verify both operations completed without error
       // The actual database query verification is tested in QuestDBConnection tests
@@ -125,7 +125,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       ];
 
       // Act - Test the batch upsert operation
-      await UpsertService.batchUpsertOptionContracts(contracts);
+      await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts);
 
       // Assert - Verify the operation completed without error
       // The actual database query verification is tested in QuestDBConnection tests
@@ -152,8 +152,8 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       ];
 
       // Upsert contracts for first date
-      await UpsertService.batchUpsertOptionContracts(contracts1);
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts1);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: asOf1,
       });
@@ -172,8 +172,8 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       ];
 
       // Upsert updated contracts for second date
-      await UpsertService.batchUpsertOptionContracts(contracts2);
-      await UpsertService.upsertOptionContractIndex({
+      await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts2);
+      await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
         as_of: asOf2,
       });

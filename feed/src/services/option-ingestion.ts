@@ -1,6 +1,6 @@
 import { db } from '../db/connection';
 import { PolygonClient } from './polygon-client';
-import { UpsertService } from '../utils/upsert';
+import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { config } from '../config';
 import { OptionContract, OptionContractIndex, OptionTrade, OptionQuote } from '../types/database';
 import { PolygonOptionTrade, PolygonOptionQuote } from '../types/polygon';
@@ -144,14 +144,14 @@ export class OptionIngestionService {
         expiration_date: new Date(contract.expiration_date),
       }));
 
-      // Batch upsert the contracts
+      // Batch insert the contracts
       // Work around Jest module loading issue
-      if (typeof UpsertService.batchUpsertOptionContracts === 'function') {
-        await UpsertService.batchUpsertOptionContracts(optionContracts);
+      if (typeof InsertIfNotExistsService.batchInsertOptionContractsIfNotExists === 'function') {
+        await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(optionContracts);
       } else {
         // Fallback: process contracts individually
         for (const contract of optionContracts) {
-          await UpsertService.upsertOptionContract(contract);
+          await InsertIfNotExistsService.insertOptionContractIfNotExists(contract);
         }
       }
 
@@ -161,8 +161,8 @@ export class OptionIngestionService {
         as_of: normalizeToMidnight(asOf),
       };
       // Work around Jest module loading issue
-      if (typeof UpsertService.upsertOptionContractIndex === 'function') {
-        await UpsertService.upsertOptionContractIndex(indexRecord);
+      if (typeof InsertIfNotExistsService.insertOptionContractIndexIfNotExists === 'function') {
+        await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(indexRecord);
       } else {
         // Fallback: insert directly
         await db.query(
@@ -218,9 +218,9 @@ export class OptionIngestionService {
         };
       });
 
-      // Process each trade individually to ensure proper upsert behavior
+      // Process each trade individually to ensure proper insert behavior
       for (const trade of optionTrades) {
-        await UpsertService.upsertOptionTrade(trade);
+        await InsertIfNotExistsService.insertOptionTradeIfNotExists(trade);
       }
 
       console.log(
@@ -285,7 +285,7 @@ export class OptionIngestionService {
             });
 
             try {
-              await UpsertService.batchUpsertOptionQuotes(optionQuotes);
+              await InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(optionQuotes);
               totalProcessed += optionQuotes.length;
             } catch (error) {
               console.error(`Error processing option quotes chunk for ${ticker}:`, error);
