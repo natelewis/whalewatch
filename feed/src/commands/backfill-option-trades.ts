@@ -247,7 +247,7 @@ function getOldestFileDate(): string {
       return new Date().toISOString().split('T')[0];
     }
 
-    return files[0];
+    return files[0]; // Get the first (oldest) file
   } catch (_error) {
     console.log("No existing files found, using today's date");
     return new Date().toISOString().split('T')[0];
@@ -255,27 +255,19 @@ function getOldestFileDate(): string {
 }
 
 /**
- * Generate date range from start date to end date
- * @param startDate Start date in YYYY-MM-DD format
- * @param endDate End date in YYYY-MM-DD format
- * @returns Array of dates in YYYY-MM-DD format
+ * Generate date range from start date backwards to end date
+ * @param startDate Start date in YYYY-MM-DD format (newer date)
+ * @param endDate End date in YYYY-MM-DD format (older date)
+ * @returns Array of dates in YYYY-MM-DD format (newest to oldest)
  */
 function generateDateRange(startDate: string, endDate: string): string[] {
   const dates = [];
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  // Determine direction based on which date is earlier
-  if (start <= end) {
-    // Forward direction
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      dates.push(d.toISOString().split('T')[0]);
-    }
-  } else {
-    // Backward direction
-    for (let d = new Date(start); d >= end; d.setDate(d.getDate() - 1)) {
-      dates.push(d.toISOString().split('T')[0]);
-    }
+  // Always go backwards from start to end
+  for (let d = new Date(start); d >= end; d.setDate(d.getDate() - 1)) {
+    dates.push(d.toISOString().split('T')[0]);
   }
 
   return dates;
@@ -301,11 +293,10 @@ async function downloadAndInsertFile(
   const decompressedFilePath = path.join(DATA_DIR, decompressedFileName);
 
   try {
-    // Check if file already exists and was processed
+    // Check if file already exists locally - if it does, skip processing entirely
     if (existsSync(decompressedFilePath)) {
-      console.log(`📄 ${decompressedFileName} already exists, inserting data...`);
-      const tradesInserted = await insertCsvTradesIfNotExists(decompressedFilePath);
-      return { success: true, tradesInserted };
+      console.log(`⏭️  ${decompressedFileName} already exists locally, skipping...`);
+      return { success: true, tradesInserted: 0 };
     }
 
     console.log(`📥 Downloading ${s3FilePath}...`);
@@ -393,26 +384,29 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
   const oldestDate = getOldestFileDate();
   console.log(chalk.cyan(`📅 Oldest existing file date: ${oldestDate}`));
 
-  // Determine start date
-  let startDate: string;
+  // Determine start date - go backwards from oldest file to target date
   const oldestDateObj = new Date(oldestDate);
   const endDateObj = new Date(endDate);
 
-  if (oldestDateObj > endDateObj) {
-    // If oldest file is newer than end date, start from day before oldest file
-    const startDateObj = new Date(oldestDate);
-    startDateObj.setDate(startDateObj.getDate() - 1);
-    startDate = startDateObj.toISOString().split('T')[0];
-    console.log(chalk.yellow(`📅 Oldest file (${oldestDate}) is newer than end date (${endDate})`));
-    console.log(chalk.cyan(`📅 Downloading files from ${startDate} to ${endDate}`));
-  } else {
-    // If end date is newer than oldest file, start from day after oldest file
-    const startDateObj = new Date(oldestDate);
-    startDateObj.setDate(startDateObj.getDate() + 1);
-    startDate = startDateObj.toISOString().split('T')[0];
-    console.log(chalk.yellow(`📅 End date (${endDate}) is newer than oldest file (${oldestDate})`));
-    console.log(chalk.cyan(`📅 Downloading files from ${startDate} to ${endDate}`));
+  if (oldestDateObj <= endDateObj) {
+    // If oldest file is older than or equal to target date, we're done
+    console.log(
+      chalk.green(
+        `✅ Oldest file (${oldestDate}) is older than or equal to target date (${endDate}) - nothing to backfill`
+      )
+    );
+    console.log(chalk.gray('🔌 Disconnecting from QuestDB...'));
+    await db.disconnect();
+    return;
   }
+
+  // Start from day before oldest file and go backwards to target date
+  const startDateObj = new Date(oldestDate);
+  startDateObj.setDate(startDateObj.getDate() - 1);
+  const startDate = startDateObj.toISOString().split('T')[0];
+
+  console.log(chalk.yellow(`📅 Oldest file (${oldestDate}) is newer than target date (${endDate})`));
+  console.log(chalk.cyan(`📅 Backfilling files from ${startDate} backwards to ${endDate}`));
 
   // Generate date range
   const dates = generateDateRange(startDate, endDate);
