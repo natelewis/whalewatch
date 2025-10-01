@@ -37,11 +37,13 @@ function createTradeFilter(threshold: number): Transform {
       const lines = chunk.toString().split('\n');
 
       for (const line of lines) {
-        if (line.trim() === '') continue;
+        if (line.trim() === '') {
+          continue;
+        }
 
         if (isFirstLine) {
           // Keep the header line
-          headerLine = line + '\n';
+          headerLine = `${line}\n`;
           isFirstLine = false;
           this.push(headerLine);
           continue;
@@ -49,7 +51,9 @@ function createTradeFilter(threshold: number): Transform {
 
         // Parse the CSV line
         const columns = line.split(',');
-        if (columns.length < 7) continue; // Skip malformed lines
+        if (columns.length < 7) {
+          continue;
+        } // Skip malformed lines
 
         try {
           const price = parseFloat(columns[4]); // price column
@@ -60,7 +64,7 @@ function createTradeFilter(threshold: number): Transform {
 
           // Only keep trades above the threshold
           if (tradeValue > threshold) {
-            this.push(line + '\n');
+            this.push(`${line}\n`);
           }
         } catch (error) {
           // Skip lines that can't be parsed
@@ -139,10 +143,7 @@ async function downloadAndDecompressFile(date: string, s3Client: S3Client, thres
   const month = date.substring(5, 7);
 
   const s3FilePath = `${S3_BASE_PATH}/${year}/${month}/${date}.csv.gz`;
-  const localFileName = `${date}.csv.gz`;
   const decompressedFileName = `${date}.csv`;
-
-  const localFilePath = path.join(DATA_DIR, localFileName);
   const decompressedFilePath = path.join(DATA_DIR, decompressedFileName);
 
   // Skip if decompressed file already exists

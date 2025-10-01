@@ -30,7 +30,6 @@ export class WebSocketService {
   private ws: WebSocket | null = null;
   private tradeBuffer: OptionTrade[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
-  private configuredTickers: string[] = [];
 
   // Resilience and monitoring properties
   private reconnectAttempts = 0;
@@ -188,17 +187,14 @@ export class WebSocketService {
     };
   }
 
-  subscribe(tickers: string[]): void {
-    // Store the configured tickers for filtering
-    this.configuredTickers = tickers;
-
+  subscribe(): void {
     // we need to wait for the websocket to be open before subscribing
     while (this.ws?.readyState !== WebSocket.OPEN) {
       console.log('WebSocket not open, waiting to subscribe');
-      setTimeout(() => this.subscribe(tickers), 1000);
+      setTimeout(() => this.subscribe(), 1000);
       return;
     }
-    console.log(this.ws?.readyState, 'Subscribing to all option trades (T.*) and filtering for:', tickers);
+    console.log(this.ws?.readyState, 'Subscribing to all option trades (T.*)');
     if (this.ws?.readyState === WebSocket.OPEN) {
       // Subscribe to all option trades using T.* pattern
       console.log('Subscribing to all option trades: T.*');
@@ -213,7 +209,7 @@ export class WebSocketService {
         break;
       case 'T':
         if (msg.sym && msg.p && msg.s && msg.t) {
-          this.processTrade(msg as Required<Pick<WebSocketMessage, 'sym' | 'p' | 's' | 'c' | 't'>>);
+          this.processTrade(msg as Required<Pick<WebSocketMessage, 'sym' | 'p' | 's' | 'c' | 't' | 'x'>>);
         }
         break;
       default:
@@ -239,12 +235,6 @@ export class WebSocketService {
       }
 
       const underlyingTicker = underlyingTickerMatch[1];
-
-      // Filter trades based on configured tickers
-      if (!this.configuredTickers.includes(underlyingTicker)) {
-        // console.log(`Trade for ${underlyingTicker} not in configured tickers, skipping`);
-        return;
-      }
 
       const optionTrade: OptionTrade = {
         ticker: trade.sym,

@@ -18,7 +18,7 @@ function startWebSocket() {
   healthMonitor.startMonitoring(60000); // Check every minute
 
   wsService.connect(wsUrl);
-  wsService.subscribe(config.tickers);
+  wsService.subscribe();
 
   // Add health status endpoint
   process.on('SIGUSR1', () => {
