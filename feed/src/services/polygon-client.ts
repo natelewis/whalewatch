@@ -51,55 +51,6 @@ export class PolygonClient {
     }
   }
 
-  async getOptionContracts(underlyingTicker: string, asOf: Date): Promise<PolygonOptionContract[]> {
-    return this.rateLimiter.execute(async () => {
-      try {
-        const allContracts: PolygonOptionContract[] = [];
-        let nextUrl: string | undefined;
-
-        // Initial request
-        const params: Record<string, string> = {
-          underlying_ticker: underlyingTicker,
-          limit: config.polygon.optionContractsLimit.toString(),
-          expired: 'false',
-        };
-
-        if (asOf) {
-          params.as_of = asOf.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-        }
-
-        const endpoint = '/v3/reference/options/contracts';
-        this.logRequest('GET', endpoint, params);
-
-        let response = await this.api.get<PolygonOptionContractsResponse>(endpoint, { params });
-
-        // Add results from first page
-        if (response.data.results) {
-          allContracts.push(...response.data.results);
-        }
-
-        // Follow pagination
-        nextUrl = response.data.next_url;
-        while (nextUrl) {
-          this.logRequest('GET', nextUrl);
-          response = await this.api.get<PolygonOptionContractsResponse>(nextUrl);
-
-          if (response.data.results) {
-            allContracts.push(...response.data.results);
-          }
-
-          nextUrl = response.data.next_url;
-        }
-
-        console.log(`Fetched ${allContracts.length} option contracts for ${underlyingTicker}`);
-        return allContracts;
-      } catch (error) {
-        console.error(`Error fetching option contracts for ${underlyingTicker}:`, error);
-        throw error;
-      }
-    });
-  }
-
   async getOptionTrades(ticker: string, from: Date, to: Date): Promise<PolygonTrade[]> {
     return this.rateLimiter.execute(async () => {
       try {

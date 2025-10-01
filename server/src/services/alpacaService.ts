@@ -217,7 +217,7 @@ export class AlpacaService {
 
       // For latest bar endpoint, return null instead of throwing for missing data
       if (response?.status === 404) {
-        logger.server.warn(`No latest bar data available for ${symbol}`);
+        logger.server.warning(`No latest bar data available for ${symbol}`);
         return null;
       }
 
