@@ -404,11 +404,7 @@ describe('Options Routes', () => {
   describe('GET /api/options/test-connection', () => {
     it('should return success when QuestDB is connected', async () => {
       const mockStats = {
-        stock_trades_count: 1000,
-        stock_aggregates_count: 500,
-        option_contracts_count: 200,
         option_trades_count: 300,
-        option_quotes_count: 400,
       };
 
       mockedQuestdbService.testConnection.mockResolvedValue(true);

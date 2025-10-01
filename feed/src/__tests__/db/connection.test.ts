@@ -212,20 +212,20 @@ describe('QuestDBConnection', () => {
 
     it('should handle string parameters with single quotes', async () => {
       // Create test table using schema helper
-      await createTestTable(getTableName('stock_trades'), connection);
+      await createTestTable(getTableName('option_trades'), connection);
 
       // Insert data with single quotes
       await connection.query(
         `INSERT INTO ${getTableName(
-          'stock_trades'
+          'option_trades'
         )} VALUES ('AAPL', '2024-01-01T10:00:00Z', 100.5, 100, '[]', 1, 1, 'test''s trade')`
       );
 
       // Wait for data to be available
-      await waitForRecordCount(getTableName('stock_trades'), 1);
+      await waitForRecordCount(getTableName('option_trades'), 1);
 
       // Query with parameter containing single quotes
-      const result = await connection.query(`SELECT * FROM ${getTableName('stock_trades')} WHERE trade_id = $1`, [
+      const result = await connection.query(`SELECT * FROM ${getTableName('option_trades')} WHERE trade_id = $1`, [
         "test's trade",
       ]);
 
@@ -237,18 +237,18 @@ describe('QuestDBConnection', () => {
 
     it('should handle parameters with special characters', async () => {
       // Create test table using schema helper
-      await createTestTable('test_stock_aggregates', connection);
+      await createTestTable('test_option_trades', connection);
 
       // Insert data
       await connection.query(
-        "INSERT INTO test_stock_aggregates VALUES ('AAPL', '2024-01-01T10:00:00Z', 100, 105, 95, 102, 1000, 101, 50)"
+        "INSERT INTO test_option_trades VALUES ('AAPL', '2024-01-01T10:00:00Z', 100, 105, 95, 102, 1000, 101, 50)"
       );
 
       // Wait for data to be available
-      await waitForRecordCount('test_stock_aggregates', 1);
+      await waitForRecordCount('test_option_trades', 1);
 
       // Query with various parameter types
-      const result = await connection.query('SELECT * FROM test_stock_aggregates WHERE symbol = $1 AND volume = $2', [
+      const result = await connection.query('SELECT * FROM test_option_trades WHERE symbol = $1 AND volume = $2', [
         'AAPL',
         1000,
       ]);
@@ -290,7 +290,7 @@ describe('QuestDBConnection', () => {
       // Insert some test data with a specific timestamp - use simpler approach
       const testDate = new Date('2024-01-01T10:00:00Z');
       await connection.query(`
-        INSERT INTO test_option_trades VALUES 
+          INSERT INTO test_option_trades VALUES 
         ('AAPL240101C00100000', 'call', 'american', '${testDate.toISOString()}', 100, 100.0, 'AAPL')
       `);
 

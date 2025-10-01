@@ -59,7 +59,7 @@ afterAll(async () => {
 async function cleanupTestData(): Promise<void> {
   try {
     // Delete test data from all test tables
-    const testTables = [getTableName('stock_trades')];
+    const testTables = [getTableName('option_trades')];
 
     for (const table of testTables) {
       try {

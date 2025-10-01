@@ -23,7 +23,7 @@ export const testConfig = {
   ...config,
   // Override table names to use test prefixes
   tables: {
-    stockTrades: getTableName('stock_trades'),
+    stockTrades: getTableName('option_trades'),
   },
 };
 

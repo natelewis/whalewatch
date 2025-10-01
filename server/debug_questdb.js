@@ -56,7 +56,7 @@ async function testConnection() {
 
     // Test all the tables that the server tries to query
     console.log('\n3. Testing all database stats queries...');
-    const tables = ['stock_trades'];
+    const tables = ['option_trades'];
 
     for (const table of tables) {
       try {
