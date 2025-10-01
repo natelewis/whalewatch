@@ -46,7 +46,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-40 bg-card border-r border-border transition-all duration-300 ease-in-out ${
-          isCollapsed ? 'w-20' : 'w-64'
+          isCollapsed ? 'w-16' : 'w-64'
         }`}
       >
         <div className="flex flex-col h-full">
@@ -185,7 +185,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* Main content */}
-      <div className={`transition-all duration-300 ease-in-out ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
+      <div className={`transition-all duration-300 ease-in-out ${isCollapsed ? 'ml-16' : 'ml-64'}`}>
         <main className="p-6">{children}</main>
       </div>
     </div>
