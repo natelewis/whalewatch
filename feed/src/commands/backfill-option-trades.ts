@@ -101,7 +101,7 @@ function parseCsvLine(line: string): OptionTrade | null {
       timestamp,
       price,
       size,
-      conditions: conditions || '[]',
+      conditions: conditions || '',
       exchange,
     };
   } catch (_error) {
@@ -370,6 +370,16 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
     console.log(chalk.green('✅ Connected to QuestDB'));
   } catch (error) {
     console.error(chalk.red('❌ Failed to connect to QuestDB:'), error);
+    process.exit(1);
+  }
+
+  // Ensure database schema is up to date
+  try {
+    console.log(chalk.cyan('📋 Ensuring database schema is up to date...'));
+    await db.executeSchema();
+    console.log(chalk.green('✅ Database schema verified'));
+  } catch (error) {
+    console.error(chalk.red('❌ Failed to execute database schema:'), error);
     process.exit(1);
   }
 

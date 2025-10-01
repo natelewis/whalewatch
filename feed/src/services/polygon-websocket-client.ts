@@ -276,6 +276,7 @@ export class WebSocketService {
         for (const trade of tradesToInsert) {
           await InsertIfNotExistsService.insertOptionTradeIfNotExists(trade);
         }
+
         console.log(`Inserted ${tradesToInsert.length} option trades.`);
         this.lastFlushCompleted = new Date();
         success = true;
