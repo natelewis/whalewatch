@@ -1,23 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { ChartQueryParams } from '../types/index';
+import { ChartQueryParams, AGGREGATION_INTERVALS, AggregationInterval } from '../types/index';
 import { logger } from '../utils/logger';
 import { alpacaService } from '../services/alpacaService';
 
 const router = Router();
-
-/**
- * Supported aggregation intervals in minutes
- */
-export const AGGREGATION_INTERVALS = {
-  '1m': 1,
-  '15m': 15,
-  '30m': 30,
-  '1h': 60,
-
-  '1d': 1440,
-} as const;
-
-export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
 
 /**
  * Get the interval in minutes for a given aggregation interval

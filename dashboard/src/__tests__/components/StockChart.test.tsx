@@ -398,7 +398,13 @@ describe('StockChart', () => {
 
     expect(localStorageMock.getItem).toHaveBeenCalledWith('chartTimeframe');
     // The component uses the saved timeframe from localStorage
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '15m', 1000, undefined, 'past');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
+      'TSLA',
+      '15m',
+      1000,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+      'past'
+    );
   });
 
   it('saves timeframe to localStorage when changed', () => {
@@ -443,7 +449,13 @@ describe('StockChart', () => {
 
     expect(screen.getByRole('heading', { name: 'AAPL' })).toBeInTheDocument();
     // The component loads data on mount with the initial symbol
-    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith('TSLA', '1h', 1000, undefined, 'past');
+    expect(mockUseChartStateManager.actions.loadChartData).toHaveBeenCalledWith(
+      'TSLA',
+      '1h',
+      1000,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+      'past'
+    );
   });
 
   it('displays WebSocket connection indicator when connected', () => {

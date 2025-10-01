@@ -100,8 +100,6 @@ describe('Types Directory Coverage', () => {
       expect(content).toContain("'15m': 15");
       expect(content).toContain("'30m': 30");
       expect(content).toContain("'1h': 60");
-      expect(content).toContain("'2h': 120");
-      expect(content).toContain("'4h': 240");
       expect(content).toContain("'1d': 1440");
     });
 
