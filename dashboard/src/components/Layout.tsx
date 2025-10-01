@@ -89,10 +89,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                       isActive(item.href)
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                    } ${isCollapsed ? 'justify-center py-2' : 'px-3 py-2'}`}
+                    } ${isCollapsed ? 'justify-center items-center py-2' : 'px-3 py-2'}`}
                     title={isCollapsed ? item.name : undefined}
                   >
-                    <Icon size={isCollapsed ? 20 : 20} className={isCollapsed ? '' : 'mr-3'} />
+                    <Icon size={isCollapsed ? 20 : 20} className={isCollapsed ? '-ml-px' : 'mr-3'} />
                     {!isCollapsed && item.name}
                   </Link>
 
@@ -140,14 +140,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <button
                   onClick={toggleTheme}
                   className={`flex items-center rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ${
-                    isCollapsed ? 'justify-center w-full py-1' : 'px-3 py-2'
+                    isCollapsed ? 'justify-center items-center w-full py-1' : 'px-3 py-2'
                   }`}
                   title={isCollapsed ? (isDark ? 'Switch to Light' : 'Switch to Dark') : undefined}
                 >
                   {isDark ? (
-                    <Sun size={isCollapsed ? 16 : 16} className={isCollapsed ? '' : 'mr-2'} />
+                    <Sun size={isCollapsed ? 16 : 16} className={isCollapsed ? '-ml-px' : 'mr-2'} />
                   ) : (
-                    <Moon size={isCollapsed ? 16 : 16} className={isCollapsed ? '' : 'mr-2'} />
+                    <Moon size={isCollapsed ? 16 : 16} className={isCollapsed ? '-ml-px' : 'mr-2'} />
                   )}
                   {!isCollapsed && (isDark ? 'Light' : 'Dark')}
                 </button>
@@ -164,11 +164,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <button
                   onClick={logout}
                   className={`flex items-center rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ${
-                    isCollapsed ? 'justify-center w-full py-1' : 'px-3 py-2'
+                    isCollapsed ? 'justify-center items-center w-full py-1' : 'px-3 py-2'
                   }`}
                   title={isCollapsed ? 'Logout' : undefined}
                 >
-                  <LogOut size={isCollapsed ? 16 : 16} className={isCollapsed ? '' : 'mr-2'} />
+                  <LogOut size={isCollapsed ? 16 : 16} className={isCollapsed ? '-ml-px' : 'mr-2'} />
                   {!isCollapsed && 'Logout'}
                 </button>
 
