@@ -35,13 +35,29 @@ beforeAll(async () => {
 beforeEach(async () => {
   // Reset circuit breaker before each test to prevent OPEN state from previous tests
   databaseCircuitBreaker.reset();
-  
+
   // Create test tables if they don't exist
   await createTestTables();
-  // Don't clean up data - tables are dropped after each test anyway
+});
+
+afterEach(async () => {
+  // Clean up test tables after each test to prevent data persistence
+  try {
+    await dropAllTestTables();
+  } catch (error) {
+    console.error('Error cleaning up test tables after test:', error);
+  }
 });
 
 afterAll(async () => {
+  // Clean up all test tables before disconnecting
+  try {
+    await dropAllTestTables();
+    console.log('Cleaned up all test tables');
+  } catch (error) {
+    console.error('Error cleaning up test tables:', error);
+  }
+
   // Restore console methods
   console.log = originalConsoleLog;
   console.warn = originalConsoleWarn;
