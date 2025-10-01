@@ -4,9 +4,7 @@ import * as path from 'path';
 import {
   QuestDBStockTrade,
   QuestDBStockAggregate,
-  QuestDBOptionContract,
   QuestDBOptionTrade,
-  QuestDBOptionQuote,
   QuestDBQueryParams,
   QuestDBResponse,
   QuestDBConfig,
@@ -308,27 +306,6 @@ export class QuestDBService {
   }
 
   /**
-   * Get option contracts for an underlying symbol
-   */
-  async getOptionContracts(
-    underlying_ticker: string,
-    params: QuestDBQueryParams = {}
-  ): Promise<QuestDBOptionContract[]> {
-    const { limit = 1000, order_by = 'expiration_date', order_direction = 'ASC' } = params;
-
-    // First check if the table exists
-    await this.ensureTableExists('option_contracts');
-
-    const query = `SELECT * FROM option_contracts 
-                   WHERE underlying_ticker = '${underlying_ticker.toUpperCase()}' 
-                   ORDER BY ${order_by} ${order_direction} 
-                   LIMIT ${limit}`;
-
-    const response = await this.executeQuery<QuestDBOptionContract>(query);
-    return this.convertArrayToObject<QuestDBOptionContract>(response.dataset, response.columns);
-  }
-
-  /**
    * Get option trades for a ticker or underlying symbol within a time range
    */
   async getOptionTrades(
@@ -363,60 +340,6 @@ export class QuestDBService {
 
     const response = await this.executeQuery<QuestDBOptionTrade>(query);
     return this.convertArrayToObject<QuestDBOptionTrade>(response.dataset, response.columns);
-  }
-
-  /**
-   * Get option quotes for a ticker or underlying symbol within a time range
-   */
-  async getOptionQuotes(
-    ticker?: string,
-    underlying_ticker?: string,
-    params: QuestDBQueryParams = {}
-  ): Promise<QuestDBOptionQuote[]> {
-    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
-
-    // First check if the table exists
-    await this.ensureTableExists('option_quotes');
-
-    let query = 'SELECT * FROM option_quotes WHERE 1=1';
-
-    if (ticker) {
-      query += ` AND ticker = '${ticker.toUpperCase()}'`;
-    }
-
-    if (underlying_ticker) {
-      query += ` AND underlying_ticker = '${underlying_ticker.toUpperCase()}'`;
-    }
-
-    if (start_time) {
-      query += ` AND timestamp >= '${start_time}'`;
-    }
-
-    if (end_time) {
-      query += ` AND timestamp <= '${end_time}'`;
-    }
-
-    query += ` ORDER BY ${order_by} ${order_direction} LIMIT ${limit}`;
-
-    const response = await this.executeQuery<QuestDBOptionQuote>(query);
-    return this.convertArrayToObject<QuestDBOptionQuote>(response.dataset, response.columns);
-  }
-
-  /**
-   * Get the latest trade timestamp for a symbol
-   */
-  async getLatestStockTradeTimestamp(symbol: string): Promise<string | null> {
-    // First check if the table exists
-    await this.ensureTableExists('stock_trades');
-
-    const result = await getMaxDate(this, {
-      ticker: symbol,
-      tickerField: 'symbol',
-      dateField: 'timestamp',
-      table: 'stock_trades',
-    });
-
-    return result ? result.toISOString() : null;
   }
 
   /**
@@ -458,9 +381,7 @@ export class QuestDBService {
   async getDatabaseStats(): Promise<{
     stock_trades_count: number;
     stock_aggregates_count: number;
-    option_contracts_count: number;
     option_trades_count: number;
-    option_quotes_count: number;
   }> {
     try {
       // Get all available tables first
@@ -473,17 +394,13 @@ export class QuestDBService {
       const stats = {
         stock_trades_count: 0,
         stock_aggregates_count: 0,
-        option_contracts_count: 0,
         option_trades_count: 0,
-        option_quotes_count: 0,
       };
 
       const tableQueries = [
         { table: 'stock_trades', key: 'stock_trades_count' },
         { table: 'stock_aggregates', key: 'stock_aggregates_count' },
-        { table: 'option_contracts', key: 'option_contracts_count' },
         { table: 'option_trades', key: 'option_trades_count' },
-        { table: 'option_quotes', key: 'option_quotes_count' },
       ];
 
       for (const { table, key } of tableQueries) {

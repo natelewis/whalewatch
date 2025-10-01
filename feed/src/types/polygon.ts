@@ -1,5 +1,4 @@
 // Polygon.io API response types
-import { ContractType } from '@whalewatch/shared';
 
 export interface PolygonTrade {
   p: number; // price
@@ -31,50 +30,6 @@ export interface PolygonAggregate {
   l: number; // low
   t: number; // timestamp (milliseconds)
   n: number; // number of transactions
-}
-
-export interface PolygonOptionContract {
-  contract_type: ContractType;
-  exercise_style: 'american' | 'european';
-  expiration_date: string; // YYYY-MM-DD
-  shares_per_contract: number;
-  strike_price: number;
-  ticker: string;
-  underlying_ticker: string;
-}
-
-export interface PolygonOptionContractsResponse {
-  results: PolygonOptionContract[];
-  status: string;
-  request_id: string;
-  next_url?: string;
-}
-
-export interface PolygonOptionTrade {
-  conditions: number[];
-  exchange: number;
-  price: number;
-  sip_timestamp: number; // nanoseconds
-  size: number;
-  participant_timestamp: number; // nanoseconds
-}
-
-export interface PolygonOptionQuote {
-  ask_exchange: number;
-  ask_price: number;
-  ask_size: number;
-  bid_exchange: number;
-  bid_price: number;
-  bid_size: number;
-  sequence_number: number;
-  sip_timestamp: number; // nanoseconds
-}
-
-export interface PolygonOptionQuotesResponse {
-  results: PolygonOptionQuote[];
-  status: string;
-  request_id: string;
-  next_url?: string;
 }
 
 export interface PolygonTradesResponse {

@@ -1,6 +1,5 @@
 import { db } from '../db/connection';
 import { AlpacaClient } from './alpaca-client';
-import { OptionIngestionService } from './option-ingestion';
 import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { StockAggregate } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
@@ -10,14 +9,12 @@ import { getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
 
 export class StockIngestionService {
   private alpacaClient: AlpacaClient;
-  private optionIngestionService: OptionIngestionService;
   private isIngesting = false;
   private pollingInterval: NodeJS.Timeout | null = null;
   private questdbAdapter: QuestDBServiceInterface;
 
   constructor() {
     this.alpacaClient = new AlpacaClient();
-    this.optionIngestionService = new OptionIngestionService();
     // Create adapter for the feed's database connection
     this.questdbAdapter = {
       executeQuery: async (query: string) => {

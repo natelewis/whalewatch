@@ -25,23 +25,6 @@ CREATE TABLE IF NOT EXISTS stock_aggregates (
     transaction_count LONG
 ) TIMESTAMP(timestamp) PARTITION BY DAY;
 
--- Option contracts
-CREATE TABLE IF NOT EXISTS option_contracts (
-    ticker STRING,
-    contract_type STRING,
-    exercise_style STRING,
-    expiration_date TIMESTAMP,
-    shares_per_contract LONG,
-    strike_price DOUBLE,
-    underlying_ticker SYMBOL
-) TIMESTAMP(expiration_date) PARTITION BY DAY;
-
--- Option contract index - tracks which days we have synced option contracts
-CREATE TABLE IF NOT EXISTS option_contracts_index (
-    underlying_ticker SYMBOL,
-    as_of TIMESTAMP
-) TIMESTAMP(as_of) PARTITION BY DAY;
-
 -- Option trades
 CREATE TABLE IF NOT EXISTS option_trades (
     ticker SYMBOL,
@@ -53,16 +36,3 @@ CREATE TABLE IF NOT EXISTS option_trades (
     exchange LONG
 ) TIMESTAMP(timestamp) PARTITION BY DAY;
 
--- Option quotes
-CREATE TABLE IF NOT EXISTS option_quotes (
-    ticker SYMBOL,
-    underlying_ticker SYMBOL,
-    timestamp TIMESTAMP,
-    bid_price DOUBLE,
-    bid_size DOUBLE,
-    ask_price DOUBLE,
-    ask_size DOUBLE,
-    bid_exchange LONG,
-    ask_exchange LONG,
-    sequence_number LONG
-) TIMESTAMP(timestamp) PARTITION BY DAY;

@@ -1,18 +1,15 @@
 import { db } from '../db/connection';
-import { OptionIngestionService } from './option-ingestion';
 import { StockIngestionService } from './stock-ingestion';
 import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { config } from '../config';
 import { StockAggregate } from '../types/database';
-import { getMinDate, getMaxDate, QuestDBServiceInterface, normalizeToMidnight } from '@whalewatch/shared';
+import { getMinDate, getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
 
 export class BackfillService {
-  private optionIngestionService: OptionIngestionService;
   private stockIngestionService: StockIngestionService;
   private questdbAdapter: QuestDBServiceInterface;
 
   constructor() {
-    this.optionIngestionService = new OptionIngestionService();
     this.stockIngestionService = new StockIngestionService();
     // Create adapter for the feed's database connection
     this.questdbAdapter = {
@@ -195,10 +192,6 @@ export class BackfillService {
 
       const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
 
-      // Also backfill option contracts and trades for this ticker
-      console.log(`Backfilling option contractsdata for ${ticker}...`);
-      await this.optionIngestionService.processOptionContractsBackfill(ticker, backfillStart, backfillEnd);
-
       const duration = Date.now() - startTime;
       console.log(
         `Backfill completed for ${ticker} in ${this.formatDuration(duration)} - ${itemsProcessed} items processed`
@@ -243,10 +236,6 @@ export class BackfillService {
           // Backfill the data (insert if not exists will handle duplicates)
           const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
           totalItemsProcessed += itemsProcessed;
-
-          // Also backfill option contracts and trades for this ticker
-          console.log(`Backfilling option contracts for ${ticker}...`);
-          await this.optionIngestionService.processOptionContractsBackfill(ticker, backfillStart, backfillEnd);
         } catch (error) {
           console.error(`Error backfilling ${ticker}:`, error);
         }
@@ -309,8 +298,8 @@ export class BackfillService {
         try {
           const tickerStartTime = Date.now();
 
-          // Check stocks and options independently
-          await this.backfillStockAggregatesAndOptions(ticker, endDate);
+          // Check stocks independently
+          await this.backfillStockAggregates(ticker, endDate);
           totalItemsProcessed += 1; // Count ticker as processed
 
           const tickerDuration = Date.now() - tickerStartTime;
@@ -343,7 +332,7 @@ export class BackfillService {
       await db.executeSchema();
 
       // Use the new independent check logic
-      await this.backfillStockAggregatesAndOptions(ticker, endDate);
+      await this.backfillStockAggregates(ticker, endDate);
 
       const duration = Date.now() - startTime;
       console.log(`Backfill completed for ${ticker} in ${this.formatDuration(duration)}`);
@@ -412,67 +401,6 @@ export class BackfillService {
         console.error(`Error backfilling stocks for ${ticker}:`, error);
       }
     }
-  }
-
-  private async backfillOptionContracts(ticker: string, endDate: Date): Promise<void> {
-    console.log(
-      `Checking option contracts backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`
-    );
-
-    // Check options independently
-    const oldestOptionAsOfDate = await this.optionIngestionService.getOldestAsOfDate(ticker);
-    let optionsNeedBackfill = false;
-    let optionBackfillStart: Date | null = null;
-
-    if (oldestOptionAsOfDate) {
-      if (oldestOptionAsOfDate <= endDate) {
-        console.log(
-          `${ticker} options contracts already have data through ${
-            endDate.toISOString().split('T')[0]
-          } (oldest as_of: ${oldestOptionAsOfDate.toISOString().split('T')[0]}), skipping option backfill`
-        );
-      } else {
-        optionsNeedBackfill = true;
-        // Start from the oldest as_of date and work backwards to the target date
-        optionBackfillStart = normalizeToMidnight(new Date(oldestOptionAsOfDate));
-
-        console.log(
-          `${ticker} options oldest as_of is ${
-            oldestOptionAsOfDate.toISOString().split('T')[0]
-          }, backfilling options from ${optionBackfillStart.toISOString().split('T')[0]} TO ${
-            endDate.toISOString().split('T')[0]
-          }`
-        );
-      }
-    } else {
-      optionsNeedBackfill = true;
-      // If no existing option contracts, start from today and work backwards to the target date
-      optionBackfillStart = normalizeToMidnight(new Date());
-      console.log(
-        `${ticker} has no existing option contracts, backfilling options from today TO: ${
-          endDate.toISOString().split('T')[0]
-        }`
-      );
-    }
-
-    // Backfill options if needed
-    if (optionsNeedBackfill && optionBackfillStart) {
-      try {
-        console.log(`Backfilling option contracts for ${ticker}...`);
-        await this.optionIngestionService.processOptionContractsBackfill(ticker, optionBackfillStart, endDate);
-        await this.optionIngestionService.backfillOptionTrades(ticker, endDate);
-      } catch (error) {
-        console.error(`Error backfilling options for ${ticker}:`, error);
-      }
-    }
-  }
-
-  private async backfillStockAggregatesAndOptions(ticker: string, endDate: Date): Promise<void> {
-    console.log(`Checking backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`);
-
-    // Backfill stocks and options independently
-    await this.backfillStockAggregates(ticker, endDate);
-    await this.backfillOptionContracts(ticker, endDate);
   }
 
   private async processStockAggregateBackfill(ticker: string, startDate: Date, endDate: Date): Promise<number> {

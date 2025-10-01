@@ -118,64 +118,6 @@ export interface AlpacaBar {
 }
 
 // Used by dashboard
-export interface AlpacaOptionsTrade {
-  id: string;
-  symbol: string;
-  timestamp: string;
-  price: number;
-  size: number;
-  side: 'buy' | 'sell' | 'unknown';
-  conditions: string[];
-  exchange: string;
-  tape: string;
-  contract: {
-    symbol: string;
-    underlying_symbol: string;
-    exercise_style: string;
-    expiration_date: string;
-    strike_price: number;
-    option_type: ContractType;
-  };
-  // Price history for gain calculation (only available if real data provides it)
-  previous_price?: number;
-  open_price?: number;
-  gain_percentage?: number;
-}
-
-// Frontend-optimized option trade with parsed ticker data
-export interface FrontendOptionTrade {
-  ticker: string;
-  underlying_ticker: string;
-  timestamp: string;
-  price: number;
-  size: number;
-  conditions: string;
-  // Parsed from ticker
-  option_type: 'call' | 'put';
-  strike_price: number;
-  expiration_date: string; // YYYY-MM-DD format
-  // Aggregated fields
-  repeat_count: number; // Number of identical trades (same ticker + size + strike_price)
-  volume: number; // Total volume for this contract (sum of sizes)
-}
-
-// Used by feed and dashboard
-export type ContractType = 'call' | 'put';
-
-// Used by dashboard
-export interface AlpacaOptionsContract {
-  cfi: string;
-  contract_type: ContractType;
-  exercise_style: string;
-  expiration_date: string;
-  primary_exchange: string;
-  shares_per_contract: number;
-  strike_price: number;
-  ticker: string;
-  underlying_ticker: string;
-}
-
-// Used by dashboard
 export interface CreateOrderRequest {
   symbol: string;
   qty: number;
@@ -290,8 +232,6 @@ export interface JWTPayload {
 // ============================================================================
 
 export type WebSocketMessageData =
-  | AlpacaOptionsTrade
-  | AlpacaOptionsContract
   | { symbol: string; price: number; timestamp: string }
   | { symbol: string; bar: AlpacaBar }
   | { error: string; message?: string }
@@ -302,8 +242,6 @@ export type WebSocketMessageData =
 
 export interface WebSocketMessage {
   type:
-    | 'options_whale'
-    | 'options_contract'
     | 'account_quote'
     | 'chart_quote'
     | 'error'

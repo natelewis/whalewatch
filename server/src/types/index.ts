@@ -60,17 +60,6 @@ export interface QuestDBStockAggregate {
   transaction_count: number;
 }
 
-export interface QuestDBOptionContract {
-  ticker: string;
-  contract_type: string; // Keep as string since QuestDB data might have other values
-  exercise_style: string;
-  expiration_date: string; // ISO timestamp from QuestDB
-  shares_per_contract: number;
-  strike_price: number;
-  underlying_ticker: string;
-  as_of: string; // ISO timestamp from QuestDB
-}
-
 export interface QuestDBOptionTrade {
   ticker: string;
   underlying_ticker: string;
@@ -79,19 +68,6 @@ export interface QuestDBOptionTrade {
   size: number;
   conditions: string;
   exchange: number;
-}
-
-export interface QuestDBOptionQuote {
-  ticker: string;
-  underlying_ticker: string;
-  timestamp: string; // ISO timestamp
-  bid_price: number;
-  bid_size: number;
-  ask_price: number;
-  ask_size: number;
-  bid_exchange: number;
-  ask_exchange: number;
-  sequence_number: number;
 }
 
 // Query parameters for QuestDB queries
@@ -120,19 +96,16 @@ export interface QuestDBResponse<T> {
 
 // WebSocket message types for real-time data
 export interface QuestDBWebSocketMessage {
-  type: 'stock_trade' | 'option_trade' | 'option_quote' | 'stock_aggregate' | 'error' | 'connected' | 'disconnected';
-  data: QuestDBStockTrade | QuestDBOptionTrade | QuestDBOptionQuote | QuestDBStockAggregate | string;
+  type: 'stock_trade' | 'stock_aggregate' | 'error' | 'connected' | 'disconnected';
+  data: QuestDBStockTrade | QuestDBStockAggregate | string;
   timestamp: string;
   symbol?: string;
-  underlying_ticker?: string;
 }
 
 // Subscription types for WebSocket
 export interface QuestDBSubscription {
-  type: 'stock_trades' | 'option_trades' | 'option_quotes' | 'stock_aggregates';
+  type: 'stock_trades' | 'stock_aggregates';
   symbol?: string | undefined;
-  underlying_ticker?: string | undefined;
-  ticker?: string | undefined;
   filters?:
     | {
         min_price?: number | undefined;

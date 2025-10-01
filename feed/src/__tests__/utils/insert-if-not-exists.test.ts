@@ -1,6 +1,6 @@
 // Test file for InsertIfNotExistsService with real database operations
 import { InsertIfNotExistsService } from '../../utils/insert-if-not-exists';
-import { StockAggregate, OptionContract, OptionTrade, OptionQuote } from '../../types/database';
+import { StockAggregate } from '../../types/database';
 import { createTestTable } from '../test-utils/schema-helper';
 import { db } from '../../db/connection';
 import { getTableName } from '../test-utils/config';
@@ -54,51 +54,51 @@ describe('InsertIfNotExistsService', () => {
         getTableName('stock_aggregates')
       );
 
-      // Act - Try to insert the same record again with different values
+      // Act - Try to insert the same record again
       const duplicateAggregate: StockAggregate = {
         symbol: 'MSFT',
         timestamp: new Date('2024-01-01T10:00:00Z'), // Same timestamp
-        open: 210.0, // Different values
-        high: 215.0,
-        low: 209.0,
-        close: 213.0,
-        volume: 2500000,
-        vwap: 212.0,
-        transaction_count: 12000,
+        open: 200.0,
+        high: 205.0,
+        low: 199.0,
+        close: 203.0,
+        volume: 2000000,
+        vwap: 202.0,
+        transaction_count: 10000,
       };
 
-      // Assert - Should complete without error (skips insertion)
+      // Assert - Should not throw and complete without error
       await expect(
         InsertIfNotExistsService.insertStockAggregateIfNotExists(duplicateAggregate, getTableName('stock_aggregates'))
       ).resolves.not.toThrow();
     });
 
-    it('should handle multiple different timestamps for same symbol', async () => {
+    it('should insert multiple stock aggregates', async () => {
       // Arrange - Create table using schema helper
       await createTestTable(getTableName('stock_aggregates'), db);
 
       const aggregate1: StockAggregate = {
         symbol: 'GOOGL',
         timestamp: new Date('2024-01-01T10:00:00Z'),
-        open: 100.0,
-        high: 105.0,
-        low: 99.0,
-        close: 103.0,
-        volume: 1000000,
-        vwap: 102.0,
-        transaction_count: 5000,
+        open: 150.0,
+        high: 155.0,
+        low: 149.0,
+        close: 153.0,
+        volume: 1500000,
+        vwap: 152.0,
+        transaction_count: 7500,
       };
 
       const aggregate2: StockAggregate = {
         symbol: 'GOOGL',
-        timestamp: new Date('2024-01-01T11:00:00Z'), // Different timestamp
-        open: 103.0,
-        high: 108.0,
-        low: 102.0,
-        close: 106.0,
-        volume: 1200000,
-        vwap: 105.0,
-        transaction_count: 6000,
+        timestamp: new Date('2024-01-01T11:00:00Z'),
+        open: 153.0,
+        high: 158.0,
+        low: 152.0,
+        close: 156.0,
+        volume: 1800000,
+        vwap: 155.0,
+        transaction_count: 9000,
       };
 
       // Act & Assert - Test that both insert methods complete without error
@@ -112,270 +112,11 @@ describe('InsertIfNotExistsService', () => {
     });
   });
 
-  describe('insertOptionContractIfNotExists', () => {
-    it('should insert option contract record', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_contracts'), db);
-
-      const contract: OptionContract = {
-        ticker: 'AAPL240315C00150000',
-        contract_type: 'call',
-        exercise_style: 'american',
-        expiration_date: new Date('2024-03-15T00:00:00Z'),
-        shares_per_contract: 100,
-        strike_price: 150.0,
-        underlying_ticker: 'AAPL',
-      };
-
-      // Act & Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionContractIfNotExists(contract, getTableName('option_contracts'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should insert multiple option contracts', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_contracts'), db);
-
-      const contract1: OptionContract = {
-        ticker: 'AAPL240315C00150000',
-        contract_type: 'call',
-        exercise_style: 'american',
-        expiration_date: new Date('2024-03-15T00:00:00Z'),
-        shares_per_contract: 100,
-        strike_price: 150.0,
-        underlying_ticker: 'AAPL',
-      };
-
-      const contract2: OptionContract = {
-        ticker: 'AAPL240315P00150000',
-        contract_type: 'put',
-        exercise_style: 'american',
-        expiration_date: new Date('2024-03-15T00:00:00Z'),
-        shares_per_contract: 100,
-        strike_price: 150.0,
-        underlying_ticker: 'AAPL',
-      };
-
-      // Act & Assert - Test that both insert methods complete without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionContractIfNotExists(contract1, getTableName('option_contracts'))
-      ).resolves.not.toThrow();
-      await expect(
-        InsertIfNotExistsService.insertOptionContractIfNotExists(contract2, getTableName('option_contracts'))
-      ).resolves.not.toThrow();
-    });
-  });
-
-  describe('insertOptionTradeIfNotExists', () => {
-    it('should insert option trade record', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_trades'), db);
-
-      const trade: OptionTrade = {
-        ticker: 'AAPL240315C00150000',
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        price: 5.5,
-        size: 10,
-        conditions: '["@", "T"]',
-        exchange: 1,
-      };
-
-      // Act & Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trade, getTableName('option_trades'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should insert multiple option trades', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_trades'), db);
-
-      const trade1: OptionTrade = {
-        ticker: 'AAPL240315C00150000',
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        price: 5.5,
-        size: 10,
-        conditions: '["@", "T"]',
-        exchange: 1,
-      };
-
-      const trade2: OptionTrade = {
-        ticker: 'AAPL240315C00150000',
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:01:00Z'),
-        price: 5.75,
-        size: 5,
-        conditions: '["@", "T"]',
-        exchange: 1,
-      };
-
-      // Act & Assert - Test that both insert methods complete without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trade1, getTableName('option_trades'))
-      ).resolves.not.toThrow();
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trade2, getTableName('option_trades'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should update existing option trade record', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_trades'), db);
-
-      // Insert initial trade
-      const initialTrade: OptionTrade = {
-        ticker: 'MSFT240315C00200000',
-        underlying_ticker: 'MSFT',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        price: 10.5,
-        size: 20,
-        conditions: '["@", "T"]',
-        exchange: 2,
-      };
-
-      await InsertIfNotExistsService.insertOptionTradeIfNotExists(initialTrade, getTableName('option_trades'));
-
-      // Act - Update with new values using exact same identifiers
-      const updatedTrade: OptionTrade = {
-        ticker: 'MSFT240315C00200000',
-        underlying_ticker: 'MSFT',
-        timestamp: new Date('2024-01-01T10:00:00Z'), // Same timestamp
-        price: 12.0,
-        size: 25,
-        conditions: '["@", "T", "I"]',
-        exchange: 3,
-      };
-
-      // Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(updatedTrade, getTableName('option_trades'))
-      ).resolves.not.toThrow();
-    });
-  });
-
-  describe('insertOptionQuoteIfNotExists', () => {
-    it('should insert option quote record', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_quotes'), db);
-
-      const quote: OptionQuote = {
-        ticker: 'AAPL240315C00150000',
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        bid_price: 5.25,
-        bid_size: 100,
-        ask_price: 5.75,
-        ask_size: 100,
-        bid_exchange: 1,
-        ask_exchange: 1,
-        sequence_number: 12345,
-      };
-
-      // Act & Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote, getTableName('option_quotes'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should update existing option quote record', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_quotes'), db);
-
-      // Insert initial quote
-      const initialQuote: OptionQuote = {
-        ticker: 'GOOGL240315C00300000',
-        underlying_ticker: 'GOOGL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        bid_price: 15.25,
-        bid_size: 200,
-        ask_price: 15.75,
-        ask_size: 200,
-        bid_exchange: 2,
-        ask_exchange: 2,
-        sequence_number: 98765,
-      };
-
-      await InsertIfNotExistsService.insertOptionQuoteIfNotExists(initialQuote, getTableName('option_quotes'));
-
-      // Act - Update with new values using exact same identifiers
-      const updatedQuote: OptionQuote = {
-        ticker: 'GOOGL240315C00300000',
-        underlying_ticker: 'GOOGL',
-        timestamp: new Date('2024-01-01T10:00:00Z'), // Same timestamp
-        bid_price: 16.0,
-        bid_size: 300,
-        ask_price: 16.5,
-        ask_size: 300,
-        bid_exchange: 3,
-        ask_exchange: 3,
-        sequence_number: 98765, // Same sequence number
-      };
-
-      // Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionQuoteIfNotExists(updatedQuote, getTableName('option_quotes'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should insert multiple option quotes', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_quotes'), db);
-
-      const quote1: OptionQuote = {
-        ticker: 'TSLA240315C00250000',
-        underlying_ticker: 'TSLA',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        bid_price: 25.5,
-        bid_size: 100,
-        ask_price: 26.0,
-        ask_size: 100,
-        bid_exchange: 1,
-        ask_exchange: 1,
-        sequence_number: 11111,
-      };
-
-      const quote2: OptionQuote = {
-        ticker: 'TSLA240315C00250000',
-        underlying_ticker: 'TSLA',
-        timestamp: new Date('2024-01-01T10:01:00Z'),
-        bid_price: 25.75,
-        bid_size: 150,
-        ask_price: 26.25,
-        ask_size: 150,
-        bid_exchange: 1,
-        ask_exchange: 1,
-        sequence_number: 11112,
-      };
-
-      // Act & Assert - Test that both insert methods complete without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote1, getTableName('option_quotes'))
-      ).resolves.not.toThrow();
-      await expect(
-        InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote2, getTableName('option_quotes'))
-      ).resolves.not.toThrow();
-    });
-  });
-
   describe('error handling', () => {
     it('should handle database connection errors gracefully for stock aggregates', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('stock_aggregates'), db);
-
-      // Arrange - Invalid data that should cause an error
-      const invalidAggregate = {
-        symbol: 'AAPL',
+      // Arrange
+      const aggregate: StockAggregate = {
+        symbol: 'ERROR',
         timestamp: new Date('2024-01-01T10:00:00Z'),
         open: 100.0,
         high: 105.0,
@@ -384,76 +125,19 @@ describe('InsertIfNotExistsService', () => {
         volume: 1000000,
         vwap: 102.0,
         transaction_count: 5000,
-      } as StockAggregate;
-
-      // Act & Assert - Use a non-existent table to trigger an error
-      await expect(
-        InsertIfNotExistsService.insertStockAggregateIfNotExists(invalidAggregate, 'non_existent_table')
-      ).rejects.toThrow();
-    });
-
-    it('should handle database connection errors gracefully for option contracts', async () => {
-      // Arrange
-      const contract: OptionContract = {
-        ticker: 'AAPL240315C00150000',
-        contract_type: 'call',
-        exercise_style: 'american',
-        expiration_date: new Date('2024-03-15T00:00:00Z'),
-        shares_per_contract: 100,
-        strike_price: 150.0,
-        underlying_ticker: 'AAPL',
       };
 
       // Act & Assert - Use a non-existent table to trigger an error
       await expect(
-        InsertIfNotExistsService.insertOptionContractIfNotExists(contract, 'non_existent_table')
+        InsertIfNotExistsService.insertStockAggregateIfNotExists(aggregate, 'non_existent_table')
       ).rejects.toThrow();
     });
 
-    it('should handle database connection errors gracefully for option trades', async () => {
-      // Arrange
-      const trade: OptionTrade = {
-        ticker: 'AAPL240315C00150000',
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        price: 5.5,
-        size: 10,
-        conditions: '["@", "T"]',
-        exchange: 1,
-      };
-
-      // Act & Assert - Use a non-existent table to trigger an error
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trade, 'non_existent_table')
-      ).rejects.toThrow();
-    });
-
-    it('should handle database connection errors gracefully for option quotes', async () => {
-      // Arrange
-      const quote: OptionQuote = {
-        ticker: 'AAPL240315C00150000',
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        bid_price: 5.25,
-        bid_size: 100,
-        ask_price: 5.75,
-        ask_size: 100,
-        bid_exchange: 1,
-        ask_exchange: 1,
-        sequence_number: 12345,
-      };
-
-      // Act & Assert - Use a non-existent table to trigger an error
-      await expect(
-        InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote, 'non_existent_table')
-      ).rejects.toThrow();
-    });
-
-    it('should handle database connection errors gracefully for batch stock aggregates', async () => {
+    it('should handle batch insert errors gracefully', async () => {
       // Arrange
       const aggregates: StockAggregate[] = [
         {
-          symbol: 'AAPL',
+          symbol: 'ERROR1',
           timestamp: new Date('2024-01-01T10:00:00Z'),
           open: 100.0,
           high: 105.0,
@@ -463,138 +147,23 @@ describe('InsertIfNotExistsService', () => {
           vwap: 102.0,
           transaction_count: 5000,
         },
+        {
+          symbol: 'ERROR2',
+          timestamp: new Date('2024-01-01T11:00:00Z'),
+          open: 200.0,
+          high: 205.0,
+          low: 199.0,
+          close: 203.0,
+          volume: 2000000,
+          vwap: 202.0,
+          transaction_count: 10000,
+        },
       ];
 
       // Act & Assert - Use a non-existent table to trigger an error
       await expect(
         InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(aggregates, 'non_existent_table')
       ).rejects.toThrow();
-    });
-
-    it('should handle database connection errors gracefully for batch option quotes', async () => {
-      // Arrange
-      const quotes: OptionQuote[] = [
-        {
-          ticker: 'AAPL240315C00150000',
-          underlying_ticker: 'AAPL',
-          timestamp: new Date('2024-01-01T10:00:00Z'),
-          bid_price: 5.25,
-          bid_size: 100,
-          ask_price: 5.75,
-          ask_size: 100,
-          bid_exchange: 1,
-          ask_exchange: 1,
-          sequence_number: 12345,
-        },
-      ];
-
-      // Act & Assert - Use a non-existent table to trigger an error
-      await expect(
-        InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(quotes, 'non_existent_table')
-      ).rejects.toThrow();
-    });
-  });
-
-  describe('edge cases and special scenarios', () => {
-    it('should handle trades with special characters in ticker', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_trades'), db);
-
-      const trade: OptionTrade = {
-        ticker: "AAPL'240315C00150000", // Contains single quote
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        price: 5.5,
-        size: 10,
-        conditions: '["@", "T"]',
-        exchange: 1,
-      };
-
-      // Act & Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trade, getTableName('option_trades'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should handle quotes with special characters in ticker', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_quotes'), db);
-
-      const quote: OptionQuote = {
-        ticker: "AAPL'240315C00150000", // Contains single quote
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        bid_price: 5.25,
-        bid_size: 100,
-        ask_price: 5.75,
-        ask_size: 100,
-        bid_exchange: 1,
-        ask_exchange: 1,
-        sequence_number: 12345,
-      };
-
-      // Act & Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionQuoteIfNotExists(quote, getTableName('option_quotes'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should handle trades with special characters in conditions', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_trades'), db);
-
-      const trade: OptionTrade = {
-        ticker: 'AAPL240315C00150000',
-        underlying_ticker: 'AAPL',
-        timestamp: new Date('2024-01-01T10:00:00Z'),
-        price: 5.5,
-        size: 10,
-        conditions: '["@", "T", "I\'m special"]', // Contains single quote
-        exchange: 1,
-      };
-
-      // Act & Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trade, getTableName('option_trades'))
-      ).resolves.not.toThrow();
-    });
-
-    it('should handle batch operations with mixed null and non-null values', async () => {
-      // Arrange - Create table using schema helper
-      await createTestTable(getTableName('option_trades'), db);
-
-      const trades: OptionTrade[] = [
-        {
-          ticker: 'MIXED_TEST1',
-          underlying_ticker: 'AAPL',
-          timestamp: new Date('2024-01-01T10:00:00Z'),
-          price: 0,
-          size: 10,
-          conditions: '["@", "T"]',
-          exchange: 0,
-        },
-        {
-          ticker: 'MIXED_TEST2',
-          underlying_ticker: 'AAPL',
-          timestamp: new Date('2024-01-01T10:01:00Z'),
-          price: 5.5,
-          size: 0,
-          conditions: '',
-          exchange: 1,
-        },
-      ];
-
-      // Act & Assert - Test that the insert method completes without error
-      // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trades[0], getTableName('option_trades'))
-      ).resolves.not.toThrow();
-      await expect(
-        InsertIfNotExistsService.insertOptionTradeIfNotExists(trades[1], getTableName('option_trades'))
-      ).resolves.not.toThrow();
     });
   });
 
@@ -609,7 +178,7 @@ describe('InsertIfNotExistsService', () => {
         // Arrange - Create table using schema helper
         await createTestTable(getTableName('stock_aggregates'), db);
 
-        // Create multiple records
+        // Create multiple aggregates
         const aggregates: StockAggregate[] = [];
         for (let i = 0; i < 5; i++) {
           aggregates.push({
@@ -636,9 +205,9 @@ describe('InsertIfNotExistsService', () => {
         // Arrange - Create table using schema helper
         await createTestTable(getTableName('stock_aggregates'), db);
 
-        // Create 75 records to test batching (BATCH_SIZE is 50)
+        // Create 150 records to test batching (BATCH_SIZE is 50)
         const aggregates: StockAggregate[] = [];
-        for (let i = 0; i < 75; i++) {
+        for (let i = 0; i < 150; i++) {
           aggregates.push({
             symbol: `LARGE${i}`,
             timestamp: new Date(`2024-01-01T${10 + (i % 14)}:00:00Z`), // Use modulo 14 to avoid invalid hours
@@ -656,107 +225,6 @@ describe('InsertIfNotExistsService', () => {
         // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
         await expect(
           InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(aggregates, getTableName('stock_aggregates'))
-        ).resolves.not.toThrow();
-      });
-    });
-
-    describe('batchInsertOptionQuotesIfNotExists', () => {
-      it('should handle empty array gracefully', async () => {
-        // Act & Assert - Should not throw and complete immediately
-        await expect(InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists([])).resolves.not.toThrow();
-      });
-
-      it('should batch insert multiple option quotes', async () => {
-        // Arrange - Create table using schema helper
-        await createTestTable(getTableName('option_quotes'), db);
-
-        // Create multiple quotes
-        const quotes: OptionQuote[] = [];
-        for (let i = 0; i < 5; i++) {
-          quotes.push({
-            ticker: `BATCH_QUOTE${i}`,
-            underlying_ticker: 'AAPL',
-            timestamp: new Date(`2024-01-01T${10 + i}:00:00Z`),
-            bid_price: 5.0 + i,
-            bid_size: 100 + i,
-            ask_price: 5.5 + i,
-            ask_size: 100 + i,
-            bid_exchange: 1,
-            ask_exchange: 1,
-            sequence_number: 30000 + i,
-          });
-        }
-
-        // Act & Assert - Test that the batch insert method completes without error
-        // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(
-          InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(quotes, getTableName('option_quotes'))
-        ).resolves.not.toThrow();
-      });
-
-      it('should handle large batches by processing in chunks', async () => {
-        // Arrange - Create table using schema helper
-        await createTestTable(getTableName('option_quotes'), db);
-
-        // Create 150 records to test batching (BATCH_SIZE is 100)
-        const quotes: OptionQuote[] = [];
-        for (let i = 0; i < 150; i++) {
-          quotes.push({
-            ticker: `LARGE_QUOTE${i}`,
-            underlying_ticker: 'MSFT',
-            timestamp: new Date(`2024-01-01T${10 + (i % 14)}:00:00Z`), // Use modulo 14 to avoid invalid hours
-            bid_price: 10.0 + i,
-            bid_size: 200 + i,
-            ask_price: 10.5 + i,
-            ask_size: 200 + i,
-            bid_exchange: 2,
-            ask_exchange: 2,
-            sequence_number: 40000 + i,
-          });
-        }
-
-        // Act & Assert - Test that the batch insert method completes without error
-        // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(
-          InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(quotes, getTableName('option_quotes'))
-        ).resolves.not.toThrow();
-      });
-
-      it('should handle quotes with null values correctly', async () => {
-        // Arrange - Create table using schema helper
-        await createTestTable(getTableName('option_quotes'), db);
-
-        const quotes: OptionQuote[] = [
-          {
-            ticker: 'NULL_QUOTE1',
-            underlying_ticker: 'AAPL',
-            timestamp: new Date('2024-01-01T10:00:00Z'),
-            bid_price: 0,
-            bid_size: 0,
-            ask_price: 0,
-            ask_size: 0,
-            bid_exchange: 0,
-            ask_exchange: 0,
-            sequence_number: 0,
-          },
-          {
-            ticker: 'NULL_QUOTE2',
-            underlying_ticker: 'AAPL',
-            timestamp: new Date('2024-01-01T10:01:00Z'),
-            bid_price: 5.25,
-            bid_size: 100,
-            ask_price: 5.75,
-            ask_size: 100,
-            bid_exchange: 1,
-            ask_exchange: 1,
-            sequence_number: 12345,
-          },
-        ];
-
-        // Act & Assert - Test that the batch insert method completes without error
-        // Note: Due to QuestDB's eventual consistency, we can't reliably test immediate data visibility
-        await expect(
-          InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists(quotes, getTableName('option_quotes'))
         ).resolves.not.toThrow();
       });
     });
