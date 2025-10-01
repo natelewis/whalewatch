@@ -121,8 +121,8 @@ export const WhaleFinderPage: React.FC = () => {
     }
 
     // Set auto-refresh flag and only show loading spinner for manual refreshes
-    setIsAutoRefresh(isAutoRefresh);
-    if (!isAutoRefresh) {
+    setIsAutoRefresh(preserveScroll);
+    if (!preserveScroll) {
       setIsLoading(true);
     }
     setError(null);
