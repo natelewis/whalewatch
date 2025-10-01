@@ -3,7 +3,6 @@ import { Server } from 'http';
 import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
 import { JWTPayload, WebSocketMessage, WebSocketMessageData } from '../types';
-import { questdbWebSocketService } from '../services/questdbWebSocketService';
 import { alpacaWebSocketService } from '../services/alpacaWebSocketService';
 
 interface AuthenticatedWebSocket extends WebSocket {
@@ -135,18 +134,6 @@ const handleSubscription = (
 
       // Subscribe to QuestDB WebSocket for real-time data
       switch (channel) {
-        case 'options_whale':
-          questdbWebSocketService.subscribe({
-            type: 'option_trades',
-            underlying_ticker: sym,
-          });
-          break;
-        case 'account_quote':
-          questdbWebSocketService.subscribe({
-            type: 'stock_trades',
-            symbol: sym,
-          });
-          break;
         case 'chart_quote':
           console.log(`🔌 [WEBSOCKET] Subscribing to chart data for ${sym}`);
           alpacaWebSocketService.subscribe({
@@ -196,18 +183,6 @@ const handleUnsubscription = (
 
       // Unsubscribe from QuestDB WebSocket
       switch (channel) {
-        case 'options_whale':
-          questdbWebSocketService.unsubscribe({
-            type: 'option_trades',
-            underlying_ticker: sym,
-          });
-          break;
-        case 'account_quote':
-          questdbWebSocketService.unsubscribe({
-            type: 'stock_trades',
-            symbol: sym,
-          });
-          break;
         case 'chart_quote':
           alpacaWebSocketService.unsubscribe({
             type: 'chart_quote',
@@ -228,44 +203,9 @@ const handleUnsubscription = (
 };
 
 const initializeQuestDBConnection = (wss: WebSocketServer): void => {
-  // Start QuestDB streaming for options and account data
-  questdbWebSocketService.startStreaming().catch(error => {
-    console.error('Failed to start QuestDB streaming:', error);
-  });
-
   // Start Alpaca streaming for chart data
   alpacaWebSocketService.startStreaming().catch(error => {
     console.error('Failed to start Alpaca streaming:', error);
-  });
-
-  // Handle real-time option trades from QuestDB
-  questdbWebSocketService.on('option_trade', message => {
-    console.log('✅ Broadcasting option trade from QuestDB:', {
-      symbol: message.symbol,
-      underlying_ticker: message.underlying_ticker,
-      price: message.data.price,
-      size: message.data.size,
-    });
-    broadcastToSubscribers(wss, 'options_whale', message.data, message.underlying_ticker);
-  });
-
-  // Handle real-time stock trades from QuestDB
-  questdbWebSocketService.on('stock_trade', message => {
-    console.log('✅ Broadcasting stock trade from QuestDB:', {
-      symbol: message.symbol,
-      price: message.data.price,
-      size: message.data.size,
-    });
-    broadcastToSubscribers(
-      wss,
-      'account_quote',
-      {
-        symbol: message.symbol,
-        price: message.data.price,
-        timestamp: message.data.timestamp,
-      },
-      message.symbol
-    );
   });
 
   // Handle real-time chart data from Alpaca
@@ -290,25 +230,10 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
     );
   });
 
-  // Handle errors from QuestDB WebSocket
-  questdbWebSocketService.on('error', error => {
-    console.error('❌ QuestDB WebSocket error:', error.message);
-    // Don't broadcast errors to clients, just log them
-  });
-
   // Handle errors from Alpaca WebSocket
   alpacaWebSocketService.on('error', error => {
     console.error('❌ Alpaca WebSocket error:', error.message);
     // Don't broadcast errors to clients, just log them
-  });
-
-  // Handle QuestDB connection events
-  questdbWebSocketService.on('connected', () => {
-    console.log('✅ QuestDB streaming started - options and account data available');
-  });
-
-  questdbWebSocketService.on('disconnected', () => {
-    console.log('❌ QuestDB streaming stopped');
   });
 
   // Handle Alpaca connection events
