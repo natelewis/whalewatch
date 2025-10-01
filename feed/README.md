@@ -37,7 +37,6 @@ A TypeScript-based system for ingesting real-time and historical trade data from
 - `make install` - Install all dependencies
 - `make ingest` - Start real-time data ingestion with hot reloading
 - `make backfill-option-trades` - Download option trade data files
-- `make reset` - Reset all data (with confirmation prompt)
 - `make dev` - Development mode with hot reloading (same as ingest)
 
 ### Data Types

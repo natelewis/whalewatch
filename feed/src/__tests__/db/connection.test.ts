@@ -16,13 +16,7 @@ describe('QuestDBConnection', () => {
   afterEach(async () => {
     // Clean up all test tables
     const testTableNames = Object.keys(getAllTestTableSchemas());
-    const additionalTestTables = [
-      'test_connection_table',
-      'test_error_table',
-      'test_bulk_table',
-      'test_schema_table',
-      'test_reset_table',
-    ];
+    const additionalTestTables = ['test_connection_table', 'test_error_table', 'test_bulk_table', 'test_schema_table'];
 
     const allTestTables = [...testTableNames, ...additionalTestTables];
 
@@ -440,75 +434,6 @@ describe('QuestDBConnection', () => {
       // Note: Test tables use DROP + CREATE pattern to ensure schema changes are applied
       // and include PARTITION BY DAY for proper QuestDB functionality
       expect(schema).toContain('PARTITION BY DAY');
-    });
-  });
-
-  describe('resetAllData', () => {
-    beforeEach(async () => {
-      // Connect before each reset test
-      await connection.connect();
-    });
-
-    it('should handle reset when tables do not exist', async () => {
-      // Arrange - Ensure tables don't exist
-      const productionTables = ['option_trades'];
-
-      for (const table of productionTables) {
-        try {
-          await connection.query(`DROP TABLE IF EXISTS ${table}`);
-        } catch (_error) {
-          // Ignore if table doesn't exist
-        }
-      }
-
-      // Act & Assert - Should not throw error
-      await expect(connection.resetAllData()).resolves.not.toThrow();
-
-      // Verify tables are created after reset
-      for (const table of productionTables) {
-        const result = await connection.query(`SELECT COUNT(*) FROM ${table}`);
-        expect(result).toBeDefined();
-        const count = (result as any).dataset[0][0];
-        expect(count).toBe(0);
-      }
-    });
-
-    it('should recreate schema after reset', async () => {
-      // Arrange - Create a table with data
-      await connection.query(`DROP TABLE IF EXISTS stock_aggregates`);
-      await connection.query(`
-        CREATE TABLE stock_aggregates (
-          symbol SYMBOL,
-          timestamp TIMESTAMP,
-          open DOUBLE,
-          high DOUBLE,
-          low DOUBLE,
-          close DOUBLE,
-          volume DOUBLE,
-          vwap DOUBLE,
-          transaction_count LONG
-        ) TIMESTAMP(timestamp) PARTITION BY DAY
-      `);
-
-      const now = new Date().toISOString();
-      await connection.query(`
-        INSERT INTO stock_aggregates 
-        (symbol, timestamp, open, high, low, close, volume, vwap, transaction_count) 
-        VALUES ('TEST', '${now}', 100, 105, 95, 102, 1000, 101, 50)
-      `);
-
-      // Act
-      await connection.resetAllData();
-
-      // Assert - Table should exist with correct schema
-      const result = await connection.query(`SELECT COUNT(*) FROM stock_aggregates`);
-      expect(result).toBeDefined();
-
-      // Verify table structure is correct
-      const columnsResult = await connection.query(`DESCRIBE stock_aggregates`);
-      const columns = (columnsResult as any).dataset;
-      expect(columns).toBeDefined();
-      expect(columns.length).toBeGreaterThan(0);
     });
   });
 });

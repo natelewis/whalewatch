@@ -235,64 +235,6 @@ export class QuestDBConnection {
     }
   }
 
-  async resetAllData(): Promise<void> {
-    const tables = ['option_trades'];
-
-    for (const table of tables) {
-      try {
-        // First, try to get all partitions to ensure complete cleanup
-        const partitions = await this.query(`SELECT * FROM table_partitions('${table}')`);
-        const questResult = partitions as {
-          columns: { name: string; type: string }[];
-          dataset: unknown[][];
-        };
-
-        if (questResult.dataset && questResult.dataset.length > 0) {
-          console.log(`Found ${questResult.dataset.length} partitions in ${table}...`);
-
-          // For tables with timestamp columns, we need to handle active partitions
-          if (table === 'option_trades') {
-            // Insert a dummy record with future timestamp to make current partitions inactive
-            const futureDate = new Date();
-            futureDate.setDate(futureDate.getDate() + 1); // Tomorrow
-            const futureTimestamp = futureDate.toISOString();
-
-            try {
-              if (table === 'option_trades') {
-                await this.query(
-                  `INSERT INTO ${table} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange) VALUES ('DUMMY', 'DUMMY', '${futureTimestamp}', 0, 0, '[]', 0)`
-                );
-              }
-              console.log(`Inserted dummy record with future timestamp to make partitions inactive`);
-            } catch (error) {
-              console.warn(`Failed to insert dummy record for ${table}:`, error);
-            }
-          }
-
-          // Now try to drop each partition
-          for (const partition of questResult.dataset) {
-            const partitionName = partition[2] as string; // name column
-            try {
-              await this.query(`ALTER TABLE ${table} DROP PARTITION LIST '${partitionName}'`);
-              console.log(`Dropped partition ${partitionName} from ${table}`);
-            } catch (error) {
-              console.warn(`Failed to drop partition ${partitionName} from ${table}:`, error);
-            }
-          }
-        }
-      } catch (error) {
-        console.warn(`Failed to get partitions for ${table}:`, error);
-      }
-
-      // Drop the table completely
-      await this.query(`DROP TABLE IF EXISTS ${table}`);
-      console.log(`Dropped table ${table}`);
-    }
-
-    await this.executeSchema();
-    console.log('All data reset and schema recreated');
-  }
-
   getBaseUrl(): string {
     return this.baseUrl;
   }
