@@ -85,11 +85,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div key={item.name} className="relative group">
                   <Link
                     to={item.href}
-                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`flex items-center rounded-md text-sm font-medium transition-colors ${
                       isActive(item.href)
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                    } ${isCollapsed ? 'justify-center' : ''}`}
+                    } ${isCollapsed ? 'justify-center py-2' : 'px-3 py-2'}`}
                     title={isCollapsed ? item.name : undefined}
                   >
                     <Icon size={isCollapsed ? 20 : 20} className={isCollapsed ? '' : 'mr-3'} />
@@ -139,8 +139,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="relative group">
                 <button
                   onClick={toggleTheme}
-                  className={`flex items-center px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ${
-                    isCollapsed ? 'justify-center w-full' : ''
+                  className={`flex items-center rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ${
+                    isCollapsed ? 'justify-center w-full py-1' : 'px-3 py-2'
                   }`}
                   title={isCollapsed ? (isDark ? 'Switch to Light' : 'Switch to Dark') : undefined}
                 >
@@ -163,8 +163,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="relative group">
                 <button
                   onClick={logout}
-                  className={`flex items-center px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ${
-                    isCollapsed ? 'justify-center w-full' : ''
+                  className={`flex items-center rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors ${
+                    isCollapsed ? 'justify-center w-full py-1' : 'px-3 py-2'
                   }`}
                   title={isCollapsed ? 'Logout' : undefined}
                 >
