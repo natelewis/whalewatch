@@ -125,20 +125,11 @@ export class QuestDBWebSocketService extends EventEmitter {
     const now = new Date().toISOString();
 
     try {
-      let newTimestamp: string | undefined = now; // Default to current time
+      const newTimestamp: string | undefined = now; // Default to current time
 
       switch (subscription.type) {
-        case 'stock_trades':
-          await this.pollStockTrades(subscription, lastTimestamp, now);
-          break;
         case 'option_trades':
           await this.pollOptionTrades(subscription, lastTimestamp, now);
-          break;
-        case 'option_quotes':
-          await this.pollOptionQuotes(subscription, lastTimestamp, now);
-          break;
-        case 'stock_aggregates':
-          await this.pollStockAggregates(subscription, lastTimestamp, now);
           break;
         default:
           console.warn(`Unknown subscription type: ${subscription.type}`);
@@ -299,8 +290,7 @@ export class QuestDBWebSocketService extends EventEmitter {
    */
   private async pollStockAggregates(
     subscription: QuestDBSubscription,
-    lastTimestamp: string | undefined,
-    currentTimestamp: string
+    lastTimestamp: string | undefined
   ): Promise<void> {
     if (!subscription.symbol) {
       return;
@@ -309,14 +299,14 @@ export class QuestDBWebSocketService extends EventEmitter {
     try {
       // Get the latest bar from Alpaca (most recent 1-minute bar)
       const bars = await alpacaService.getBars(subscription.symbol, '1m', 1);
-      
+
       if (bars && bars.length > 0) {
         const latestBar = bars[0];
-        
+
         // Check if this is a new bar (not the same as last processed)
         const barTimestamp = latestBar.t;
         const lastProcessedTimestamp = lastTimestamp;
-        
+
         // Only emit if this is a new bar or if we don't have a last timestamp
         if (!lastProcessedTimestamp || barTimestamp !== lastProcessedTimestamp) {
           console.log(`📊 New stock aggregate for ${subscription.symbol}:`, {

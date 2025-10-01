@@ -4,8 +4,6 @@ import {
   AlpacaAccount,
   AlpacaPosition,
   AlpacaActivity,
-  AlpacaOptionsTrade,
-  AlpacaOptionsContract,
   FrontendOptionTrade,
   CreateOrderRequest,
   CreateOrderResponse,
@@ -132,21 +130,6 @@ export const createApiService = (tokenGetter: () => Promise<string | null>) => {
       });
       return response.data;
     },
-
-    async getOptionsContracts(
-      symbol: string,
-      limit: number = 1000
-    ): Promise<{
-      symbol: string;
-      contracts: AlpacaOptionsContract[];
-      total_contracts: number;
-    }> {
-      const response = await api.get(`/api/options/${symbol}/recent`, {
-        params: { limit },
-      });
-      return response.data;
-    },
-
     // Order endpoints
     async createSellOrder(orderData: CreateOrderRequest): Promise<{ message: string; order: CreateOrderResponse }> {
       const response = await api.post('/api/orders/sell', orderData);

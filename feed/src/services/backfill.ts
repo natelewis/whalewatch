@@ -77,7 +77,7 @@ export class BackfillService {
 
       console.log(`Backfilling from ${backfillStart.toISOString()} to ${backfillEnd.toISOString()}`);
 
-      let totalItemsProcessed = 0;
+      const totalItemsProcessed = 0;
 
       // Backfill each ticker
       for (const ticker of config.tickers) {

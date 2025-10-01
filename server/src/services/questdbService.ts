@@ -10,7 +10,6 @@ import {
   QuestDBError,
 } from '../types/index';
 import { logger } from '../utils/logger';
-import { getMaxDate } from '../../../shared/utils/dateUtils';
 
 // Load environment variables from the server directory
 dotenv.config({ path: path.join(__dirname, '../../.env') });

@@ -108,8 +108,12 @@ export class Logger {
 
   databaseOperation(operation: string, query?: string, duration?: number, error?: Error): void {
     const data: Record<string, unknown> = { operation };
-    if (query) data.query = query;
-    if (duration) data.duration = duration;
+    if (query) {
+data.query = query;
+}
+    if (duration) {
+data.duration = duration;
+}
 
     if (error) {
       this.error(`Database ${operation} failed`, data, error);

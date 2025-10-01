@@ -113,8 +113,7 @@ export const WhaleFinderPage: React.FC = () => {
     maxPriceFilter: number,
     repeatMinFilter: number,
     volumeMinFilter: number,
-    preserveScroll: boolean = false,
-    isAutoRefresh: boolean = false
+    preserveScroll: boolean = false
   ) => {
     // Save scroll position before loading if preserving scroll
     if (preserveScroll && scrollContainerRef.current) {
@@ -193,8 +192,8 @@ export const WhaleFinderPage: React.FC = () => {
 
   const formatExpiryWithDays = (expirationDate: string, viewingDate: string): string => {
     // Parse dates as UTC to avoid timezone issues
-    const expiryDate = new Date(expirationDate + 'T00:00:00.000Z');
-    const viewDate = new Date(viewingDate + 'T00:00:00.000Z');
+    const expiryDate = new Date(`${expirationDate}T00:00:00.000Z`);
+    const viewDate = new Date(`${viewingDate}T00:00:00.000Z`);
 
     // Calculate the difference in days
     const timeDiff = expiryDate.getTime() - viewDate.getTime();

@@ -1,7 +1,5 @@
 import { db } from '../db/connection';
 import { AlpacaClient } from './alpaca-client';
-import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
-import { PolygonAggregate } from '../types/polygon';
 import { AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
 import { getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
