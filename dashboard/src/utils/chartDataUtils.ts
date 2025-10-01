@@ -133,63 +133,6 @@ export const calculateXAxisParams = (params: XAxisCalculationParams) => {
 };
 
 /**
- * Calculate the current date/time from viewport indices
- * This represents the center of the current viewport for persistence
- */
-export const calculateCurrentDateTimeFromViewport = (
-  viewStart: number,
-  viewEnd: number,
-  allChartData: CandlestickData[]
-): string | null => {
-  if (!allChartData || allChartData.length === 0) {
-    return null;
-  }
-
-  // Calculate the center index of the viewport
-  const centerIndex = Math.floor((viewStart + viewEnd) / 2);
-
-  // Clamp to valid range
-  const clampedIndex = Math.max(0, Math.min(allChartData.length - 1, centerIndex));
-
-  // Return the timestamp of the center candle
-  return allChartData[clampedIndex]?.timestamp || null;
-};
-
-/**
- * Calculate viewport indices from a target date/time
- * This finds the closest data point and centers the viewport around it
- */
-export const calculateViewportFromDateTime = (
-  targetDateTime: string,
-  allChartData: CandlestickData[],
-  viewportSize: number = CHART_DATA_POINTS
-): { viewStart: number; viewEnd: number } | null => {
-  if (!allChartData || allChartData.length === 0) {
-    return null;
-  }
-
-  // Find the closest data point to the target date/time
-  const targetTime = new Date(targetDateTime).getTime();
-  let closestIndex = 0;
-  let minTimeDiff = Math.abs(new Date(allChartData[0].timestamp).getTime() - targetTime);
-
-  for (let i = 1; i < allChartData.length; i++) {
-    const timeDiff = Math.abs(new Date(allChartData[i].timestamp).getTime() - targetTime);
-    if (timeDiff < minTimeDiff) {
-      minTimeDiff = timeDiff;
-      closestIndex = i;
-    }
-  }
-
-  // Center the viewport around the closest data point
-  const halfViewport = Math.floor(viewportSize / 2);
-  const viewStart = Math.max(0, closestIndex - halfViewport);
-  const viewEnd = Math.min(allChartData.length - 1, viewStart + viewportSize - 1);
-
-  return { viewStart, viewEnd };
-};
-
-/**
  * Create a custom X-axis that properly handles time compression
  * Positions ticks based on data indices to align with candlesticks.
  * Supports optional marker/data-point intervals and visible data.

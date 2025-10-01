@@ -482,11 +482,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
       isLoadingDataRef.current = true;
       setLoadingData(true);
-      chartActions.loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, undefined, 'past').finally(() => {
-        logger.chart.success('Data loading completed for timeframe:', timeframe);
-        isLoadingDataRef.current = false;
-        setLoadingData(false);
-      });
+      chartActions
+        .loadChartData(symbol, timeframe, DEFAULT_CHART_DATA_POINTS, new Date().toISOString(), 'past')
+        .finally(() => {
+          logger.chart.success('Data loading completed for timeframe:', timeframe);
+          isLoadingDataRef.current = false;
+          setLoadingData(false);
+        });
     },
     [symbol, timeframe],
     'Data loading'

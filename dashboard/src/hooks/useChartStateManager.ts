@@ -1,16 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData } from '../types';
 import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
-import {
-  processChartData,
-  isFakeCandle,
-  calculateCurrentDateTimeFromViewport,
-  calculateViewportFromDateTime,
-} from '../utils/chartDataUtils';
+import { processChartData, isFakeCandle } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
 import { clearTimeFormatCache, clearAllChartCaches } from '../utils/memoizedChartUtils';
-import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 import { logger } from '../utils/logger';
 
 // Import types from centralized location
@@ -87,7 +81,6 @@ const DEFAULT_TRANSFORM: ChartTransform = {
   k: 1,
 };
 
-
 /**
  * Consolidated chart state management hook
  * Combines the best patterns from D3StockChart and useChartState
@@ -159,61 +152,25 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
 
   // Viewport actions
   const setCurrentViewStart = useCallback((start: number) => {
-    setState(prev => {
-      const newState = { ...prev, currentViewStart: start };
-
-      // Persist current date/time to localStorage
-      const currentDateTime = calculateCurrentDateTimeFromViewport(start, prev.currentViewEnd, prev.allData);
-      if (currentDateTime) {
-        try {
-          setLocalStorageItem('chartCurrentDateTime', currentDateTime);
-        } catch (error) {
-          console.warn('Failed to save current date/time to localStorage:', error);
-        }
-      }
-
-      return newState;
-    });
+    setState(prev => ({
+      ...prev,
+      currentViewStart: start,
+    }));
   }, []);
 
   const setCurrentViewEnd = useCallback((end: number) => {
-    setState(prev => {
-      const newState = { ...prev, currentViewEnd: end };
-
-      // Persist current date/time to localStorage
-      const currentDateTime = calculateCurrentDateTimeFromViewport(prev.currentViewStart, end, prev.allData);
-      if (currentDateTime) {
-        try {
-          setLocalStorageItem('chartCurrentDateTime', currentDateTime);
-        } catch (error) {
-          console.warn('Failed to save current date/time to localStorage:', error);
-        }
-      }
-
-      return newState;
-    });
+    setState(prev => ({
+      ...prev,
+      currentViewEnd: end,
+    }));
   }, []);
 
   const setViewport = useCallback((start: number, end: number) => {
-    setState(prev => {
-      const newState = {
-        ...prev,
-        currentViewStart: start,
-        currentViewEnd: end,
-      };
-
-      // Persist current date/time to localStorage
-      const currentDateTime = calculateCurrentDateTimeFromViewport(start, end, prev.allData);
-      if (currentDateTime) {
-        try {
-          setLocalStorageItem('chartCurrentDateTime', currentDateTime);
-        } catch (error) {
-          console.warn('Failed to save current date/time to localStorage:', error);
-        }
-      }
-
-      return newState;
-    });
+    setState(prev => ({
+      ...prev,
+      currentViewStart: start,
+      currentViewEnd: end,
+    }));
   }, []);
 
   // UI actions
@@ -612,44 +569,19 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
     });
   }, []);
 
-  // Handle initial data load and restore viewport from localStorage
+  // Handle initial data load - always show current date/time
   useEffect(() => {
     if (state.allData.length > 0 && isInitialLoadRef.current) {
       const totalDataLength = state.allData.length;
 
-      // Try to restore viewport from localStorage
-      let newViewStart: number;
-      let newViewEnd: number;
+      // Always show the newest data (current date/time)
+      const newViewEnd = totalDataLength - 1;
+      const newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
 
-      try {
-        const savedDateTime = getLocalStorageItem<string>('chartCurrentDateTime', '');
-        if (savedDateTime) {
-          const restoredViewport = calculateViewportFromDateTime(savedDateTime, state.allData, CHART_DATA_POINTS);
-          if (restoredViewport) {
-            newViewStart = restoredViewport.viewStart;
-            newViewEnd = restoredViewport.viewEnd;
-            logger.chart.loading('Restored viewport from localStorage:', {
-              savedDateTime,
-              restoredViewport: `${newViewStart}-${newViewEnd}`,
-            });
-          } else {
-            // Fallback to default viewport
-            newViewEnd = totalDataLength - 1;
-            newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
-            logger.warn('Could not restore viewport from localStorage, using default');
-          }
-        } else {
-          // No saved date/time, use default viewport
-          newViewEnd = totalDataLength - 1;
-          newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
-          logger.chart.data('No saved date/time found, using default viewport');
-        }
-      } catch (error) {
-        // Error loading from localStorage, use default viewport
-        newViewEnd = totalDataLength - 1;
-        newViewStart = Math.max(0, newViewEnd - CHART_DATA_POINTS + 1);
-        logger.warn('Failed to restore viewport from localStorage:', error);
-      }
+      logger.chart.loading('Setting initial viewport to show current date/time:', {
+        newViewport: `${newViewStart}-${newViewEnd}`,
+        totalDataLength,
+      });
 
       setState(prev => ({
         ...prev,
