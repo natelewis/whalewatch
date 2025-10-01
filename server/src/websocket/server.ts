@@ -4,6 +4,7 @@ import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
 import { JWTPayload, WebSocketMessage, WebSocketMessageData } from '../types';
 import { questdbWebSocketService } from '../services/questdbWebSocketService';
+import { alpacaWebSocketService } from '../services/alpacaWebSocketService';
 
 interface AuthenticatedWebSocket extends WebSocket {
   user?: JWTPayload;
@@ -146,6 +147,13 @@ const handleSubscription = (
             symbol: sym,
           });
           break;
+        case 'chart_quote':
+          console.log(`🔌 [WEBSOCKET] Subscribing to chart data for ${sym}`);
+          alpacaWebSocketService.subscribe({
+            type: 'chart_quote',
+            symbol: sym,
+          });
+          break;
       }
     });
 
@@ -200,6 +208,12 @@ const handleUnsubscription = (
             symbol: sym,
           });
           break;
+        case 'chart_quote':
+          alpacaWebSocketService.unsubscribe({
+            type: 'chart_quote',
+            symbol: sym,
+          });
+          break;
       }
     });
 
@@ -214,9 +228,14 @@ const handleUnsubscription = (
 };
 
 const initializeQuestDBConnection = (wss: WebSocketServer): void => {
-  // Start QuestDB streaming
+  // Start QuestDB streaming for options and account data
   questdbWebSocketService.startStreaming().catch(error => {
     console.error('Failed to start QuestDB streaming:', error);
+  });
+
+  // Start Alpaca streaming for chart data
+  alpacaWebSocketService.startStreaming().catch(error => {
+    console.error('Failed to start Alpaca streaming:', error);
   });
 
   // Handle real-time option trades from QuestDB
@@ -249,19 +268,56 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
     );
   });
 
+  // Handle real-time chart data from Alpaca
+  alpacaWebSocketService.on('chart_quote', message => {
+    console.log('✅ [WEBSOCKET] Broadcasting chart data from Alpaca:', {
+      symbol: message.symbol,
+      timestamp: message.data.t,
+      open: message.data.o,
+      high: message.data.h,
+      low: message.data.l,
+      close: message.data.c,
+      volume: message.data.v,
+    });
+    broadcastToSubscribers(
+      wss,
+      'chart_quote',
+      {
+        symbol: message.symbol,
+        bar: message.data,
+      },
+      message.symbol
+    );
+  });
+
   // Handle errors from QuestDB WebSocket
   questdbWebSocketService.on('error', error => {
     console.error('❌ QuestDB WebSocket error:', error.message);
     // Don't broadcast errors to clients, just log them
   });
 
+  // Handle errors from Alpaca WebSocket
+  alpacaWebSocketService.on('error', error => {
+    console.error('❌ Alpaca WebSocket error:', error.message);
+    // Don't broadcast errors to clients, just log them
+  });
+
   // Handle QuestDB connection events
   questdbWebSocketService.on('connected', () => {
-    console.log('✅ QuestDB streaming started - real-time data available');
+    console.log('✅ QuestDB streaming started - options and account data available');
   });
 
   questdbWebSocketService.on('disconnected', () => {
     console.log('❌ QuestDB streaming stopped');
+  });
+
+  // Handle Alpaca connection events
+  alpacaWebSocketService.on('connected', () => {
+    console.log('✅ Alpaca streaming started - chart data available');
+  });
+
+  alpacaWebSocketService.on('disconnected', () => {
+    console.log('❌ Alpaca streaming stopped');
   });
 };
 

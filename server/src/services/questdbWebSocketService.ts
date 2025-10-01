@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { questdbService } from './questdbService';
+import { alpacaService } from './alpacaService';
 import { QuestDBWebSocketMessage, QuestDBSubscription } from '../types/index';
 
 export class QuestDBWebSocketService extends EventEmitter {
@@ -7,7 +8,7 @@ export class QuestDBWebSocketService extends EventEmitter {
   private streamingInterval: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Map<string, QuestDBSubscription> = new Map();
   private lastTimestamps: Map<string, string> = new Map();
-  private streamingIntervalMs: number = 10000; // Poll every 10 seconds for stock aggregates
+  private streamingIntervalMs: number = 5000; // Poll every 5 seconds for stock aggregates
 
   constructor() {
     super();
@@ -135,6 +136,9 @@ export class QuestDBWebSocketService extends EventEmitter {
           break;
         case 'option_quotes':
           await this.pollOptionQuotes(subscription, lastTimestamp, now);
+          break;
+        case 'stock_aggregates':
+          await this.pollStockAggregates(subscription, lastTimestamp, now);
           break;
         default:
           console.warn(`Unknown subscription type: ${subscription.type}`);
@@ -286,6 +290,66 @@ export class QuestDBWebSocketService extends EventEmitter {
       console.error(`Error polling option_quotes data:`, error);
       // Re-throw the error to be handled by the calling method
       throw error;
+    }
+  }
+
+  /**
+   * Poll for new stock aggregates (bars) from Alpaca
+   * This replaces QuestDB polling with direct Alpaca API calls for real-time chart data
+   */
+  private async pollStockAggregates(
+    subscription: QuestDBSubscription,
+    lastTimestamp: string | undefined,
+    currentTimestamp: string
+  ): Promise<void> {
+    if (!subscription.symbol) {
+      return;
+    }
+
+    try {
+      // Get the latest bar from Alpaca (most recent 1-minute bar)
+      const bars = await alpacaService.getBars(subscription.symbol, '1m', 1);
+      
+      if (bars && bars.length > 0) {
+        const latestBar = bars[0];
+        
+        // Check if this is a new bar (not the same as last processed)
+        const barTimestamp = latestBar.t;
+        const lastProcessedTimestamp = lastTimestamp;
+        
+        // Only emit if this is a new bar or if we don't have a last timestamp
+        if (!lastProcessedTimestamp || barTimestamp !== lastProcessedTimestamp) {
+          console.log(`📊 New stock aggregate for ${subscription.symbol}:`, {
+            timestamp: barTimestamp,
+            open: latestBar.o,
+            high: latestBar.h,
+            low: latestBar.l,
+            close: latestBar.c,
+            volume: latestBar.v,
+          });
+
+          const message: QuestDBWebSocketMessage = {
+            type: 'stock_aggregate',
+            data: {
+              t: latestBar.t,
+              o: latestBar.o,
+              h: latestBar.h,
+              l: latestBar.l,
+              c: latestBar.c,
+              v: latestBar.v,
+              n: latestBar.n || 0,
+              vw: latestBar.vw || latestBar.c,
+            },
+            timestamp: new Date().toISOString(),
+            symbol: latestBar.symbol || subscription.symbol,
+          };
+
+          this.emit('stock_aggregate', message);
+        }
+      }
+    } catch (error) {
+      console.error(`Error polling stock_aggregates data for ${subscription.symbol}:`, error);
+      // Don't re-throw to avoid breaking other subscriptions
     }
   }
 

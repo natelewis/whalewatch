@@ -157,6 +157,78 @@ export class AlpacaService {
   }
 
   /**
+   * Get the latest stock bar for real-time updates
+   * This is the proper method for real-time chart data polling
+   */
+  async getLatestStockBar(symbol: string): Promise<AlpacaBar | null> {
+    try {
+      const dataUrl = process.env.ALPACA_DATA_URL || 'https://data.alpaca.markets';
+      const response = await axios.get(`${dataUrl}/v2/stocks/${symbol}/bars/latest`, {
+        headers: this.headers,
+        params: {
+          feed: 'iex', // Use IEX feed for delayed data (free tier)
+        },
+      });
+
+      if (response.data.bar) {
+        const bar = response.data.bar;
+        return {
+          t: bar.t,
+          o: bar.o,
+          h: bar.h,
+          l: bar.l,
+          c: bar.c,
+          v: bar.v,
+          n: bar.n || 0,
+          vw: bar.vw || bar.c,
+        };
+      }
+
+      return null;
+    } catch (error: unknown) {
+      logger.server.error(`Error fetching latest bar for ${symbol}:`, error);
+
+      // Handle specific Alpaca API errors
+      const isAxiosError = error && typeof error === 'object' && 'response' in error;
+      const response = isAxiosError
+        ? (
+            error as {
+              response?: { status?: number; data?: { message?: string } };
+            }
+          ).response
+        : null;
+
+      if (response?.status === 403) {
+        if (response.data?.message?.includes('subscription does not permit')) {
+          throw new Error(
+            'API subscription does not support real-time data. Please upgrade your Alpaca account or use delayed data.'
+          );
+        }
+        throw new Error('Access denied. Please check your API credentials.');
+      }
+
+      if (response?.status === 401) {
+        throw new Error('Invalid API credentials. Please check your Alpaca API key and secret.');
+      }
+
+      if (response?.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+
+      // For latest bar endpoint, return null instead of throwing for missing data
+      if (response?.status === 404) {
+        logger.server.warn(`No latest bar data available for ${symbol}`);
+        return null;
+      }
+
+      // Generic error handling
+      const errorMessage = response?.data?.message || (error instanceof Error ? error.message : 'Unknown error');
+      logger.server.error(`Failed to fetch latest bar for ${symbol}: ${errorMessage}`);
+      return null;
+    }
+  }
+
+  /**
    * Get historical bars with directional limit-based fetching (like database queries)
    * This ensures we get exactly the number of bars requested in the specified direction
    *
