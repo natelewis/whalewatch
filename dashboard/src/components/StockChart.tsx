@@ -259,6 +259,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Define time skip options
   const timeSkipOptions = useMemo(
     () => [
+      { label: 'Now', hours: 0 },
       { label: '1 day ago', hours: 24 },
       { label: '1 week ago', hours: 24 * 7 },
       { label: '1 month ago', hours: 24 * 30 },
