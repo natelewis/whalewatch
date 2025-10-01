@@ -5,7 +5,7 @@ A TypeScript-based system for ingesting real-time and historical trade data from
 ## Features
 
 - **Real-time Data Ingestion**: WebSocket-based streaming of stock trades and 5-minute aggregates
-- **Historical Backfill**: Comprehensive backfill system for missing data with crash recovery
+- **Option Trade Data**: Download and process option trade data files from Polygon.io
 - **Option Contracts**: Support for option contract data ingestion
 - **Hot Reloading**: Development mode with automatic restart on code changes
 - **Resilient Design**: Crash recovery and gap-free data ingestion
@@ -36,8 +36,7 @@ A TypeScript-based system for ingesting real-time and historical trade data from
 
 - `make install` - Install all dependencies
 - `make ingest` - Start real-time data ingestion with hot reloading
-- `make backfill` - Backfill historical data for all tickers
-- `make backfill TICKER` - Backfill historical data for a specific ticker
+- `make backfill-option-trades` - Download option trade data files
 - `make reset` - Reset all data (with confirmation prompt)
 - `make dev` - Development mode with hot reloading (same as ingest)
 
@@ -81,10 +80,9 @@ The system supports hot reloading during development. When you run `make ingest`
 ## Data Recovery
 
 The system is designed to be resilient:
-- Sync states are tracked for each ticker
-- Backfill operations can resume from the last known position
 - WebSocket connections automatically reconnect on failure
 - No data gaps occur during restarts
+- Option trade data files are processed incrementally
 
 ## License
 

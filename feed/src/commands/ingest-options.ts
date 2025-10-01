@@ -4,7 +4,6 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import chalk from 'chalk';
 import { WebSocketService } from '../services/polygon-websocket-client';
-import { config } from '../config';
 import { db } from '../db/connection';
 import { healthMonitor } from '../services/health-monitor';
 

@@ -34,7 +34,6 @@ export interface Config {
     logLevel: string;
     maxRetries: number;
     retryDelayMs: number;
-    backfillMaxDays: number;
   };
   tickers: string[];
 }
@@ -75,6 +74,10 @@ export const config: Config = {
     wsUrl: 'wss://socket.polygon.io/stocks',
     logRequests: process.env.POLYGON_LOG_REQUESTS === 'true',
     skipOptionTrades: process.env.POLYGON_SKIP_OPTION_TRADES === 'true',
+    skipOptionQuotes: process.env.POLYGON_SKIP_OPTION_QUOTES === 'true',
+    skipOptionContracts: process.env.POLYGON_SKIP_OPTION_CONTRACTS === 'true',
+    optionContractsLimit: parseInt(process.env.POLYGON_OPTION_CONTRACTS_LIMIT || '50000'),
+    optionQuotesLimit: parseInt(process.env.POLYGON_OPTION_QUOTES_LIMIT || '50000'),
     optionTradesLimit: parseInt(process.env.POLYGON_OPTION_TRADES_LIMIT || '50000'),
     optionTradeValueThreshold: parseInt(process.env.POLYGON_OPTION_TRADE_VALUE_THRESHOLD || '10000', 10),
   },
@@ -88,7 +91,6 @@ export const config: Config = {
     logLevel: process.env.LOG_LEVEL || 'info',
     maxRetries: parseInt(process.env.MAX_RETRIES || '3'),
     retryDelayMs: parseInt(process.env.RETRY_DELAY_MS || '1000'),
-    backfillMaxDays: parseInt(process.env.BACKFILL_MAX_DAYS || '30'),
   },
   tickers: process.env.TICKERS
     ? process.env.TICKERS.split(',').map(t => t.trim())

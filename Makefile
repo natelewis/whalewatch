@@ -1,7 +1,7 @@
 # WhaleWatch Makefile
 # Comprehensive build and development commands
 
-.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard lint-feed tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill backfill-option-trades reset dev-feed clean-feed build-feed
+.PHONY: help install server-dev dashboard-dev dev test test-server test-dashboard test-coverage lint lint-server lint-dashboard lint-feed tsc tsc-server tsc-dashboard clean build build-server build-dashboard start stop logs prettier install-feed ingest backfill-option-trades reset dev-feed clean-feed build-feed
 
 # Default target
 help:
@@ -43,7 +43,6 @@ help:
 	@echo "  make install-feed      Install feed service dependencies"
 	@echo "  make ingest            Start real-time data ingestion"
 	@echo "  make ingest-options    Start real-time option trade ingestion"
-	@echo "  make backfill          Backfill historical data (usage: make backfill [ARGS='ticker date'])"
 	@echo "  make backfill-option-trades  Download option trade data files (usage: make backfill-option-trades ARGS='2025-09-29')"
 	@echo "  make reset             Reset all data in QuestDB (with confirmation)"
 	@echo ""
@@ -97,17 +96,6 @@ dev-feed:
 ingest:
 	@echo "📡 Starting real-time data ingestion..."
 	cd feed && npm run ingest
-
-# Backfill historical data
-# Usage: make backfill [ARGS='ticker date']
-# Examples:
-#   make backfill                    # Backfill all tickers from last sync
-#   make backfill ARGS='AAPL'        # Backfill specific ticker from last sync
-#   make backfill ARGS='AAPL 2025-01-15'  # Backfill specific ticker TO specific date
-#   make backfill ARGS='2025-01-15'       # Backfill all tickers TO specific date
-backfill:
-	@echo "📊 Backfilling historical data..."
-	cd feed && npm run backfill -- $(ARGS)
 
 ingest-options:
 	@echo "📡 Starting real-time option trade ingestion..."
