@@ -11,14 +11,14 @@ describe('Test Configuration Utilities', () => {
     it('should not add prefix in non-test environment', () => {
       process.env.NODE_ENV = 'production';
       expect(getTableName('table_name')).toBe('table_name');
-      expect(getTableName('option_contracts')).toBe('option_contracts');
+      expect(getTableName('option_trades')).toBe('option_trades');
     });
 
     it('should be resilient to double prefixes', () => {
       process.env.NODE_ENV = 'test';
       // Test that already prefixed names are not double-prefixed
       expect(getTableName('test_table_name')).toBe('test_table_name');
-      expect(getTableName('test_option_contracts')).toBe('test_option_contracts');
+      expect(getTableName('test_option_trades')).toBe('test_option_trades');
 
       // Test that calling getTableName multiple times doesn't add more prefixes
       const once = getTableName('table_name');

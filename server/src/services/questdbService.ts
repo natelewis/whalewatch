@@ -144,31 +144,6 @@ export class QuestDBService {
   }
 
   /**
-   * Get stock trades for a symbol within a time range
-   */
-  async getStockTrades(symbol: string, params: QuestDBQueryParams = {}): Promise<QuestDBStockTrade[]> {
-    const { start_time, end_time, limit = 1000, order_by = 'timestamp', order_direction = 'DESC' } = params;
-
-    // First check if the table exists
-    await this.ensureTableExists('stock_trades');
-
-    let query = `SELECT * FROM stock_trades WHERE symbol = '${symbol.toUpperCase()}'`;
-
-    if (start_time) {
-      query += ` AND timestamp >= '${start_time}'`;
-    }
-
-    if (end_time) {
-      query += ` AND timestamp <= '${end_time}'`;
-    }
-
-    query += ` ORDER BY ${order_by} ${order_direction} LIMIT ${limit}`;
-
-    const response = await this.executeQuery<QuestDBStockTrade>(query);
-    return this.convertArrayToObject<QuestDBStockTrade>(response.dataset, response.columns);
-  }
-
-  /**
    * Ensure a table exists, throw descriptive error if it doesn't
    */
   private async ensureTableExists(tableName: string): Promise<void> {
