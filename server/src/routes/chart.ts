@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { questdbService } from '../services/questdbService';
-import { QuestDBQueryParams, QuestDBStockAggregate, ChartQueryParams } from '../types/index';
+import { ChartQueryParams } from '../types/index';
 import { logger } from '../utils/logger';
+import { alpacaService } from '../services/alpacaService';
 
 const router = Router();
 
@@ -13,8 +13,7 @@ export const AGGREGATION_INTERVALS = {
   '15m': 15,
   '30m': 30,
   '1h': 60,
-  '2h': 120,
-  '4h': 240,
+
   '1d': 1440,
 } as const;
 
@@ -27,7 +26,21 @@ export function getIntervalMinutes(interval: AggregationInterval): number {
   return AGGREGATION_INTERVALS[interval];
 }
 
-// Get chart data for a symbol from QuestDB with new parameters
+/**
+ * Map our interval format to Alpaca's timeframe format
+ */
+function mapIntervalToAlpacaTimeframe(interval: AggregationInterval): string {
+  const mapping: Record<AggregationInterval, string> = {
+    '1m': '1Min',
+    '15m': '15Min',
+    '30m': '30Min',
+    '1h': '1Hour',
+    '1d': '1Day',
+  };
+  return mapping[interval];
+}
+
+// Get chart data for a symbol from Alpaca API with flexible parameters
 router.get('/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
@@ -84,134 +97,23 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       viewSize: viewSize,
     };
 
-    // Calculate data limit based on interval type
-    const intervalMinutes = getIntervalMinutes(intervalKey);
-    let dataLimit: number;
+    // Map to Alpaca's timeframe format
+    const alpacaTimeframe = mapIntervalToAlpacaTimeframe(intervalKey);
 
-    if (intervalMinutes === 1) {
-      // For 1-minute intervals, we need exactly the requested limit
-      dataLimit = limitValue;
-    } else {
-      // For aggregated intervals, QuestDB will handle the aggregation
-      // We can request the exact number of bars we need
-      dataLimit = limitValue;
-    }
+    // Fetch bars using the directional approach (like the database did)
+    // This ensures we get exactly the number of bars requested
+    const bars = await alpacaService.getHistoricalBarsDirectional(
+      symbol.toUpperCase(),
+      startTime,
+      alpacaTimeframe,
+      limitValue,
+      direction
+    );
 
-    // Handle different directions for data loading
-    let aggregates: QuestDBStockAggregate[] = [];
-
-    if (direction === 'centered') {
-      // For centered direction, load half the data before and half after the start time
-      const halfLimit = Math.floor(dataLimit / 2);
-
-      // Load past data (before start time)
-      const pastParams: QuestDBQueryParams = {
-        order_by: 'timestamp',
-        order_direction: 'DESC',
-        limit: halfLimit,
-        start_time: startTime.toISOString(),
-      };
-
-      // Load future data (after start time)
-      const futureParams: QuestDBQueryParams = {
-        order_by: 'timestamp',
-        order_direction: 'ASC',
-        limit: halfLimit,
-        start_time: startTime.toISOString(),
-      };
-
-      let pastAggregates: QuestDBStockAggregate[] = [];
-      let futureAggregates: QuestDBStockAggregate[] = [];
-
-      if (intervalMinutes === 1) {
-        // For 1-minute intervals, use raw data without aggregation
-        pastAggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), pastParams);
-        futureAggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), futureParams);
-      } else {
-        // For all other intervals, use QuestDB's SAMPLE BY aggregation
-        pastAggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, pastParams);
-        futureAggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, futureParams);
-      }
-
-      // Reverse past data to get chronological order
-      if (pastAggregates && pastAggregates.length > 0) {
-        pastAggregates = pastAggregates.reverse();
-      }
-
-      // Combine past and future data in chronological order
-      aggregates = [...(pastAggregates || []), ...(futureAggregates || [])];
-    } else {
-      // For past/future directions, use the original logic
-      const params: QuestDBQueryParams = {
-        order_by: 'timestamp',
-        order_direction: direction === 'past' ? 'DESC' : 'ASC',
-        limit: dataLimit,
-      };
-
-      // Only set start_time for both directions
-      params.start_time = startTime.toISOString();
-
-      if (intervalMinutes === 1) {
-        // For 1-minute intervals, use raw data without aggregation
-        aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
-      } else {
-        // For all other intervals, use QuestDB's SAMPLE BY aggregation
-        aggregates = await questdbService.getAggregatedStockData(symbol.toUpperCase(), intervalKey, params);
-      }
-
-      if (aggregates && aggregates.length > 0) {
-        // For past direction, we got data in DESC order (most recent first), but we need ASC order for display
-        if (direction === 'past') {
-          aggregates = aggregates.reverse();
-        }
-      }
-    }
-
-    // If no data found, return empty result
-    if (!aggregates || aggregates.length === 0) {
+    // If no data found, log for debugging
+    if (!bars || bars.length === 0) {
       logger.debug(`No data found for ${symbol} in ${direction} direction from ${startTime.toISOString()}`);
     }
-
-    // For 1-minute intervals, we still need to handle duplicates
-    let aggregatedData: QuestDBStockAggregate[];
-
-    if (intervalMinutes === 1) {
-      // Remove duplicates by timestamp and aggregate them properly
-      const uniqueAggregates = (aggregates || []).reduce((acc, agg) => {
-        const timestamp = agg.timestamp;
-        const existing = acc.find(a => a.timestamp === timestamp);
-
-        if (!existing) {
-          acc.push(agg);
-        } else {
-          // If duplicate found, aggregate the data properly
-          existing.high = Math.max(existing.high, agg.high);
-          existing.low = Math.min(existing.low, agg.low);
-          existing.close = agg.close; // Use the latest close price
-          existing.volume += agg.volume;
-          existing.transaction_count += agg.transaction_count;
-          existing.vwap = (existing.vwap * existing.volume + agg.vwap * agg.volume) / (existing.volume + agg.volume);
-        }
-        return acc;
-      }, [] as typeof aggregates);
-
-      aggregatedData = uniqueAggregates;
-    } else {
-      // For aggregated data from QuestDB, no additional processing needed
-      aggregatedData = aggregates;
-    }
-
-    // Convert QuestDB aggregates to Alpaca bar format for frontend compatibility
-    const bars = (aggregatedData || []).map(agg => ({
-      t: agg.timestamp,
-      o: agg.open,
-      h: agg.high,
-      l: agg.low,
-      c: agg.close,
-      v: agg.volume,
-      n: agg.transaction_count,
-      vw: agg.vwap,
-    }));
 
     return res.json({
       symbol: symbol.toUpperCase(),
@@ -221,7 +123,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       view_based_loading: viewBasedLoading,
       view_size: viewSize,
       bars,
-      data_source: 'questdb',
+      data_source: 'alpaca',
       success: true,
       query_params: {
         start_time: chartParams.startTime,
@@ -232,19 +134,19 @@ router.get('/:symbol', async (req: Request, res: Response) => {
         view_size: chartParams.viewSize,
       },
       actual_data_range:
-        aggregatedData && aggregatedData.length > 0
+        bars && bars.length > 0
           ? {
-              earliest: aggregatedData[0]?.timestamp,
-              latest: aggregatedData[aggregatedData.length - 1]?.timestamp,
+              earliest: bars[0]?.t,
+              latest: bars[bars.length - 1]?.t,
             }
           : null,
     });
   } catch (error: unknown) {
-    logger.server.error('Error fetching chart data from QuestDB:', error);
+    logger.server.error('Error fetching chart data from Alpaca:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return res.status(500).json({
       error: `Failed to fetch chart data: ${errorMessage}`,
-      data_source: 'questdb',
+      data_source: 'alpaca',
       success: false,
     });
   }
