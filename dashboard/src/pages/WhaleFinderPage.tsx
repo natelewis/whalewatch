@@ -29,6 +29,10 @@ export const WhaleFinderPage: React.FC = () => {
     return getSessionStorageItem('whaleFinderVolumeMin', 1000).toString();
   });
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
+  const [scrollPosition, setScrollPosition] = useState<number>(0);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [isAutoRefresh, setIsAutoRefresh] = useState<boolean>(false);
 
   // Debounced filter values to prevent API calls on every keystroke
   const [debouncedMaxPrice, setDebouncedMaxPrice] = useState(maxPrice);
@@ -64,6 +68,18 @@ export const WhaleFinderPage: React.FC = () => {
     loadOptionsTrades(selectedSymbol, selectedDate, maxPriceNum, repeatMinNum, volumeMinNum);
   }, [selectedSymbol, selectedDate, debouncedMaxPrice, debouncedRepeatMin, debouncedVolumeMin]);
 
+  // Auto-refresh data every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const maxPriceNum = debouncedMaxPrice === '' ? 0 : Number(debouncedMaxPrice);
+      const repeatMinNum = debouncedRepeatMin === '' ? 0 : Number(debouncedRepeatMin);
+      const volumeMinNum = debouncedVolumeMin === '' ? 0 : Number(debouncedVolumeMin);
+      loadOptionsTrades(selectedSymbol, selectedDate, maxPriceNum, repeatMinNum, volumeMinNum, true, true);
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(interval);
+  }, [selectedSymbol, selectedDate, debouncedMaxPrice, debouncedRepeatMin, debouncedVolumeMin]);
+
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
     const maxPriceNum = maxPrice === '' ? 0 : Number(maxPrice);
@@ -84,14 +100,32 @@ export const WhaleFinderPage: React.FC = () => {
     setSessionStorageItem('whaleFinderSelectedDate', selectedDate);
   }, [selectedDate]);
 
+  // Restore scroll position after data loads
+  useEffect(() => {
+    if (scrollPosition > 0 && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollPosition;
+    }
+  }, [optionsTrades, scrollPosition]);
+
   const loadOptionsTrades = async (
     symbol: string,
     date: string,
     maxPriceFilter: number,
     repeatMinFilter: number,
-    volumeMinFilter: number
+    volumeMinFilter: number,
+    preserveScroll: boolean = false,
+    isAutoRefresh: boolean = false
   ) => {
-    setIsLoading(true);
+    // Save scroll position before loading if preserving scroll
+    if (preserveScroll && scrollContainerRef.current) {
+      setScrollPosition(scrollContainerRef.current.scrollTop);
+    }
+
+    // Set auto-refresh flag and only show loading spinner for manual refreshes
+    setIsAutoRefresh(isAutoRefresh);
+    if (!isAutoRefresh) {
+      setIsLoading(true);
+    }
     setError(null);
 
     // Calculate start and end time for the selected date in local timezone
@@ -105,12 +139,14 @@ export const WhaleFinderPage: React.FC = () => {
 
     if (result.isOk()) {
       setOptionsTrades(result.value.trades);
+      setLastSyncTime(new Date());
     } else {
       const userMessage = createUserFriendlyMessage(result.error);
       setError(userMessage);
     }
 
     setIsLoading(false);
+    setIsAutoRefresh(false);
   };
 
   const handleSymbolChange = (symbol: string) => {
@@ -203,6 +239,14 @@ export const WhaleFinderPage: React.FC = () => {
       const thousands = notional / 1000;
       return thousands % 1 === 0 ? `${thousands}k` : `${thousands.toFixed(0)}k`;
     }
+  };
+
+  const formatLastSyncTime = (date: Date): string => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   };
 
   // Filter trades by selected contract
@@ -306,6 +350,16 @@ export const WhaleFinderPage: React.FC = () => {
                         placeholder="1000"
                       />
                     </div>
+                    {lastSyncTime && (
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 px-3 py-1 rounded-md bg-muted/50">
+                          <div className="flex items-center space-x-1">
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{formatLastSyncTime(lastSyncTime)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -317,8 +371,8 @@ export const WhaleFinderPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Loading State */}
-              {isLoading ? (
+              {/* Loading State - only show spinner for manual refreshes, not auto-refresh */}
+              {isLoading && !isAutoRefresh ? (
                 <div className="flex items-center justify-center h-32">
                   <LoadingSpinner />
                 </div>
@@ -341,7 +395,7 @@ export const WhaleFinderPage: React.FC = () => {
                       <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
                         <div></div>
                         <div className="text-right">Price</div>
-                        <div className="text-left"></div>
+                        <div className="text-left">Size</div>
                         <div className="">Value</div>
                         <div className="text-right"></div>
                         <div className="text-right"></div>
@@ -350,7 +404,7 @@ export const WhaleFinderPage: React.FC = () => {
                       </div>
 
                       {/* Table Rows */}
-                      <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
+                      <div ref={scrollContainerRef} className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
                         {filteredTrades.map((trade, index) => {
                           const isSelected = selectedContract === trade.ticker;
                           return (
