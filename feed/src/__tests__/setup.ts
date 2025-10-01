@@ -4,6 +4,7 @@
 import { dropAllTestTables, createTestTables } from './test-utils/database';
 import { db } from '../db/connection';
 import { getTableName } from './test-utils/config';
+import { databaseCircuitBreaker } from '../utils/circuit-breaker';
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
@@ -32,6 +33,9 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  // Reset circuit breaker before each test to prevent OPEN state from previous tests
+  databaseCircuitBreaker.reset();
+  
   // Create test tables if they don't exist
   await createTestTables();
   // Don't clean up data - tables are dropped after each test anyway

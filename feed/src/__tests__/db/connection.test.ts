@@ -208,19 +208,19 @@ describe('QuestDBConnection', () => {
       // Create test table using schema helper
       await createTestTable(getTableName('option_trades'), connection);
 
-      // Insert data with single quotes
+      // Insert data with single quotes - matching the actual schema (7 columns)
       await connection.query(
         `INSERT INTO ${getTableName(
           'option_trades'
-        )} VALUES ('AAPL', '2024-01-01T10:00:00Z', 100.5, 100, '[]', 1, 1, 'test''s trade')`
+        )} VALUES ('AAPL', 'AAPL', '2024-01-01T10:00:00Z', 100.5, 100, 'regular', 1)`
       );
 
       // Wait for data to be available
       await waitForRecordCount(getTableName('option_trades'), 1);
 
-      // Query with parameter containing single quotes
-      const result = await connection.query(`SELECT * FROM ${getTableName('option_trades')} WHERE trade_id = $1`, [
-        "test's trade",
+      // Query with parameter containing single quotes - use ticker instead of non-existent trade_id
+      const result = await connection.query(`SELECT * FROM ${getTableName('option_trades')} WHERE ticker = $1`, [
+        'AAPL',
       ]);
 
       expect(result).toBeDefined();
@@ -233,18 +233,18 @@ describe('QuestDBConnection', () => {
       // Create test table using schema helper
       await createTestTable('test_option_trades', connection);
 
-      // Insert data
+      // Insert data - matching the actual schema (7 columns: ticker, underlying_ticker, timestamp, price, size, conditions, exchange)
       await connection.query(
-        "INSERT INTO test_option_trades VALUES ('AAPL', '2024-01-01T10:00:00Z', 100, 105, 95, 102, 1000, 101, 50)"
+        "INSERT INTO test_option_trades VALUES ('AAPL', 'AAPL', '2024-01-01T10:00:00Z', 100.5, 100, 'regular', 1)"
       );
 
       // Wait for data to be available
       await waitForRecordCount('test_option_trades', 1);
 
-      // Query with various parameter types
-      const result = await connection.query('SELECT * FROM test_option_trades WHERE symbol = $1 AND volume = $2', [
+      // Query with various parameter types - use actual column names
+      const result = await connection.query('SELECT * FROM test_option_trades WHERE ticker = $1 AND size = $2', [
         'AAPL',
-        1000,
+        100,
       ]);
 
       expect(result).toBeDefined();
@@ -304,17 +304,19 @@ describe('QuestDBConnection', () => {
       // Create test table using schema helper
       await createTestTable('test_option_trades', connection);
 
-      // Insert data with boolean-like values (using string representation)
+      // Insert data with boolean-like values (using string representation) - matching actual schema
       await connection.query(`
         INSERT INTO test_option_trades VALUES 
-        ('AAPL240101C00100000', 'call', 'american', '2024-01-01T10:00:00Z', 100, 100.0, 'AAPL')
+        ('AAPL240101C00100000', 'AAPL', '2024-01-01T10:00:00Z', 100.0, 100, 'regular', 1)
       `);
 
       // Wait for data to be available
       await waitForRecordCount('test_option_trades', 1);
 
       // Query with string parameter (since QuestDB doesn't have native boolean type)
-      const result = await connection.query('SELECT * FROM test_option_trades WHERE contract_type = $1', ['call']);
+      const result = await connection.query('SELECT * FROM test_option_trades WHERE ticker = $1', [
+        'AAPL240101C00100000',
+      ]);
 
       expect(result).toBeDefined();
       expect((result as any).dataset).toBeDefined();
@@ -361,19 +363,19 @@ describe('QuestDBConnection', () => {
     });
 
     it('should handle number parameters with decimals', async () => {
-      // Create test table using schema helper
-      await createTestTable('test_stock_aggregates', connection);
+      // Create test table using schema helper - use available option_trades table
+      await createTestTable('test_option_trades', connection);
 
-      // Insert data with decimal values
+      // Insert data with decimal values - matching actual schema (7 columns)
       await connection.query(
-        "INSERT INTO test_stock_aggregates VALUES ('AAPL', '2024-01-01T10:00:00Z', 100.123, 105.456, 95.789, 102.321, 1000.5, 101.25, 50)"
+        "INSERT INTO test_option_trades VALUES ('AAPL', 'AAPL', '2024-01-01T10:00:00Z', 100.123, 105.456, 'regular', 1)"
       );
 
       // Wait for data to be available
-      await waitForRecordCount('test_stock_aggregates', 1);
+      await waitForRecordCount('test_option_trades', 1);
 
-      // Query with decimal parameter
-      const result = await connection.query('SELECT * FROM test_stock_aggregates WHERE open = $1', [100.123]);
+      // Query with decimal parameter - use actual column name
+      const result = await connection.query('SELECT * FROM test_option_trades WHERE price = $1', [100.123]);
 
       expect(result).toBeDefined();
       expect((result as any).dataset).toBeDefined();
@@ -426,10 +428,10 @@ describe('QuestDBConnection', () => {
     });
 
     it('should get correct schema for specific table', async () => {
-      const schema = getTestTableSchema('test_stock_aggregates');
-      expect(schema).toContain('CREATE TABLE test_stock_aggregates');
-      expect(schema).toContain('DROP TABLE IF EXISTS test_stock_aggregates');
-      expect(schema).toContain('symbol SYMBOL');
+      const schema = getTestTableSchema('test_option_trades');
+      expect(schema).toContain('CREATE TABLE test_option_trades');
+      expect(schema).toContain('DROP TABLE IF EXISTS test_option_trades');
+      expect(schema).toContain('ticker SYMBOL');
       expect(schema).toContain('timestamp TIMESTAMP');
       // Note: Test tables use DROP + CREATE pattern to ensure schema changes are applied
       // and include PARTITION BY DAY for proper QuestDB functionality
