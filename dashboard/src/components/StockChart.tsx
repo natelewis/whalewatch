@@ -11,7 +11,7 @@ import { logger } from '../utils/logger';
 import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import { formatPrice, calculateInnerDimensions } from '../utils/chartDataUtils';
 import { TimeframeConfig } from '../types';
-import { createChart, calculateChartState } from './ChartRenderer';
+import { createChart, calculateChartState, updateAxes } from './ChartRenderer';
 import { renderInitial, renderPanning, renderWebSocket } from '../utils/renderManager';
 import { BUFFER_SIZE, CHART_DATA_POINTS } from '../constants';
 
@@ -525,13 +525,37 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
     };
   }, [symbol, chartWebSocket.isConnected]); // Subscribe when symbol changes OR when connection status changes
 
-  // Handle container resize
+  // Handle container resize with debouncing and immediate response
   useEffect(() => {
+    let resizeTimeout: NodeJS.Timeout | null = null;
+
     const handleResize = (): void => {
       if (containerRef.current) {
         const newDimensions = calculateChartDimensions(containerRef.current, chartState.dimensions);
-        chartActions.setDimensions(newDimensions);
+
+        // Check if dimensions actually changed to avoid unnecessary updates
+        const dimensionsChanged =
+          newDimensions.width !== chartState.dimensions.width || newDimensions.height !== chartState.dimensions.height;
+
+        if (dimensionsChanged) {
+          logger.chart.render('Container resize detected:', {
+            oldWidth: chartState.dimensions.width,
+            oldHeight: chartState.dimensions.height,
+            newWidth: newDimensions.width,
+            newHeight: newDimensions.height,
+          });
+
+          chartActions.setDimensions(newDimensions);
+        }
       }
+    };
+
+    // Debounced resize handler to prevent excessive redraws
+    const debouncedHandleResize = (): void => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+      resizeTimeout = setTimeout(handleResize, 100);
     };
 
     // Use ResizeObserver for accurate container size detection
@@ -540,6 +564,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       resizeObserver = new ResizeObserver(entries => {
         for (const entry of entries) {
           if (entry.target === containerRef.current) {
+            // Use immediate resize for ResizeObserver to ensure real-time updates
             handleResize();
           }
         }
@@ -547,22 +572,57 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       resizeObserver.observe(containerRef.current);
     }
 
-    window.addEventListener('resize', handleResize);
+    // Use debounced resize for window events
+    window.addEventListener('resize', debouncedHandleResize);
+
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', debouncedHandleResize);
       if (resizeObserver) {
         resizeObserver.disconnect();
       }
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
     };
-  }, []); // No dependencies needed - just sets dimensions
+  }, [chartState.dimensions.width, chartState.dimensions.height]); // Re-run when dimensions change
 
   // Separate effect to handle dimension changes and re-render chart
   useEffect(() => {
     if (svgRef.current && chartState.chartLoaded && chartState.chartExists && chartState.allData.length > 0) {
+      logger.chart.render('Dimension change detected, re-rendering chart:', {
+        width: chartState.dimensions.width,
+        height: chartState.dimensions.height,
+        viewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
+      });
+
       // Get current transform
       const currentZoomTransform = d3.zoomTransform(svgRef.current);
 
+      // Calculate new Y-scale for the updated dimensions
+      const { innerWidth, innerHeight } = calculateInnerDimensions(chartState.dimensions);
+
+      // Create new Y-scale with updated dimensions
+      const newYScale = d3
+        .scaleLinear()
+        .domain(chartState.fixedYScaleDomain || [0, 1])
+        .range([innerHeight, 0]);
+
+      // Apply current transform to the Y-scale
+      const transformedYScale = currentZoomTransform.rescaleY(newYScale);
+
+      // Update axes with new dimensions and scales
+      updateAxes(
+        svgRef.current as SVGSVGElement,
+        chartState.dimensions,
+        chartState.allData,
+        chartState.currentViewStart,
+        chartState.currentViewEnd,
+        transformedYScale,
+        chartState.timeframe || '1h'
+      );
+
       // Use centralized render function for dimension changes (panning-like behavior)
+      // This will redraw candlesticks with the new dimensions
       const renderResult = renderPanning(
         svgRef.current as SVGSVGElement,
         chartState.dimensions,
@@ -577,9 +637,18 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         // Update overlay for new dimensions
         const overlay = d3.select(svgRef.current).select<SVGRectElement>('.overlay');
         if (!overlay.empty()) {
-          const { innerWidth, innerHeight } = calculateInnerDimensions(chartState.dimensions);
           overlay.attr('width', innerWidth).attr('height', innerHeight);
         }
+
+        // Update clip-path for new dimensions
+        const clipPath = d3.select(svgRef.current).select<SVGRectElement>('#clip rect');
+        if (!clipPath.empty()) {
+          clipPath.attr('width', innerWidth).attr('height', innerHeight);
+        }
+
+        logger.chart.success('Chart re-rendered successfully for dimension change');
+      } else {
+        logger.chart.error('Failed to re-render chart for dimension change:', renderResult.error);
       }
     }
   }, [chartState.dimensions.width, chartState.dimensions.height]); // Trigger when dimensions change

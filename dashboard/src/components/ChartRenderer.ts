@@ -875,3 +875,63 @@ export const updateClipPath = (
     clipRect.attr('x', 0).attr('y', 0).attr('width', innerWidth).attr('height', innerHeight);
   }
 };
+
+// Function to update axes when dimensions change
+export const updateAxes = (
+  svgElement: SVGSVGElement,
+  dimensions: ChartDimensions,
+  allChartData: CandlestickData[],
+  currentViewStart: number,
+  currentViewEnd: number,
+  yScale: d3.ScaleLinear<number, number>,
+  timeframe: string = '1m'
+): void => {
+  const svg = d3.select(svgElement);
+  const { innerWidth, innerHeight } = calculateInnerDimensions(dimensions);
+
+  // Update X-axis
+  const xAxisGroup = svg.select<SVGGElement>('.x-axis');
+  if (!xAxisGroup.empty()) {
+    // Update transform to new height
+    xAxisGroup.attr('transform', `translate(0,${innerHeight})`);
+
+    // Calculate X-axis parameters with new dimensions
+    const xAxisParams = calculateXAxisParams({
+      viewStart: currentViewStart,
+      viewEnd: currentViewEnd,
+      allChartData,
+      innerWidth,
+      timeframe,
+    });
+
+    // Update the X-axis with new scale
+    xAxisGroup.call(
+      createCustomTimeAxis(
+        xAxisParams.viewportXScale as unknown as d3.ScaleLinear<number, number>,
+        allChartData,
+        xAxisParams.labelConfig.markerIntervalMinutes,
+        X_AXIS_MARKER_DATA_POINT_INTERVAL,
+        xAxisParams.visibleSlice,
+        xAxisParams.interval
+      )
+    );
+    applyAxisStyling(xAxisGroup);
+  }
+
+  // Update Y-axis
+  const yAxisGroup = svg.select<SVGGElement>('.y-axis');
+  if (!yAxisGroup.empty()) {
+    // Update transform to new width
+    yAxisGroup.attr('transform', `translate(${innerWidth},0)`);
+
+    // Update the Y-axis with new scale
+    yAxisGroup.call(createYAxis(yScale));
+    applyAxisStyling(yAxisGroup);
+  }
+
+  logger.chart.render('Axes updated for dimension change:', {
+    width: innerWidth,
+    height: innerHeight,
+    viewport: `${currentViewStart}-${currentViewEnd}`,
+  });
+};
