@@ -4,6 +4,7 @@ import { apiService } from '../services/apiService';
 import { PageHeader } from '../components/PageHeader';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
+import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import { getSessionStorageItem, setSessionStorageItem } from '../utils/localStorage';
 
 export const WhaleFinderPage: React.FC = () => {
@@ -422,8 +423,18 @@ export const WhaleFinderPage: React.FC = () => {
                               </div>
 
                               {/* Price with P/C indicator */}
-                              <div className="font-semibold text-muted-foreground text-right">
-                                {formatCurrency(trade.price)} {trade.option_type === 'call' ? 'C' : 'P'}
+                              <div className="font-semibold text-muted-foreground text-right flex items-center justify-end gap-1">
+                                {formatCurrency(trade.price)}
+                                <span
+                                  className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded"
+                                  style={{
+                                    backgroundColor:
+                                      trade.option_type === 'call' ? `${CANDLE_UP_COLOR}20` : `${CANDLE_DOWN_COLOR}20`,
+                                    color: trade.option_type === 'call' ? CANDLE_UP_COLOR : CANDLE_DOWN_COLOR,
+                                  }}
+                                >
+                                  {trade.option_type === 'call' ? 'C' : 'P'}
+                                </span>
                               </div>
 
                               {/* Size */}

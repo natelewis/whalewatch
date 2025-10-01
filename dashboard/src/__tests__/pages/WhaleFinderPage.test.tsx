@@ -99,9 +99,11 @@ describe('WhaleFinderPage', () => {
       expect(screen.getByText('1')).toBeInTheDocument(); // repeat_count for first trade
       expect(screen.getByText('2')).toBeInTheDocument(); // repeat_count for second trade
 
-      // Test price with P/C indicator (should show $5.50 C and $3.20 P)
-      expect(screen.getByText('$5.50 C')).toBeInTheDocument();
-      expect(screen.getByText('$3.20 P')).toBeInTheDocument();
+      // Test price and P/C indicators (should show $5.50 with C in green box and $3.20 with P in red box)
+      expect(screen.getByText('$5.50')).toBeInTheDocument();
+      expect(screen.getByText('$3.20')).toBeInTheDocument();
+      expect(screen.getByText('C')).toBeInTheDocument();
+      expect(screen.getByText('P')).toBeInTheDocument();
 
       // Test volume values
       expect(screen.getByText('100')).toBeInTheDocument(); // Volume for first trade
