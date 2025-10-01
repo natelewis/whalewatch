@@ -1,5 +1,5 @@
 import { db } from '../db/connection';
-import { StockAggregate, OptionTrade } from '../types/database';
+import { OptionTrade } from '../types/database';
 
 /**
  * Get table name with test prefix if in test environment
@@ -17,61 +17,6 @@ function getTableName(originalTableName: string): string {
 }
 
 export class InsertIfNotExistsService {
-  /**
-   * Insert a stock aggregate record if it doesn't exist
-   */
-  static async insertStockAggregateIfNotExists(
-    aggregate: StockAggregate,
-    tableName = getTableName('stock_aggregates')
-  ): Promise<void> {
-    try {
-      // Check if record exists using a range query to handle timestamp precision
-      // QuestDB stores timestamps with microsecond precision, so we need to account for that
-      const timestampStr = aggregate.timestamp.toISOString();
-
-      const existing = await db.query(
-        `SELECT symbol, timestamp FROM ${tableName} 
-         WHERE symbol = $1 AND timestamp >= $2 AND timestamp < $3`,
-        [
-          aggregate.symbol,
-          timestampStr,
-          new Date(aggregate.timestamp.getTime() + 1000).toISOString(), // Add 1 second to create range
-        ]
-      );
-
-      const questResult = existing as {
-        columns: { name: string; type: string }[];
-        dataset: unknown[][];
-      };
-
-      if (questResult.dataset && questResult.dataset.length > 0) {
-        // Record already exists, skip insertion
-        console.log(`Stock aggregate already exists: ${aggregate.symbol} at ${aggregate.timestamp}`);
-      } else {
-        // Insert new record
-        await db.query(
-          `INSERT INTO ${tableName} (symbol, timestamp, open, high, low, close, volume, vwap, transaction_count)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [
-            aggregate.symbol,
-            aggregate.timestamp,
-            aggregate.open,
-            aggregate.high,
-            aggregate.low,
-            aggregate.close,
-            aggregate.volume,
-            aggregate.vwap,
-            aggregate.transaction_count,
-          ]
-        );
-        console.log(`Inserted stock aggregate: ${aggregate.symbol} at ${aggregate.timestamp}`);
-      }
-    } catch (error) {
-      console.error('Error inserting stock aggregate:', error);
-      throw error;
-    }
-  }
-
   /**
    * Insert an option trade record if it doesn't exist
    */
@@ -144,44 +89,6 @@ export class InsertIfNotExistsService {
       console.log(`Completed processing of ${trades.length} option trades`);
     } catch (error) {
       console.error('Error processing option trades:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Batch insert multiple stock aggregates using individual inserts to prevent duplicates
-   * This ensures proper duplicate checking for each record
-   */
-  static async batchInsertStockAggregatesIfNotExists(
-    aggregates: StockAggregate[],
-    tableName = getTableName('stock_aggregates')
-  ): Promise<void> {
-    if (aggregates.length === 0) {
-      return;
-    }
-
-    try {
-      // Process in batches to avoid overwhelming the database
-      const BATCH_SIZE = 50; // Smaller batch size for individual inserts
-
-      for (let i = 0; i < aggregates.length; i += BATCH_SIZE) {
-        const batch = aggregates.slice(i, i + BATCH_SIZE);
-
-        // Process each aggregate individually to ensure proper duplicate checking
-        for (const aggregate of batch) {
-          await this.insertStockAggregateIfNotExists(aggregate, tableName);
-        }
-
-        console.log(
-          `Processed ${batch.length} stock aggregates (batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
-            aggregates.length / BATCH_SIZE
-          )})`
-        );
-      }
-
-      console.log(`Completed insert of ${aggregates.length} stock aggregates`);
-    } catch (error) {
-      console.error('Error bulk inserting stock aggregates:', error);
       throw error;
     }
   }

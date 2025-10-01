@@ -2,13 +2,7 @@ import request from 'supertest';
 import express from 'express';
 import { questdbService } from '../../services/questdbService';
 import { questdbRoutes } from '../../routes/questdb';
-import {
-  QuestDBStockTrade,
-  QuestDBStockAggregate,
-  QuestDBOptionTrade,
-  QuestDBOptionQuote,
-  QuestDBOptionContract,
-} from '../../types';
+import { QuestDBStockTrade, QuestDBOptionTrade, QuestDBOptionQuote, QuestDBOptionContract } from '../../types';
 
 // Mock the questdbService
 jest.mock('../../services/questdbService');
@@ -125,56 +119,6 @@ describe('QuestDB Routes', () => {
       await request(app).get('/api/questdb/stock-trades/aapl').expect(200);
 
       expect(mockedQuestdbService.getStockTrades).toHaveBeenCalledWith('AAPL', expect.any(Object));
-    });
-  });
-
-  describe('GET /api/questdb/stock-aggregates/:symbol', () => {
-    it('should return stock aggregates for a symbol', async () => {
-      const mockAggregates: QuestDBStockAggregate[] = [
-        {
-          timestamp: '2024-01-01T10:00:00.000Z',
-          symbol: 'AAPL',
-          open: 150.0,
-          high: 151.0,
-          low: 149.5,
-          close: 150.5,
-          volume: 1000,
-          vwap: 150.25,
-          transaction_count: 100,
-        },
-      ];
-
-      mockedQuestdbService.getStockAggregates.mockResolvedValue(mockAggregates);
-
-      const response = await request(app).get('/api/questdb/stock-aggregates/AAPL').expect(200);
-
-      expect(response.body).toEqual({
-        symbol: 'AAPL',
-        aggregates: mockAggregates,
-        count: 1,
-        data_source: 'questdb',
-        success: true,
-      });
-
-      expect(mockedQuestdbService.getStockAggregates).toHaveBeenCalledWith('AAPL', {
-        start_time: undefined,
-        end_time: undefined,
-        limit: 1000,
-        order_by: 'timestamp',
-        order_direction: 'ASC',
-      });
-    });
-
-    it('should handle service errors for aggregates', async () => {
-      mockedQuestdbService.getStockAggregates.mockRejectedValue(new Error('Database error'));
-
-      const response = await request(app).get('/api/questdb/stock-aggregates/AAPL').expect(500);
-
-      expect(response.body).toEqual({
-        error: 'Failed to fetch stock aggregates: Database error',
-        data_source: 'questdb',
-        success: false,
-      });
     });
   });
 

@@ -48,18 +48,6 @@ export interface QuestDBStockTrade {
   trade_id: string;
 }
 
-export interface QuestDBStockAggregate {
-  symbol: string;
-  timestamp: string; // ISO timestamp
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  vwap: number;
-  transaction_count: number;
-}
-
 export interface QuestDBOptionTrade {
   ticker: string;
   underlying_ticker: string;
@@ -96,15 +84,15 @@ export interface QuestDBResponse<T> {
 
 // WebSocket message types for real-time data
 export interface QuestDBWebSocketMessage {
-  type: 'stock_trade' | 'stock_aggregate' | 'error' | 'connected' | 'disconnected';
-  data: QuestDBStockTrade | QuestDBStockAggregate | string;
+  type: 'stock_trade' | 'error' | 'connected' | 'disconnected';
+  data: QuestDBStockTrade | string;
   timestamp: string;
   symbol?: string;
 }
 
 // Subscription types for WebSocket
 export interface QuestDBSubscription {
-  type: 'stock_trades' | 'stock_aggregates';
+  type: 'stock_trades';
   symbol?: string | undefined;
   filters?:
     | {

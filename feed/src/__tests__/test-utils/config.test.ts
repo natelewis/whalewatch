@@ -6,7 +6,6 @@ describe('Test Configuration Utilities', () => {
     it('should add test prefix in test environment', () => {
       process.env.NODE_ENV = 'test';
       expect(getTableName('stock_trades')).toBe('test_stock_trades');
-      expect(getTableName('option_contracts')).toBe('test_option_contracts');
     });
 
     it('should not add prefix in non-test environment', () => {

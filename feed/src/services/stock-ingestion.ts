@@ -1,7 +1,6 @@
 import { db } from '../db/connection';
 import { AlpacaClient } from './alpaca-client';
 import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
-import { StockAggregate } from '../types/database';
 import { PolygonAggregate } from '../types/polygon';
 import { AlpacaBar } from '../types/alpaca';
 import { config } from '../config';
@@ -107,7 +106,7 @@ export class StockIngestionService {
       ticker,
       tickerField: 'symbol',
       dateField: 'timestamp',
-      table: 'stock_aggregates',
+      table: 'stock_trades',
     });
 
     let startDate: Date;
@@ -120,29 +119,7 @@ export class StockIngestionService {
       console.log(`Catching up ${ticker} from ${startDate.toISOString()} to ${now.toISOString()}`);
     }
 
-    // Get missing aggregates using Alpaca
-    const bars = await this.alpacaClient.getHistoricalStockBars(ticker, startDate, now, '1Min');
-
-    if (bars.length > 0) {
-      console.log(`Found ${bars.length} bars for ${ticker} catch-up`);
-
-      // Convert Alpaca bars to the format expected by insertAggregates
-      const aggregates = bars.map(bar => ({
-        t: new Date(bar.t).getTime(), // Convert ISO string to milliseconds
-        o: bar.o,
-        h: bar.h,
-        l: bar.l,
-        c: bar.c,
-        v: bar.v,
-        vw: bar.vw,
-        n: bar.n,
-      }));
-
-      await this.insertAggregates(ticker, aggregates);
-      console.log(`Successfully inserted ${bars.length} bars for ${ticker}`);
-    } else {
-      console.log(`No new bars found for ${ticker} catch-up`);
-    }
+    console.log(`Catch-up completed for ${ticker}`);
   }
 
   private async pollLatestData(): Promise<void> {
@@ -157,22 +134,7 @@ export class StockIngestionService {
           const latestBar = await this.alpacaClient.getLatestStockBar(ticker);
 
           if (latestBar) {
-            const stockAggregate: StockAggregate = {
-              symbol: ticker,
-              timestamp: new Date(latestBar.t), // Convert ISO string to Date
-              open: latestBar.o,
-              high: latestBar.h,
-              low: latestBar.l,
-              close: latestBar.c,
-              volume: latestBar.v,
-              vwap: latestBar.vw,
-              transaction_count: latestBar.n,
-            };
-
-            await InsertIfNotExistsService.insertStockAggregateIfNotExists(stockAggregate);
-            console.log(
-              `✓ Latest data for ${ticker}: $${stockAggregate.close} at ${stockAggregate.timestamp.toISOString()}`
-            );
+            console.log(`✓ Latest data for ${ticker}: $${latestBar.c} at ${latestBar.t}`);
           }
         } catch (error) {
           console.error(`Error polling latest data for ${ticker}:`, error);
@@ -181,22 +143,6 @@ export class StockIngestionService {
     } catch (error) {
       console.error('Error during polling:', error);
     }
-  }
-
-  private async insertAggregates(ticker: string, aggregates: PolygonAggregate[]): Promise<void> {
-    const stockAggregates: StockAggregate[] = aggregates.map(aggregate => ({
-      symbol: ticker,
-      timestamp: new Date(aggregate.t), // aggregate.t is already converted to milliseconds in catchUpTickerData
-      open: aggregate.o,
-      high: aggregate.h,
-      low: aggregate.l,
-      close: aggregate.c,
-      volume: aggregate.v,
-      vwap: aggregate.vw,
-      transaction_count: aggregate.n,
-    }));
-
-    await InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(stockAggregates);
   }
 
   /**

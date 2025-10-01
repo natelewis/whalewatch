@@ -2,7 +2,6 @@ import { db } from '../db/connection';
 import { StockIngestionService } from './stock-ingestion';
 import { InsertIfNotExistsService } from '../utils/insert-if-not-exists';
 import { config } from '../config';
-import { StockAggregate } from '../types/database';
 import { getMinDate, getMaxDate, QuestDBServiceInterface } from '@whalewatch/shared';
 
 export class BackfillService {
@@ -64,7 +63,7 @@ export class BackfillService {
           ticker,
           tickerField: 'symbol',
           dateField: 'timestamp',
-          table: 'stock_aggregates',
+          table: 'stock_trades',
         });
         if (tickerOldest && (!oldestTimestamp || tickerOldest < oldestTimestamp)) {
           oldestTimestamp = tickerOldest;
@@ -84,10 +83,8 @@ export class BackfillService {
       for (const ticker of config.tickers) {
         try {
           const tickerStartTime = Date.now();
-          const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
           const tickerDuration = Date.now() - tickerStartTime;
-          totalItemsProcessed += itemsProcessed;
-          console.log(`Completed ${ticker} in ${this.formatDuration(tickerDuration)} - ${itemsProcessed} items`);
+          console.log(`Completed ${ticker} in ${this.formatDuration(tickerDuration)} - 0 items`);
         } catch (error) {
           console.error(`Error backfilling ${ticker}:`, error);
         }
@@ -102,18 +99,8 @@ export class BackfillService {
       for (const ticker of config.tickers) {
         try {
           const tickerStartTime = Date.now();
-          const itemsProcessed = await this.processStockAggregateBackfill(
-            ticker,
-            additionalWeekStart,
-            additionalWeekEnd
-          );
           const tickerDuration = Date.now() - tickerStartTime;
-          totalItemsProcessed += itemsProcessed;
-          console.log(
-            `Completed additional week for ${ticker} in ${this.formatDuration(
-              tickerDuration
-            )} - ${itemsProcessed} items`
-          );
+          console.log(`Completed additional week for ${ticker} in ${this.formatDuration(tickerDuration)} - 0 items`);
         } catch (error) {
           console.error(`Error backfilling additional week for ${ticker}:`, error);
         }
@@ -152,12 +139,8 @@ export class BackfillService {
       const backfillStart = newestTimestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago if no data
       const backfillEnd = new Date();
 
-      const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
-
       const duration = Date.now() - startTime;
-      console.log(
-        `Backfill completed for ${ticker} in ${this.formatDuration(duration)} - ${itemsProcessed} items processed`
-      );
+      console.log(`Backfill completed for ${ticker} in ${this.formatDuration(duration)} - 0 items processed`);
     } catch (error) {
       console.error(`Backfill failed for ${ticker}:`, error);
       throw error;
@@ -190,12 +173,8 @@ export class BackfillService {
         );
       }
 
-      const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
-
       const duration = Date.now() - startTime;
-      console.log(
-        `Backfill completed for ${ticker} in ${this.formatDuration(duration)} - ${itemsProcessed} items processed`
-      );
+      console.log(`Backfill completed for ${ticker} in ${this.formatDuration(duration)} - 0 items processed`);
     } catch (error) {
       console.error(`Backfill failed for ${ticker}:`, error);
       throw error;
@@ -234,8 +213,7 @@ export class BackfillService {
       for (const ticker of config.tickers) {
         try {
           // Backfill the data (insert if not exists will handle duplicates)
-          const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
-          totalItemsProcessed += itemsProcessed;
+          totalItemsProcessed += 0;
         } catch (error) {
           console.error(`Error backfilling ${ticker}:`, error);
         }
@@ -274,7 +252,7 @@ export class BackfillService {
           ticker,
           tickerField: 'symbol',
           dateField: 'timestamp',
-          table: 'stock_aggregates',
+          table: 'stock_trades',
         });
         if (tickerOldest && (!oldestTimestamp || tickerOldest < oldestTimestamp)) {
           oldestTimestamp = tickerOldest;
@@ -299,7 +277,6 @@ export class BackfillService {
           const tickerStartTime = Date.now();
 
           // Check stocks independently
-          await this.backfillStockAggregates(ticker, endDate);
           totalItemsProcessed += 1; // Count ticker as processed
 
           const tickerDuration = Date.now() - tickerStartTime;
@@ -332,8 +309,6 @@ export class BackfillService {
       await db.executeSchema();
 
       // Use the new independent check logic
-      await this.backfillStockAggregates(ticker, endDate);
-
       const duration = Date.now() - startTime;
       console.log(`Backfill completed for ${ticker} in ${this.formatDuration(duration)}`);
     } catch (error) {
@@ -342,168 +317,5 @@ export class BackfillService {
     } finally {
       await db.disconnect();
     }
-  }
-
-  private async backfillStockAggregates(ticker: string, endDate: Date): Promise<void> {
-    console.log(
-      `Checking stock aggregates backfill requirements for ${ticker} to ${endDate.toISOString().split('T')[0]}`
-    );
-
-    // Check if stock aggregates backfill is skipped
-    if (config.alpaca.skipStockAggregates) {
-      console.log(`Skipping stock aggregates backfill (ALPACA_SKIP_STOCK_AGGREGATES=true)`);
-      return;
-    }
-
-    // Check stocks independently
-    const oldestStockDataDate = await getMinDate(this.questdbAdapter, {
-      ticker,
-      tickerField: 'symbol',
-      dateField: 'timestamp',
-      table: 'stock_aggregates',
-    });
-    let stocksNeedBackfill = false;
-    let stockBackfillStart: Date | null = null;
-
-    if (oldestStockDataDate) {
-      if (oldestStockDataDate <= endDate) {
-        console.log(
-          `${ticker} stock aggregates already have data through ${endDate.toISOString().split('T')[0]} (oldest data: ${
-            oldestStockDataDate.toISOString().split('T')[0]
-          }), skipping stock backfill`
-        );
-      } else {
-        stocksNeedBackfill = true;
-        stockBackfillStart = endDate;
-        console.log(
-          `${ticker} stocks oldest data is ${
-            oldestStockDataDate.toISOString().split('T')[0]
-          }, backfilling stocks from ${endDate.toISOString().split('T')[0]} TO ${
-            oldestStockDataDate.toISOString().split('T')[0]
-          }`
-        );
-      }
-    } else {
-      stocksNeedBackfill = true;
-      stockBackfillStart = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000); // 1 year back
-      console.log(
-        `${ticker} has no existing stock data, backfilling stocks from historical date to ${
-          endDate.toISOString().split('T')[0]
-        }`
-      );
-    }
-
-    // Backfill stocks if needed
-    if (stocksNeedBackfill && stockBackfillStart) {
-      try {
-        await this.processStockAggregateBackfill(ticker, stockBackfillStart, endDate);
-      } catch (error) {
-        console.error(`Error backfilling stocks for ${ticker}:`, error);
-      }
-    }
-  }
-
-  private async processStockAggregateBackfill(ticker: string, startDate: Date, endDate: Date): Promise<number> {
-    console.log(`Backfilling ${ticker} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
-
-    // Validate dates
-    const now = new Date();
-    if (endDate > now) {
-      console.warn(`WARNING: End date ${endDate.toISOString()} is in the future. Current time: ${now.toISOString()}`);
-    }
-    if (startDate > endDate) {
-      console.warn(`WARNING: Start date ${startDate.toISOString()} is after end date ${endDate.toISOString()}`);
-    }
-
-    // Start from the start date and work forwards to end date
-    const currentDate = new Date(startDate);
-    let totalItemsProcessed = 0;
-
-    while (currentDate <= endDate) {
-      // Process one day at a time, going forwards
-      const dayEnd = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
-      const actualEnd = dayEnd > endDate ? endDate : dayEnd;
-
-      try {
-        const bars = await this.stockIngestionService.getHistoricalStockBars(ticker, currentDate, actualEnd, '1Min');
-
-        console.log(
-          `Fetched ${bars.length} bars from Alpaca for ${ticker} on ${currentDate.toISOString().split('T')[0]}`
-        );
-        if (bars.length > 0) {
-          console.log(`Processing ${bars.length} bars for ${ticker} on ${currentDate.toISOString().split('T')[0]}`);
-
-          // Convert Alpaca bars to the format expected by insertAlpacaAggregates
-          const aggregates = bars.map(bar => ({
-            symbol: ticker,
-            timestamp: new Date(bar.t),
-            open: bar.o,
-            high: bar.h,
-            low: bar.l,
-            close: bar.c,
-            volume: bar.v,
-            vw: bar.vw,
-            n: bar.n,
-          }));
-
-          console.log(`About to insert ${aggregates.length} aggregates for ${ticker}`);
-          try {
-            await this.insertAlpacaAggregates(ticker, aggregates);
-            totalItemsProcessed += aggregates.length;
-            console.log(
-              `Successfully inserted ${aggregates.length} aggregates for ${ticker} on ${
-                currentDate.toISOString().split('T')[0]
-              }`
-            );
-          } catch (insertError) {
-            console.error(`Error inserting aggregates for ${ticker}:`, insertError);
-            throw insertError;
-          }
-
-          // Data successfully inserted
-        } else {
-          console.log(`No data found for ${ticker} on ${currentDate.toISOString().split('T')[0]}`);
-        }
-      } catch (error) {
-        console.error(`Error backfilling ${ticker} for ${currentDate.toISOString().split('T')[0]}:`, error);
-        // Continue with next day
-      }
-
-      // Move to the next day
-      currentDate.setDate(currentDate.getDate() + 1);
-
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return totalItemsProcessed;
-  }
-
-  private async insertAlpacaAggregates(
-    ticker: string,
-    aggregates: Array<{
-      symbol: string;
-      timestamp: Date;
-      open: number;
-      high: number;
-      low: number;
-      close: number;
-      volume: number;
-      vw: number;
-      n: number;
-    }>
-  ): Promise<void> {
-    const stockAggregates: StockAggregate[] = aggregates.map(aggregate => ({
-      symbol: ticker,
-      timestamp: aggregate.timestamp, // Already converted to Date in the mapping above
-      open: aggregate.open,
-      high: aggregate.high,
-      low: aggregate.low,
-      close: aggregate.close,
-      volume: aggregate.volume,
-      vwap: aggregate.vw,
-      transaction_count: aggregate.n,
-    }));
-
-    await InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists(stockAggregates);
   }
 }

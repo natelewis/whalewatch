@@ -54,25 +54,9 @@ async function testConnection() {
     });
     console.log('✅ Tables found:', tablesResponse.data);
 
-    // Test stock_aggregates count
-    console.log('\n3. Testing stock_aggregates count...');
-    const countResponse = await axios.get(`${baseUrl}/exec`, {
-      params: { query: 'SELECT COUNT(*) as count FROM stock_aggregates' },
-      timeout: config.timeout,
-      ...(config.username && config.password
-        ? {
-            auth: {
-              username: config.username,
-              password: config.password,
-            },
-          }
-        : {}),
-    });
-    console.log('✅ Stock aggregates count:', countResponse.data);
-
     // Test all the tables that the server tries to query
-    console.log('\n4. Testing all database stats queries...');
-    const tables = ['stock_trades', 'stock_aggregates', 'option_contracts', 'option_trades', 'option_quotes'];
+    console.log('\n3. Testing all database stats queries...');
+    const tables = ['stock_trades'];
 
     for (const table of tables) {
       try {

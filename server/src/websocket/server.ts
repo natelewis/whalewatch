@@ -146,13 +146,6 @@ const handleSubscription = (
             symbol: sym,
           });
           break;
-        case 'chart_quote':
-          console.log(`📊 Client subscribing to chart data for ${sym}`);
-          questdbWebSocketService.subscribe({
-            type: 'stock_aggregates',
-            symbol: sym,
-          });
-          break;
       }
     });
 
@@ -207,12 +200,6 @@ const handleUnsubscription = (
             symbol: sym,
           });
           break;
-        case 'chart_quote':
-          questdbWebSocketService.unsubscribe({
-            type: 'stock_aggregates',
-            symbol: sym,
-          });
-          break;
       }
     });
 
@@ -260,26 +247,6 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
       },
       message.symbol
     );
-  });
-
-  // Handle real-time stock aggregates from QuestDB
-  questdbWebSocketService.on('stock_aggregate', message => {
-    const barData = {
-      symbol: message.symbol,
-      bar: {
-        t: message.data.timestamp,
-        o: message.data.open,
-        h: message.data.high,
-        l: message.data.low,
-        c: message.data.close,
-        v: message.data.volume,
-        n: message.data.transaction_count,
-        vw: message.data.vwap,
-      },
-    };
-
-    console.log('📡 Broadcasting to chart_quote subscribers:', barData);
-    broadcastToSubscribers(wss, 'chart_quote', barData, message.symbol);
   });
 
   // Handle errors from QuestDB WebSocket

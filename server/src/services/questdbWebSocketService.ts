@@ -136,9 +136,6 @@ export class QuestDBWebSocketService extends EventEmitter {
         case 'option_quotes':
           await this.pollOptionQuotes(subscription, lastTimestamp, now);
           break;
-        case 'stock_aggregates':
-          newTimestamp = await this.pollStockAggregates(subscription, lastTimestamp);
-          break;
         default:
           console.warn(`Unknown subscription type: ${subscription.type}`);
       }
@@ -287,56 +284,6 @@ export class QuestDBWebSocketService extends EventEmitter {
       }
     } catch (error) {
       console.error(`Error polling option_quotes data:`, error);
-      // Re-throw the error to be handled by the calling method
-      throw error;
-    }
-  }
-
-  /**
-   * Poll for new stock aggregates
-   */
-  private async pollStockAggregates(
-    subscription: QuestDBSubscription,
-    lastTimestamp: string | undefined
-  ): Promise<string | undefined> {
-    if (!subscription.symbol) {
-      console.log('⚠️ No symbol provided for stock aggregates subscription');
-      return;
-    }
-
-    try {
-      // Get the latest record for this symbol
-      const aggregates = await questdbService.getStockAggregates(subscription.symbol, {
-        limit: 1,
-        order_by: 'timestamp',
-        order_direction: 'DESC', // Get the most recent record
-      });
-
-      if (aggregates.length === 0) {
-        console.log(`📊 No stock aggregates found for ${subscription.symbol}`);
-        return lastTimestamp; // Return the same timestamp since we didn't process anything
-      }
-
-      const latestAggregate = aggregates[0];
-      // Check if this is a new record we haven't processed yet
-      if (lastTimestamp && new Date(latestAggregate.timestamp) <= new Date(lastTimestamp)) {
-        return lastTimestamp; // Return the same timestamp since we didn't process anything
-      }
-
-      // This is new data, emit it
-      const message: QuestDBWebSocketMessage = {
-        type: 'stock_aggregate',
-        data: latestAggregate,
-        timestamp: new Date().toISOString(),
-        symbol: latestAggregate.symbol,
-      };
-
-      this.emit('stock_aggregate', message);
-
-      // Return the timestamp of the data we just processed
-      return latestAggregate.timestamp;
-    } catch (error) {
-      console.error(`Error polling stock_aggregates data:`, error);
       // Re-throw the error to be handled by the calling method
       throw error;
     }

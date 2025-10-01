@@ -170,12 +170,7 @@ export async function insertTestData(tableName: string, data: Record<string, unk
  */
 export async function getTestTableData(tableName: string): Promise<unknown[]> {
   // Determine the timestamp column based on table name
-  let timestampColumn = 'timestamp'; // default
-  if (tableName.includes('option_contracts')) {
-    timestampColumn = 'expiration_date';
-  } else if (tableName.includes('option_contracts_index')) {
-    timestampColumn = 'as_of';
-  }
+  const timestampColumn = 'timestamp';
 
   const result = await db.query(`SELECT * FROM ${tableName} ORDER BY ${timestampColumn} DESC`);
   const questResult = result as {

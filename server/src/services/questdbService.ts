@@ -3,7 +3,6 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import {
   QuestDBStockTrade,
-  QuestDBStockAggregate,
   QuestDBOptionTrade,
   QuestDBQueryParams,
   QuestDBResponse,
@@ -171,113 +170,6 @@ export class QuestDBService {
   }
 
   /**
-   * Get stock aggregates (bars) for a symbol within a time range
-   */
-  async getStockAggregates(symbol: string, params: QuestDBQueryParams = {}): Promise<QuestDBStockAggregate[]> {
-    const { start_time, end_time, limit, order_by = 'timestamp', order_direction = 'ASC' } = params;
-
-    // First check if the table exists
-    await this.ensureTableExists('stock_aggregates');
-
-    let query = `SELECT * FROM stock_aggregates WHERE symbol = '${symbol.toUpperCase()}'`;
-
-    if (start_time) {
-      // For past direction (DESC order), use <= to get data before start_time
-      // For future direction (ASC order), use >= to get data from start_time onwards
-      if (order_direction === 'DESC') {
-        query += ` AND timestamp <= '${start_time}'`;
-      } else {
-        query += ` AND timestamp >= '${start_time}'`;
-      }
-    }
-
-    if (end_time) {
-      query += ` AND timestamp <= '${end_time}'`;
-    }
-
-    query += ` ORDER BY ${order_by} ${order_direction}`;
-
-    // Only add LIMIT if explicitly provided
-    if (limit) {
-      query += ` LIMIT ${limit}`;
-    }
-    const response = await this.executeQuery<QuestDBStockAggregate>(query);
-    return this.convertArrayToObject<QuestDBStockAggregate>(response.dataset, response.columns);
-  }
-
-  /**
-   * Get aggregated stock data using QuestDB's SAMPLE BY for time-based aggregation
-   */
-  async getAggregatedStockData(
-    symbol: string,
-    interval: string,
-    params: QuestDBQueryParams = {}
-  ): Promise<QuestDBStockAggregate[]> {
-    const { start_time, end_time, limit, order_direction = 'ASC' } = params;
-
-    // First check if the table exists
-    await this.ensureTableExists('stock_aggregates');
-
-    // Convert interval to QuestDB SAMPLE BY format
-    const sampleByInterval = this.convertIntervalToSampleBy(interval);
-
-    // Build the aggregation query using QuestDB's SAMPLE BY
-    let query = `
-      SELECT 
-        timestamp,
-        first(open) as open,
-        max(high) as high,
-        min(low) as low,
-        last(close) as close,
-        sum(volume) as volume,
-        sum(transaction_count) as transaction_count,
-        sum(vwap * volume) / sum(volume) as vwap
-      FROM stock_aggregates 
-      WHERE symbol = '${symbol.toUpperCase()}'`;
-
-    if (start_time) {
-      if (order_direction === 'DESC') {
-        query += ` AND timestamp <= '${start_time}'`;
-      } else {
-        query += ` AND timestamp >= '${start_time}'`;
-      }
-    }
-
-    if (end_time) {
-      query += ` AND timestamp <= '${end_time}'`;
-    }
-
-    query += ` SAMPLE BY ${sampleByInterval}`;
-    query += ` ORDER BY timestamp ${order_direction}`;
-
-    if (limit) {
-      query += ` LIMIT ${limit}`;
-    }
-
-    console.log(`🔍 DEBUG: QuestDB Aggregation Query: ${query}`);
-    const response = await this.executeQuery<QuestDBStockAggregate>(query);
-    console.log(`🔍 DEBUG: QuestDB returned ${response.dataset.length} aggregated rows`);
-    return this.convertArrayToObject<QuestDBStockAggregate>(response.dataset, response.columns);
-  }
-
-  /**
-   * Convert interval format to QuestDB SAMPLE BY format
-   */
-  private convertIntervalToSampleBy(interval: string): string {
-    const intervalMap: Record<string, string> = {
-      '1m': '1m',
-      '15m': '15m',
-      '30m': '30m',
-      '1h': '1h',
-      '2h': '2h',
-      '4h': '4h',
-      '1d': '1d',
-    };
-
-    return intervalMap[interval] || '1h';
-  }
-
-  /**
    * Ensure a table exists, throw descriptive error if it doesn't
    */
   private async ensureTableExists(tableName: string): Promise<void> {
@@ -343,23 +235,6 @@ export class QuestDBService {
   }
 
   /**
-   * Get the latest aggregate timestamp for a symbol
-   */
-  async getLatestAggregateTimestamp(symbol: string): Promise<string | null> {
-    // First check if the table exists
-    await this.ensureTableExists('stock_aggregates');
-
-    const result = await getMaxDate(this, {
-      ticker: symbol,
-      tickerField: 'symbol',
-      dateField: 'timestamp',
-      table: 'stock_aggregates',
-    });
-
-    return result ? result.toISOString() : null;
-  }
-
-  /**
    * Test the QuestDB connection
    */
   async testConnection(): Promise<boolean> {
@@ -380,7 +255,6 @@ export class QuestDBService {
    */
   async getDatabaseStats(): Promise<{
     stock_trades_count: number;
-    stock_aggregates_count: number;
     option_trades_count: number;
   }> {
     try {
@@ -393,13 +267,11 @@ export class QuestDBService {
       // Query each table if it exists
       const stats = {
         stock_trades_count: 0,
-        stock_aggregates_count: 0,
         option_trades_count: 0,
       };
 
       const tableQueries = [
         { table: 'stock_trades', key: 'stock_trades_count' },
-        { table: 'stock_aggregates', key: 'stock_aggregates_count' },
         { table: 'option_trades', key: 'option_trades_count' },
       ];
 

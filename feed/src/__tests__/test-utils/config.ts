@@ -24,10 +24,6 @@ export const testConfig = {
   // Override table names to use test prefixes
   tables: {
     stockTrades: getTableName('stock_trades'),
-    stockAggregates: getTableName('stock_aggregates'),
-    optionContracts: getTableName('option_contracts'),
-    optionTrades: getTableName('option_trades'),
-    optionQuotes: getTableName('option_quotes'),
   },
 };
 

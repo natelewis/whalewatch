@@ -46,48 +46,6 @@ router.get('/stock-trades/:symbol', async (req: Request, res: Response) => {
   }
 });
 
-// Get stock aggregates (bars) for a symbol
-router.get('/stock-aggregates/:symbol', async (req: Request, res: Response) => {
-  try {
-    const { symbol } = req.params;
-    const { start_time, end_time, limit = '1000', order_by = 'timestamp', order_direction = 'ASC' } = req.query;
-
-    if (!symbol) {
-      return res.status(400).json({ error: 'Symbol is required' });
-    }
-
-    const limitNum = parseInt(limit as string);
-    if (isNaN(limitNum) || limitNum < 1 || limitNum > 10000) {
-      return res.status(400).json({ error: 'Limit must be between 1 and 10000' });
-    }
-
-    const params: QuestDBQueryParams = {
-      start_time: start_time as string | undefined,
-      end_time: end_time as string | undefined,
-      limit: limitNum,
-      order_by: order_by as string,
-      order_direction: order_direction as 'ASC' | 'DESC',
-    };
-
-    const aggregates = await questdbService.getStockAggregates(symbol.toUpperCase(), params);
-
-    return res.json({
-      symbol: symbol.toUpperCase(),
-      aggregates,
-      count: aggregates.length,
-      data_source: 'questdb',
-      success: true,
-    });
-  } catch (error: unknown) {
-    console.error('Error fetching stock aggregates from QuestDB:', error);
-    return res.status(500).json({
-      error: `Failed to fetch stock aggregates: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      data_source: 'questdb',
-      success: false,
-    });
-  }
-});
-
 // Get option contracts for an underlying symbol
 router.get('/option-contracts/:underlying_ticker', async (req: Request, res: Response) => {
   try {

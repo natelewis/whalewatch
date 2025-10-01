@@ -211,63 +211,6 @@ export class QuestDBConnection {
     });
   }
 
-  /**
-   * Execute a bulk insert query with multiple VALUES
-   * This method is optimized for bulk inserts and uses the same deduplication
-   * behavior as individual inserts when DEDUP is enabled on tables
-   */
-  async bulkInsert(query: string): Promise<unknown> {
-    if (!this.isConnected) {
-      throw new Error('Database not connected');
-    }
-
-    return databaseCircuitBreaker.execute(async () => {
-      const maxRetries = 3;
-      let retryCount = 0;
-      let success = false;
-
-      while (retryCount < maxRetries && !success) {
-        try {
-          this.totalQueries++;
-
-          const response = await axios.get(`${this.baseUrl}/exec`, {
-            params: { query },
-            timeout: 60000, // 60 second timeout for bulk inserts
-            headers: {
-              Connection: 'keep-alive',
-              'Keep-Alive': 'timeout=60, max=1000',
-            },
-          });
-
-          if (response.data.error) {
-            throw new Error(`QuestDB bulk insert error: ${response.data.error}`);
-          }
-
-          this.lastSuccessfulQuery = new Date();
-          success = true;
-          return response.data;
-        } catch (error) {
-          retryCount++;
-          this.totalErrors++;
-
-          const isRetryableError = this.isRetryableError(error);
-
-          if (isRetryableError && retryCount < maxRetries) {
-            const delay = Math.min(2000 * Math.pow(2, retryCount - 1), 10000); // Exponential backoff, max 10s
-            console.warn(
-              `Database bulk insert error on attempt ${retryCount}/${maxRetries}, retrying in ${delay}ms:`,
-              error
-            );
-            await new Promise(resolve => setTimeout(resolve, delay));
-          } else {
-            console.error('Database bulk insert error:', error);
-            throw error;
-          }
-        }
-      }
-    });
-  }
-
   async executeSchema(): Promise<void> {
     const fs = await import('fs/promises');
     const path = await import('path');
@@ -293,7 +236,7 @@ export class QuestDBConnection {
   }
 
   async resetAllData(): Promise<void> {
-    const tables = ['stock_aggregates', 'option_contracts', 'option_contracts_index', 'option_trades', 'option_quotes'];
+    const tables = ['option_trades'];
 
     for (const table of tables) {
       try {
@@ -308,33 +251,16 @@ export class QuestDBConnection {
           console.log(`Found ${questResult.dataset.length} partitions in ${table}...`);
 
           // For tables with timestamp columns, we need to handle active partitions
-          if (
-            table === 'stock_aggregates' ||
-            table === 'option_trades' ||
-            table === 'option_quotes' ||
-            table === 'option_contracts_index'
-          ) {
+          if (table === 'option_trades') {
             // Insert a dummy record with future timestamp to make current partitions inactive
             const futureDate = new Date();
             futureDate.setDate(futureDate.getDate() + 1); // Tomorrow
             const futureTimestamp = futureDate.toISOString();
 
             try {
-              if (table === 'stock_aggregates') {
-                await this.query(
-                  `INSERT INTO ${table} (symbol, timestamp, open, high, low, close, volume, vwap, transaction_count) VALUES ('DUMMY', '${futureTimestamp}', 0, 0, 0, 0, 0, 0, 0)`
-                );
-              } else if (table === 'option_trades') {
+              if (table === 'option_trades') {
                 await this.query(
                   `INSERT INTO ${table} (ticker, underlying_ticker, timestamp, price, size, conditions, exchange) VALUES ('DUMMY', 'DUMMY', '${futureTimestamp}', 0, 0, '[]', 0)`
-                );
-              } else if (table === 'option_quotes') {
-                await this.query(
-                  `INSERT INTO ${table} (ticker, underlying_ticker, timestamp, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, sequence_number) VALUES ('DUMMY', 'DUMMY', '${futureTimestamp}', 0, 0, 0, 0, 0, 0, 0)`
-                );
-              } else if (table === 'option_contracts_index') {
-                await this.query(
-                  `INSERT INTO ${table} (underlying_ticker, as_of) VALUES ('DUMMY', '${futureTimestamp}')`
                 );
               }
               console.log(`Inserted dummy record with future timestamp to make partitions inactive`);
