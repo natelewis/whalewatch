@@ -5,12 +5,15 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { createWriteStream, readdirSync, statSync, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { Readable } from 'stream';
+import { createWriteStream, readdirSync, existsSync, mkdirSync, writeFileSync, createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import zlib from 'zlib';
 import chalk from 'chalk';
 import { Transform } from 'stream';
+import { createInterface } from 'readline';
+import { UpsertService } from '../utils/upsert';
+import { OptionTrade } from '../types/database';
+import { db } from '../db/connection';
 
 // Configuration
 const DATA_DIR = path.join(process.cwd(), 'option-trades-data');
@@ -20,6 +23,153 @@ const S3_BASE_PATH = 'us_options_opra/trades_v1';
 // Ensure data directory exists
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });
+}
+
+/**
+ * Extract underlying ticker from option ticker symbol
+ * @param optionTicker Option ticker in format O:AAPL240315C00150000
+ * @returns Underlying ticker or null if extraction fails
+ */
+function extractUnderlyingTicker(optionTicker: string): string | null {
+  try {
+    // Option ticker format: O:AAPL260116C00700000
+    // Extract the underlying ticker after "O:" and before the date/expiration part
+    const match = optionTicker.match(/^O:([A-Z]+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+
+    // Fallback: if it doesn't start with "O:", try to extract from the beginning
+    // This handles cases where the format might be different
+    const fallbackMatch = optionTicker.match(/^([A-Z]+)/);
+    if (fallbackMatch && fallbackMatch[1]) {
+      return fallbackMatch[1];
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error extracting underlying ticker from option ticker:', error);
+    return null;
+  }
+}
+
+/**
+ * Convert nanosecond timestamp to Date
+ * @param timestamp Nanosecond timestamp
+ * @returns Date object
+ */
+function convertTimestamp(timestamp: number): Date {
+  return new Date(timestamp / 1000000);
+}
+
+/**
+ * Parse a CSV line into an OptionTrade object
+ * @param line CSV line
+ * @returns OptionTrade object or null if parsing fails
+ */
+function parseCsvLine(line: string): OptionTrade | null {
+  try {
+    const columns = line.split(',');
+    if (columns.length < 7) {
+      return null; // Skip malformed lines
+    }
+
+    const ticker = columns[0].trim();
+    const conditions = columns[1].trim();
+    const exchange = parseInt(columns[3].trim());
+    const price = parseFloat(columns[4].trim());
+    const sipTimestamp = parseInt(columns[5].trim());
+    const size = parseInt(columns[6].trim());
+
+    // Validate required fields
+    if (!ticker || isNaN(price) || isNaN(sipTimestamp) || isNaN(size) || isNaN(exchange)) {
+      return null;
+    }
+
+    // Extract underlying ticker
+    const underlyingTicker = extractUnderlyingTicker(ticker);
+    if (!underlyingTicker) {
+      return null;
+    }
+
+    // Convert timestamp
+    const timestamp = convertTimestamp(sipTimestamp);
+
+    return {
+      ticker,
+      underlying_ticker: underlyingTicker,
+      timestamp,
+      price,
+      size,
+      conditions: conditions || '[]',
+      exchange,
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+/**
+ * Process a CSV file and upsert all trades to the database
+ * @param filePath Path to the CSV file
+ * @returns Number of trades processed
+ */
+async function upsertCsvTrades(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const trades: OptionTrade[] = [];
+    let lineCount = 0;
+
+    const fileStream = createReadStream(filePath);
+    const rl = createInterface({
+      input: fileStream,
+      crlfDelay: Infinity, // Handle Windows line endings
+    });
+
+    rl.on('line', line => {
+      lineCount++;
+
+      // Skip header line
+      if (lineCount === 1) {
+        return;
+      }
+
+      // Skip empty lines
+      if (line.trim() === '') {
+        return;
+      }
+
+      const trade = parseCsvLine(line);
+      if (trade) {
+        trades.push(trade);
+      }
+    });
+
+    rl.on('close', async () => {
+      try {
+        if (trades.length === 0) {
+          console.log(chalk.gray(`  No valid trades found in ${path.basename(filePath)}`));
+          resolve(0);
+          return;
+        }
+
+        console.log(chalk.cyan(`  📊 Upserting ${trades.length} trades to database...`));
+
+        // Process each trade individually (QuestDB doesn't have native upsert)
+        await UpsertService.processOptionTrades(trades);
+
+        console.log(chalk.green(`  ✅ Successfully upserted ${trades.length} trades`));
+        resolve(trades.length);
+      } catch (error) {
+        console.error(chalk.red(`  ❌ Error upserting trades from ${path.basename(filePath)}:`), error);
+        reject(error);
+      }
+    });
+
+    rl.on('error', error => {
+      console.error(chalk.red(`  ❌ Error reading file ${filePath}:`), error);
+      reject(error);
+    });
+  });
 }
 
 /**
@@ -33,7 +183,7 @@ function createTradeFilter(threshold: number): Transform {
 
   return new Transform({
     objectMode: false,
-    transform(chunk: Buffer, encoding: string, callback: Function) {
+    transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null) => void) {
       const lines = chunk.toString().split('\n');
 
       for (const line of lines) {
@@ -66,7 +216,7 @@ function createTradeFilter(threshold: number): Transform {
           if (tradeValue > threshold) {
             this.push(`${line}\n`);
           }
-        } catch (error) {
+        } catch (_error) {
           // Skip lines that can't be parsed
           continue;
         }
@@ -98,7 +248,7 @@ function getOldestFileDate(): string {
     }
 
     return files[0];
-  } catch (error) {
+  } catch (_error) {
     console.log("No existing files found, using today's date");
     return new Date().toISOString().split('T')[0];
   }
@@ -132,13 +282,17 @@ function generateDateRange(startDate: string, endDate: string): string[] {
 }
 
 /**
- * Download and decompress a single file
+ * Download and decompress a single file, then upsert the data to the database
  * @param date Date in YYYY-MM-DD format
  * @param s3Client S3 client instance
  * @param threshold Minimum trade value threshold
- * @returns Success status
+ * @returns Object with success status and number of trades upserted
  */
-async function downloadAndDecompressFile(date: string, s3Client: S3Client, threshold: number): Promise<boolean> {
+async function downloadAndUpsertFile(
+  date: string,
+  s3Client: S3Client,
+  threshold: number
+): Promise<{ success: boolean; tradesUpserted: number }> {
   const year = date.substring(0, 4);
   const month = date.substring(5, 7);
 
@@ -146,13 +300,14 @@ async function downloadAndDecompressFile(date: string, s3Client: S3Client, thres
   const decompressedFileName = `${date}.csv`;
   const decompressedFilePath = path.join(DATA_DIR, decompressedFileName);
 
-  // Skip if decompressed file already exists
-  if (existsSync(decompressedFilePath)) {
-    console.log(`✅ ${decompressedFileName} already exists, skipping...`);
-    return true;
-  }
-
   try {
+    // Check if file already exists and was processed
+    if (existsSync(decompressedFilePath)) {
+      console.log(`📄 ${decompressedFileName} already exists, upserting data...`);
+      const tradesUpserted = await upsertCsvTrades(decompressedFilePath);
+      return { success: true, tradesUpserted };
+    }
+
     console.log(`📥 Downloading ${s3FilePath}...`);
 
     const getObjectCommand = new GetObjectCommand({
@@ -168,7 +323,7 @@ async function downloadAndDecompressFile(date: string, s3Client: S3Client, thres
       const blankContent = 'ticker,conditions,correction,exchange,price,sip_timestamp,size\n';
       writeFileSync(decompressedFilePath, blankContent);
       console.log(`✅ ${decompressedFileName} created as blank file`);
-      return true;
+      return { success: true, tradesUpserted: 0 };
     }
 
     console.log(chalk.cyan(`📦 Decompressing and filtering to ${decompressedFileName}...`));
@@ -176,21 +331,25 @@ async function downloadAndDecompressFile(date: string, s3Client: S3Client, thres
     const filter = createTradeFilter(threshold);
     const destination = createWriteStream(decompressedFilePath);
 
-    await pipeline(Body, gunzip, filter, destination);
+    await pipeline(Body as NodeJS.ReadableStream, gunzip, filter, destination);
 
-    console.log(chalk.green(`✅ ${decompressedFileName} downloaded, filtered, and saved successfully!`));
-    return true;
+    console.log(chalk.green(`✅ ${decompressedFileName} downloaded and filtered successfully!`));
+
+    // Now upsert the data to the database
+    const tradesUpserted = await upsertCsvTrades(decompressedFilePath);
+
+    return { success: true, tradesUpserted };
   } catch (error) {
-    if (error.name === 'NoSuchKey') {
+    if (error instanceof Error && error.name === 'NoSuchKey') {
       console.log(`⚠️  File ${s3FilePath} not found, creating blank file...`);
       // Create a blank CSV file with just the header
       const blankContent = 'ticker,conditions,correction,exchange,price,sip_timestamp,size\n';
       writeFileSync(decompressedFilePath, blankContent);
       console.log(`✅ ${decompressedFileName} created as blank file`);
-      return true;
+      return { success: true, tradesUpserted: 0 };
     }
-    console.error(`❌ Error downloading ${date}:`, error.message);
-    return false;
+    console.error(`❌ Error downloading ${date}:`, error instanceof Error ? error.message : String(error));
+    return { success: false, tradesUpserted: 0 };
   }
 }
 
@@ -212,6 +371,16 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
   console.log(chalk.blue(`🚀 Starting option trades backfill to ${endDate}...`));
   console.log(chalk.gray(`📁 Data directory: ${DATA_DIR}`));
   console.log(chalk.yellow(`💰 Trade value threshold: $${threshold.toLocaleString()}`));
+
+  // Connect to database
+  try {
+    console.log(chalk.cyan('🔌 Connecting to QuestDB...'));
+    await db.connect();
+    console.log(chalk.green('✅ Connected to QuestDB'));
+  } catch (error) {
+    console.error(chalk.red('❌ Failed to connect to QuestDB:'), error);
+    process.exit(1);
+  }
 
   // Validate date format
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -260,16 +429,22 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
     forcePathStyle: true, // Required for S3-compatible endpoints
   });
 
-  // Download files for each date
+  // Download and upsert files for each date
   let successCount = 0;
   let errorCount = 0;
+  let totalTradesUpserted = 0;
 
   for (const date of dates) {
-    const success = await downloadAndDecompressFile(date, s3Client, threshold);
-    if (success) {
+    console.log(chalk.blue(`\n📅 Processing ${date}...`));
+    const result = await downloadAndUpsertFile(date, s3Client, threshold);
+
+    if (result.success) {
       successCount++;
+      totalTradesUpserted += result.tradesUpserted;
+      console.log(chalk.green(`✅ ${date} completed - ${result.tradesUpserted} trades upserted`));
     } else {
       errorCount++;
+      console.log(chalk.red(`❌ ${date} failed`));
     }
 
     // Add a small delay to avoid rate limiting
@@ -279,7 +454,16 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
   console.log(chalk.green(`\n🎉 Backfill completed!`));
   console.log(chalk.green(`✅ Successfully processed: ${successCount} files`));
   console.log(chalk.red(`❌ Errors/Skipped: ${errorCount} files`));
+  console.log(chalk.blue(`📊 Total trades upserted: ${totalTradesUpserted.toLocaleString()}`));
   console.log(chalk.gray(`📁 Files saved to: ${DATA_DIR}`));
+
+  // Disconnect from database
+  try {
+    await db.disconnect();
+    console.log(chalk.gray('🔌 Disconnected from QuestDB'));
+  } catch (error) {
+    console.warn(chalk.yellow('⚠️  Warning: Error disconnecting from QuestDB:'), error);
+  }
 }
 
 // Main execution

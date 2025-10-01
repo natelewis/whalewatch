@@ -250,8 +250,8 @@ export class UpsertService {
       // Check if record exists
       const existing = await db.query(
         `SELECT ticker, timestamp FROM ${tableName} 
-         WHERE ticker = $1 AND timestamp = $2`,
-        [trade.ticker, trade.timestamp]
+         WHERE ticker = $1 AND timestamp = $2 AND exchange = $3 AND conditions = $4 AND size = $5 AND price = $6`,
+        [trade.ticker, trade.timestamp, trade.exchange, trade.conditions, trade.size, trade.price]
       );
 
       const questResult = existing as {
@@ -435,6 +435,33 @@ export class UpsertService {
       console.log(`Completed upsert of ${contracts.length} option contracts`);
     } catch (error) {
       console.error('Error bulk upserting option contracts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process multiple option trades using individual upserts
+   * QuestDB doesn't have native upsert, so we must check and insert/update each record individually
+   */
+  static async processOptionTrades(trades: OptionTrade[], tableName = getTableName('option_trades')): Promise<void> {
+    if (trades.length === 0) {
+      return;
+    }
+
+    try {
+      // Process each trade individually to ensure proper duplicate checking
+      for (let i = 0; i < trades.length; i++) {
+        await this.upsertOptionTrade(trades[i], tableName);
+
+        // Log progress every 100 trades
+        if ((i + 1) % 100 === 0) {
+          console.log(`Processed ${i + 1}/${trades.length} option trades`);
+        }
+      }
+
+      console.log(`Completed processing of ${trades.length} option trades`);
+    } catch (error) {
+      console.error('Error processing option trades:', error);
       throw error;
     }
   }
