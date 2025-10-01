@@ -1,14 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import {
-  QuestDBStockTrade,
-  QuestDBOptionTrade,
-  QuestDBQueryParams,
-  QuestDBResponse,
-  QuestDBConfig,
-  QuestDBError,
-} from '../types/index';
+import { QuestDBOptionTrade, QuestDBQueryParams, QuestDBResponse, QuestDBConfig, QuestDBError } from '../types/index';
 import { logger } from '../utils/logger';
 
 // Load environment variables from the server directory

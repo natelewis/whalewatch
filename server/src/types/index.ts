@@ -139,17 +139,8 @@ export interface AuthenticatedWebSocket extends WebSocket {
 // CHART ROUTE TYPES
 // ============================================================================
 
-export const AGGREGATION_INTERVALS = {
-  '1m': 1,
-  '15m': 15,
-  '30m': 30,
-  '1h': 60,
-  '2h': 120,
-  '4h': 240,
-  '1d': 1440,
-} as const;
-
-export type AggregationInterval = keyof typeof AGGREGATION_INTERVALS;
+// AGGREGATION_INTERVALS moved to routes/chart.ts where it's actually used
+import { AggregationInterval } from '../routes/chart';
 
 export interface ChartQueryParams {
   startTime: string; // ISO timestamp
