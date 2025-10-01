@@ -246,20 +246,34 @@ export class AlpacaService {
     };
 
     if (direction === 'past') {
-      // For past: set end to startTime, let Alpaca return the last N bars before it
+      // For past: query bars <= startTime, let Alpaca return the last N bars
       params.end = startTime.toISOString();
-      // Set a reasonable start time far enough back to ensure we get enough data
-      // This is a wide window - Alpaca will return up to 'limit' bars within this range
-      const farPast = new Date(startTime.getTime() - 365 * 24 * 60 * 60 * 1000 * 2); // 2 year back
-      params.start = farPast.toISOString();
+      // Set a reasonable start time - go back enough to ensure we get the requested number of bars
+      // For 1m bars with limit 600, we need about 10 hours of data
+      const timeframeMinutes = this.getTimeframeMinutes(timeframe);
+      const requiredMinutes = limit * timeframeMinutes;
+      const bufferMinutes = Math.max(requiredMinutes * 1.5, 24 * 60); // 1.5x buffer, at least 1 day
+
+      const startTimeForQuery = new Date(startTime.getTime() - bufferMinutes * 60 * 1000);
+      params.start = startTimeForQuery.toISOString();
     } else {
-      // For future: set start to startTime, let Alpaca return the first N bars after it
+      // For future: query bars >= startTime, let Alpaca return the first N bars
       params.start = startTime.toISOString();
-      // Set a reasonable end time far enough forward
-      const farFuture = new Date(startTime.getTime() + 365 * 24 * 60 * 60 * 1000 * 2); // 2 year forward
-      params.end = farFuture.toISOString();
+      // Set a reasonable end time - go forward enough to ensure we get the requested number of bars
+      const timeframeMinutes = this.getTimeframeMinutes(timeframe);
+      const requiredMinutes = limit * timeframeMinutes;
+      const bufferMinutes = Math.max(requiredMinutes * 1.5, 24 * 60); // 1.5x buffer, at least 1 day
+
+      const endTimeForQuery = new Date(startTime.getTime() + bufferMinutes * 60 * 1000);
+      params.end = endTimeForQuery.toISOString();
     }
 
+    // log url where params are in query format
+    const stringParams: Record<string, string> = {};
+    Object.entries(params).forEach(([key, value]) => {
+      stringParams[key] = String(value);
+    });
+    console.log(`${dataUrl}/v2/stocks/${symbol}/bars`, new URLSearchParams(stringParams).toString());
     const response = await axios.get(`${dataUrl}/v2/stocks/${symbol}/bars`, {
       headers: this.headers,
       params,
@@ -277,15 +291,15 @@ export class AlpacaService {
         vw: bar.vw || bar.c,
       })) || [];
 
-    // For past direction, Alpaca returns in chronological order, but we want the LAST N bars
-    // So we need to filter to bars <= startTime and take the last N
     if (direction === 'past') {
+      // Filter to bars <= startTime and take the last N bars, then reverse for chronological order
       const filteredBars = bars.filter((bar: AlpacaBar) => new Date(bar.t) <= startTime);
-      return filteredBars.slice(-limit); // Take last N bars
+      const lastNBars = filteredBars.slice(-limit);
+      return lastNBars.reverse(); // Reverse to get chronological order (left to right)
     } else {
-      // For future direction, filter to bars >= startTime and take the first N
+      // For future direction, filter to bars >= startTime and take the first N bars
       const filteredBars = bars.filter((bar: AlpacaBar) => new Date(bar.t) >= startTime);
-      return filteredBars.slice(0, limit); // Take first N bars
+      return filteredBars.slice(0, limit); // Already in chronological order
     }
   }
 
@@ -332,6 +346,22 @@ export class AlpacaService {
       ALL: '1Year',
     };
     return mapping[timeframe];
+  }
+
+  private getTimeframeMinutes(timeframe: string): number {
+    const mapping: Record<string, number> = {
+      '1Min': 1,
+      '15Min': 15,
+      '30Min': 30,
+      '1Hour': 60,
+      '1Day': 24 * 60,
+      '1Week': 7 * 24 * 60,
+      '3Month': 90 * 24 * 60,
+      '6Month': 180 * 24 * 60,
+      '1Year': 365 * 24 * 60,
+    };
+
+    return mapping[timeframe] || 60; // Default to 1 hour
   }
 }
 
