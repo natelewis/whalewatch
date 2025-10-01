@@ -132,31 +132,4 @@ export const testDataGenerators = {
     exchange: 1,
     ...overrides,
   }),
-
-  generateOptionQuote: (
-    overrides: Partial<{
-      ticker: string;
-      underlying_ticker: string;
-      timestamp: Date;
-      bid_price: number;
-      bid_size: number;
-      ask_price: number;
-      ask_size: number;
-      bid_exchange: number;
-      ask_exchange: number;
-      sequence_number: number;
-    }> = {}
-  ) => ({
-    ticker: 'AAPL240315C00150000',
-    underlying_ticker: 'AAPL',
-    timestamp: new Date('2024-01-01T10:00:00Z'),
-    bid_price: 4.8,
-    bid_size: 5,
-    ask_price: 5.2,
-    ask_size: 5,
-    bid_exchange: 1,
-    ask_exchange: 1,
-    sequence_number: 12345,
-    ...overrides,
-  }),
 };

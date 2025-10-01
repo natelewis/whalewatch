@@ -260,6 +260,29 @@ export interface WebSocketMessage {
 // OPTIONS TRADE TYPES (Used by dashboard and server)
 // ============================================================================
 
+export interface AlpacaOptionsTrade {
+  id: string;
+  symbol: string;
+  timestamp: string;
+  price: number;
+  size: number;
+  side: 'buy' | 'sell' | 'unknown';
+  conditions: string[];
+  exchange: string;
+  tape: string;
+  contract: {
+    symbol: string;
+    underlying_symbol: string;
+    exercise_style: string;
+    expiration_date: string;
+    strike_price: number;
+    option_type: 'call' | 'put';
+  };
+  previous_price?: number;
+  open_price?: number;
+  gain_percentage?: number;
+}
+
 export interface FrontendOptionTrade {
   ticker: string;
   underlying_ticker: string;

@@ -221,7 +221,6 @@ export class QuestDBService {
    * Get database statistics
    */
   async getDatabaseStats(): Promise<{
-    stock_trades_count: number;
     option_trades_count: number;
   }> {
     try {
@@ -233,14 +232,10 @@ export class QuestDBService {
 
       // Query each table if it exists
       const stats = {
-        stock_trades_count: 0,
         option_trades_count: 0,
       };
 
-      const tableQueries = [
-        { table: 'stock_trades', key: 'stock_trades_count' },
-        { table: 'option_trades', key: 'option_trades_count' },
-      ];
+      const tableQueries = [{ table: 'option_trades', key: 'option_trades_count' }];
 
       for (const { table, key } of tableQueries) {
         if (availableTables.includes(table)) {

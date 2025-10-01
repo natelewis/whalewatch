@@ -1,13 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../config';
-import {
-  PolygonOptionContract,
-  PolygonOptionContractsResponse,
-  PolygonOptionQuote,
-  PolygonOptionQuotesResponse,
-  PolygonTrade,
-  PolygonTradesResponse,
-} from '../types/polygon';
+import { PolygonTrade, PolygonTradesResponse } from '../types/polygon';
 import { getPolygonRateLimiter } from '../utils/polygon-rate-limiter';
 
 export class PolygonClient {
@@ -94,53 +87,6 @@ export class PolygonClient {
         return allTrades;
       } catch (error) {
         console.error(`Error fetching option trades for ${ticker}:`, error);
-        throw error;
-      }
-    });
-  }
-
-  async getOptionQuotes(ticker: string, from: Date, to: Date): Promise<PolygonOptionQuote[]> {
-    return this.rateLimiter.execute(async () => {
-      try {
-        const allQuotes: PolygonOptionQuote[] = [];
-        let nextUrl: string | undefined;
-
-        // Initial request
-        const fromStr = from.toISOString();
-        const toStr = to.toISOString();
-        const endpoint = `/v3/quotes/${ticker}`;
-        const requestParams = {
-          'timestamp.gte': fromStr,
-          'timestamp.lte': toStr,
-          order: 'asc',
-          limit: config.polygon.optionQuotesLimit,
-        };
-
-        this.logRequest('GET', endpoint, requestParams);
-
-        let response = await this.api.get<PolygonOptionQuotesResponse>(endpoint, { params: requestParams });
-
-        // Add results from first page
-        if (response.data.results) {
-          allQuotes.push(...response.data.results);
-        }
-
-        // Follow pagination
-        nextUrl = response.data.next_url;
-        while (nextUrl) {
-          this.logRequest('GET', nextUrl);
-          response = await this.api.get<PolygonOptionQuotesResponse>(nextUrl);
-
-          if (response.data.results) {
-            allQuotes.push(...response.data.results);
-          }
-
-          nextUrl = response.data.next_url;
-        }
-
-        return allQuotes;
-      } catch (error) {
-        console.error(`Error fetching option quotes for ${ticker}:`, error);
         throw error;
       }
     });

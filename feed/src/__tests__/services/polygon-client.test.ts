@@ -179,63 +179,6 @@ describe('PolygonClient', () => {
     });
   });
 
-  describe('getOptionQuotes', () => {
-    it('should fetch option quotes successfully', async () => {
-      // Arrange
-      const ticker = 'AAPL240315C00150000';
-      const from = new Date('2024-01-01T09:00:00Z');
-      const to = new Date('2024-01-01T17:00:00Z');
-      const mockResponse = {
-        data: {
-          results: [
-            {
-              ticker: 'O:AAPL240315C00150000',
-              sip_timestamp: 1704110400000000000,
-              bid: 4.8,
-              bid_size: 5,
-              ask: 5.2,
-              ask_size: 5,
-              bid_exchange: 1,
-              ask_exchange: 1,
-              sequence_number: 12345,
-            },
-          ],
-        },
-      };
-
-      mockAxiosInstance.get.mockResolvedValue(mockResponse);
-
-      // Act
-      const result = await polygonClient.getOptionQuotes(ticker, from, to);
-
-      // Assert
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
-        '/v3/quotes/AAPL240315C00150000',
-        expect.objectContaining({
-          params: expect.objectContaining({
-            'timestamp.gte': '2024-01-01T09:00:00.000Z',
-            'timestamp.lte': '2024-01-01T17:00:00.000Z',
-            limit: 50000,
-            order: 'asc',
-          }),
-        })
-      );
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        ticker: 'O:AAPL240315C00150000',
-        sip_timestamp: 1704110400000000000,
-        bid: 4.8,
-        bid_size: 5,
-        ask: 5.2,
-        ask_size: 5,
-        bid_exchange: 1,
-        ask_exchange: 1,
-        sequence_number: 12345,
-      });
-    });
-  });
-
   describe('convertTimestamp', () => {
     it('should convert nanosecond timestamp to Date', () => {
       const timestamp = 1704110400000000000; // 2024-01-01T10:00:00Z in nanoseconds

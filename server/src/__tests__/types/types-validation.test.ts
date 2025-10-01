@@ -23,16 +23,9 @@ describe('Types Directory Coverage', () => {
       const content = fs.readFileSync(indexPath, 'utf8');
 
       // Check for QuestDB types
-      expect(content).toContain('QuestDBStockTrade');
-      expect(content).toContain('QuestDBStockAggregate');
-      expect(content).toContain('QuestDBOptionContract');
       expect(content).toContain('QuestDBOptionTrade');
-      expect(content).toContain('QuestDBOptionQuote');
-      expect(content).toContain('QuestDBSyncState');
       expect(content).toContain('QuestDBQueryParams');
       expect(content).toContain('QuestDBResponse');
-      expect(content).toContain('QuestDBWebSocketMessage');
-      expect(content).toContain('QuestDBSubscription');
       expect(content).toContain('QuestDBConfig');
       expect(content).toContain('QuestDBError');
     });

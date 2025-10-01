@@ -21,17 +21,6 @@ export interface PolygonQuote {
   z?: number; // tape
 }
 
-export interface PolygonOptionQuote {
-  p: number; // bid price
-  s: number; // bid size
-  P: number; // ask price
-  S: number; // ask size
-  t: number; // timestamp (nanoseconds)
-  c?: number[]; // conditions
-  x?: number; // exchange
-  z?: number; // tape
-}
-
 export interface PolygonOptionContract {
   ticker: string;
   name: string;
@@ -81,20 +70,6 @@ export interface PolygonAggregate {
 
 export interface PolygonTradesResponse {
   results: PolygonTrade[];
-  status: string;
-  request_id: string;
-  next_url?: string;
-}
-
-export interface PolygonOptionQuotesResponse {
-  results: PolygonOptionQuote[];
-  status: string;
-  request_id: string;
-  next_url?: string;
-}
-
-export interface PolygonOptionContractsResponse {
-  results: PolygonOptionContract[];
   status: string;
   request_id: string;
   next_url?: string;

@@ -2,7 +2,7 @@ import request from 'supertest';
 import express from 'express';
 import { questdbService } from '../../services/questdbService';
 import { optionsRoutes } from '../../routes/options';
-import { QuestDBOptionContract, QuestDBOptionTrade } from '../../types';
+import { QuestDBOptionTrade } from '../../types';
 
 // Mock the questdbService
 jest.mock('../../services/questdbService');

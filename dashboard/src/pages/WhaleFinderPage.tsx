@@ -74,7 +74,7 @@ export const WhaleFinderPage: React.FC = () => {
       const maxPriceNum = debouncedMaxPrice === '' ? 0 : Number(debouncedMaxPrice);
       const repeatMinNum = debouncedRepeatMin === '' ? 0 : Number(debouncedRepeatMin);
       const volumeMinNum = debouncedVolumeMin === '' ? 0 : Number(debouncedVolumeMin);
-      loadOptionsTrades(selectedSymbol, selectedDate, maxPriceNum, repeatMinNum, volumeMinNum, true, true);
+      loadOptionsTrades(selectedSymbol, selectedDate, maxPriceNum, repeatMinNum, volumeMinNum, true);
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);

@@ -168,24 +168,5 @@ describe('Test Configuration Utilities', () => {
         expect(trade.timestamp).toBeInstanceOf(Date);
       });
     });
-
-    describe('generateOptionQuote', () => {
-      it('should generate option quote with default values', () => {
-        const quote = testDataGenerators.generateOptionQuote();
-
-        expect(quote).toMatchObject({
-          ticker: 'AAPL240315C00150000',
-          underlying_ticker: 'AAPL',
-          bid_price: 4.8,
-          bid_size: 5,
-          ask_price: 5.2,
-          ask_size: 5,
-          bid_exchange: 1,
-          ask_exchange: 1,
-          sequence_number: 12345,
-        });
-        expect(quote.timestamp).toBeInstanceOf(Date);
-      });
-    });
   });
 });

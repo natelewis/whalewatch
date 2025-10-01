@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import { AlpacaAccount, AlpacaPosition, AlpacaActivity, AlpacaBar, AlpacaOptionsTrade } from '../../types';
+import { AlpacaAccount, AlpacaPosition, AlpacaActivity, AlpacaBar } from '../../types';
+import { AlpacaOptionsTrade } from '@whalewatch/shared';
 
 // Mock data
 const mockAccount: AlpacaAccount = {
