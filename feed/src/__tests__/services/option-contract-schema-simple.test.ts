@@ -41,7 +41,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         as_of: asOf,
       };
 
-      // Act - Test the upsert operation
+      // Act - Test the insert operation
       await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index);
 
       // Assert - Verify the operation completed without error
@@ -62,7 +62,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         underlying_ticker: `TEST_${uniqueId}`,
       };
 
-      // Act - Test the upsert operation
+      // Act - Test the insert operation
       await InsertIfNotExistsService.insertOptionContractIfNotExists(contract);
 
       // Assert - Verify the operation completed without error
@@ -70,7 +70,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       expect(true).toBe(true); // Operation completed successfully
     });
 
-    it('should handle upserting same contract multiple times', async () => {
+    it('should handle inserting same contract multiple times', async () => {
       // This test uses real QuestDB connection
       const uniqueId = Date.now();
       const contract: OptionContract = {
@@ -83,7 +83,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         underlying_ticker: `TEST_${uniqueId}`,
       };
 
-      // First upsert
+      // First insert
       await InsertIfNotExistsService.insertOptionContractIfNotExists(contract);
 
       // Update the contract
@@ -92,7 +92,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         strike_price: 170.0,
       };
 
-      // Second upsert (should update)
+      // Second insert (should skip since already exists)
       await InsertIfNotExistsService.insertOptionContractIfNotExists(updatedContract);
 
       // Assert - Verify both operations completed without error
@@ -100,7 +100,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       expect(true).toBe(true); // Operations completed successfully
     });
 
-    it('should handle batch upserting option contracts', async () => {
+    it('should handle batch inserting option contracts', async () => {
       // This test uses real QuestDB connection
       const uniqueId = Date.now();
       const contracts: OptionContract[] = [
@@ -124,7 +124,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         },
       ];
 
-      // Act - Test the batch upsert operation
+      // Act - Test the batch insert operation
       await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts);
 
       // Assert - Verify the operation completed without error
@@ -132,7 +132,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
       expect(true).toBe(true); // Operation completed successfully
     });
 
-    it('should handle upserting same contracts multiple times with different as_of dates', async () => {
+    it('should handle inserting same contracts multiple times with different as_of dates', async () => {
       // This test uses real QuestDB connection
       const underlyingTicker = `UPDATETEST_${Date.now()}`;
       const asOf1 = new Date('2024-01-01');
@@ -151,7 +151,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         },
       ];
 
-      // Upsert contracts for first date
+      // Insert contracts for first date
       await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts1);
       await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,
@@ -171,7 +171,7 @@ describe('Option Contract Schema Migration - Simple Tests', () => {
         },
       ];
 
-      // Upsert updated contracts for second date
+      // Insert updated contracts for second date
       await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts2);
       await InsertIfNotExistsService.insertOptionContractIndexIfNotExists({
         underlying_ticker: underlyingTicker,

@@ -365,7 +365,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         },
       ];
 
-      // Upsert contracts
+      // Insert contracts
       console.log('About to call batchInsertOptionContractsIfNotExists with contracts:', contracts);
       try {
         await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts);
@@ -432,7 +432,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
       expect(indexQuestResult.columns.map(c => c.name)).toEqual(['underlying_ticker', 'as_of']);
     });
 
-    it('should handle upserting same contracts multiple times with different as_of dates', async () => {
+    it('should handle inserting same contracts multiple times with different as_of dates', async () => {
       // This test uses real QuestDB connection
       const underlyingTicker = `UPDATETEST_${Date.now()}`;
       const asOf1 = new Date('2024-01-01');
@@ -451,7 +451,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         },
       ];
 
-      // Upsert contracts for first date
+      // Insert contracts for first date
       await InsertIfNotExistsService.batchInsertOptionContractsIfNotExists(contracts1, 'test_option_contracts');
       await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(
         {
@@ -484,7 +484,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         'test_option_contracts_index'
       );
 
-      // Wait for exactly 1 contract record to exist (upserted)
+      // Wait for exactly 1 contract record to exist (inserted)
       await waitForRecordsWithCondition('test_option_contracts', `underlying_ticker = '${underlyingTicker}'`, 1);
 
       // Wait for the updated strike price to be committed (QuestDB eventual consistency)
@@ -493,7 +493,7 @@ describe('Option Contract Backfill Integration with New Schema', () => {
         `underlying_ticker = '${underlyingTicker}' AND strike_price = 155.0`
       );
 
-      // Verify only one contract record exists (upserted)
+      // Verify only one contract record exists (inserted)
       const contractResult = await db.query('SELECT * FROM test_option_contracts WHERE underlying_ticker = $1', [
         underlyingTicker,
       ]);

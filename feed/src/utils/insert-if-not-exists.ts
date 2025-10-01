@@ -203,7 +203,10 @@ export class InsertIfNotExistsService {
   /**
    * Insert an option trade record if it doesn't exist
    */
-  static async insertOptionTradeIfNotExists(trade: OptionTrade, tableName = getTableName('option_trades')): Promise<void> {
+  static async insertOptionTradeIfNotExists(
+    trade: OptionTrade,
+    tableName = getTableName('option_trades')
+  ): Promise<void> {
     try {
       // Check if record exists
       const existing = await db.query(
@@ -246,7 +249,10 @@ export class InsertIfNotExistsService {
   /**
    * Insert an option quote record if it doesn't exist
    */
-  static async insertOptionQuoteIfNotExists(quote: OptionQuote, tableName = getTableName('option_quotes')): Promise<void> {
+  static async insertOptionQuoteIfNotExists(
+    quote: OptionQuote,
+    tableName = getTableName('option_quotes')
+  ): Promise<void> {
     try {
       // Check if record exists
       const existing = await db.query(
@@ -367,9 +373,12 @@ export class InsertIfNotExistsService {
 
   /**
    * Process multiple option trades using individual inserts
-   * QuestDB doesn't have native upsert, so we must check and insert each record individually
+   * We check if each record exists and only insert if it doesn't exist
    */
-  static async processOptionTradesIfNotExists(trades: OptionTrade[], tableName = getTableName('option_trades')): Promise<void> {
+  static async processOptionTradesIfNotExists(
+    trades: OptionTrade[],
+    tableName = getTableName('option_trades')
+  ): Promise<void> {
     if (trades.length === 0) {
       return;
     }

@@ -316,14 +316,14 @@ describe('OptionIngestionService', () => {
       ]);
 
       // Mock InsertIfNotExistsService to throw error
-      const originalUpsertOptionTrade = InsertIfNotExistsService.insertOptionTradeIfNotExists;
+      const originalInsertOptionTrade = InsertIfNotExistsService.insertOptionTradeIfNotExists;
       InsertIfNotExistsService.insertOptionTradeIfNotExists = jest.fn().mockRejectedValue(error);
 
       // Act & Assert
       await expect(optionIngestionService.ingestOptionTrades(ticker, from, to)).rejects.toThrow('Database error');
 
       // Restore original method
-      InsertIfNotExistsService.insertOptionTradeIfNotExists = originalUpsertOptionTrade;
+      InsertIfNotExistsService.insertOptionTradeIfNotExists = originalInsertOptionTrade;
     });
 
     it('should handle trades with missing optional fields', async () => {
@@ -517,7 +517,7 @@ describe('OptionIngestionService', () => {
       mockPolygonClient.getOptionQuotes.mockResolvedValue(mockQuotes);
 
       // Mock InsertIfNotExistsService to throw error on first call, succeed on second
-      const originalBatchUpsertOptionQuotes = InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists;
+      const originalBatchInsertOptionQuotes = InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists;
       InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists = jest
         .fn()
         .mockRejectedValueOnce(new Error('Chunk processing error'))
@@ -530,7 +530,7 @@ describe('OptionIngestionService', () => {
       expect(mockPolygonClient.getOptionQuotes).toHaveBeenCalledWith(ticker, from, to);
 
       // Restore original method
-      InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists = originalBatchUpsertOptionQuotes;
+      InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists = originalBatchInsertOptionQuotes;
     });
 
     it('should handle empty quotes list', async () => {

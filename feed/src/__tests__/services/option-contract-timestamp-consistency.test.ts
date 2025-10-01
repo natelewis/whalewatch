@@ -101,7 +101,7 @@ describe('Option Contract Index Timestamp Consistency', () => {
       };
       await InsertIfNotExistsService.insertOptionContractIndexIfNotExists(index2);
 
-      // Assert - Should only have one record (upserted)
+      // Assert - Should only have one record (inserted)
       const result = await waitForSingleRecordWithCondition(
         'test_option_contracts_index',
         `underlying_ticker = '${underlyingTicker}'`

@@ -272,7 +272,7 @@ export class WebSocketService {
 
     while (retryCount < maxRetries && !success) {
       try {
-        // Process each trade individually to ensure proper upsert behavior
+        // Process each trade individually to ensure proper insert-if-not-exists behavior
         for (const trade of tradesToInsert) {
           await InsertIfNotExistsService.insertOptionTradeIfNotExists(trade);
         }

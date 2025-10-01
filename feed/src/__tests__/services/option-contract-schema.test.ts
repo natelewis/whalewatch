@@ -72,12 +72,12 @@ describe('Option Contract Schema Migration', () => {
     mockPolygonClient = (optionIngestionService as any).polygonClient;
   });
 
-  describe('Option Contract Upsert (No as_of field)', () => {
+  describe('Option Contract Insert (No as_of field)', () => {
     beforeEach(() => {
       // Don't mock the database - use real QuestDB for integration tests
     });
 
-    it('should upsert option contract without as_of field', async () => {
+    it('should insert option contract without as_of field', async () => {
       // Arrange - Use unique ticker to avoid conflicts
       const uniqueId = Date.now();
       const contract: OptionContract = {
@@ -158,7 +158,7 @@ describe('Option Contract Schema Migration', () => {
       // Don't mock the database - use real QuestDB for integration tests
     });
 
-    it('should upsert option contract index record', async () => {
+    it('should insert option contract index record', async () => {
       // Arrange - Use unique ticker to avoid conflicts
       const uniqueId = Date.now();
       const index: OptionContractIndex = {
@@ -333,12 +333,12 @@ describe('Option Contract Schema Migration', () => {
     });
   });
 
-  describe('Batch Upsert Option Contracts', () => {
+  describe('Batch Insert Option Contracts', () => {
     beforeEach(() => {
       // Don't mock the database - use real QuestDB for integration tests
     });
 
-    it('should batch upsert multiple option contracts', async () => {
+    it('should batch insert multiple option contracts', async () => {
       // Arrange - Use unique ticker to avoid conflicts
       const uniqueId = Date.now();
       const contracts: OptionContract[] = [

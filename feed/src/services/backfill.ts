@@ -240,7 +240,7 @@ export class BackfillService {
       // Backfill each ticker
       for (const ticker of config.tickers) {
         try {
-          // Backfill the data (upserts will handle duplicates)
+          // Backfill the data (insert if not exists will handle duplicates)
           const itemsProcessed = await this.processStockAggregateBackfill(ticker, backfillStart, backfillEnd);
           totalItemsProcessed += itemsProcessed;
 

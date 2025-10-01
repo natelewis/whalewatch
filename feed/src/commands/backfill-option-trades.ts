@@ -110,11 +110,11 @@ function parseCsvLine(line: string): OptionTrade | null {
 }
 
 /**
- * Process a CSV file and upsert all trades to the database
+ * Process a CSV file and insert all trades to the database (if they don't already exist)
  * @param filePath Path to the CSV file
  * @returns Number of trades processed
  */
-async function upsertCsvTrades(filePath: string): Promise<number> {
+async function insertCsvTradesIfNotExists(filePath: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const trades: OptionTrade[] = [];
     let lineCount = 0;
@@ -152,15 +152,15 @@ async function upsertCsvTrades(filePath: string): Promise<number> {
           return;
         }
 
-        console.log(chalk.cyan(`  📊 Upserting ${trades.length} trades to database...`));
+        console.log(chalk.cyan(`  📊 Inserting ${trades.length} trades to database...`));
 
-        // Process each trade individually (QuestDB doesn't have native upsert)
+        // Process each trade individually (check if exists, insert if not)
         await InsertIfNotExistsService.processOptionTradesIfNotExists(trades);
 
-        console.log(chalk.green(`  ✅ Successfully upserted ${trades.length} trades`));
+        console.log(chalk.green(`  ✅ Successfully processed ${trades.length} trades`));
         resolve(trades.length);
       } catch (error) {
-        console.error(chalk.red(`  ❌ Error upserting trades from ${path.basename(filePath)}:`), error);
+        console.error(chalk.red(`  ❌ Error inserting trades from ${path.basename(filePath)}:`), error);
         reject(error);
       }
     });
@@ -282,17 +282,17 @@ function generateDateRange(startDate: string, endDate: string): string[] {
 }
 
 /**
- * Download and decompress a single file, then upsert the data to the database
+ * Download and decompress a single file, then insert the data to the database
  * @param date Date in YYYY-MM-DD format
  * @param s3Client S3 client instance
  * @param threshold Minimum trade value threshold
- * @returns Object with success status and number of trades upserted
+ * @returns Object with success status and number of trades inserted
  */
-async function downloadAndUpsertFile(
+async function downloadAndInsertFile(
   date: string,
   s3Client: S3Client,
   threshold: number
-): Promise<{ success: boolean; tradesUpserted: number }> {
+): Promise<{ success: boolean; tradesInserted: number }> {
   const year = date.substring(0, 4);
   const month = date.substring(5, 7);
 
@@ -303,9 +303,9 @@ async function downloadAndUpsertFile(
   try {
     // Check if file already exists and was processed
     if (existsSync(decompressedFilePath)) {
-      console.log(`📄 ${decompressedFileName} already exists, upserting data...`);
-      const tradesUpserted = await upsertCsvTrades(decompressedFilePath);
-      return { success: true, tradesUpserted };
+      console.log(`📄 ${decompressedFileName} already exists, inserting data...`);
+      const tradesInserted = await insertCsvTradesIfNotExists(decompressedFilePath);
+      return { success: true, tradesInserted };
     }
 
     console.log(`📥 Downloading ${s3FilePath}...`);
@@ -323,7 +323,7 @@ async function downloadAndUpsertFile(
       const blankContent = 'ticker,conditions,correction,exchange,price,sip_timestamp,size\n';
       writeFileSync(decompressedFilePath, blankContent);
       console.log(`✅ ${decompressedFileName} created as blank file`);
-      return { success: true, tradesUpserted: 0 };
+      return { success: true, tradesInserted: 0 };
     }
 
     console.log(chalk.cyan(`📦 Decompressing and filtering to ${decompressedFileName}...`));
@@ -335,10 +335,10 @@ async function downloadAndUpsertFile(
 
     console.log(chalk.green(`✅ ${decompressedFileName} downloaded and filtered successfully!`));
 
-    // Now upsert the data to the database
-    const tradesUpserted = await upsertCsvTrades(decompressedFilePath);
+    // Now insert the data to the database
+    const tradesInserted = await insertCsvTradesIfNotExists(decompressedFilePath);
 
-    return { success: true, tradesUpserted };
+    return { success: true, tradesInserted };
   } catch (error) {
     if (error instanceof Error && error.name === 'NoSuchKey') {
       console.log(`⚠️  File ${s3FilePath} not found, creating blank file...`);
@@ -346,10 +346,10 @@ async function downloadAndUpsertFile(
       const blankContent = 'ticker,conditions,correction,exchange,price,sip_timestamp,size\n';
       writeFileSync(decompressedFilePath, blankContent);
       console.log(`✅ ${decompressedFileName} created as blank file`);
-      return { success: true, tradesUpserted: 0 };
+      return { success: true, tradesInserted: 0 };
     }
     console.error(`❌ Error downloading ${date}:`, error instanceof Error ? error.message : String(error));
-    return { success: false, tradesUpserted: 0 };
+    return { success: false, tradesInserted: 0 };
   }
 }
 
@@ -429,19 +429,19 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
     forcePathStyle: true, // Required for S3-compatible endpoints
   });
 
-  // Download and upsert files for each date
+  // Download and insert files for each date
   let successCount = 0;
   let errorCount = 0;
-  let totalTradesUpserted = 0;
+  let totalTradesInserted = 0;
 
   for (const date of dates) {
     console.log(chalk.blue(`\n📅 Processing ${date}...`));
-    const result = await downloadAndUpsertFile(date, s3Client, threshold);
+    const result = await downloadAndInsertFile(date, s3Client, threshold);
 
     if (result.success) {
       successCount++;
-      totalTradesUpserted += result.tradesUpserted;
-      console.log(chalk.green(`✅ ${date} completed - ${result.tradesUpserted} trades upserted`));
+      totalTradesInserted += result.tradesInserted;
+      console.log(chalk.green(`✅ ${date} completed - ${result.tradesInserted} trades inserted`));
     } else {
       errorCount++;
       console.log(chalk.red(`❌ ${date} failed`));
@@ -454,7 +454,7 @@ async function backfillOptionTrades(endDate: string): Promise<void> {
   console.log(chalk.green(`\n🎉 Backfill completed!`));
   console.log(chalk.green(`✅ Successfully processed: ${successCount} files`));
   console.log(chalk.red(`❌ Errors/Skipped: ${errorCount} files`));
-  console.log(chalk.blue(`📊 Total trades upserted: ${totalTradesUpserted.toLocaleString()}`));
+  console.log(chalk.blue(`📊 Total trades inserted: ${totalTradesInserted.toLocaleString()}`));
   console.log(chalk.gray(`📁 Files saved to: ${DATA_DIR}`));
 
   // Disconnect from database

@@ -151,7 +151,7 @@ export async function waitForRecordWithValues(
 
 /**
  * Polls the database until a specific symbol has the expected number of records
- * Useful for testing upsert behavior
+ * Useful for testing insert-if-not-exists behavior
  */
 export async function waitForSymbolRecordCount(
   tableName: string,
@@ -208,7 +208,7 @@ export async function waitForSymbolRecordCount(
 
 /**
  * Polls the database until a specific ticker has the expected number of records
- * Useful for testing option-related upserts
+ * Useful for testing option-related inserts
  */
 export async function waitForTickerRecordCount(
   tableName: string,

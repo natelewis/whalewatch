@@ -605,7 +605,7 @@ describe('InsertIfNotExistsService', () => {
         await expect(InsertIfNotExistsService.batchInsertStockAggregatesIfNotExists([])).resolves.not.toThrow();
       });
 
-      it('should batch upsert multiple stock aggregates', async () => {
+      it('should batch insert multiple stock aggregates', async () => {
         // Arrange - Create table using schema helper
         await createTestTable(getTableName('stock_aggregates'), db);
 
@@ -666,7 +666,7 @@ describe('InsertIfNotExistsService', () => {
         await expect(InsertIfNotExistsService.batchInsertOptionQuotesIfNotExists([])).resolves.not.toThrow();
       });
 
-      it('should batch upsert multiple option quotes', async () => {
+      it('should batch insert multiple option quotes', async () => {
         // Arrange - Create table using schema helper
         await createTestTable(getTableName('option_quotes'), db);
 
