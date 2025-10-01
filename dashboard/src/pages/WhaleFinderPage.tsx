@@ -192,18 +192,20 @@ export const WhaleFinderPage: React.FC = () => {
   };
 
   const formatExpiryWithDays = (expirationDate: string, viewingDate: string): string => {
-    const expiryDate = new Date(expirationDate);
-    const viewDate = new Date(viewingDate);
+    // Parse dates as UTC to avoid timezone issues
+    const expiryDate = new Date(expirationDate + 'T00:00:00.000Z');
+    const viewDate = new Date(viewingDate + 'T00:00:00.000Z');
 
     // Calculate the difference in days
     const timeDiff = expiryDate.getTime() - viewDate.getTime();
     const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
 
-    // Format the date as "Nov 07, 2025"
+    // Format the date as "Nov 07, 2025" using UTC methods to avoid timezone conversion
     const formattedDate = expiryDate.toLocaleDateString('en-US', {
       month: 'short',
       day: '2-digit',
       year: 'numeric',
+      timeZone: 'UTC',
     });
 
     // Return the formatted string with days
@@ -409,7 +411,7 @@ export const WhaleFinderPage: React.FC = () => {
                           const isSelected = selectedContract === trade.ticker;
                           return (
                             <div
-                              key={`${trade.sequence_number}-${index}`}
+                              key={`${trade.ticker}-${trade.timestamp}-${index}`}
                               onClick={() => handleContractClick(trade.ticker)}
                               className={`grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded transition-colors cursor-pointer ${
                                 isSelected ? 'bg-primary/20 border border-primary/30' : 'hover:bg-muted/30'

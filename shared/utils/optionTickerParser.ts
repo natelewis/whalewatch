@@ -48,12 +48,12 @@ export function parseOptionTicker(ticker: string): ParsedOptionTicker | null {
     const month = parseInt(dateStr.substring(2, 4));
     const day = parseInt(dateStr.substring(4, 6));
 
-    // Validate date
-    const expirationDate = new Date(year, month - 1, day);
+    // Validate date - create UTC date to avoid timezone issues
+    const expirationDate = new Date(Date.UTC(year, month - 1, day));
     if (
-      expirationDate.getFullYear() !== year ||
-      expirationDate.getMonth() !== month - 1 ||
-      expirationDate.getDate() !== day
+      expirationDate.getUTCFullYear() !== year ||
+      expirationDate.getUTCMonth() !== month - 1 ||
+      expirationDate.getUTCDate() !== day
     ) {
       console.warn(`Invalid date in ticker: ${ticker}`);
       return null;

@@ -257,6 +257,24 @@ export interface WebSocketMessage {
 }
 
 // ============================================================================
+// OPTIONS TRADE TYPES (Used by dashboard and server)
+// ============================================================================
+
+export interface FrontendOptionTrade {
+  ticker: string;
+  underlying_ticker: string;
+  timestamp: string;
+  price: number;
+  size: number;
+  conditions: string;
+  option_type: 'call' | 'put';
+  strike_price: number;
+  expiration_date: string;
+  repeat_count: number;
+  volume: number;
+}
+
+// ============================================================================
 // ERROR TYPES (Used by server)
 // ============================================================================
 
