@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AlpacaPosition } from '../types';
 import { TrendingUp, TrendingDown, MoreHorizontal } from 'lucide-react';
 
@@ -84,7 +85,12 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({ positions }) => 
               <tr key={position.asset_id} className="hover:bg-muted/50">
                 <td className="px-4 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="text-sm font-medium text-foreground">{position.symbol}</div>
+                    <Link
+                      to={`/analysis?symbol=${encodeURIComponent(position.symbol)}`}
+                      className="text-sm font-medium text-primary hover:text-primary/80 hover:underline transition-colors"
+                    >
+                      {position.symbol}
+                    </Link>
                     <div className="ml-2 text-xs text-muted-foreground">{position.exchange}</div>
                   </div>
                 </td>

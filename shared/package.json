@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --module ES2020 --target ES2020 && tsc --module CommonJS --target ES2020 --outDir dist/cjs",
+    "build": "tsc --module ES2020 --target ES2020 && tsc --module CommonJS --target ES2020 --outDir dist/cjs && find dist/cjs -name '*.js' -exec sh -c 'mv \"$1\" \"${1%.js}.cjs\"' _ {} \\;",
     "dev": "tsc --watch --module ES2020 --target ES2020"
   },
   "devDependencies": {

@@ -6,7 +6,10 @@ import { CandlestickData } from '../types';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
-import { safeCall, createUserFriendlyMessage } from '@whalewatch/shared';
+import { safeCall, createUserFriendlyMessage, getDisplayName } from '@whalewatch/shared';
+import { MultiTechnicalIndicatorsToggle } from './MultiTechnicalIndicatorsSelector';
+import { renderMultiTechnicalIndicators } from './MultiTechnicalIndicatorsRenderer';
+import { MovingAverageData } from '../utils/movingAverageUtils';
 import { logger } from '../utils/logger';
 import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import { formatPrice, calculateInnerDimensions } from '../utils/chartDataUtils';
@@ -116,6 +119,11 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
   // Track when we're in the middle of an auto-load operation to prevent re-render loops
   const isAutoLoadingRef = useRef<boolean>(false);
+
+  // Unified technical indicators state - for multiple indicator types
+  const [technicalIndicatorsData, setTechnicalIndicatorsData] = useState<
+    { item: { color: string; label: string; type: 'moving_average' | 'macd' }; data: any[] }[]
+  >([]);
 
   // Use new utility hooks for ref management
   useRefUpdates([
@@ -388,6 +396,24 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         chartActions.setFixedYScaleDomain(renderResult.newFixedYScaleDomain);
       }
 
+      // Render unified technical indicators
+      if (technicalIndicatorsData.length > 0 && renderResult.success && renderResult.calculations) {
+        const renderItems = technicalIndicatorsData.map(item => ({
+          data: item.data,
+          color: item.item.color,
+          label: item.item.label,
+          type: item.item.type,
+        }));
+        renderMultiTechnicalIndicators(svgRef.current as SVGSVGElement, renderItems, renderResult.calculations);
+      } else {
+        // Remove all indicators if none are enabled
+        const chartContent = d3.select(svgRef.current).select('.chart-content');
+        const indicatorsGroup = chartContent.select('.technical-indicators');
+        if (!indicatorsGroup.empty()) {
+          indicatorsGroup.remove();
+        }
+      }
+
       logger.chart.success('Auto-redraw re-render completed:', {
         viewport: `${chartState.currentViewStart}-${chartState.currentViewEnd}`,
         dataLength: chartState.allData.length,
@@ -413,6 +439,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartState.chartLoaded,
       chartState.dimensions,
       chartState.fixedYScaleDomain,
+      technicalIndicatorsData,
     ],
     'Auto-redraw'
   );
@@ -866,6 +893,17 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 );
                 currentBufferRangeRef.current = bufferRange;
               }
+
+              // Render unified technical indicators
+              if (technicalIndicatorsData.length > 0 && renderResult.calculations) {
+                const renderItems = technicalIndicatorsData.map(item => ({
+                  data: item.data,
+                  color: item.item.color,
+                  label: item.item.label,
+                  type: item.item.type,
+                }));
+                renderMultiTechnicalIndicators(svgRef.current as SVGSVGElement, renderItems, renderResult.calculations);
+              }
             }
           }
         }
@@ -880,6 +918,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartState.allData.length, // Include allData.length to trigger chart updates
       isValidData,
       svgRef.current, // Re-run when SVG element becomes available
+      technicalIndicatorsData,
     ],
     'Chart creation'
   );
@@ -979,6 +1018,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                 ))}
               </select>
             </div>
+
+            {/* Unified Technical Indicators Toggle */}
+            <MultiTechnicalIndicatorsToggle
+              chartData={chartState.allData}
+              onIndicatorsChange={setTechnicalIndicatorsData}
+            />
           </div>
 
           {/* WebSocket Connection Indicator */}
@@ -1006,7 +1051,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
           {chartState.hoverData?.data ? (
             <div className="flex justify-between items-center w-full">
               <div className="flex flex-col">
-                <h2 className="font-bold text-foreground text-lg">{symbol}</h2>
+                <h2 className="font-bold text-foreground text-lg">{getDisplayName(symbol)}</h2>
               </div>
               <div className="flex gap-3 text-sm">
                 <span className="text-muted-foreground">
@@ -1069,7 +1114,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
             </div>
           ) : (
             <div className="flex justify-between items-center">
-              <h2 className="font-bold text-foreground text-lg">{symbol}</h2>
+              <h2 className="font-bold text-foreground text-lg">{getDisplayName(symbol)}</h2>
             </div>
           )}
         </div>

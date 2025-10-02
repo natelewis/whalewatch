@@ -13,3 +13,6 @@ export * from './utils/dateUtils';
 
 // Export option ticker parsing utilities
 export * from './utils/optionTickerParser';
+
+// Export option contract formatting utilities
+export * from './utils/optionContractFormatter';

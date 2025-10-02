@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { BrowserRouter } from 'react-router-dom';
 import { PositionsTable } from '../../components/PositionsTable';
 import { AlpacaPosition } from '../../types';
 
@@ -40,9 +41,13 @@ const mockPositions: AlpacaPosition[] = [
   },
 ];
 
+const renderWithRouter = (component: React.ReactElement) => {
+  return render(<BrowserRouter>{component}</BrowserRouter>);
+};
+
 describe('PositionsTable', () => {
   it('renders positions table with correct data', () => {
-    render(<PositionsTable positions={mockPositions} />);
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
 
     expect(screen.getByText('AAPL')).toBeInTheDocument();
     expect(screen.getByText('TSLA')).toBeInTheDocument();
@@ -53,7 +58,7 @@ describe('PositionsTable', () => {
   });
 
   it('displays profit/loss with correct colors', () => {
-    render(<PositionsTable positions={mockPositions} />);
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
 
     // Positive P/L should be green
     const positivePL = screen.getByText('$100.00');
@@ -65,27 +70,27 @@ describe('PositionsTable', () => {
   });
 
   it('shows correct P/L percentages', () => {
-    render(<PositionsTable positions={mockPositions} />);
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
 
     expect(screen.getByText('7.14%')).toBeInTheDocument();
     expect(screen.getByText('-16.67%')).toBeInTheDocument();
   });
 
   it('displays exchange information', () => {
-    render(<PositionsTable positions={mockPositions} />);
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
 
     const nasdaqElements = screen.getAllByText('NASDAQ');
     expect(nasdaqElements).toHaveLength(2); // Both AAPL and TSLA are on NASDAQ
   });
 
   it('shows no positions message when empty', () => {
-    render(<PositionsTable positions={[]} />);
+    renderWithRouter(<PositionsTable positions={[]} />);
 
     expect(screen.getByText('No open positions')).toBeInTheDocument();
   });
 
   it('opens position actions modal when more button is clicked', () => {
-    render(<PositionsTable positions={mockPositions} />);
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
 
     const moreButtons = screen.getAllByRole('button');
     fireEvent.click(moreButtons[0]); // Click first more button
@@ -96,7 +101,7 @@ describe('PositionsTable', () => {
   });
 
   it('closes modal when cancel is clicked', () => {
-    render(<PositionsTable positions={mockPositions} />);
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
 
     const moreButtons = screen.getAllByRole('button');
     fireEvent.click(moreButtons[0]); // Click first more button
@@ -107,5 +112,42 @@ describe('PositionsTable', () => {
     fireEvent.click(cancelButton);
 
     expect(screen.queryByText('Position Actions - AAPL')).not.toBeInTheDocument();
+  });
+
+  it('renders position symbols as clickable links to analysis page', () => {
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
+
+    const aaplLink = screen.getByRole('link', { name: 'AAPL' });
+    const tslaLink = screen.getByRole('link', { name: 'TSLA' });
+
+    expect(aaplLink).toBeInTheDocument();
+    expect(tslaLink).toBeInTheDocument();
+    expect(aaplLink).toHaveAttribute('href', '/analysis?symbol=AAPL');
+    expect(tslaLink).toHaveAttribute('href', '/analysis?symbol=TSLA');
+  });
+
+  it('applies correct styling to symbol links', () => {
+    renderWithRouter(<PositionsTable positions={mockPositions} />);
+
+    const aaplLink = screen.getByRole('link', { name: 'AAPL' });
+
+    expect(aaplLink).toHaveClass('text-primary');
+    expect(aaplLink).toHaveClass('hover:text-primary/80');
+    expect(aaplLink).toHaveClass('hover:underline');
+    expect(aaplLink).toHaveClass('transition-colors');
+  });
+
+  it('handles symbols with special characters in URL encoding', () => {
+    const positionsWithSpecialChars: AlpacaPosition[] = [
+      {
+        ...mockPositions[0],
+        symbol: 'BRK.A', // Contains a dot
+      },
+    ];
+
+    renderWithRouter(<PositionsTable positions={positionsWithSpecialChars} />);
+
+    const brkLink = screen.getByRole('link', { name: 'BRK.A' });
+    expect(brkLink).toHaveAttribute('href', '/analysis?symbol=BRK.A');
   });
 });
