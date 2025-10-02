@@ -14,7 +14,9 @@ describe('TickerSelector', () => {
   it('renders with default props', () => {
     render(<TickerSelector selectedSymbol="AAPL" onSymbolChange={mockOnSymbolChange} />);
 
-    expect(screen.getByPlaceholderText('Enter ticker symbol')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)')
+    ).toBeInTheDocument();
     expect(screen.getByDisplayValue('AAPL')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analyze' })).toBeInTheDocument();
   });
@@ -40,7 +42,7 @@ describe('TickerSelector', () => {
     const user = userEvent.setup();
     render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
+    const input = screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
 
     await user.type(input, 'AAPL');
@@ -53,13 +55,13 @@ describe('TickerSelector', () => {
     const user = userEvent.setup();
     render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
+    const input = screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
 
     await user.type(input, '123');
     await user.click(submitButton);
 
-    expect(screen.getByText('Invalid format (1-5 letters only)')).toBeInTheDocument();
+    expect(screen.getByText('Invalid format (stock: 1-5 letters, option: O:SYMBOLYYMMDDCPSTRIKE)')).toBeInTheDocument();
     expect(mockOnSymbolChange).not.toHaveBeenCalled();
   });
 
@@ -78,11 +80,13 @@ describe('TickerSelector', () => {
     const user = userEvent.setup();
     render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
+    const input = screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)');
 
     await user.type(input, '123');
     await waitFor(() => {
-      expect(screen.getByText('Invalid format (1-5 letters only)')).toBeInTheDocument();
+      expect(
+        screen.getByText('Invalid format (stock: 1-5 letters, option: O:SYMBOLYYMMDDCPSTRIKE)')
+      ).toBeInTheDocument();
     });
   });
 
@@ -90,13 +94,13 @@ describe('TickerSelector', () => {
     const user = userEvent.setup();
     render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
+    const input = screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
 
     // First, create an error
     await user.type(input, '123');
     await user.click(submitButton);
-    expect(screen.getByText('Invalid format (1-5 letters only)')).toBeInTheDocument();
+    expect(screen.getByText('Invalid format (stock: 1-5 letters, option: O:SYMBOLYYMMDDCPSTRIKE)')).toBeInTheDocument();
 
     // Then type valid input
     await user.clear(input);
@@ -110,17 +114,17 @@ describe('TickerSelector', () => {
     const user = userEvent.setup();
     render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
+    const input = screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)');
 
     await user.type(input, 'aapl');
     expect(screen.getByDisplayValue('AAPL')).toBeInTheDocument();
   });
 
-  it('limits input to 5 characters', () => {
+  it('limits input to 50 characters', () => {
     render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
-    expect(input).toHaveAttribute('maxLength', '5');
+    const input = screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)');
+    expect(input).toHaveAttribute('maxLength', '50');
   });
 
   it('shows clear button when input has value', () => {
@@ -143,7 +147,7 @@ describe('TickerSelector', () => {
     const user = userEvent.setup();
     render(<TickerSelector selectedSymbol="" onSymbolChange={mockOnSymbolChange} />);
 
-    const input = screen.getByPlaceholderText('Enter ticker symbol');
+    const input = screen.getByPlaceholderText('Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)');
     const submitButton = screen.getByRole('button', { name: 'Analyze' });
 
     await user.type(input, '123');

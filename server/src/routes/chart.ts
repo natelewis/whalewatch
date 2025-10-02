@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { ChartQueryParams, AGGREGATION_INTERVALS, AggregationInterval } from '../types/index';
 import { logger } from '../utils/logger';
 import { alpacaService } from '../services/alpacaService';
+import { polygonService } from '../services/polygonService';
+import { isValidOptionTicker } from '@whalewatch/shared';
 
 const router = Router();
 
@@ -86,15 +88,35 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     // Map to Alpaca's timeframe format
     const alpacaTimeframe = mapIntervalToAlpacaTimeframe(intervalKey);
 
-    // Fetch bars using the directional approach (like the database did)
-    // This ensures we get exactly the number of bars requested
-    const bars = await alpacaService.getHistoricalBarsDirectional(
-      symbol.toUpperCase(),
-      startTime,
-      alpacaTimeframe,
-      limitValue,
-      direction
-    );
+    // Detect if this is an option contract or stock symbol
+    const isOptionContract = isValidOptionTicker(symbol.toUpperCase());
+
+    let bars;
+    let dataSource;
+
+    if (isOptionContract) {
+      logger.debug(`Detected option contract: ${symbol}, using Polygon service`);
+      // Use Polygon service for option contracts
+      bars = await polygonService.getHistoricalOptionBarsDirectional(
+        symbol.toUpperCase(),
+        startTime,
+        alpacaTimeframe,
+        limitValue,
+        direction
+      );
+      dataSource = 'polygon';
+    } else {
+      logger.debug(`Detected stock symbol: ${symbol}, using Alpaca service`);
+      // Use Alpaca service for stock symbols
+      bars = await alpacaService.getHistoricalBarsDirectional(
+        symbol.toUpperCase(),
+        startTime,
+        alpacaTimeframe,
+        limitValue,
+        direction
+      );
+      dataSource = 'alpaca';
+    }
 
     // If no data found, log for debugging
     if (!bars || bars.length === 0) {
@@ -109,7 +131,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       view_based_loading: viewBasedLoading,
       view_size: viewSize,
       bars,
-      data_source: 'alpaca',
+      data_source: dataSource,
       success: true,
       query_params: {
         start_time: chartParams.startTime,
@@ -128,11 +150,11 @@ router.get('/:symbol', async (req: Request, res: Response) => {
           : null,
     });
   } catch (error: unknown) {
-    logger.server.error('Error fetching chart data from Alpaca:', error);
+    logger.server.error('Error fetching chart data:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return res.status(500).json({
       error: `Failed to fetch chart data: ${errorMessage}`,
-      data_source: 'alpaca',
+      data_source: 'unknown',
       success: false,
     });
   }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
+import { isValidOptionTicker } from '@whalewatch/shared';
 
 interface TickerSelectorProps {
   selectedSymbol: string;
@@ -13,7 +14,7 @@ interface TickerSelectorProps {
 export const TickerSelector: React.FC<TickerSelectorProps> = ({
   selectedSymbol,
   onSymbolChange,
-  placeholder = 'Enter ticker symbol',
+  placeholder = 'Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)',
   className = '',
   showLabel = false,
   label = 'Ticker Symbol',
@@ -28,9 +29,14 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
   }, [selectedSymbol]);
 
   const validateSymbol = (symbol: string): boolean => {
-    // Basic validation: 1-5 characters, letters only
-    const symbolRegex = /^[A-Z]{1,5}$/;
-    return symbolRegex.test(symbol);
+    // Check if it's a valid option ticker first
+    if (isValidOptionTicker(symbol)) {
+      return true;
+    }
+
+    // Basic validation for stock symbols: 1-5 characters, letters only
+    const stockSymbolRegex = /^[A-Z]{1,5}$/;
+    return stockSymbolRegex.test(symbol);
   };
 
   const handleSymbolSubmit = (e: React.FormEvent) => {
@@ -43,7 +49,7 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
     }
 
     if (!validateSymbol(trimmedSymbol)) {
-      setInputError('Invalid ticker symbol (1-5 letters only)');
+      setInputError('Invalid ticker symbol (stock: 1-5 letters, option: O:SYMBOLYYMMDDCPSTRIKE format)');
       return;
     }
 
@@ -64,7 +70,7 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
 
     // Real-time validation feedback
     if (value && !validateSymbol(value)) {
-      setInputError('Invalid format (1-5 letters only)');
+      setInputError('Invalid format (stock: 1-5 letters, option: O:SYMBOLYYMMDDCPSTRIKE)');
     }
   };
 
@@ -89,7 +95,7 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
             className={`pl-10 pr-8 py-2 border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
               inputError ? 'border-red-500 focus:ring-red-500' : isInputFocused ? 'border-primary' : 'border-border'
             }`}
-            maxLength={5}
+            maxLength={50}
           />
           {symbolInput && (
             <button
