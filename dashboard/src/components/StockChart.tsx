@@ -1004,7 +1004,19 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
                     e.target.value = ''; // Reset selection
                   }
                 }}
-                className="px-3 py-1 text-xs rounded-md bg-muted text-muted-foreground hover:bg-muted/80 border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="px-3 text-xs rounded-md bg-muted text-muted-foreground hover:bg-muted/80 border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                style={{
+                  height: '24px',
+                  minHeight: '24px',
+                  maxHeight: '24px',
+                  boxSizing: 'border-box',
+                  lineHeight: '1',
+                  paddingTop: '2px',
+                  paddingBottom: '2px',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                }}
                 disabled={timeframe === null || chartState.allData.length === 0}
                 defaultValue=""
               >
