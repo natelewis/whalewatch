@@ -717,6 +717,14 @@ export const renderCandlestickChart = (
     candleSticks.selectAll('*').remove();
   }
 
+  // Create or reuse the volume lines layer for idempotent rendering
+  let volumeLines = chartContent.select<SVGGElement>('.volume-lines');
+  if (volumeLines.empty()) {
+    volumeLines = chartContent.append('g').attr('class', 'volume-lines');
+  } else {
+    volumeLines.selectAll('*').remove();
+  }
+
   // Don't apply transform here - it's handled in handleZoom for smooth panning
 
   const candleWidth = Math.max(1, 4);
@@ -856,6 +864,88 @@ export const renderCandlestickChart = (
         .attr('stroke', color)
         .attr('stroke-width', 1)
         .attr('class', 'candlestick-rect');
+    }
+  });
+
+  // Render volume lines
+  renderVolumeLines(volumeLines, visibleCandles, actualStart, calculations);
+};
+
+/**
+ * Render volume lines below the chart
+ * Volume lines extend from the x-axis upward, with height proportional to volume
+ * Color matches candlestick color at 50% opacity
+ */
+const renderVolumeLines = (
+  volumeLinesGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
+  visibleCandles: CandlestickData[],
+  actualStart: number,
+  calculations: ChartCalculations
+): void => {
+  if (visibleCandles.length === 0) {
+    return;
+  }
+
+  // Calculate volume scale - use 25% of visible chart height
+  const volumeAreaHeight = calculations.innerHeight * 0.25;
+  const volumeBaseY = calculations.innerHeight; // Start from bottom of chart
+
+  // Find min and max volume in visible data for scaling
+  const volumes = visibleCandles.filter(d => !isFakeCandle(d)).map(d => d.volume);
+
+  if (volumes.length === 0) {
+    return;
+  }
+
+  const minVolume = Math.min(...volumes);
+  const maxVolume = Math.max(...volumes);
+
+  // Avoid division by zero
+  if (maxVolume === minVolume) {
+    return;
+  }
+
+  // Create volume scale
+  const volumeScale = d3.scaleLinear().domain([minVolume, maxVolume]).range([0, volumeAreaHeight]);
+
+  // Build safe viewport X scale for positioning
+  const xScaleForPosition = createViewportXScale(
+    calculations.viewStart,
+    calculations.viewEnd,
+    calculations.allData.length,
+    calculations.innerWidth
+  );
+
+  visibleCandles.forEach((d, localIndex) => {
+    // Calculate the global data index for proper positioning
+    const globalIndex = actualStart + localIndex;
+
+    // Use transformed X scale for positioning
+    const x = xScaleForPosition(globalIndex);
+
+    // Check if this is a fake candle
+    const isFake = isFakeCandle(d);
+
+    if (!isFake) {
+      // Calculate volume line properties
+      const volumeHeight = volumeScale(d.volume);
+      const lineY = volumeBaseY - volumeHeight;
+
+      // Determine color based on candlestick direction
+      const isUp = d.close >= d.open;
+      const color = isUp ? CANDLE_UP_COLOR : CANDLE_DOWN_COLOR;
+
+      // Render volume line
+      volumeLinesGroup
+        .append('line')
+        .attr('x1', x)
+        .attr('x2', x)
+        .attr('y1', volumeBaseY)
+        .attr('y2', lineY)
+        .attr('stroke', color)
+        .attr('stroke-width', 1)
+        .attr('opacity', 0.5) // 50% opacity as requested
+        .attr('class', 'volume-line');
     }
   });
 };
