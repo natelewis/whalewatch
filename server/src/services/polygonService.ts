@@ -22,11 +22,13 @@ export interface PolygonAggregatesResponse {
   resultsCount: number;
   status: string;
   results?: PolygonBar[];
+  next_url?: string;
 }
 
 export class PolygonService {
   private baseUrl: string;
   private apiKey: string;
+  private warnedOptions: Set<string> = new Set(); // Track which options we've already warned about
 
   constructor() {
     this.baseUrl = 'https://api.polygon.io';
@@ -129,9 +131,15 @@ export class PolygonService {
       const daysToExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
       if (daysToExpiration < 0) {
-        logger.warn(`Option ${normalizedSymbol} has already expired (${daysToExpiration} days ago)`);
+        if (!this.warnedOptions.has(`${normalizedSymbol}:expired`)) {
+          logger.warn(`Option ${normalizedSymbol} has already expired (${daysToExpiration} days ago)`);
+          this.warnedOptions.add(`${normalizedSymbol}:expired`);
+        }
       } else if (daysToExpiration > 365) {
-        logger.warn(`Option ${normalizedSymbol} expires in ${daysToExpiration} days - data may be limited`);
+        if (!this.warnedOptions.has(`${normalizedSymbol}:far-future`)) {
+          logger.warn(`Option ${normalizedSymbol} expires in ${daysToExpiration} days - data may be limited`);
+          this.warnedOptions.add(`${normalizedSymbol}:far-future`);
+        }
       }
 
       const endTime = new Date();
@@ -245,9 +253,15 @@ export class PolygonService {
       const daysToExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
       if (daysToExpiration < 0) {
-        logger.warn(`Option ${normalizedSymbol} has already expired (${daysToExpiration} days ago)`);
+        if (!this.warnedOptions.has(`${normalizedSymbol}:expired`)) {
+          logger.warn(`Option ${normalizedSymbol} has already expired (${daysToExpiration} days ago)`);
+          this.warnedOptions.add(`${normalizedSymbol}:expired`);
+        }
       } else if (daysToExpiration > 365) {
-        logger.warn(`Option ${normalizedSymbol} expires in ${daysToExpiration} days - data may be limited`);
+        if (!this.warnedOptions.has(`${normalizedSymbol}:far-future`)) {
+          logger.warn(`Option ${normalizedSymbol} expires in ${daysToExpiration} days - data may be limited`);
+          this.warnedOptions.add(`${normalizedSymbol}:far-future`);
+        }
       }
 
       if (direction === 'centered') {
@@ -321,12 +335,67 @@ export class PolygonService {
 
     logger.debug(`Fetching option bars from Polygon:`, {
       symbol,
+      timeframe,
+      multiplier,
+      timespan,
       url,
       params,
     });
 
-    const response = await axios.get<PolygonAggregatesResponse>(url, { params });
-    return response.data;
+    // Fetch all pages of data using pagination
+    const allResults: PolygonBar[] = [];
+    let currentUrl = url;
+    let pageCount = 0;
+    const maxPages = 10; // Safety limit to prevent infinite loops
+
+    while (currentUrl && pageCount < maxPages) {
+      // For subsequent pages, we need to add the API key since next_url doesn't include it
+      const requestParams = pageCount === 0 ? params : { apikey: this.apiKey };
+      const response = await axios.get<PolygonAggregatesResponse>(currentUrl, {
+        params: requestParams,
+      });
+
+      logger.debug(`Polygon API response for ${symbol} (page ${pageCount + 1}):`, {
+        symbol,
+        timeframe,
+        page: pageCount + 1,
+        resultsCount: response.data.resultsCount,
+        queryCount: response.data.queryCount,
+        actualResults: response.data.results?.length || 0,
+        hasNextUrl: !!response.data.next_url,
+      });
+
+      // Add results from this page
+      if (response.data.results) {
+        allResults.push(...response.data.results);
+      }
+
+      // Check if there's a next page
+      if (response.data.next_url) {
+        currentUrl = response.data.next_url;
+        pageCount++;
+      } else {
+        break;
+      }
+    }
+
+    logger.debug(`Polygon pagination complete for ${symbol}:`, {
+      symbol,
+      timeframe,
+      totalPages: pageCount + 1,
+      totalResults: allResults.length,
+    });
+
+    // Return the combined results in the same format as a single response
+    return {
+      ticker: symbol,
+      queryCount: allResults.length,
+      resultsCount: allResults.length,
+      adjusted: true,
+      results: allResults,
+      status: 'OK',
+      request_id: `paginated_${Date.now()}`,
+    };
   }
 
   /**
@@ -391,19 +460,72 @@ export class PolygonService {
 
     const url = `${this.baseUrl}/v2/aggs/ticker/${symbol}/range/${multiplier}/${timespan}/${params.from}/${params.to}`;
 
-    const response = await axios.get<PolygonAggregatesResponse>(url, { params });
+    logger.debug(`fetchOptionBarsInDirection API call:`, {
+      symbol,
+      timeframe,
+      multiplier,
+      timespan,
+      direction,
+      url,
+      params,
+    });
 
-    const bars =
-      response.data.results?.map((bar: PolygonBar) => ({
-        t: new Date(bar.t).toISOString(), // Convert milliseconds to ISO string
-        o: bar.o,
-        h: bar.h,
-        l: bar.l,
-        c: bar.c,
-        v: bar.v,
-        n: bar.n || 0,
-        vw: bar.vw || bar.c,
-      })) || [];
+    // Fetch all pages of data using pagination
+    const allBars: AlpacaBar[] = [];
+    let currentUrl = url;
+    let pageCount = 0;
+    const maxPages = 10; // Safety limit to prevent infinite loops
+
+    while (currentUrl && pageCount < maxPages) {
+      // For subsequent pages, we need to add the API key since next_url doesn't include it
+      const requestParams = pageCount === 0 ? params : { apikey: this.apiKey };
+      const response = await axios.get<PolygonAggregatesResponse>(currentUrl, {
+        params: requestParams,
+      });
+
+      logger.debug(`Polygon API response for ${symbol} (page ${pageCount + 1}):`, {
+        symbol,
+        timeframe,
+        page: pageCount + 1,
+        resultsCount: response.data.resultsCount,
+        queryCount: response.data.queryCount,
+        actualResults: response.data.results?.length || 0,
+        hasNextUrl: !!response.data.next_url,
+        nextUrl: response.data.next_url,
+      });
+
+      // Convert and add bars from this page
+      const pageBars =
+        response.data.results?.map((bar: PolygonBar) => ({
+          t: new Date(bar.t).toISOString(), // Convert milliseconds to ISO string
+          o: bar.o,
+          h: bar.h,
+          l: bar.l,
+          c: bar.c,
+          v: bar.v,
+          n: bar.n || 0,
+          vw: bar.vw || bar.c,
+        })) || [];
+
+      allBars.push(...pageBars);
+
+      // Check if there's a next page
+      if (response.data.next_url) {
+        currentUrl = response.data.next_url;
+        pageCount++;
+      } else {
+        break;
+      }
+    }
+
+    logger.debug(`Polygon pagination complete for ${symbol}:`, {
+      symbol,
+      timeframe,
+      totalPages: pageCount + 1,
+      totalBars: allBars.length,
+    });
+
+    const bars = allBars;
 
     // Filter and limit based on direction
     if (direction === 'past') {
