@@ -38,6 +38,62 @@ export class PolygonService {
   }
 
   /**
+   * Get the latest option bar for real-time updates
+   * Mirrors alpacaService.getLatestStockBar but for options
+   */
+  async getLatestOptionBar(symbol: string): Promise<AlpacaBar | null> {
+    try {
+      // Validate option ticker format
+      const parsedTicker = parseOptionTicker(symbol);
+      if (!parsedTicker) {
+        throw new Error(`Invalid option ticker format: ${symbol}`);
+      }
+
+      // Get the latest bar using the aggregates endpoint with a very recent time range
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
+
+      const fromDate = oneHourAgo.toISOString().split('T')[0];
+      const toDate = now.toISOString().split('T')[0];
+
+      const params = {
+        from: fromDate,
+        to: toDate,
+        adjusted: 'true',
+        sort: 'desc',
+        limit: 1, // Only get the latest bar
+        apikey: this.apiKey,
+      };
+
+      const url = `${this.baseUrl}/v2/aggs/ticker/${symbol}/range/1/minute/${fromDate}/${toDate}`;
+
+      const response = await axios.get<PolygonAggregatesResponse>(url, { params });
+
+      if (response.data.results && response.data.results.length > 0) {
+        const latestBar = response.data.results[0]; // First result is the latest due to sort=desc
+
+        const bar: AlpacaBar = {
+          t: new Date(latestBar.t).toISOString(), // Convert milliseconds to ISO string
+          o: latestBar.o,
+          h: latestBar.h,
+          l: latestBar.l,
+          c: latestBar.c,
+          v: latestBar.v,
+          n: latestBar.n || 0,
+          vw: latestBar.vw || latestBar.c,
+        };
+
+        return bar;
+      }
+
+      return null;
+    } catch (error: unknown) {
+      logger.server.error(`Error fetching latest option bar for ${symbol}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Get option bars for a specific options contract
    * Mirrors the functionality of alpacaService.getBars but for options
    */
@@ -53,16 +109,6 @@ export class PolygonService {
       const expirationDate = new Date(parsedTicker.expirationDate);
       const now = new Date();
       const daysToExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-      logger.debug(`Option ticker validation for ${symbol}:`, {
-        underlyingTicker: parsedTicker.underlyingTicker,
-        expirationDate: parsedTicker.expirationDate,
-        optionType: parsedTicker.optionType,
-        strikePrice: parsedTicker.strikePrice,
-        daysToExpiration,
-        isExpired: daysToExpiration < 0,
-        isFarFuture: daysToExpiration > 365,
-      });
 
       if (daysToExpiration < 0) {
         logger.warn(`Option ${symbol} has already expired (${daysToExpiration} days ago)`);
@@ -177,15 +223,11 @@ export class PolygonService {
       const now = new Date();
       const daysToExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-      logger.debug(`Option ticker validation for ${symbol}:`, {
-        underlyingTicker: parsedTicker.underlyingTicker,
-        expirationDate: parsedTicker.expirationDate,
-        optionType: parsedTicker.optionType,
-        strikePrice: parsedTicker.strikePrice,
-        daysToExpiration,
-        isExpired: daysToExpiration < 0,
-        isFarFuture: daysToExpiration > 365,
-      });
+      if (daysToExpiration < 0) {
+        logger.warn(`Option ${symbol} has already expired (${daysToExpiration} days ago)`);
+      } else if (daysToExpiration > 365) {
+        logger.warn(`Option ${symbol} expires in ${daysToExpiration} days - data may be limited`);
+      }
 
       if (direction === 'centered') {
         // For centered, make two API calls - one for past and one for future
@@ -257,15 +299,6 @@ export class PolygonService {
     });
 
     const response = await axios.get<PolygonAggregatesResponse>(url, { params });
-
-    logger.debug(`Polygon API response for ${symbol}:`, {
-      status: response.status,
-      statusText: response.statusText,
-      data: response.data,
-      resultsCount: response.data.resultsCount,
-      queryCount: response.data.queryCount,
-    });
-
     return response.data;
   }
 
@@ -331,28 +364,7 @@ export class PolygonService {
 
     const url = `${this.baseUrl}/v2/aggs/ticker/${symbol}/range/${multiplier}/${timespan}/${params.from}/${params.to}`;
 
-    logger.debug(`Fetching option bars in ${direction} direction:`, {
-      symbol,
-      direction,
-      startTime: startTime.toISOString(),
-      fromDate: fromDate.toISOString(),
-      toDate: toDate.toISOString(),
-      currentTime: new Date().toISOString(),
-      url,
-      params,
-    });
-
     const response = await axios.get<PolygonAggregatesResponse>(url, { params });
-
-    logger.debug(`Polygon API response for ${symbol}:`, {
-      status: response.status,
-      statusText: response.statusText,
-      data: response.data,
-      resultsCount: response.data.resultsCount,
-      queryCount: response.data.queryCount,
-      hasResults: !!response.data.results,
-      resultsLength: response.data.results?.length || 0,
-    });
 
     const bars =
       response.data.results?.map((bar: PolygonBar) => ({
@@ -366,54 +378,15 @@ export class PolygonService {
         vw: bar.vw || bar.c,
       })) || [];
 
-    // Log the raw bars for debugging
-    logger.debug(`Raw bars from Polygon for ${symbol}:`, {
-      barsCount: bars.length,
-      firstBar: bars[0]
-        ? {
-            timestamp: bars[0].t,
-            timestampDate: new Date(bars[0].t).toISOString(),
-            open: bars[0].o,
-            close: bars[0].c,
-            volume: bars[0].v,
-          }
-        : null,
-      lastBar: bars[bars.length - 1]
-        ? {
-            timestamp: bars[bars.length - 1].t,
-            timestampDate: new Date(bars[bars.length - 1].t).toISOString(),
-            open: bars[bars.length - 1].o,
-            close: bars[bars.length - 1].c,
-            volume: bars[bars.length - 1].v,
-          }
-        : null,
-    });
-
     // Filter and limit based on direction
     if (direction === 'past') {
       // Filter to bars <= startTime and take the most recent N bars
       const filteredBars = bars.filter((bar: AlpacaBar) => new Date(bar.t) <= startTime);
       const recentNBars = filteredBars.slice(0, limit);
-
-      logger.debug(`Filtered bars for ${symbol} (past):`, {
-        originalCount: bars.length,
-        filteredCount: filteredBars.length,
-        finalCount: recentNBars.length,
-        startTime: startTime.toISOString(),
-      });
-
       return recentNBars.reverse(); // Reverse to get chronological order
     } else {
       // Filter to bars >= startTime and take the first N bars
       const filteredBars = bars.filter((bar: AlpacaBar) => new Date(bar.t) >= startTime);
-
-      logger.debug(`Filtered bars for ${symbol} (future):`, {
-        originalCount: bars.length,
-        filteredCount: filteredBars.length,
-        finalCount: Math.min(filteredBars.length, limit),
-        startTime: startTime.toISOString(),
-      });
-
       return filteredBars.slice(0, limit);
     }
   }

@@ -208,9 +208,12 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
     console.error('Failed to start Alpaca streaming:', error);
   });
 
-  // Handle real-time chart data from Alpaca
+  // Handle real-time chart data from both Alpaca and Polygon
   alpacaWebSocketService.on('chart_quote', message => {
-    console.log('✅ [WEBSOCKET] Broadcasting chart data from Alpaca:', {
+    const isOptionContract = message.symbol.startsWith('O:');
+    const dataSource = isOptionContract ? 'Polygon' : 'Alpaca';
+
+    console.log(`✅ [WEBSOCKET] Broadcasting chart data from ${dataSource}:`, {
       symbol: message.symbol,
       timestamp: message.data.t,
       open: message.data.o,
@@ -218,6 +221,7 @@ const initializeQuestDBConnection = (wss: WebSocketServer): void => {
       low: message.data.l,
       close: message.data.c,
       volume: message.data.v,
+      dataSource,
     });
     broadcastToSubscribers(
       wss,

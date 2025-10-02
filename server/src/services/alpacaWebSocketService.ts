@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import { alpacaService } from './alpacaService';
+import { polygonService } from './polygonService';
 import { AlpacaBar } from '../types';
+import { isValidOptionTicker } from '@whalewatch/shared';
 
 export interface AlpacaSubscription {
   type: 'chart_quote';
@@ -128,13 +130,27 @@ export class AlpacaWebSocketService extends EventEmitter {
 
   /**
    * Poll chart data for a specific subscription
+   * Handles both stocks (Alpaca) and options (Polygon)
    */
   private async pollSubscriptionData(key: string, subscription: AlpacaSubscription): Promise<void> {
     const lastTimestamp = this.lastTimestamps.get(key);
 
     try {
-      // Get the latest bar from Alpaca using the proper latest bar endpoint
-      const latestBar = await alpacaService.getLatestStockBar(subscription.symbol);
+      // Determine if this is an option contract or stock symbol
+      const isOptionContract = isValidOptionTicker(subscription.symbol);
+
+      let latestBar: AlpacaBar | null = null;
+      let dataSource: string;
+
+      if (isOptionContract) {
+        // Get the latest bar from Polygon for options
+        latestBar = await polygonService.getLatestOptionBar(subscription.symbol);
+        dataSource = 'POLYGON';
+      } else {
+        // Get the latest bar from Alpaca for stocks
+        latestBar = await alpacaService.getLatestStockBar(subscription.symbol);
+        dataSource = 'ALPACA';
+      }
 
       if (latestBar) {
         // Check if this is a new bar (not the same as last processed)
@@ -143,7 +159,7 @@ export class AlpacaWebSocketService extends EventEmitter {
 
         // Only emit if this is a new bar or if we don't have a last timestamp
         if (!lastProcessedTimestamp || barTimestamp !== lastProcessedTimestamp) {
-          console.log(`📊 [ALPACA] NEW BAR for ${subscription.symbol}:`, {
+          console.log(`📊 [${dataSource}] NEW BAR for ${subscription.symbol}:`, {
             timestamp: barTimestamp,
             open: latestBar.o,
             high: latestBar.h,
@@ -151,6 +167,7 @@ export class AlpacaWebSocketService extends EventEmitter {
             close: latestBar.c,
             volume: latestBar.v,
             change: lastProcessedTimestamp ? 'UPDATED' : 'FIRST_BAR',
+            dataSource,
           });
 
           const message: AlpacaWebSocketMessage = {
@@ -174,8 +191,10 @@ export class AlpacaWebSocketService extends EventEmitter {
           // Update last timestamp
           this.lastTimestamps.set(key, barTimestamp);
         } else {
-          console.log(`⏸️ [ALPACA] No change for ${subscription.symbol} (same timestamp: ${barTimestamp})`);
+          console.log(`⏸️ [${dataSource}] No change for ${subscription.symbol} (same timestamp: ${barTimestamp})`);
         }
+      } else {
+        console.log(`⚠️ [${dataSource}] No data available for ${subscription.symbol}`);
       }
     } catch (error) {
       console.error(`Error polling chart data for ${subscription.symbol}:`, error);
