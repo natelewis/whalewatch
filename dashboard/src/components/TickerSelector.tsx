@@ -14,7 +14,7 @@ interface TickerSelectorProps {
 export const TickerSelector: React.FC<TickerSelectorProps> = ({
   selectedSymbol,
   onSymbolChange,
-  placeholder = 'Enter ticker symbol (e.g., AAPL or O:AAPL251003C00150000)',
+  placeholder = 'Enter ticker symbol (e.g., AAPL or AI270115C00020000)',
   className = '',
   showLabel = false,
   label = 'Ticker Symbol',
@@ -29,8 +29,13 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
   }, [selectedSymbol]);
 
   const validateSymbol = (symbol: string): boolean => {
-    // Check if it's a valid option ticker first
+    // Check if it's a valid option ticker (with or without O: prefix)
     if (isValidOptionTicker(symbol)) {
+      return true;
+    }
+
+    // Also check if it's a valid option ticker without the O: prefix
+    if (!symbol.startsWith('O:') && isValidOptionTicker(`O:${symbol}`)) {
       return true;
     }
 
@@ -49,7 +54,7 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
     }
 
     if (!validateSymbol(trimmedSymbol)) {
-      setInputError('Invalid ticker symbol (stock: 1-5 letters, option: O:SYMBOLYYMMDDCPSTRIKE format)');
+      setInputError('Invalid ticker symbol (stock: 1-5 letters, option: SYMBOLYYMMDDCPSTRIKE format)');
       return;
     }
 
@@ -70,7 +75,7 @@ export const TickerSelector: React.FC<TickerSelectorProps> = ({
 
     // Real-time validation feedback
     if (value && !validateSymbol(value)) {
-      setInputError('Invalid format (stock: 1-5 letters, option: O:SYMBOLYYMMDDCPSTRIKE)');
+      setInputError('Invalid format (stock: 1-5 letters, option: SYMBOLYYMMDDCPSTRIKE)');
     }
   };
 

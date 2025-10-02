@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { AlpacaBar, ChartTimeframe } from '../types';
 import { logger } from '../utils/logger';
-import { parseOptionTicker } from '@whalewatch/shared';
+import { parseOptionTicker, isValidOptionTicker } from '@whalewatch/shared';
 
 export interface PolygonBar {
   t: number; // timestamp (Unix millisecond timestamp)
@@ -38,13 +38,28 @@ export class PolygonService {
   }
 
   /**
+   * Normalize option ticker by adding O: prefix if missing
+   * This allows users to enter option contracts with or without the O: prefix
+   */
+  private normalizeOptionTicker(symbol: string): string {
+    // Check if it's a valid option ticker without the O: prefix
+    if (!symbol.startsWith('O:') && isValidOptionTicker(symbol)) {
+      return `O:${symbol}`;
+    }
+    return symbol;
+  }
+
+  /**
    * Get the latest option bar for real-time updates
    * Mirrors alpacaService.getLatestStockBar but for options
    */
   async getLatestOptionBar(symbol: string): Promise<AlpacaBar | null> {
     try {
+      // Normalize the option ticker (add O: prefix if missing)
+      const normalizedSymbol = this.normalizeOptionTicker(symbol);
+
       // Validate option ticker format
-      const parsedTicker = parseOptionTicker(symbol);
+      const parsedTicker = parseOptionTicker(normalizedSymbol);
       if (!parsedTicker) {
         throw new Error(`Invalid option ticker format: ${symbol}`);
       }
@@ -65,7 +80,7 @@ export class PolygonService {
         apikey: this.apiKey,
       };
 
-      const url = `${this.baseUrl}/v2/aggs/ticker/${symbol}/range/1/minute/${fromDate}/${toDate}`;
+      const url = `${this.baseUrl}/v2/aggs/ticker/${normalizedSymbol}/range/1/minute/${fromDate}/${toDate}`;
 
       const response = await axios.get<PolygonAggregatesResponse>(url, { params });
 
@@ -99,8 +114,11 @@ export class PolygonService {
    */
   async getOptionBars(symbol: string, timeframe: ChartTimeframe, limit: number = 1000): Promise<AlpacaBar[]> {
     try {
+      // Normalize the option ticker (add O: prefix if missing)
+      const normalizedSymbol = this.normalizeOptionTicker(symbol);
+
       // Validate option ticker format
-      const parsedTicker = parseOptionTicker(symbol);
+      const parsedTicker = parseOptionTicker(normalizedSymbol);
       if (!parsedTicker) {
         throw new Error(`Invalid option ticker format: ${symbol}`);
       }
@@ -111,9 +129,9 @@ export class PolygonService {
       const daysToExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
       if (daysToExpiration < 0) {
-        logger.warn(`Option ${symbol} has already expired (${daysToExpiration} days ago)`);
+        logger.warn(`Option ${normalizedSymbol} has already expired (${daysToExpiration} days ago)`);
       } else if (daysToExpiration > 365) {
-        logger.warn(`Option ${symbol} expires in ${daysToExpiration} days - data may be limited`);
+        logger.warn(`Option ${normalizedSymbol} expires in ${daysToExpiration} days - data may be limited`);
       }
 
       const endTime = new Date();
@@ -126,7 +144,7 @@ export class PolygonService {
       if (timeframeMinutes <= 1) {
         bufferMultiplier = 5;
       } else if (timeframeMinutes <= 60) {
-        bufferMultiplier = 15;
+        bufferMultiplier = 30; // Increased from 15 to 30 for hourly data
       } else {
         bufferMultiplier = 2;
       }
@@ -149,7 +167,7 @@ export class PolygonService {
         endTime: endTime.toISOString(),
       });
 
-      const response = await this.fetchOptionBars(symbol, startTime, endTime, polygonTimeframe, limit);
+      const response = await this.fetchOptionBars(normalizedSymbol, startTime, endTime, polygonTimeframe, limit);
 
       const bars =
         response.results?.map((bar: PolygonBar) => ({
@@ -212,8 +230,11 @@ export class PolygonService {
     direction: 'past' | 'future' | 'centered'
   ): Promise<AlpacaBar[]> {
     try {
+      // Normalize the option ticker (add O: prefix if missing)
+      const normalizedSymbol = this.normalizeOptionTicker(symbol);
+
       // Validate option ticker format
-      const parsedTicker = parseOptionTicker(symbol);
+      const parsedTicker = parseOptionTicker(normalizedSymbol);
       if (!parsedTicker) {
         throw new Error(`Invalid option ticker format: ${symbol}`);
       }
@@ -224,18 +245,24 @@ export class PolygonService {
       const daysToExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
       if (daysToExpiration < 0) {
-        logger.warn(`Option ${symbol} has already expired (${daysToExpiration} days ago)`);
+        logger.warn(`Option ${normalizedSymbol} has already expired (${daysToExpiration} days ago)`);
       } else if (daysToExpiration > 365) {
-        logger.warn(`Option ${symbol} expires in ${daysToExpiration} days - data may be limited`);
+        logger.warn(`Option ${normalizedSymbol} expires in ${daysToExpiration} days - data may be limited`);
       }
 
       if (direction === 'centered') {
         // For centered, make two API calls - one for past and one for future
-        const pastBars = await this.fetchOptionBarsInDirection(symbol, startTime, timeframe, limit, 'past');
-        const futureBars = await this.fetchOptionBarsInDirection(symbol, startTime, timeframe, limit, 'future');
+        const pastBars = await this.fetchOptionBarsInDirection(normalizedSymbol, startTime, timeframe, limit, 'past');
+        const futureBars = await this.fetchOptionBarsInDirection(
+          normalizedSymbol,
+          startTime,
+          timeframe,
+          limit,
+          'future'
+        );
         return [...pastBars, ...futureBars];
       } else {
-        return await this.fetchOptionBarsInDirection(symbol, startTime, timeframe, limit, direction);
+        return await this.fetchOptionBarsInDirection(normalizedSymbol, startTime, timeframe, limit, direction);
       }
     } catch (error: unknown) {
       logger.server.error('Error fetching historical option bars from Polygon:', error);
@@ -328,7 +355,7 @@ export class PolygonService {
       if (timeframeMinutes <= 1) {
         bufferDays = 30;
       } else if (timeframeMinutes <= 60) {
-        bufferDays = 365;
+        bufferDays = 2 * 365; // Increased from 365 to 2 years for hourly data
       } else if (timeframeMinutes <= 24 * 60) {
         bufferDays = 3 * 365;
       } else {
@@ -344,7 +371,7 @@ export class PolygonService {
       if (timeframeMinutes <= 1) {
         bufferDays = 30;
       } else if (timeframeMinutes <= 60) {
-        bufferDays = 365;
+        bufferDays = 2 * 365; // Increased from 365 to 2 years for hourly data
       } else if (timeframeMinutes <= 24 * 60) {
         bufferDays = 3 * 365;
       } else {
