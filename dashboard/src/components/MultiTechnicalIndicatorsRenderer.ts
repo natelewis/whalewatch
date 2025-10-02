@@ -8,10 +8,9 @@ import { ChartCalculations } from '../types';
 import { createViewportXScale } from '../utils/chartDataUtils';
 import { MovingAverageData } from '../utils/movingAverageUtils';
 import { MACDData } from '../utils/macdUtils';
-import { IndicatorItem } from '../hooks/useTechnicalIndicators';
 
 export interface IndicatorRenderItem {
-  data: any[];
+  data: MovingAverageData[] | MACDData[];
   color: string;
   label: string;
   type: 'moving_average' | 'macd';
@@ -43,6 +42,12 @@ export const renderMultiTechnicalIndicators = (
   options: MultiIndicatorRenderOptions = {}
 ): void => {
   if (indicatorItems.length === 0) {
+    // Clear existing indicators when none are enabled
+    const chartContent = d3.select(svgElement).select('.chart-content');
+    const indicatorsGroup = chartContent.select('.technical-indicators');
+    if (!indicatorsGroup.empty()) {
+      indicatorsGroup.remove();
+    }
     return;
   }
 
@@ -72,7 +77,9 @@ export const renderMultiTechnicalIndicators = (
 
   // Render each indicator
   indicatorItems.forEach((item, index) => {
-    if (item.data.length === 0) return;
+    if (item.data.length === 0) {
+      return;
+    }
 
     if (item.type === 'moving_average') {
       renderMovingAverageLine(indicatorsGroup, item, xScale, calculations, opts, index);

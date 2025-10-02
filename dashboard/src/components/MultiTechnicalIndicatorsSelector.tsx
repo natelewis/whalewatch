@@ -4,32 +4,36 @@
  */
 
 import React, { useState } from 'react';
-import { useTechnicalIndicators, getAvailableColors, getIndicatorTypeLabel } from '../hooks/useTechnicalIndicators';
+import { getAvailableColors, getIndicatorTypeLabel } from '../hooks/useTechnicalIndicators';
 import { CandlestickData } from '../types';
-import { IndicatorItem, IndicatorType } from '../hooks/useTechnicalIndicators';
+import {
+  IndicatorItem,
+  IndicatorType,
+  TechnicalIndicatorsState,
+  TechnicalIndicatorsActions,
+} from '../hooks/useTechnicalIndicators';
 
 interface MultiTechnicalIndicatorsSelectorProps {
   chartData: CandlestickData[];
-  onIndicatorsChange?: (enabledData: any[]) => void;
+  technicalIndicatorsState: TechnicalIndicatorsState;
+  technicalIndicatorsActions: TechnicalIndicatorsActions;
   className?: string;
   compact?: boolean; // Show compact version for toolbar
 }
 
 export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicatorsSelectorProps> = ({
   chartData,
-  onIndicatorsChange,
+  technicalIndicatorsState,
+  technicalIndicatorsActions,
   className = '',
   compact = false,
 }) => {
-  const { state, actions, enabledData } = useTechnicalIndicators(chartData);
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedType, setSelectedType] = useState<IndicatorType>('moving_average');
   const availableColors = getAvailableColors();
 
-  // Notify parent when indicators change
-  React.useEffect(() => {
-    onIndicatorsChange?.(enabledData);
-  }, [enabledData, onIndicatorsChange]);
+  // Get enabled items from the passed state
+  const enabledItems = technicalIndicatorsState.items.filter(item => item.enabled);
 
   // Group items by type for better organization
   const itemsByType = React.useMemo(() => {
@@ -38,12 +42,12 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
       macd: [],
     };
 
-    state.items.forEach(item => {
+    technicalIndicatorsState.items.forEach(item => {
       groups[item.type].push(item);
     });
 
     return groups;
-  }, [state.items]);
+  }, [technicalIndicatorsState.items]);
 
   if (compact) {
     return (
@@ -52,13 +56,13 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
-            enabledData.length > 0
+            enabledItems.length > 0
               ? 'bg-primary text-primary-foreground'
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
-          title={`${enabledData.length} Technical Indicator${enabledData.length !== 1 ? 's' : ''} enabled`}
+          title={`${enabledItems.length} Technical Indicator${enabledItems.length !== 1 ? 's' : ''} enabled`}
         >
-          Indicators ({enabledData.length})
+          Indicators ({enabledItems.length})
         </button>
 
         {/* Dropdown Menu */}
@@ -69,13 +73,13 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
               <h3 className="text-sm font-medium text-foreground">Technical Indicators</h3>
               <div className="flex space-x-1">
                 <button
-                  onClick={actions.enableAll}
+                  onClick={technicalIndicatorsActions.enableAll}
                   className="px-2 py-1 text-xs rounded-md bg-muted text-muted-foreground hover:bg-muted/80"
                 >
                   All
                 </button>
                 <button
-                  onClick={actions.disableAll}
+                  onClick={technicalIndicatorsActions.disableAll}
                   className="px-2 py-1 text-xs rounded-md bg-muted text-muted-foreground hover:bg-muted/80"
                 >
                   None
@@ -93,7 +97,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                       type="checkbox"
                       id={item.id}
                       checked={item.enabled}
-                      onChange={() => actions.toggleItem(item.id)}
+                      onChange={() => technicalIndicatorsActions.toggleItem(item.id)}
                       className="w-3 h-3 text-primary bg-background border-border rounded focus:ring-primary focus:ring-1"
                     />
                     <div className="w-3 h-3 rounded border border-border" style={{ backgroundColor: item.color }} />
@@ -115,7 +119,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                       type="checkbox"
                       id={item.id}
                       checked={item.enabled}
-                      onChange={() => actions.toggleItem(item.id)}
+                      onChange={() => technicalIndicatorsActions.toggleItem(item.id)}
                       className="w-3 h-3 text-primary bg-background border-border rounded focus:ring-primary focus:ring-1"
                     />
                     <div className="w-3 h-3 rounded border border-border" style={{ backgroundColor: item.color }} />
@@ -128,10 +132,10 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
             </div>
 
             {/* Summary */}
-            {enabledData.length > 0 && (
+            {enabledItems.length > 0 && (
               <div className="pt-2 mt-3 border-t border-border">
                 <p className="text-xs text-muted-foreground">
-                  {enabledData.length} indicator{enabledData.length !== 1 ? 's' : ''} enabled
+                  {enabledItems.length} indicator{enabledItems.length !== 1 ? 's' : ''} enabled
                 </p>
               </div>
             )}
@@ -151,13 +155,13 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
         <h3 className="text-sm font-medium text-foreground">Technical Indicators</h3>
         <div className="flex space-x-1">
           <button
-            onClick={actions.enableAll}
+            onClick={technicalIndicatorsActions.enableAll}
             className="px-2 py-1 text-xs rounded-md bg-muted text-muted-foreground hover:bg-muted/80"
           >
             All
           </button>
           <button
-            onClick={actions.disableAll}
+            onClick={technicalIndicatorsActions.disableAll}
             className="px-2 py-1 text-xs rounded-md bg-muted text-muted-foreground hover:bg-muted/80"
           >
             None
@@ -193,7 +197,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                 const period = prompt('Enter period (e.g., 15):');
                 const type = prompt('Enter type (simple or exponential):') as 'simple' | 'exponential';
                 if (period && type && ['simple', 'exponential'].includes(type)) {
-                  actions.addMovingAverage({
+                  technicalIndicatorsActions.addMovingAverage({
                     period: parseInt(period),
                     type,
                   });
@@ -213,7 +217,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                   type="checkbox"
                   id={item.id}
                   checked={item.enabled}
-                  onChange={() => actions.toggleItem(item.id)}
+                  onChange={() => technicalIndicatorsActions.toggleItem(item.id)}
                   className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
                 />
 
@@ -230,7 +234,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                   {availableColors.slice(0, 6).map(color => (
                     <button
                       key={color}
-                      onClick={() => actions.setItemColor(item.id, color)}
+                      onClick={() => technicalIndicatorsActions.setItemColor(item.id, color)}
                       className={`w-4 h-4 rounded border-2 ${
                         item.color === color ? 'border-foreground' : 'border-border'
                       }`}
@@ -242,7 +246,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
 
                 {/* Remove Button */}
                 <button
-                  onClick={() => actions.removeItem(item.id)}
+                  onClick={() => technicalIndicatorsActions.removeItem(item.id)}
                   className="px-2 py-1 text-xs rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   title="Remove indicator"
                 >
@@ -266,7 +270,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                 const slowPeriod = prompt('Enter slow period (e.g., 26):');
                 const signalPeriod = prompt('Enter signal period (e.g., 9):');
                 if (fastPeriod && slowPeriod && signalPeriod) {
-                  actions.addMACD({
+                  technicalIndicatorsActions.addMACD({
                     fastPeriod: parseInt(fastPeriod),
                     slowPeriod: parseInt(slowPeriod),
                     signalPeriod: parseInt(signalPeriod),
@@ -287,7 +291,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                   type="checkbox"
                   id={item.id}
                   checked={item.enabled}
-                  onChange={() => actions.toggleItem(item.id)}
+                  onChange={() => technicalIndicatorsActions.toggleItem(item.id)}
                   className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
                 />
 
@@ -304,7 +308,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
                   {availableColors.slice(0, 6).map(color => (
                     <button
                       key={color}
-                      onClick={() => actions.setItemColor(item.id, color)}
+                      onClick={() => technicalIndicatorsActions.setItemColor(item.id, color)}
                       className={`w-4 h-4 rounded border-2 ${
                         item.color === color ? 'border-foreground' : 'border-border'
                       }`}
@@ -316,7 +320,7 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
 
                 {/* Remove Button */}
                 <button
-                  onClick={() => actions.removeItem(item.id)}
+                  onClick={() => technicalIndicatorsActions.removeItem(item.id)}
                   className="px-2 py-1 text-xs rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   title="Remove indicator"
                 >
@@ -329,10 +333,10 @@ export const MultiTechnicalIndicatorsSelector: React.FC<MultiTechnicalIndicators
       )}
 
       {/* Summary */}
-      {enabledData.length > 0 && (
+      {enabledItems.length > 0 && (
         <div className="pt-2 border-t border-border">
           <p className="text-xs text-muted-foreground">
-            {enabledData.length} indicator{enabledData.length !== 1 ? 's' : ''} enabled
+            {enabledItems.length} indicator{enabledItems.length !== 1 ? 's' : ''} enabled
           </p>
         </div>
       )}

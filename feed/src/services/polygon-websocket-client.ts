@@ -123,6 +123,28 @@ export class WebSocketService {
     }, delay);
   }
 
+  private forceReconnect(): void {
+    console.log('Force reconnecting due to stale connection...');
+
+    // Stop health monitoring before closing
+    this.stopHealthMonitoring();
+
+    // Close the current connection
+    if (this.ws) {
+      this.ws.close(1000, 'Force reconnect due to stale connection');
+      this.ws = null;
+    }
+
+    // Reset connection state
+    this.isConnecting = false;
+    this.lastMessageReceived = null;
+
+    // Immediately attempt to reconnect
+    setTimeout(() => {
+      this.connect(this.url);
+    }, 1000); // Small delay to ensure clean disconnection
+  }
+
   private startHealthMonitoring(): void {
     // Health check every 30 seconds
     this.healthCheckInterval = setInterval(() => {
@@ -150,9 +172,11 @@ export class WebSocketService {
     const now = new Date();
     const healthStatus = this.getHealthStatus();
 
-    // Check if we haven't received messages in the last 2 minutes
-    if (this.lastMessageReceived && now.getTime() - this.lastMessageReceived.getTime() > 120000) {
-      console.warn('No messages received in the last 2 minutes. Connection may be stale.');
+    // Check if we haven't received messages in the last 90 seconds
+    if (this.lastMessageReceived && now.getTime() - this.lastMessageReceived.getTime() > 90000) {
+      console.warn('No messages received in the last 90 seconds. Connection may be stale. Reconnecting...');
+      this.forceReconnect();
+      return;
     }
 
     // Check if buffer is getting too large

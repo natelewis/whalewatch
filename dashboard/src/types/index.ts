@@ -114,6 +114,16 @@ export interface ChartStateCallbacks {
   getCurrentDimensions?: () => ChartDimensions;
   setChartLoaded?: (value: boolean) => void;
   setCurrentVerticalPan?: (y: number, k: number) => void;
+  // Technical indicators callbacks
+  getTechnicalIndicatorsData?: () => {
+    item: { color: string; label: string; type: 'moving_average' | 'macd' };
+    data: unknown[];
+  }[];
+  renderTechnicalIndicators?: (
+    svgElement: SVGSVGElement,
+    renderItems: { data: unknown[]; color: string; label: string; type: 'moving_average' | 'macd' }[],
+    calculations: ChartCalculations
+  ) => void;
 }
 
 // ============================================================================

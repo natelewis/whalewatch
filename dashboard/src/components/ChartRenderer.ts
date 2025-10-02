@@ -559,6 +559,20 @@ export const createChart = ({
       if (renderResult.success && renderResult.calculations) {
         // Update latest transformed Y scale used for rendering
         lastTransformedYScale = renderResult.calculations.transformedYScale;
+
+        // Render technical indicators during panning
+        if (stateCallbacks.renderTechnicalIndicators && stateCallbacks.getTechnicalIndicatorsData) {
+          const technicalIndicatorsData = stateCallbacks.getTechnicalIndicatorsData();
+          if (technicalIndicatorsData.length > 0) {
+            const renderItems = technicalIndicatorsData.map(item => ({
+              data: item.data,
+              color: item.item.color,
+              label: item.item.label,
+              type: item.item.type,
+            }));
+            stateCallbacks.renderTechnicalIndicators(svgElement, renderItems, renderResult.calculations);
+          }
+        }
       }
 
       // Keep crosshair and price display synced with pointer during pan

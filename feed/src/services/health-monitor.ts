@@ -39,7 +39,7 @@ export class HealthMonitor {
     maxReconnectAttempts: 5,
     maxDatabaseErrors: 5,
     maxMemoryUsageMB: 500,
-    maxNoMessageMinutes: 5,
+    maxNoMessageMinutes: 1.5, // 90 seconds
   };
 
   constructor() {

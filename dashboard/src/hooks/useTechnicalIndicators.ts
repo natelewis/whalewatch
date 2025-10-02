@@ -3,7 +3,7 @@
  * This hook supports Moving Averages, MACD, and can be extended for other indicators
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { CandlestickData } from '../types';
 import {
   calculateMovingAverage,
@@ -20,6 +20,7 @@ import {
   getMACDLabel,
   getMACDPresets,
 } from '../utils/macdUtils';
+import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
 
 // Base indicator types
 export type IndicatorType = 'moving_average' | 'macd';
@@ -123,12 +124,46 @@ const DEFAULT_STATE: TechnicalIndicatorsState = {
   items: createDefaultItems(),
 };
 
+// localStorage key for persisting technical indicators state
+const TECHNICAL_INDICATORS_STORAGE_KEY = 'technicalIndicatorsState';
+
 /**
  * Hook for managing multiple technical indicators simultaneously
  * Completely self-contained and doesn't pollute core chart state
+ * Automatically persists state to localStorage
  */
 export const useTechnicalIndicators = (chartData: CandlestickData[]): TechnicalIndicatorsHook => {
-  const [state, setState] = useState<TechnicalIndicatorsState>(DEFAULT_STATE);
+  // Track if this is the initial load to prevent persisting default state
+  const isInitialLoadRef = useRef(true);
+
+  // Load initial state from localStorage or use default
+  const [state, setState] = useState<TechnicalIndicatorsState>(() => {
+    try {
+      const savedState = getLocalStorageItem<TechnicalIndicatorsState>(TECHNICAL_INDICATORS_STORAGE_KEY, DEFAULT_STATE);
+      // Validate that the saved state has the expected structure
+      if (savedState && Array.isArray(savedState.items)) {
+        return savedState;
+      }
+      return DEFAULT_STATE;
+    } catch (error) {
+      console.warn('Failed to load technical indicators state from localStorage:', error);
+      return DEFAULT_STATE;
+    }
+  });
+
+  // Persist state to localStorage whenever it changes (but not on initial load)
+  useEffect(() => {
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    try {
+      setLocalStorageItem(TECHNICAL_INDICATORS_STORAGE_KEY, state);
+    } catch (error) {
+      console.warn('Failed to save technical indicators state to localStorage:', error);
+    }
+  }, [state]);
 
   // Get enabled items
   const enabledItems = useMemo(() => {
