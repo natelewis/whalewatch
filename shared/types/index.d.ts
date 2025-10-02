@@ -274,21 +274,7 @@ export interface ChartQuoteMessage extends WebSocketMessage {
     bar: AlpacaBar;
   };
 }
-export type ChartTimeframe =
-  | '1m'
-  | '15m'
-  | '30m'
-  | '1h'
-  | '1H'
-  | '2h'
-  | '4h'
-  | '4H'
-  | '1d'
-  | '1D'
-  | '3M'
-  | '6M'
-  | '1Y'
-  | 'ALL';
+export type ChartTimeframe = '1m' | '15m' | '1h' | '1H' | '2h' | '4h' | '4H' | '1d' | '1D' | '3M' | '6M' | '1Y' | 'ALL';
 export type ChartType = 'candlestick' | 'bar' | 'line' | 'area';
 export interface ChartDimensions {
   width: number;

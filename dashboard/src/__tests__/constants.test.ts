@@ -4,7 +4,7 @@ import { X_AXIS_LABEL_CONFIGS, XAxisLabelConfig } from '../constants';
 describe('X-axis label configuration', () => {
   describe('X_AXIS_LABEL_CONFIGS', () => {
     it('should have configurations for all supported intervals', () => {
-      const expectedIntervals = ['1m', '15m', '30m', '1h', '1d'];
+      const expectedIntervals = ['1m', '15m', '1h', '1d'];
 
       expectedIntervals.forEach(interval => {
         expect(X_AXIS_LABEL_CONFIGS).toHaveProperty(interval);
@@ -35,23 +35,19 @@ describe('X-axis label configuration', () => {
       // 15m: 8-hour markers (480 minutes)
       expect(X_AXIS_LABEL_CONFIGS['15m'].markerIntervalMinutes).toBe(480);
 
-      // 30m: 8-hour markers
-      expect(X_AXIS_LABEL_CONFIGS['30m'].markerIntervalMinutes).toBe(480);
-
       // 1h: 2-day markers
       expect(X_AXIS_LABEL_CONFIGS['1h'].markerIntervalMinutes).toBe(2880);
 
-      // 1d: monthly markers
-      expect(X_AXIS_LABEL_CONFIGS['1d'].markerIntervalMinutes).toBe(43200);
+      // 1d: monthly markers (31 days = 44640 minutes)
+      expect(X_AXIS_LABEL_CONFIGS['1d'].markerIntervalMinutes).toBe(44640);
     });
 
     it('should have appropriate label formats for each timeframe', () => {
-      // Short timeframes should show date-time
-      expect(X_AXIS_LABEL_CONFIGS['1m'].labelFormat).toBe('date-time');
+      // Short timeframes should show time-only
+      expect(X_AXIS_LABEL_CONFIGS['1m'].labelFormat).toBe('time-only');
 
       // Medium timeframes should show date-time
       expect(X_AXIS_LABEL_CONFIGS['15m'].labelFormat).toBe('date-time');
-      expect(X_AXIS_LABEL_CONFIGS['30m'].labelFormat).toBe('date-time');
       expect(X_AXIS_LABEL_CONFIGS['1h'].labelFormat).toBe('date-only');
 
       // Long timeframes should show date only

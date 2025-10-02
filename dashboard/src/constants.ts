@@ -83,16 +83,11 @@ export interface XAxisLabelConfig {
 export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
   '1m': {
     markerIntervalMinutes: 15, // Show labels every 15 minutes
-    labelFormat: 'date-time',
+    labelFormat: 'time-only',
     showSeconds: false,
   },
   '15m': {
     markerIntervalMinutes: 60 * 8, // Show labels every hour and a half
-    labelFormat: 'date-time',
-    showSeconds: false,
-  },
-  '30m': {
-    markerIntervalMinutes: 60 * 8, // Show labels every 8 hours
     labelFormat: 'date-time',
     showSeconds: false,
   },
@@ -102,10 +97,10 @@ export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
     showSeconds: false,
   },
   '1d': {
-    markerIntervalMinutes: 60 * 24 * 30, // Show labels once a month
+    markerIntervalMinutes: 60 * 24 * 31, // Show labels once a month
     labelFormat: 'date-only',
     showSeconds: false,
-    maxVisibleLabels: 4,
+    maxVisibleLabels: 9,
   },
 } as const;
 

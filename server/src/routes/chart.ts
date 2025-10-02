@@ -21,7 +21,6 @@ function mapIntervalToAlpacaTimeframe(interval: AggregationInterval): string {
   const mapping: Record<AggregationInterval, string> = {
     '1m': '1Min',
     '15m': '15Min',
-    '30m': '30Min',
     '1h': '1Hour',
     '1d': '1Day',
   };
