@@ -565,10 +565,24 @@ export class PolygonService {
   }
 
   /**
-   * Get multiplier for Polygon API (always 1 for our use case)
+   * Get multiplier for Polygon API
    */
-  private getMultiplier(_timeframe: string): number {
-    return 1;
+  private getMultiplier(timeframe: string): number {
+    const mapping: Record<string, number> = {
+      '1Min': 1,
+      '5Min': 5,
+      '15Min': 15,
+      '30Min': 30,
+      '1Hour': 1,
+      '4Hour': 4,
+      '1Day': 1,
+      '1Week': 1,
+      '3Month': 3,
+      '6Month': 6,
+      '1Year': 1,
+      ALL: 1,
+    };
+    return mapping[timeframe] || 1;
   }
 
   /**
@@ -577,6 +591,7 @@ export class PolygonService {
   private getTimespan(timeframe: string): string {
     const mapping: Record<string, string> = {
       '1Min': 'minute',
+      '5Min': 'minute',
       '15Min': 'minute',
       '30Min': 'minute',
       '1Hour': 'hour',
@@ -595,6 +610,7 @@ export class PolygonService {
   private getTimeframeMinutes(timeframe: string): number {
     const mapping: Record<string, number> = {
       '1Min': 1,
+      '5Min': 5,
       '15Min': 15,
       '30Min': 30,
       '1Hour': 60,
