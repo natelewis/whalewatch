@@ -32,10 +32,14 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
     if (result.isOk()) {
       const savedSymbol = result.value;
-      // Only use saved symbol if it's not empty and different from current
-      if (savedSymbol && savedSymbol !== selectedSymbol) {
+      // Only use saved symbol if current symbol is empty (not from URL params)
+      // This prevents overriding option tickers that come from URL links
+      if (savedSymbol && !selectedSymbol.trim()) {
         setLocalSymbol(savedSymbol);
         onSymbolChange(savedSymbol);
+      } else if (selectedSymbol.trim()) {
+        // If we have a symbol from URL, use that instead
+        setLocalSymbol(selectedSymbol);
       }
     } else {
       console.warn('Failed to load ticker symbol from localStorage:', createUserFriendlyMessage(result.error));

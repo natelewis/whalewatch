@@ -85,11 +85,14 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
     >();
 
     trades.forEach(trade => {
+      // Remove O: prefix from ticker for cleaner URLs
+      const cleanTicker = trade.ticker.startsWith('O:') ? trade.ticker.substring(2) : trade.ticker;
+
       // Parse the ticker to extract option details
       const parsedTicker = parseOptionTicker(trade.ticker);
 
-      // Create a unique key for grouping: ticker + strike_price (same contract)
-      const groupKey = `${trade.ticker}-${parsedTicker?.strikePrice || 0}`;
+      // Create a unique key for grouping: clean ticker + strike_price (same contract)
+      const groupKey = `${cleanTicker}-${parsedTicker?.strikePrice || 0}`;
 
       if (tradeMap.has(groupKey)) {
         // Increment repeat count and add to volume
@@ -105,7 +108,7 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       } else {
         // First occurrence of this contract
         tradeMap.set(groupKey, {
-          ticker: trade.ticker,
+          ticker: cleanTicker,
           underlying_ticker: trade.underlying_ticker,
           timestamp: trade.timestamp,
           price: trade.price,
@@ -140,7 +143,7 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
 
     // Collect the group keys of contracts that meet all criteria
     frontendTrades.forEach(trade => {
-      const parsedTicker = parseOptionTicker(trade.ticker);
+      const parsedTicker = parseOptionTicker(`O:${trade.ticker}`); // Add O: prefix for parsing
       const groupKey = `${trade.ticker}-${parsedTicker?.strikePrice || 0}`;
       qualifyingContracts.add(groupKey);
     });
@@ -156,8 +159,10 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
     }> = [];
 
     trades.forEach(trade => {
+      // Remove O: prefix from ticker for cleaner URLs
+      const cleanTicker = trade.ticker.startsWith('O:') ? trade.ticker.substring(2) : trade.ticker;
       const parsedTicker = parseOptionTicker(trade.ticker);
-      const groupKey = `${trade.ticker}-${parsedTicker?.strikePrice || 0}`;
+      const groupKey = `${cleanTicker}-${parsedTicker?.strikePrice || 0}`;
 
       // Only include trades for contracts that meet the thresholds
       if (qualifyingContracts.has(groupKey)) {
@@ -183,8 +188,10 @@ router.get('/:symbol/trades', async (req: Request, res: Response) => {
       // Update the map
       contractCumulative.set(groupKey, cumulative);
 
+      // Remove O: prefix from ticker for cleaner URLs
+      const cleanTicker = trade.ticker.startsWith('O:') ? trade.ticker.substring(2) : trade.ticker;
       individualTrades.push({
-        ticker: trade.ticker,
+        ticker: cleanTicker,
         underlying_ticker: trade.underlying_ticker,
         timestamp: trade.timestamp,
         price: trade.price,

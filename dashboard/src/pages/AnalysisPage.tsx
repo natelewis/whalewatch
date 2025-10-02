@@ -4,7 +4,7 @@ import StockChart from '../components/StockChart';
 import { PageHeader } from '../components/PageHeader';
 
 export const AnalysisPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedSymbol, setSelectedSymbol] = useState<string>(() => {
     // Get symbol from URL params, fallback to empty string
     const symbolFromUrl = searchParams.get('symbol');
@@ -13,6 +13,14 @@ export const AnalysisPage: React.FC = () => {
 
   const handleSymbolChange = (symbol: string) => {
     setSelectedSymbol(symbol);
+    // Update URL query parameters when symbol changes
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (symbol.trim()) {
+      newSearchParams.set('symbol', symbol);
+    } else {
+      newSearchParams.delete('symbol');
+    }
+    setSearchParams(newSearchParams);
   };
 
   // Update symbol when URL params change
