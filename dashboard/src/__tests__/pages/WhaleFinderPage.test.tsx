@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { WhaleFinderPage } from '../../pages/WhaleFinderPage';
 import { BrowserRouter } from 'react-router-dom';
@@ -14,6 +15,7 @@ const renderWithRouter = (component: React.ReactElement) => {
 };
 
 describe('WhaleFinderPage', () => {
+  const user = userEvent.setup();
   const mockTrades = [
     {
       ticker: 'O:TSLA251003C00150000',
@@ -68,23 +70,22 @@ describe('WhaleFinderPage', () => {
     expect(screen.getByRole('heading', { name: 'Option Trade Explorer', level: 2 })).toBeInTheDocument();
   });
 
-  it('loads options trades on mount', async () => {
+  it('does not load options trades on mount when no symbol is selected', async () => {
     renderWithRouter(<WhaleFinderPage />);
 
-    await waitFor(() => {
-      expect(mockApiService.getOptionsTrades).toHaveBeenCalledWith(
-        'TSLA',
-        expect.any(Date),
-        expect.any(Date),
-        1000,
-        10,
-        1000
-      );
-    });
+    // Wait a bit to ensure no API call is made
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(mockApiService.getOptionsTrades).not.toHaveBeenCalled();
   });
 
-  it('displays trades data', async () => {
+  it('displays trades data when symbol is entered', async () => {
     renderWithRouter(<WhaleFinderPage />);
+
+    // First enter a symbol to trigger the API call
+    const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');
+    await user.type(tickerInput, 'TSLA');
+    await user.keyboard('{Enter}');
 
     await waitFor(() => {
       expect(screen.getByText('2 trades')).toBeInTheDocument();
@@ -111,28 +112,38 @@ describe('WhaleFinderPage', () => {
     });
   });
 
-  it('displays loading state', () => {
+  it('displays loading state when symbol is entered', async () => {
     mockApiService.getOptionsTrades.mockImplementation(() => new Promise(() => {})); // Never resolves
 
     renderWithRouter(<WhaleFinderPage />);
+
+    // Enter a symbol to trigger loading
+    const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');
+    await user.type(tickerInput, 'TSLA');
+    await user.keyboard('{Enter}');
 
     // Look for the loading spinner by its class
     const spinner = document.querySelector('.animate-spin');
     expect(spinner).toBeInTheDocument();
   });
 
-  it('displays error state', async () => {
+  it('displays error state when symbol is entered', async () => {
     const errorMessage = 'Failed to load trades';
     mockApiService.getOptionsTrades.mockRejectedValue(new Error(errorMessage));
 
     renderWithRouter(<WhaleFinderPage />);
+
+    // Enter a symbol to trigger the error
+    const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');
+    await user.type(tickerInput, 'TSLA');
+    await user.keyboard('{Enter}');
 
     await waitFor(() => {
       expect(screen.getByText(`Failed to load trades`)).toBeInTheDocument();
     });
   });
 
-  it('displays empty state when no trades', async () => {
+  it('displays empty state when no trades found', async () => {
     mockApiService.getOptionsTrades.mockResolvedValue({
       symbol: 'TSLA',
       trades: [],
@@ -140,6 +151,11 @@ describe('WhaleFinderPage', () => {
     });
 
     renderWithRouter(<WhaleFinderPage />);
+
+    // Enter a symbol to trigger the API call
+    const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');
+    await user.type(tickerInput, 'TSLA');
+    await user.keyboard('{Enter}');
 
     await waitFor(() => {
       expect(screen.getByText(/No option trades found for TSLA on/)).toBeInTheDocument();

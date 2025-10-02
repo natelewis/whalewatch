@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { BarChart3 } from 'lucide-react';
 import { FrontendOptionTrade } from '../types';
 import { apiService } from '../services/apiService';
 import { PageHeader } from '../components/PageHeader';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
+import { safeCallAsync, createUserFriendlyMessage, parseOptionTicker } from '@whalewatch/shared';
 import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import { getSessionStorageItem, setSessionStorageItem } from '../utils/localStorage';
 
 export const WhaleFinderPage: React.FC = () => {
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('TSLA');
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [optionsTrades, setOptionsTrades] = useState<FrontendOptionTrade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +65,12 @@ export const WhaleFinderPage: React.FC = () => {
   }, [volumeMin]);
 
   useEffect(() => {
+    // Only load trades if we have a symbol
+    if (!selectedSymbol.trim()) {
+      setOptionsTrades([]);
+      return;
+    }
+
     const maxPriceNum = debouncedMaxPrice === '' ? 0 : Number(debouncedMaxPrice);
     const repeatMinNum = debouncedRepeatMin === '' ? 0 : Number(debouncedRepeatMin);
     const volumeMinNum = debouncedVolumeMin === '' ? 0 : Number(debouncedVolumeMin);
@@ -71,6 +79,11 @@ export const WhaleFinderPage: React.FC = () => {
 
   // Auto-refresh data every 10 seconds
   useEffect(() => {
+    // Only auto-refresh if we have a symbol
+    if (!selectedSymbol.trim()) {
+      return;
+    }
+
     const interval = setInterval(() => {
       const maxPriceNum = debouncedMaxPrice === '' ? 0 : Number(debouncedMaxPrice);
       const repeatMinNum = debouncedRepeatMin === '' ? 0 : Number(debouncedRepeatMin);
@@ -150,7 +163,11 @@ export const WhaleFinderPage: React.FC = () => {
   };
 
   const handleSymbolChange = (symbol: string) => {
-    setSelectedSymbol(symbol);
+    // If it's an option ticker, extract the underlying ticker for searching
+    const parsedOption = parseOptionTicker(symbol);
+    const searchSymbol = parsedOption ? parsedOption.underlyingTicker : symbol;
+
+    setSelectedSymbol(searchSymbol);
   };
 
   const generateDateOptions = () => {
@@ -395,7 +412,7 @@ export const WhaleFinderPage: React.FC = () => {
                     <>
                       {/* Table Header */}
                       <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
-                        <div></div>
+                        <div className="text-left">Time</div>
                         <div className="text-right">Price</div>
                         <div className="text-left">Size</div>
                         <div className="">Value</div>
@@ -417,9 +434,16 @@ export const WhaleFinderPage: React.FC = () => {
                                 isSelected ? 'bg-primary/20 border border-primary/30' : 'hover:bg-muted/30'
                               }`}
                             >
-                              {/* Time */}
-                              <div className="font-semibold text-muted-foreground text-xs">
-                                {formatTime(trade.timestamp)}
+                              {/* Time with Chart Icon */}
+                              <div className="font-semibold text-muted-foreground text-xs flex items-center gap-2">
+                                <Link
+                                  to={`/analysis?symbol=${encodeURIComponent(trade.ticker)}`}
+                                  className="text-muted-foreground hover:text-primary transition-colors"
+                                  title="View chart analysis"
+                                >
+                                  <BarChart3 className="h-4 w-4" />
+                                </Link>
+                                <span>{formatTime(trade.timestamp)}</span>
                               </div>
 
                               {/* Price with P/C indicator */}

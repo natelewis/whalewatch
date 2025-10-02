@@ -27,12 +27,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   // Load saved symbol from localStorage on component mount
   useEffect(() => {
     const result = safeCall(() => {
-      return getLocalStorageItem('globalTickerSymbol', selectedSymbol);
+      return getLocalStorageItem('globalTickerSymbol', '');
     });
 
     if (result.isOk()) {
       const savedSymbol = result.value;
-      if (savedSymbol !== selectedSymbol) {
+      // Only use saved symbol if it's not empty and different from current
+      if (savedSymbol && savedSymbol !== selectedSymbol) {
         setLocalSymbol(savedSymbol);
         onSymbolChange(savedSymbol);
       }
@@ -43,13 +44,16 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
   // Save symbol to localStorage whenever it changes
   useEffect(() => {
-    const result = safeCall(() => {
-      setLocalStorageItem('globalTickerSymbol', selectedSymbol);
-      setLocalSymbol(selectedSymbol);
-    });
+    // Only save non-empty symbols to localStorage
+    if (selectedSymbol.trim()) {
+      const result = safeCall(() => {
+        setLocalStorageItem('globalTickerSymbol', selectedSymbol);
+        setLocalSymbol(selectedSymbol);
+      });
 
-    if (result.isErr()) {
-      console.warn('Failed to save ticker symbol to localStorage:', createUserFriendlyMessage(result.error));
+      if (result.isErr()) {
+        console.warn('Failed to save ticker symbol to localStorage:', createUserFriendlyMessage(result.error));
+      }
     }
   }, [selectedSymbol]);
 

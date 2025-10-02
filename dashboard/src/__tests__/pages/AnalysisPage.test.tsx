@@ -45,14 +45,14 @@ describe('AnalysisPage', () => {
   it('renders the chart analysis section', () => {
     renderWithRouter(<AnalysisPage />);
 
-    expect(screen.getByText('Stock Chart for TSLA')).toBeInTheDocument();
+    expect(screen.getByText('Stock Chart for')).toBeInTheDocument();
     expect(screen.getByTestId('stock-chart')).toBeInTheDocument();
   });
 
-  it('displays the default symbol in the chart', () => {
+  it('displays empty symbol by default', () => {
     renderWithRouter(<AnalysisPage />);
 
-    expect(screen.getByText('Stock Chart for TSLA')).toBeInTheDocument();
+    expect(screen.getByText('Stock Chart for')).toBeInTheDocument();
   });
 
   it('handles symbol change', () => {
