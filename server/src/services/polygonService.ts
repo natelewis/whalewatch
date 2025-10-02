@@ -344,14 +344,14 @@ export class PolygonService {
 
     // Fetch all pages of data using pagination
     const allResults: PolygonBar[] = [];
-    let currentUrl = url;
+    let currentUrl: string | undefined = url;
     let pageCount = 0;
     const maxPages = 10; // Safety limit to prevent infinite loops
 
     while (currentUrl && pageCount < maxPages) {
       // For subsequent pages, we need to add the API key since next_url doesn't include it
       const requestParams = pageCount === 0 ? params : { apikey: this.apiKey };
-      const response = await axios.get<PolygonAggregatesResponse>(currentUrl, {
+      const response: { data: PolygonAggregatesResponse } = await axios.get<PolygonAggregatesResponse>(currentUrl, {
         params: requestParams,
       });
 
@@ -363,6 +363,7 @@ export class PolygonService {
         queryCount: response.data.queryCount,
         actualResults: response.data.results?.length || 0,
         hasNextUrl: !!response.data.next_url,
+        nextUrl: response.data.next_url,
       });
 
       // Add results from this page
@@ -370,11 +371,13 @@ export class PolygonService {
         allResults.push(...response.data.results);
       }
 
-      // Check if there's a next page
+      // Check if there's a next page - if not, we're done
       if (response.data.next_url) {
         currentUrl = response.data.next_url;
         pageCount++;
       } else {
+        // No more pages available, exit the loop
+        currentUrl = undefined;
         break;
       }
     }
@@ -479,7 +482,7 @@ export class PolygonService {
     while (currentUrl && pageCount < maxPages) {
       // For subsequent pages, we need to add the API key since next_url doesn't include it
       const requestParams = pageCount === 0 ? params : { apikey: this.apiKey };
-      const response = await axios.get<PolygonAggregatesResponse>(currentUrl, {
+      const response: { data: PolygonAggregatesResponse } = await axios.get<PolygonAggregatesResponse>(currentUrl, {
         params: requestParams,
       });
 
