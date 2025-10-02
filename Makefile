@@ -10,7 +10,7 @@ help:
 	@echo "Development:"
 	@echo "  make install          Install all dependencies"
 	@echo "  make dev              Start both server and dashboard in development mode"
-	@echo "  make server-dev       Start server in development mode"
+	@echo "  make server-dev       Start server with shared module auto-rebuild"
 	@echo "  make dashboard-dev    Start dashboard in development mode"
 	@echo ""
 	@echo "Testing:"
@@ -71,11 +71,33 @@ dev:
 	npm run dev
 
 server-dev:
-	@echo "🖥️  Starting server in development mode..."
-	@echo "🛑 Stopping any existing server processes..."
-	@pkill -f "tsx watch src/index.ts" || true
+	@echo "🖥️  Starting server in development mode with shared module auto-rebuild..."
+	@echo "🛑 Stopping any existing processes..."
+	@pkill -f "tsx watch" || true
+	@pkill -f "tsc --watch" || true
 	@sleep 1
-	cd server && npm run dev
+	@echo "🔨 Building shared module first..."
+	cd shared && npm run build
+	@echo "🚀 Starting shared module watcher and server..."
+	@echo "📝 Shared module will auto-rebuild on changes"
+	@echo "🖥️  Server will restart automatically when shared module changes"
+	@echo ""
+	@echo "Press Ctrl+C to stop both processes"
+	@echo "=========================================="
+	@# Create a temporary script to run both processes
+	@echo '#!/bin/bash' > /tmp/server-dev.sh
+	@echo 'cd shared && npm run dev &' >> /tmp/server-dev.sh
+	@echo 'SHARED_PID=$$!' >> /tmp/server-dev.sh
+	@echo 'sleep 2' >> /tmp/server-dev.sh
+	@echo 'cd server && npm run dev &' >> /tmp/server-dev.sh
+	@echo 'SERVER_PID=$$!' >> /tmp/server-dev.sh
+	@echo 'echo "Shared module watcher PID: $$SHARED_PID"' >> /tmp/server-dev.sh
+	@echo 'echo "Server PID: $$SERVER_PID"' >> /tmp/server-dev.sh
+	@echo 'trap "kill $$SHARED_PID $$SERVER_PID 2>/dev/null; exit" INT TERM' >> /tmp/server-dev.sh
+	@echo 'wait' >> /tmp/server-dev.sh
+	@chmod +x /tmp/server-dev.sh
+	@/tmp/server-dev.sh
+	@rm -f /tmp/server-dev.sh
 
 dashboard-dev:
 	@echo "🎨 Starting dashboard in development mode..."
@@ -212,6 +234,7 @@ stop:
 	@echo "🛑 Stopping all WhaleWatch processes..."
 	@pkill -f "whalewatch" || true
 	@pkill -f "tsx watch" || true
+	@pkill -f "tsc --watch" || true
 	@pkill -f "vite" || true
 	@echo "✅ All processes stopped!"
 
