@@ -168,6 +168,8 @@ export const WhaleFinderPage: React.FC = () => {
     const searchSymbol = parsedOption ? parsedOption.underlyingTicker : symbol;
 
     setSelectedSymbol(searchSymbol);
+    // Clear any active contract filter when symbol changes
+    setSelectedContract(null);
   };
 
   const generateDateOptions = () => {
