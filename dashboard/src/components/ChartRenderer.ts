@@ -565,6 +565,7 @@ export const createChart = ({
           const technicalIndicatorsData = stateCallbacks.getTechnicalIndicatorsData();
           if (technicalIndicatorsData.length > 0) {
             const renderItems = technicalIndicatorsData.map(item => ({
+              id: item.item.id,
               data: item.data,
               color: item.item.color,
               label: item.item.label,

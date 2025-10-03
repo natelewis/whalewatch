@@ -8,7 +8,6 @@ import { CandlestickData } from '../types';
 import {
   calculateMovingAverage,
   MovingAverageConfig,
-  MovingAverageData,
   DEFAULT_MOVING_AVERAGE_CONFIGS,
   getMovingAverageLabel,
 } from '../utils/movingAverageUtils';
@@ -21,6 +20,7 @@ import {
   getMACDPresets,
 } from '../utils/macdUtils';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
+import { MovingAverageData } from '../types';
 
 // Base indicator types
 export type IndicatorType = 'moving_average' | 'macd';
@@ -67,8 +67,26 @@ export interface TechnicalIndicatorsHook {
   state: TechnicalIndicatorsState;
   actions: TechnicalIndicatorsActions;
   enabledItems: IndicatorItem[];
-  enabledData: { item: IndicatorItem; data: any[] }[];
 }
+
+/**
+ * Calculates the data for a given indicator item.
+ * @param item - The indicator item configuration.
+ * @param chartData - The candlestick data to calculate from.
+ * @returns The calculated indicator data.
+ */
+export const calculateIndicatorData = (
+  item: IndicatorItem,
+  chartData: CandlestickData[]
+): MovingAverageData[] | MACDData[] => {
+  if (item.type === 'moving_average') {
+    return chartData.length >= item.config.period ? calculateMovingAverage(chartData, item.config) : [];
+  }
+  if (item.type === 'macd') {
+    return chartData.length >= item.config.slowPeriod ? calculateMACD(chartData, item.config) : [];
+  }
+  return [];
+};
 
 // Predefined colors for indicators
 const INDICATOR_COLORS = [
@@ -132,7 +150,7 @@ const TECHNICAL_INDICATORS_STORAGE_KEY = 'technicalIndicatorsState';
  * Completely self-contained and doesn't pollute core chart state
  * Automatically persists state to localStorage
  */
-export const useTechnicalIndicators = (chartData: CandlestickData[]): TechnicalIndicatorsHook => {
+export const useTechnicalIndicators = (): TechnicalIndicatorsHook => {
   // Track if this is the initial load to prevent persisting default state
   const isInitialLoadRef = useRef(true);
 
@@ -169,21 +187,6 @@ export const useTechnicalIndicators = (chartData: CandlestickData[]): TechnicalI
   const enabledItems = useMemo(() => {
     return state.items.filter(item => item.enabled);
   }, [state.items]);
-
-  // Calculate indicator data for enabled items
-  const enabledData = useMemo(() => {
-    return enabledItems.map(item => {
-      let data: any[] = [];
-
-      if (item.type === 'moving_average') {
-        data = chartData.length >= item.config.period ? calculateMovingAverage(chartData, item.config) : [];
-      } else if (item.type === 'macd') {
-        data = chartData.length >= item.config.slowPeriod ? calculateMACD(chartData, item.config) : [];
-      }
-
-      return { item, data };
-    });
-  }, [enabledItems, chartData]);
 
   // Actions
   const toggleItem = useCallback((id: string) => {
@@ -296,7 +299,6 @@ export const useTechnicalIndicators = (chartData: CandlestickData[]): TechnicalI
     state,
     actions,
     enabledItems,
-    enabledData,
   };
 };
 

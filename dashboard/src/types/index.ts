@@ -97,6 +97,18 @@ export interface ChartCalculations {
   transformString: string;
 }
 
+export interface MovingAverageData {
+  index: number;
+  value: number;
+}
+
+export interface MACDData {
+  index: number;
+  macd: number;
+  signal: number;
+  histogram: number;
+}
+
 export interface ChartStateCallbacks {
   setIsZooming?: (value: boolean) => void;
   setCurrentViewStart?: (value: number) => void;
@@ -116,12 +128,18 @@ export interface ChartStateCallbacks {
   setCurrentVerticalPan?: (y: number, k: number) => void;
   // Technical indicators callbacks
   getTechnicalIndicatorsData?: () => {
-    item: { color: string; label: string; type: 'moving_average' | 'macd' };
-    data: unknown[];
+    item: { id: string; color: string; label: string; type: 'moving_average' | 'macd' };
+    data: (MovingAverageData | MACDData)[];
   }[];
   renderTechnicalIndicators?: (
     svgElement: SVGSVGElement,
-    renderItems: { data: unknown[]; color: string; label: string; type: 'moving_average' | 'macd' }[],
+    renderItems: {
+      id: string;
+      data: (MovingAverageData | MACDData)[];
+      color: string;
+      label: string;
+      type: 'moving_average' | 'macd';
+    }[],
     calculations: ChartCalculations
   ) => void;
 }

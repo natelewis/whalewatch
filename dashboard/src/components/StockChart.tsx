@@ -1,15 +1,22 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import * as d3 from 'd3';
-import { ChartTimeframe, DEFAULT_CHART_DATA_POINTS, ChartDimensions, ChartCalculations } from '../types';
+import {
+  ChartTimeframe,
+  DEFAULT_CHART_DATA_POINTS,
+  ChartDimensions,
+  ChartCalculations,
+  MovingAverageData,
+  MACDData,
+  CandlestickData,
+} from '../types';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/localStorage';
-import { CandlestickData } from '../types';
 import { useChartWebSocket } from '../hooks/useChartWebSocket';
 import { useChartDataProcessor } from '../hooks/useChartDataProcessor';
 import { useChartStateManager } from '../hooks/useChartStateManager';
 import { safeCall, createUserFriendlyMessage, getDisplayName } from '@whalewatch/shared';
 import { MultiTechnicalIndicatorsToggle } from './MultiTechnicalIndicatorsSelector';
-import { renderMultiTechnicalIndicators } from './MultiTechnicalIndicatorsRenderer';
-import { useTechnicalIndicators } from '../hooks/useTechnicalIndicators';
+import { IndicatorManager, IndicatorRenderItem } from './IndicatorManager';
+import { useTechnicalIndicators, calculateIndicatorData } from '../hooks/useTechnicalIndicators';
 import { logger } from '../utils/logger';
 import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import { formatPrice, calculateInnerDimensions } from '../utils/chartDataUtils';
@@ -114,6 +121,9 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const currentViewStartRef = useRef<number>(0);
   const currentViewEndRef = useRef<number>(0);
 
+  // Add a ref for the IndicatorManager
+  const indicatorManagerRef = useRef<IndicatorManager | null>(null);
+
   // Track when we've reached the end of available data to prevent repeated auto-load attempts
   const reachedEndOfDataRef = useRef<{ past: boolean; future: boolean }>({ past: false, future: false });
 
@@ -124,8 +134,8 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   const {
     state: technicalIndicatorsState,
     actions: technicalIndicatorsActions,
-    enabledData: technicalIndicatorsData,
-  } = useTechnicalIndicators(chartState.allData);
+    enabledItems,
+  } = useTechnicalIndicators();
 
   // Use new utility hooks for ref management
   useRefUpdates([
@@ -398,20 +408,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       }
 
       // Render unified technical indicators
-      if (technicalIndicatorsData.length > 0 && renderResult.success && renderResult.calculations) {
-        const renderItems = technicalIndicatorsData.map(item => ({
-          data: item.data,
-          color: item.item.color,
-          label: item.item.label,
-          type: item.item.type,
-        }));
-        renderMultiTechnicalIndicators(svgRef.current as SVGSVGElement, renderItems, renderResult.calculations);
-      } else {
-        // Remove all indicators if none are enabled
-        const chartContent = d3.select(svgRef.current).select('.chart-content');
-        const indicatorsGroup = chartContent.select('.technical-indicators');
-        if (!indicatorsGroup.empty()) {
-          indicatorsGroup.remove();
+      if (enabledItems.length > 0 && renderResult.success && renderResult.calculations) {
+        if (indicatorManagerRef.current) {
+          const renderItems: IndicatorRenderItem[] = enabledItems.map(item => ({
+            ...item,
+            data: calculateIndicatorData(item, chartState.allData),
+          }));
+          indicatorManagerRef.current.update(renderItems, renderResult.calculations);
         }
       }
 
@@ -440,7 +443,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartState.chartLoaded,
       chartState.dimensions,
       chartState.fixedYScaleDomain,
-      technicalIndicatorsData,
+      enabledItems,
     ],
     'Auto-redraw'
   );
@@ -675,20 +678,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         }
 
         // Render technical indicators for dimension changes
-        if (technicalIndicatorsData.length > 0 && renderResult.calculations) {
-          const renderItems = technicalIndicatorsData.map(item => ({
-            data: item.data,
-            color: item.item.color,
-            label: item.item.label,
-            type: item.item.type,
-          }));
-          renderMultiTechnicalIndicators(svgRef.current as SVGSVGElement, renderItems, renderResult.calculations);
-        } else {
-          // Clear indicators if none are enabled
-          const chartContent = d3.select(svgRef.current).select('.chart-content');
-          const indicatorsGroup = chartContent.select('.technical-indicators');
-          if (!indicatorsGroup.empty()) {
-            indicatorsGroup.remove();
+        if (renderResult.calculations) {
+          if (indicatorManagerRef.current) {
+            const renderItems: IndicatorRenderItem[] = enabledItems.map(item => ({
+              ...item,
+              data: calculateIndicatorData(item, chartState.allData),
+            }));
+            indicatorManagerRef.current.update(renderItems, renderResult.calculations);
           }
         }
 
@@ -875,13 +871,25 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               getCurrentData: () => currentDataRef.current,
               getCurrentDimensions: () => currentDimensionsRef.current,
               // Technical indicators callbacks
-              getTechnicalIndicatorsData: () => technicalIndicatorsData,
+              getTechnicalIndicatorsData: () =>
+                enabledItems.map(item => ({
+                  item,
+                  data: calculateIndicatorData(item, currentDataRef.current),
+                })),
               renderTechnicalIndicators: (
                 svgElement: SVGSVGElement,
-                renderItems: { data: unknown[]; color: string; label: string; type: 'moving_average' | 'macd' }[],
+                renderItems: {
+                  id: string;
+                  data: (MovingAverageData | MACDData)[];
+                  color: string;
+                  label: string;
+                  type: 'moving_average' | 'macd';
+                }[],
                 chartCalculations: ChartCalculations
               ) => {
-                renderMultiTechnicalIndicators(svgElement, renderItems, chartCalculations);
+                if (indicatorManagerRef.current) {
+                  indicatorManagerRef.current.update(renderItems as IndicatorRenderItem[], chartCalculations);
+                }
               },
             },
             chartState: chartState,
@@ -891,6 +899,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
 
           // Mark chart as created to prevent re-creation
           chartCreatedRef.current = true;
+
+          // Instantiate the IndicatorManager
+          const chartContent = d3.select(svgRef.current).select<SVGGElement>('.chart-content');
+          if (!chartContent.empty()) {
+            indicatorManagerRef.current = new IndicatorManager(chartContent);
+          }
 
           // Also handle initial candlestick rendering for timeframe changes
           // This ensures the chart is fully rendered when switching timeframes
@@ -923,20 +937,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               }
 
               // Render unified technical indicators
-              if (technicalIndicatorsData.length > 0 && renderResult.calculations) {
-                const renderItems = technicalIndicatorsData.map(item => ({
-                  data: item.data,
-                  color: item.item.color,
-                  label: item.item.label,
-                  type: item.item.type,
-                }));
-                renderMultiTechnicalIndicators(svgRef.current as SVGSVGElement, renderItems, renderResult.calculations);
-              } else {
-                // Clear indicators if none are enabled
-                const chartContent = d3.select(svgRef.current).select('.chart-content');
-                const indicatorsGroup = chartContent.select('.technical-indicators');
-                if (!indicatorsGroup.empty()) {
-                  indicatorsGroup.remove();
+              if (renderResult.calculations) {
+                if (indicatorManagerRef.current) {
+                  const renderItems: IndicatorRenderItem[] = enabledItems.map(item => ({
+                    ...item,
+                    data: calculateIndicatorData(item, chartState.allData),
+                  }));
+                  indicatorManagerRef.current.update(renderItems, renderResult.calculations);
                 }
               }
             }
@@ -953,7 +960,7 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
       chartState.allData.length, // Include allData.length to trigger chart updates
       isValidData,
       svgRef.current, // Re-run when SVG element becomes available
-      technicalIndicatorsData,
+      enabledItems,
     ],
     'Chart creation'
   );

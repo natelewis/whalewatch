@@ -2,13 +2,7 @@
  * Moving Average Calculation Utilities
  */
 
-import { CandlestickData } from '../types';
-
-export interface MovingAverageData {
-  timestamp: string;
-  value: number;
-  index: number;
-}
+import { CandlestickData, MovingAverageData } from '../types';
 
 export interface MovingAverageConfig {
   period: number;
@@ -33,20 +27,20 @@ export function calculateSimpleMovingAverage(
   }
 
   const result: MovingAverageData[] = [];
-  
+
   for (let i = startIndex + period - 1; i < data.length; i++) {
     let sum = 0;
     for (let j = i - period + 1; j <= i; j++) {
       sum += data[j].close;
     }
-    
+
     result.push({
       timestamp: data[i].timestamp,
       value: sum / period,
       index: i,
     });
   }
-  
+
   return result;
 }
 
@@ -70,31 +64,31 @@ export function calculateExponentialMovingAverage(
 
   const smoothingFactor = alpha ?? 2 / (period + 1);
   const result: MovingAverageData[] = [];
-  
+
   // Calculate initial SMA for the first EMA value
   let sum = 0;
   for (let i = startIndex; i < startIndex + period; i++) {
     sum += data[i].close;
   }
   let ema = sum / period;
-  
+
   result.push({
     timestamp: data[startIndex + period - 1].timestamp,
     value: ema,
     index: startIndex + period - 1,
   });
-  
+
   // Calculate EMA for remaining data points
   for (let i = startIndex + period; i < data.length; i++) {
     ema = smoothingFactor * data[i].close + (1 - smoothingFactor) * ema;
-    
+
     result.push({
       timestamp: data[i].timestamp,
       value: ema,
       index: i,
     });
   }
-  
+
   return result;
 }
 
