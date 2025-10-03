@@ -73,7 +73,7 @@ export const DEFAULT_RENDER_OPTIONS: Record<RenderType, RenderOptions> = {
 export interface RenderParams {
   /** SVG element to render to */
   svgElement: SVGSVGElement;
-  /** Chart dimensions */
+  /** Chart dimensions for the render */
   dimensions: ChartDimensions;
   /** All chart data */
   allData: CandlestickData[];
@@ -91,6 +91,13 @@ export interface RenderParams {
   onBufferedCandlesRendered?: (direction: 'past' | 'future') => void;
   /** Skip auto-load check during this render */
   skipAutoLoadCheck?: boolean;
+  /** Auto-load lock refs to prevent duplicate simultaneous loads */
+  autoLoadLocks?: {
+    loadRequestedLeft?: { current: boolean };
+    loadRequestedRight?: { current: boolean };
+    lastLoadDataLengthLeft?: { current: number | null };
+    lastLoadDataLengthRight?: { current: number | null };
+  };
 }
 
 /**
@@ -247,6 +254,7 @@ export const renderChart = (params: RenderParams): RenderResult => {
     options,
     onBufferedCandlesRendered = () => {},
     skipAutoLoadCheck = false,
+    autoLoadLocks,
   } = params;
 
   try {
@@ -361,7 +369,16 @@ export const renderChart = (params: RenderParams): RenderResult => {
 
       if (shouldCheckAutoLoad) {
         // Check if we're close to data edges and trigger auto-load if needed
-        checkAutoLoadTrigger(calculations.viewStart, calculations.viewEnd, allData.length, onBufferedCandlesRendered);
+        checkAutoLoadTrigger(
+          calculations.viewStart,
+          calculations.viewEnd,
+          allData.length,
+          onBufferedCandlesRendered,
+          autoLoadLocks?.loadRequestedLeft,
+          autoLoadLocks?.loadRequestedRight,
+          autoLoadLocks?.lastLoadDataLengthLeft,
+          autoLoadLocks?.lastLoadDataLengthRight
+        );
       }
     }
 
@@ -396,7 +413,13 @@ export const renderInitial = (
   allData: CandlestickData[],
   currentViewStart: number,
   currentViewEnd: number,
-  onBufferedCandlesRendered?: (direction: 'past' | 'future') => void
+  onBufferedCandlesRendered?: (direction: 'past' | 'future') => void,
+  autoLoadLocks?: {
+    loadRequestedLeft?: { current: boolean };
+    loadRequestedRight?: { current: boolean };
+    lastLoadDataLengthLeft?: { current: number | null };
+    lastLoadDataLengthRight?: { current: number | null };
+  }
 ): RenderResult => {
   return renderChart({
     svgElement,
@@ -406,6 +429,7 @@ export const renderInitial = (
     currentViewEnd,
     options: DEFAULT_RENDER_OPTIONS[RenderType.INITIAL],
     ...(onBufferedCandlesRendered && { onBufferedCandlesRendered }),
+    ...(autoLoadLocks && { autoLoadLocks }),
   });
 };
 
@@ -443,7 +467,13 @@ export const renderWebSocket = (
   currentViewStart: number,
   currentViewEnd: number,
   onBufferedCandlesRendered?: (direction: 'past' | 'future') => void,
-  skipAutoLoadCheck?: boolean
+  skipAutoLoadCheck?: boolean,
+  autoLoadLocks?: {
+    loadRequestedLeft?: { current: boolean };
+    loadRequestedRight?: { current: boolean };
+    lastLoadDataLengthLeft?: { current: number | null };
+    lastLoadDataLengthRight?: { current: number | null };
+  }
 ): RenderResult => {
   return renderChart({
     svgElement,
@@ -454,5 +484,6 @@ export const renderWebSocket = (
     options: DEFAULT_RENDER_OPTIONS[RenderType.WEBSOCKET],
     ...(onBufferedCandlesRendered && { onBufferedCandlesRendered }),
     ...(skipAutoLoadCheck && { skipAutoLoadCheck }),
+    ...(autoLoadLocks && { autoLoadLocks }),
   });
 };

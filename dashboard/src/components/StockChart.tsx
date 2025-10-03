@@ -130,6 +130,12 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
   // Track when we're in the middle of an auto-load operation to prevent re-render loops
   const isAutoLoadingRef = useRef<boolean>(false);
 
+  // Track auto-load request state to prevent duplicate simultaneous loads
+  const loadRequestedLeftRef = useRef<boolean>(false);
+  const loadRequestedRightRef = useRef<boolean>(false);
+  const lastLoadDataLengthLeftRef = useRef<number | null>(null);
+  const lastLoadDataLengthRightRef = useRef<number | null>(null);
+
   // Use persisted technical indicators hook
   const {
     state: technicalIndicatorsState,
@@ -399,7 +405,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
         chartState.currentViewStart,
         chartState.currentViewEnd,
         loadMoreDataOnBufferedRender,
-        isAutoLoadingRef.current // Skip auto-load check if we're currently auto-loading
+        isAutoLoadingRef.current, // Skip auto-load check if we're currently auto-loading
+        {
+          loadRequestedLeft: loadRequestedLeftRef,
+          loadRequestedRight: loadRequestedRightRef,
+          lastLoadDataLengthLeft: lastLoadDataLengthLeftRef,
+          lastLoadDataLengthRight: lastLoadDataLengthRightRef,
+        }
       );
 
       if (renderResult.success && renderResult.newFixedYScaleDomain) {
@@ -916,7 +928,13 @@ const StockChart: React.FC<StockChartProps> = ({ symbol }) => {
               chartState.allData,
               chartState.currentViewStart,
               chartState.currentViewEnd,
-              loadMoreDataOnBufferedRender
+              loadMoreDataOnBufferedRender,
+              {
+                loadRequestedLeft: loadRequestedLeftRef,
+                loadRequestedRight: loadRequestedRightRef,
+                lastLoadDataLengthLeft: lastLoadDataLengthLeftRef,
+                lastLoadDataLengthRight: lastLoadDataLengthRightRef,
+              }
             );
 
             if (renderResult.success) {
