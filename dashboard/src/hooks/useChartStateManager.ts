@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChartTimeframe, ChartDimensions, DEFAULT_CHART_DATA_POINTS, CandlestickData } from '../types';
-import { CHART_DATA_POINTS, BUFFER_SIZE } from '../constants';
+import { CHART_DATA_POINTS, BUFFER_SIZE, FIRST_LOAD_BUFFER_SIZE } from '../constants';
 import { processChartData, isFakeCandle } from '../utils/chartDataUtils';
 import { apiService } from '../services/apiService';
 import { safeCallAsync, createUserFriendlyMessage } from '@whalewatch/shared';
@@ -268,8 +268,8 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       setIsLoading(true);
       setError(null);
 
-      // Always request exactly BUFFER_SIZE
-      const totalDataPoints = BUFFER_SIZE;
+      // Use larger buffer size for initial load to prevent glitchy behavior
+      const totalDataPoints = isInitialLoadRef.current ? FIRST_LOAD_BUFFER_SIZE : BUFFER_SIZE;
 
       const result = await safeCallAsync(async () => {
         // Load chart data from API with new parameters
@@ -283,6 +283,8 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
           timeframe,
           dataPoints,
           direction,
+          totalDataPoints,
+          isInitialLoad: isInitialLoadRef.current,
           barsCount: response.bars?.length || 0,
           formattedDataLength: formattedData.length,
           dataRange,

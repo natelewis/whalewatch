@@ -1,8 +1,5 @@
 // Centralized constants for the dashboard
 
-// it should be divisible by 10 + 1. this will keep 1 minute ticks aligned with the 10 minute boundaries.
-export const BUFFER_SIZE = 600; // Fixed fetch/prune chunk size
-
 // Candlestick colors
 // Use these to change the up/down candle colors in one place
 export const CANDLE_UP_COLOR = '#26a69a';
@@ -38,11 +35,15 @@ export const HOVER_DISPLAY = {
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
+// it should be divisible by 10 + 1. this will keep 1 minute ticks aligned with the 10 minute boundaries.
+export const BUFFER_SIZE = 600; // Fixed fetch/prune chunk size
+export const FIRST_LOAD_BUFFER_SIZE = BUFFER_SIZE * 2; // Initial load size to prevent glitchy behavior
+
 // Chart viewport configuration
 export const CHART_DATA_POINTS = 195; // 80; // Number of data points to display on chart
 export const MARGIN_SIZE = 2; // Fixed margin size in data points for re-render detection
 // Pan-end load trigger: distance from edge (in points) to request more data
-export const LOAD_EDGE_TRIGGER = 300;
+export const LOAD_EDGE_TRIGGER = 400;
 // Maximum total data points that can be loaded in memory
 export const MAX_DATA_POINTS = 20000;
 
