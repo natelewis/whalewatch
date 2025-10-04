@@ -31,7 +31,6 @@ export const TradeFinderPage: React.FC = () => {
   const [volumeMin, setVolumeMin] = useState<string>(() => {
     return getSessionStorageItem('tradeFinderVolumeMin', 1000).toString();
   });
-  const [selectedContract, setSelectedContract] = useState<string | null>(null);
   const [scrollPosition, setScrollPosition] = useState<number>(0);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -168,8 +167,6 @@ export const TradeFinderPage: React.FC = () => {
     const searchSymbol = parsedOption ? parsedOption.underlyingTicker : symbol;
 
     setSelectedSymbol(searchSymbol);
-    // Clear any active contract filter when symbol changes
-    setSelectedContract(null);
   };
 
   const generateDateOptions = () => {
@@ -235,7 +232,7 @@ export const TradeFinderPage: React.FC = () => {
     return new Date(dateString).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
     });
   };
 
@@ -248,18 +245,18 @@ export const TradeFinderPage: React.FC = () => {
     }).format(amount);
   };
 
-  const formatNotional = (price: number, size: number): string => {
-    const notional = price * size * 100; // Options are typically 100 shares per contract
-
-    if (notional >= 1000000) {
-      // Format as millions (e.g., 1.8M, 2M)
-      const millions = notional / 1000000;
-      return millions % 1 === 0 ? `${millions}M` : `${millions.toFixed(1)}M`;
-    } else {
-      // Format as thousands (e.g., 16k, 55k, 114k, 209k)
-      const thousands = notional / 1000;
-      return thousands % 1 === 0 ? `${thousands}k` : `${thousands.toFixed(0)}k`;
+  const formatHighLowPrice = (highPrice: number, lowPrice: number) => {
+    if (highPrice === lowPrice) {
+      return {
+        isRange: false,
+        singlePrice: formatCurrency(highPrice),
+      };
     }
+    return {
+      isRange: true,
+      lowPrice: formatCurrency(lowPrice),
+      highPrice: formatCurrency(highPrice),
+    };
   };
 
   const formatLastSyncTime = (date: Date): string => {
@@ -270,21 +267,90 @@ export const TradeFinderPage: React.FC = () => {
     });
   };
 
-  // Filter trades by selected contract
-  const filteredTrades = selectedContract
-    ? (optionsTrades || []).filter(trade => trade.ticker === selectedContract)
-    : optionsTrades || [];
-
-  // Handle contract selection
-  const handleContractClick = (ticker: string) => {
-    if (selectedContract === ticker) {
-      // If clicking the same contract, deselect it
-      setSelectedContract(null);
-    } else {
-      // Select the new contract
-      setSelectedContract(ticker);
+  // Process trades to group by contract and calculate compressed data
+  const processedTrades = React.useMemo(() => {
+    if (!optionsTrades || optionsTrades.length === 0) {
+      return [];
     }
-  };
+
+    // Group trades by ticker (contract)
+    const contractGroups = new Map<
+      string,
+      {
+        trades: FrontendOptionTrade[];
+        firstBought: string;
+        lastBought: string;
+        totalQuantity: number;
+        totalValue: number;
+        averagePrice: number;
+        highPrice: number;
+        lowPrice: number;
+        averageValue: number;
+        totalVolume: number;
+      }
+    >();
+
+    // Group trades by contract
+    optionsTrades.forEach(trade => {
+      if (!contractGroups.has(trade.ticker)) {
+        contractGroups.set(trade.ticker, {
+          trades: [],
+          firstBought: trade.timestamp,
+          lastBought: trade.timestamp,
+          totalQuantity: 0,
+          totalValue: 0,
+          averagePrice: 0,
+          highPrice: trade.price,
+          lowPrice: trade.price,
+          averageValue: 0,
+          totalVolume: 0,
+        });
+      }
+
+      const group = contractGroups.get(trade.ticker)!;
+      group.trades.push(trade);
+
+      // Update time range
+      if (new Date(trade.timestamp) < new Date(group.firstBought)) {
+        group.firstBought = trade.timestamp;
+      }
+      if (new Date(trade.timestamp) > new Date(group.lastBought)) {
+        group.lastBought = trade.timestamp;
+      }
+
+      // Update high/low prices
+      group.highPrice = Math.max(group.highPrice, trade.price);
+      group.lowPrice = Math.min(group.lowPrice, trade.price);
+
+      // Calculate totals
+      group.totalQuantity += trade.size;
+      group.totalValue += trade.price * trade.size * 100; // Options are 100 shares per contract
+      group.totalVolume += trade.volume;
+    });
+
+    // Calculate averages and convert to compressed format
+    const compressedTrades = Array.from(contractGroups.values()).map(group => {
+      const firstTrade = group.trades[0];
+      return {
+        ...firstTrade,
+        firstBought: group.firstBought,
+        lastBought: group.lastBought,
+        totalQuantity: group.totalQuantity,
+        totalValue: group.totalValue,
+        averagePrice: group.totalValue / (group.totalQuantity * 100),
+        highPrice: group.highPrice,
+        lowPrice: group.lowPrice,
+        averageValue: group.totalValue / group.trades.length,
+        totalVolume: group.totalVolume,
+        repeatCount: group.trades.length,
+      };
+    });
+
+    return compressedTrades;
+  }, [optionsTrades]);
+
+  // Use processed trades directly since each row is already one contract
+  const filteredTrades = processedTrades;
 
   return (
     <div className="space-y-6">
@@ -308,18 +374,7 @@ export const TradeFinderPage: React.FC = () => {
               <div className="mb-4 p-3 bg-muted/30 rounded-lg">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center space-x-2">
-                    <span className="font-medium text-foreground">
-                      {filteredTrades.length} trades
-                      {selectedContract && <span className="text-muted-foreground ml-1">(filtered by contract)</span>}
-                    </span>
-                    {selectedContract && (
-                      <button
-                        onClick={() => setSelectedContract(null)}
-                        className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
-                      >
-                        Clear Filter
-                      </button>
-                    )}
+                    <span className="font-medium text-foreground">{filteredTrades.length} contracts</span>
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
@@ -403,40 +458,32 @@ export const TradeFinderPage: React.FC = () => {
                   {!optionsTrades || optionsTrades.length === 0 ? (
                     <div className="p-8 text-center">
                       <p className="text-muted-foreground">
-                        No option trades found for {selectedSymbol} on {formatDateDisplay(selectedDate)}
+                        No option contracts found for {selectedSymbol} on {formatDateDisplay(selectedDate)}
                       </p>
-                    </div>
-                  ) : filteredTrades.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <p className="text-muted-foreground">No trades found for the selected contract</p>
                     </div>
                   ) : (
                     <>
                       {/* Table Header */}
                       <div className="grid grid-cols-8 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2 mb-2">
-                        <div className="text-left">Time</div>
-                        <div className="text-right">Price</div>
-                        <div className="text-left">Size</div>
-                        <div className="">Value</div>
+                        <div className="text-left"></div>
+                        <div className="text-center">Price</div>
+                        <div className="text-right">Avg</div>
+                        <div className="text-right">Total</div>
                         <div className="text-right"></div>
                         <div className="text-right"></div>
-                        <div className="text-right">Repeat</div>
-                        <div className="text-right">Volume</div>
+                        <div className="text-right">Trades</div>
+                        <div className="text-right pr-2">Volume</div>
                       </div>
 
                       {/* Table Rows */}
                       <div ref={scrollContainerRef} className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
                         {filteredTrades.map((trade, index) => {
-                          const isSelected = selectedContract === trade.ticker;
                           return (
                             <div
-                              key={`${trade.ticker}-${trade.timestamp}-${index}`}
-                              onClick={() => handleContractClick(trade.ticker)}
-                              className={`grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded transition-colors cursor-pointer ${
-                                isSelected ? 'bg-primary/20 border border-primary/30' : 'hover:bg-muted/30'
-                              }`}
+                              key={`${trade.ticker}-${index}`}
+                              className="grid grid-cols-8 gap-2 text-sm py-2 px-2 rounded transition-colors hover:bg-muted/30"
                             >
-                              {/* Time with Chart Icon */}
+                              {/* Time Range with Chart Icon */}
                               <div className="font-semibold text-muted-foreground text-xs flex items-center gap-2">
                                 <Link
                                   to={`/analysis?symbol=${encodeURIComponent(trade.ticker)}`}
@@ -445,12 +492,74 @@ export const TradeFinderPage: React.FC = () => {
                                 >
                                   <BarChart3 className="h-4 w-4" />
                                 </Link>
-                                <span>{formatTime(trade.timestamp)}</span>
+                                <div className="whitespace-nowrap">
+                                  <div className="flex items-center text-xs">
+                                    <span className="inline-flex items-center w-12 justify-center bg-muted/20 rounded px-1">
+                                      {formatTime(trade.firstBought)}
+                                    </span>
+                                    <span>-</span>
+                                    <span className="inline-flex items-center w-12 justify-center bg-muted/20 rounded px-1">
+                                      {formatTime(trade.lastBought)}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
 
-                              {/* Price with P/C indicator */}
-                              <div className="font-semibold text-muted-foreground text-right flex items-center justify-end gap-1">
-                                {formatCurrency(trade.price)}
+                              {/* High/Low Price */}
+                              <div className="font-semibold text-muted-foreground text-right">
+                                {(() => {
+                                  const priceData = formatHighLowPrice(trade.highPrice, trade.lowPrice);
+                                  if (!priceData.isRange) {
+                                    return (
+                                      <div className="flex items-center justify-center text-xs">
+                                        <span className="inline-flex items-center justify-center bg-muted/20 rounded px-1">
+                                          {priceData.singlePrice}
+                                        </span>
+                                        <span>-</span>
+                                        <span className="inline-flex items-center justify-center bg-muted/20 rounded px-1">
+                                          {priceData.singlePrice}
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className="flex items-center justify-center text-xs">
+                                      <span className="inline-flex items-center justify-center bg-muted/20 rounded px-1">
+                                        {priceData.lowPrice}
+                                      </span>
+                                      <span>-</span>
+                                      <span className="inline-flex items-center justify-center bg-muted/20 rounded px-1">
+                                        {priceData.highPrice}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+
+                              {/* Average Value */}
+                              <div className="font-semibold text-muted-foreground text-right">
+                                {(() => {
+                                  const avgValue = trade.averageValue;
+                                  if (avgValue >= 1000000) {
+                                    // Format as millions (e.g., 1.8M, 2M)
+                                    const millions = avgValue / 1000000;
+                                    return millions % 1 === 0 ? `${millions}M` : `${millions.toFixed(1)}M`;
+                                  } else {
+                                    // Format as thousands (e.g., 16k, 55k, 114k, 209k)
+                                    const thousands = avgValue / 1000;
+                                    return `${Math.round(thousands)}k`;
+                                  }
+                                })()}
+                              </div>
+
+                              {/* Total Value */}
+                              <div className="font-semibold text-muted-foreground text-right">
+                                {formatCurrency(trade.totalValue / 1000000)}M
+                              </div>
+
+                              {/* Strike with P/C indicator */}
+                              <div className="font-semibold text-muted-foreground text-right flex items-center justify-end gap-1 pr-1">
+                                <span>${trade.strike_price.toFixed(2)}</span>
                                 <span
                                   className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded"
                                   style={{
@@ -463,32 +572,17 @@ export const TradeFinderPage: React.FC = () => {
                                 </span>
                               </div>
 
-                              {/* Size */}
-                              <div className="font-semibold text-muted-foreground text-left">
-                                x {trade.size.toLocaleString()}
-                              </div>
-
-                              {/* Value */}
-                              <div className="font-semibold text-muted-foreground">
-                                {formatNotional(trade.price, trade.size)}
-                              </div>
-
-                              {/* Strike */}
-                              <div className="font-semibold text-muted-foreground text-right pr-1">
-                                ${trade.strike_price.toFixed(2)}
-                              </div>
-
                               {/* Expiry */}
                               <div className="font-semibold text-muted-foreground text-right whitespace-nowrap">
                                 {formatExpiryWithDays(trade.expiration_date, selectedDate)}
                               </div>
 
-                              {/* Repeat */}
-                              <div className="font-semibold text-muted-foreground text-right">{trade.repeat_count}</div>
+                              {/* Number of Trades */}
+                              <div className="font-semibold text-muted-foreground text-right">{trade.repeatCount}</div>
 
-                              {/* Volume */}
+                              {/* Total Volume */}
                               <div className="font-semibold text-muted-foreground text-right">
-                                {trade.volume.toLocaleString()}
+                                {trade.totalVolume.toLocaleString()}
                               </div>
                             </div>
                           );
