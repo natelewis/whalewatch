@@ -268,8 +268,10 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
       setIsLoading(true);
       setError(null);
 
-      // Use larger buffer size for initial load to prevent glitchy behavior
-      const totalDataPoints = isInitialLoadRef.current ? FIRST_LOAD_BUFFER_SIZE : BUFFER_SIZE;
+      // For centered skip-to operations, use smaller buffer for more precise centering
+      // For initial load or regular past/future loads, use larger buffer to prevent glitchy behavior
+      const totalDataPoints =
+        direction === 'centered' ? BUFFER_SIZE : isInitialLoadRef.current ? FIRST_LOAD_BUFFER_SIZE : BUFFER_SIZE;
 
       const result = await safeCallAsync(async () => {
         // Load chart data from API with new parameters
@@ -302,8 +304,9 @@ export const useChartStateManager = (initialSymbol: string, initialTimeframe: Ch
         // For centered direction, set viewport to center the loaded data
         if (direction === 'centered' && result.value.formattedData.length > 0) {
           const dataLength = result.value.formattedData.length;
-          // Use a smaller viewport size for centered view to show focused time range
-          const viewportSize = 80;
+          // Use a viewport size that's proportional to the data buffer size for better centering
+          // This ensures we show an appropriate amount of data relative to what we loaded
+          const viewportSize = Math.min(CHART_DATA_POINTS, Math.max(80, Math.floor(dataLength * 0.4)));
 
           // Find the actual position of the target time in the data
           // The target time should be the startTime parameter passed to loadChartData
