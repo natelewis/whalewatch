@@ -191,6 +191,9 @@ export const createChart = ({
     lastTransformedYScale = initialTransform.rescaleY(yScale);
   }
 
+  // Store reference to SVG element for global scale updates
+  const svgElementRef = svgElement;
+
   // Show all tick marks and labels
 
   const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([ZOOM_SCALE_MIN, ZOOM_SCALE_MAX]);
@@ -393,7 +396,8 @@ export const createChart = ({
         // Update price display aligned with horizontal crosshair and over y-axis labels
         {
           // Use the exact same transformed Y-scale used for the latest render
-          const priceAtCursor = lastTransformedYScale.invert(mouseY);
+          const currentTransformedScale = getGlobalLastTransformedYScale(lastTransformedYScale);
+          const priceAtCursor = currentTransformedScale.invert(mouseY);
           const priceTextStr = Number.isFinite(priceAtCursor) ? priceAtCursor.toFixed(2) : '';
 
           // Position box starting just to the right of the chart area (over y-axis labels)
@@ -614,7 +618,8 @@ export const createChart = ({
         .style('opacity', 1);
 
       // Update price display using the active transformed Y-scale
-      const priceAtCursor = lastTransformedYScale.invert(pmouseY);
+      const currentTransformedScale = getGlobalLastTransformedYScale(lastTransformedYScale);
+      const priceAtCursor = currentTransformedScale.invert(pmouseY);
       const priceTextStr = Number.isFinite(priceAtCursor) ? priceAtCursor.toFixed(2) : '';
       const boxX = currInnerWidth + 4;
 
@@ -743,11 +748,28 @@ export const createChart = ({
   };
 };
 
+// Global reference to track the last transformed Y scale for crosshair sync
+let globalLastTransformedYScale: d3.ScaleLinear<number, number> | null = null;
+
+// Function to update the global Y scale reference for crosshair sync
+export const updateGlobalLastTransformedYScale = (scale: d3.ScaleLinear<number, number>): void => {
+  globalLastTransformedYScale = scale;
+};
+
+// Function to get the current global Y scale reference
+export const getGlobalLastTransformedYScale = (
+  fallbackScale: d3.ScaleLinear<number, number>
+): d3.ScaleLinear<number, number> => {
+  return globalLastTransformedYScale || fallbackScale;
+};
+
 export const renderCandlestickChart = (
   svgElement: SVGSVGElement,
   calculations: ChartCalculations,
   useProvidedViewport: boolean = false
 ): void => {
+  // Update global reference for crosshair sync
+  updateGlobalLastTransformedYScale(calculations.transformedYScale);
   // Find the chart content group and remove existing candlesticks
   const chartContent = d3.select(svgElement).select('.chart-content');
   if (chartContent.empty()) {
