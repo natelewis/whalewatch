@@ -358,9 +358,9 @@ export class AlpacaService {
         // For hourly data: 1 year should be plenty
         bufferDays = 365;
       } else if (timeframeMinutes <= 24 * 60) {
-        // For daily data: need much more time - 600 bars = ~2.4 years of trading days
-        // Use 3 years to be safe (accounts for weekends, holidays, market closures)
-        bufferDays = 3 * 365;
+        // For daily data: need much more time - 1200 bars = ~5 years of trading days (252 trading days/year)
+        // Use 6 years to be safe (accounts for weekends, holidays, market closures)
+        bufferDays = 6 * 365;
       } else {
         // For weekly+ data: 5 years
         bufferDays = 5 * 365;
@@ -388,8 +388,9 @@ export class AlpacaService {
       } else if (timeframeMinutes <= 60) {
         bufferDays = 365;
       } else if (timeframeMinutes <= 24 * 60) {
-        // For daily data: 3 years forward
-        bufferDays = 3 * 365;
+        // For daily data: need much more time - 1200 bars = ~5 years of trading days (252 trading days/year)
+        // Use 6 years to be safe (accounts for weekends, holidays, market closures)
+        bufferDays = 6 * 365;
       } else {
         bufferDays = 5 * 365;
       }
@@ -444,7 +445,7 @@ export class AlpacaService {
       nextPageToken = response.data.next_page_token;
 
       // If we have enough data or no more pages, break
-      if (!nextPageToken || totalFetched >= limit * 2) {
+      if (!nextPageToken || totalFetched >= limit) {
         break;
       }
     }
