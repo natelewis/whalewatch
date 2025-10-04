@@ -5,7 +5,7 @@ import { WebSocketProvider } from './contexts/WebSocketContext';
 import { Layout } from './components/Layout';
 import { AccountPage } from './pages/AccountPage';
 import { AnalysisPage } from './pages/AnalysisPage';
-import { WhaleFinderPage } from './pages/WhaleFinderPage';
+import { TradeFinderPage } from './pages/TradeFinderPage';
 import { LoginPage } from './pages/LoginPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -41,11 +41,11 @@ function App() {
                   }
                 />
                 <Route
-                  path="/whale-finder"
+                  path="/trade-finder"
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <WhaleFinderPage />
+                        <TradeFinderPage />
                       </Layout>
                     </ProtectedRoute>
                   }

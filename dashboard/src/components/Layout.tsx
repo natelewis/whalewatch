@@ -34,7 +34,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Account', href: '/', icon: BarChart3 },
     { name: 'Analysis', href: '/analysis', icon: Eye },
-    { name: 'Trade Finder', href: '/whale-finder', icon: Search },
+    { name: 'Trade Finder', href: '/trade-finder', icon: Search },
   ];
 
   const isActive = (path: string): boolean => {

@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { WhaleFinderPage } from '../../pages/WhaleFinderPage';
+import { TradeFinderPage } from '../../pages/TradeFinderPage';
 import { BrowserRouter } from 'react-router-dom';
 import { apiService } from '../../services/apiService';
 
@@ -14,7 +14,7 @@ const renderWithRouter = (component: React.ReactElement) => {
   return render(<BrowserRouter>{component}</BrowserRouter>);
 };
 
-describe('WhaleFinderPage', () => {
+describe('TradeFinderPage', () => {
   const user = userEvent.setup();
   const mockTrades = [
     {
@@ -58,20 +58,20 @@ describe('WhaleFinderPage', () => {
   });
 
   it('renders the page title and description', () => {
-    renderWithRouter(<WhaleFinderPage />);
+    renderWithRouter(<TradeFinderPage />);
 
     expect(screen.getByRole('heading', { name: 'Trade Finder', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('View recent option trading activity for any symbol')).toBeInTheDocument();
   });
 
   it('renders the options trades section', () => {
-    renderWithRouter(<WhaleFinderPage />);
+    renderWithRouter(<TradeFinderPage />);
 
     expect(screen.getByRole('heading', { name: 'Option Trade Explorer', level: 2 })).toBeInTheDocument();
   });
 
   it('does not load options trades on mount when no symbol is selected', async () => {
-    renderWithRouter(<WhaleFinderPage />);
+    renderWithRouter(<TradeFinderPage />);
 
     // Wait a bit to ensure no API call is made
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -80,7 +80,7 @@ describe('WhaleFinderPage', () => {
   });
 
   it('displays trades data when symbol is entered', async () => {
-    renderWithRouter(<WhaleFinderPage />);
+    renderWithRouter(<TradeFinderPage />);
 
     // First enter a symbol to trigger the API call
     const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');
@@ -115,7 +115,7 @@ describe('WhaleFinderPage', () => {
   it('displays loading state when symbol is entered', async () => {
     mockApiService.getOptionsTrades.mockImplementation(() => new Promise(() => {})); // Never resolves
 
-    renderWithRouter(<WhaleFinderPage />);
+    renderWithRouter(<TradeFinderPage />);
 
     // Enter a symbol to trigger loading
     const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');
@@ -131,7 +131,7 @@ describe('WhaleFinderPage', () => {
     const errorMessage = 'Failed to load trades';
     mockApiService.getOptionsTrades.mockRejectedValue(new Error(errorMessage));
 
-    renderWithRouter(<WhaleFinderPage />);
+    renderWithRouter(<TradeFinderPage />);
 
     // Enter a symbol to trigger the error
     const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');
@@ -150,7 +150,7 @@ describe('WhaleFinderPage', () => {
       hours: 24,
     });
 
-    renderWithRouter(<WhaleFinderPage />);
+    renderWithRouter(<TradeFinderPage />);
 
     // Enter a symbol to trigger the API call
     const tickerInput = screen.getByPlaceholderText('Enter ticker symbol');

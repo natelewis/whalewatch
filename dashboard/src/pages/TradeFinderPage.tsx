@@ -9,7 +9,7 @@ import { safeCallAsync, createUserFriendlyMessage, parseOptionTicker } from '@wh
 import { CANDLE_UP_COLOR, CANDLE_DOWN_COLOR } from '../constants';
 import { getSessionStorageItem, setSessionStorageItem } from '../utils/localStorage';
 
-export const WhaleFinderPage: React.FC = () => {
+export const TradeFinderPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [optionsTrades, setOptionsTrades] = useState<FrontendOptionTrade[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,16 +20,16 @@ export const WhaleFinderPage: React.FC = () => {
     const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
       today.getDate()
     ).padStart(2, '0')}`;
-    return getSessionStorageItem('whaleFinderSelectedDate', todayString);
+    return getSessionStorageItem('tradeFinderSelectedDate', todayString);
   });
   const [maxPrice, setMaxPrice] = useState<string>(() => {
-    return getSessionStorageItem('whaleFinderMaxPrice', 1000).toString();
+    return getSessionStorageItem('tradeFinderMaxPrice', 1000).toString();
   });
   const [repeatMin, setRepeatMin] = useState<string>(() => {
-    return getSessionStorageItem('whaleFinderRepeatMin', 10).toString();
+    return getSessionStorageItem('tradeFinderRepeatMin', 10).toString();
   });
   const [volumeMin, setVolumeMin] = useState<string>(() => {
-    return getSessionStorageItem('whaleFinderVolumeMin', 1000).toString();
+    return getSessionStorageItem('tradeFinderVolumeMin', 1000).toString();
   });
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
   const [scrollPosition, setScrollPosition] = useState<number>(0);
@@ -97,21 +97,21 @@ export const WhaleFinderPage: React.FC = () => {
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
     const maxPriceNum = maxPrice === '' ? 0 : Number(maxPrice);
-    setSessionStorageItem('whaleFinderMaxPrice', maxPriceNum);
+    setSessionStorageItem('tradeFinderMaxPrice', maxPriceNum);
   }, [maxPrice]);
 
   useEffect(() => {
     const repeatMinNum = repeatMin === '' ? 0 : Number(repeatMin);
-    setSessionStorageItem('whaleFinderRepeatMin', repeatMinNum);
+    setSessionStorageItem('tradeFinderRepeatMin', repeatMinNum);
   }, [repeatMin]);
 
   useEffect(() => {
     const volumeMinNum = volumeMin === '' ? 0 : Number(volumeMin);
-    setSessionStorageItem('whaleFinderVolumeMin', volumeMinNum);
+    setSessionStorageItem('tradeFinderVolumeMin', volumeMinNum);
   }, [volumeMin]);
 
   useEffect(() => {
-    setSessionStorageItem('whaleFinderSelectedDate', selectedDate);
+    setSessionStorageItem('tradeFinderSelectedDate', selectedDate);
   }, [selectedDate]);
 
   // Restore scroll position after data loads
