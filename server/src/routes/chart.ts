@@ -20,6 +20,7 @@ export function getIntervalMinutes(interval: AggregationInterval): number {
 function mapIntervalToAlpacaTimeframe(interval: AggregationInterval): string {
   const mapping: Record<AggregationInterval, string> = {
     '1m': '1Min',
+    '5m': '5Min',
     '15m': '15Min',
     '1h': '1Hour',
     '1d': '1Day',

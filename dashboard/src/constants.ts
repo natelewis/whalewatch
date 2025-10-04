@@ -87,6 +87,11 @@ export const X_AXIS_LABEL_CONFIGS: Record<string, XAxisLabelConfig> = {
     labelFormat: 'time-only',
     showSeconds: false,
   },
+  '5m': {
+    markerIntervalMinutes: 60, // Show labels every 60 minutes
+    labelFormat: 'time-only',
+    showSeconds: false,
+  },
   '15m': {
     markerIntervalMinutes: 60 * 8, // Show labels every hour and a half
     labelFormat: 'date-time',

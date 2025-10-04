@@ -521,6 +521,7 @@ export class AlpacaService {
   private mapTimeframe(timeframe: ChartTimeframe): string {
     const mapping: Record<ChartTimeframe, string> = {
       '1m': '1Min',
+      '5m': '5Min',
       '15m': '15Min',
       '1h': '1Hour',
       '1H': '1Hour',
@@ -538,6 +539,7 @@ export class AlpacaService {
   private getTimeframeMinutes(timeframe: string): number {
     const mapping: Record<string, number> = {
       '1Min': 1,
+      '5Min': 5,
       '15Min': 15,
       '1Hour': 60,
       '1Day': 24 * 60,

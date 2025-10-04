@@ -144,6 +144,7 @@ export interface AuthenticatedWebSocket extends WebSocket {
  */
 export const AGGREGATION_INTERVALS = {
   '1m': 1,
+  '5m': 5,
   '15m': 15,
   '1h': 60,
   '1d': 1440,

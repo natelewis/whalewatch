@@ -549,6 +549,7 @@ export class PolygonService {
   private mapTimeframe(timeframe: ChartTimeframe): string {
     const mapping: Record<ChartTimeframe, string> = {
       '1m': '1Min',
+      '5m': '5Min',
       '15m': '15Min',
       '1h': '1Hour',
       '1H': '1Hour',
