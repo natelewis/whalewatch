@@ -25,7 +25,8 @@ import {
 } from '../utils/chartDataUtils';
 import { memoizedCalculateChartState } from '../utils/memoizedChartUtils';
 import { smartDateRenderer } from '../utils/dateRenderer';
-import { renderPanning, checkAutoLoadTrigger } from '../utils/renderManager';
+import { checkAutoLoadTrigger, renderPanning } from '../utils/renderManager';
+import { createChartPanningThrottle, createPerformanceTimer } from '../utils/throttleUtils';
 
 // ============================================================================
 // CONFIGURATION CONSTANTS - imported from centralized constants
@@ -438,6 +439,78 @@ export const createChart = ({
 
   const getWindowSize = (): number => CHART_DATA_POINTS;
 
+  // Performance timer for throttled panning operations
+  const panningTimer = createPerformanceTimer('Panning Update');
+
+  // Create throttled panning handler for smooth performance
+  const throttledPanningHandler = createChartPanningThrottle(
+    (newStart: number, newEnd: number) => {
+      panningTimer.end();
+
+      // Get fresh data and dimensions from callbacks (used in rendering)
+      const _data = stateCallbacks.getCurrentData?.() || allChartData;
+      const _dims = stateCallbacks.getCurrentDimensions?.() || dimensions;
+
+      // Update state callbacks
+      if (stateCallbacks.setCurrentViewStart) {
+        stateCallbacks.setCurrentViewStart(newStart);
+      }
+      if (stateCallbacks.setCurrentViewEnd) {
+        stateCallbacks.setCurrentViewEnd(newEnd);
+      }
+
+      // EXPERIMENT: Disable vertical panning - always use identity transform
+      // This means the Y-axis will always be recalculated based on visible data
+      currentTransformY = 0; // Always reset to 0
+      currentTransformK = 1; // Always reset to 1
+
+      // Persist the vertical pan state for re-renders
+      if (stateCallbacks.setCurrentVerticalPan) {
+        stateCallbacks.setCurrentVerticalPan(currentTransformY, currentTransformK);
+      }
+
+      const currentTransform = d3.zoomIdentity; // EXPERIMENT: Always use identity transform
+      if (stateCallbacks.setCurrentTransform) {
+        stateCallbacks.setCurrentTransform(currentTransform);
+      }
+
+      // Use centralized render function for panning operations
+      const renderResult = renderPanning(
+        svgElement,
+        _dims,
+        _data,
+        newStart,
+        newEnd,
+        currentTransform,
+        stateCallbacks.getFixedYScaleDomain?.() || null
+      );
+
+      if (renderResult.success && renderResult.calculations) {
+        // Update latest transformed Y scale used for rendering
+        lastTransformedYScale = renderResult.calculations.transformedYScale;
+
+        // Render technical indicators during panning
+        if (stateCallbacks.renderTechnicalIndicators && stateCallbacks.getTechnicalIndicatorsData) {
+          const technicalIndicatorsData = stateCallbacks.getTechnicalIndicatorsData();
+          if (technicalIndicatorsData.length > 0) {
+            const renderItems = technicalIndicatorsData.map(item => ({
+              id: item.item.id,
+              data: item.data,
+              color: item.item.color,
+              label: item.item.label,
+              type: item.item.type,
+            }));
+            stateCallbacks.renderTechnicalIndicators(svgElement, renderItems, renderResult.calculations);
+          }
+        }
+      }
+
+      // Note: Crosshair and hover updates are handled separately in the main pointermove handler
+      // to avoid duplicate calculations and maintain smooth performance
+    },
+    16 // ~60fps throttling for responsive panning
+  );
+
   overlayRect
     .on('pointerdown', event => {
       isPointerDown = true;
@@ -517,64 +590,11 @@ export const createChart = ({
         newEnd = total - 1;
         newStart = Math.max(0, newEnd - (windowSize - 1));
       }
-      if (stateCallbacks.setCurrentViewStart) {
-        stateCallbacks.setCurrentViewStart(newStart);
-      }
-      if (stateCallbacks.setCurrentViewEnd) {
-        stateCallbacks.setCurrentViewEnd(newEnd);
-      }
+      // Start performance timer for throttled panning
+      panningTimer.start();
 
-      // Render live
-      // EXPERIMENT: Disable vertical panning - always use identity transform
-      // This means the Y-axis will always be recalculated based on visible data
-      currentTransformY = 0; // Always reset to 0
-      currentTransformK = 1; // Always reset to 1
-
-      // Persist the vertical pan state for re-renders
-      if (stateCallbacks.setCurrentVerticalPan) {
-        stateCallbacks.setCurrentVerticalPan(currentTransformY, currentTransformK);
-      }
-
-      const currentTransform = d3.zoomIdentity; // EXPERIMENT: Always use identity transform
-      if (stateCallbacks.setCurrentTransform) {
-        stateCallbacks.setCurrentTransform(currentTransform);
-      }
-      const baseCalcs = calculateChartState({
-        dimensions: dims,
-        allChartData: data,
-        transform: currentTransform,
-        fixedYScaleDomain: stateCallbacks.getFixedYScaleDomain?.() || null,
-      });
-      // Use centralized render function for panning operations
-      const renderResult = renderPanning(
-        svgElement,
-        dims,
-        data,
-        newStart,
-        newEnd,
-        currentTransform,
-        stateCallbacks.getFixedYScaleDomain?.() || null
-      );
-
-      if (renderResult.success && renderResult.calculations) {
-        // Update latest transformed Y scale used for rendering
-        lastTransformedYScale = renderResult.calculations.transformedYScale;
-
-        // Render technical indicators during panning
-        if (stateCallbacks.renderTechnicalIndicators && stateCallbacks.getTechnicalIndicatorsData) {
-          const technicalIndicatorsData = stateCallbacks.getTechnicalIndicatorsData();
-          if (technicalIndicatorsData.length > 0) {
-            const renderItems = technicalIndicatorsData.map(item => ({
-              id: item.item.id,
-              data: item.data,
-              color: item.item.color,
-              label: item.item.label,
-              type: item.item.type,
-            }));
-            stateCallbacks.renderTechnicalIndicators(svgElement, renderItems, renderResult.calculations);
-          }
-        }
-      }
+      // Use throttled handler for expensive panning operations
+      throttledPanningHandler.execute(newStart, newEnd);
 
       // Keep crosshair and price display synced with pointer during pan
       crosshair
@@ -621,7 +641,7 @@ export const createChart = ({
       const svgSel2 = d3.select(svgElement);
       const yAxisGroup = svgSel2.select<SVGGElement>('.y-axis');
       if (!yAxisGroup.empty()) {
-        yAxisGroup.call(createYAxis(baseCalcs.transformedYScale));
+        yAxisGroup.call(createYAxis(lastTransformedYScale));
         applyAxisStyling(yAxisGroup);
       }
       const xAxisGroup = svgSel2.select<SVGGElement>('.x-axis');
@@ -655,6 +675,9 @@ export const createChart = ({
       isPointerDown = false;
       isPanningRef.current = false;
 
+      // Ensure final throttled panning update is processed
+      throttledPanningHandler.flush();
+
       // Check auto-load trigger when pan operation is completed
       if (onBufferedCandlesRendered) {
         checkAutoLoadTrigger(
@@ -677,6 +700,10 @@ export const createChart = ({
     .on('pointercancel', () => {
       isPointerDown = false;
       isPanningRef.current = false;
+
+      // Ensure final throttled panning update is processed
+      throttledPanningHandler.flush();
+
       loadRequestedLeft = false;
       loadRequestedRight = false;
       lastLoadDataLengthLeft = null;
@@ -689,6 +716,10 @@ export const createChart = ({
     if (isPointerDown) {
       isPointerDown = false;
       isPanningRef.current = false;
+
+      // Ensure final throttled panning update is processed
+      throttledPanningHandler.flush();
+
       loadRequestedLeft = false;
       loadRequestedRight = false;
       lastLoadDataLengthLeft = null;
